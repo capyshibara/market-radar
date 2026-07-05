@@ -54,11 +54,12 @@ public class ReportController {
     private final InterpretedClaimRepository claims;
     private final LabelLogRepository labelLogs;
     private final PdfExportService pdfExport;
+    private final EmailPngExportService emailPngExport;
 
     public ReportController(EvidenceFactRepository facts, SourceRepository sources,
                             RawDocRepository rawDocs, IngestionJob ingestionJob,
                             InterpretedClaimRepository claims, LabelLogRepository labelLogs,
-                            PdfExportService pdfExport) {
+                            PdfExportService pdfExport, EmailPngExportService emailPngExport) {
         this.facts = facts;
         this.sources = sources;
         this.rawDocs = rawDocs;
@@ -66,6 +67,7 @@ public class ReportController {
         this.claims = claims;
         this.labelLogs = labelLogs;
         this.pdfExport = pdfExport;
+        this.emailPngExport = emailPngExport;
     }
 
     @GetMapping("/report/weekly")
@@ -83,6 +85,15 @@ public class ReportController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"market-radar-tuan-san.pdf\"")
                 .body(pdf);
+    }
+
+    /** Email PNG export: same model as HTML/PDF, compact "email-summary" template rasterized to PNG. */
+    @GetMapping("/report/weekly/email.png")
+    public ResponseEntity<byte[]> weeklyReportEmailPng() {
+        byte[] png = emailPngExport.renderWeeklySummaryPng(buildWeeklyModel());
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .body(png);
     }
 
     /**

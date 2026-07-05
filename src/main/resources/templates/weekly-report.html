@@ -167,12 +167,69 @@
     .page { border:none; }
     .article, .card, .tl-item { page-break-inside:avoid; }
   }
+
+  /* ---- Mobile breakpoint — single-column reflow of the same markup/data.
+     Screen-only (max-width media query never matches OpenHTMLtoPDF's fixed
+     A4 page width), so the PDF export is untouched by any of this. ---- */
+  @media (max-width: 640px) {
+    .toolbar { max-width:100%; margin:10px 12px; text-align:left; }
+    .page { max-width:100%; border-left:none; border-right:none; }
+
+    .masthead { padding:28px 20px 0; }
+    .kicker { font-size:10.5px; margin-bottom:14px; }
+    .masthead h1 { font-size:34px; line-height:1.08; margin-bottom:12px; }
+    .masthead .sub { font-size:16px; margin-bottom:18px; max-width:none; }
+    .meta-row { display:block; border-top:1px solid #E2E6EA; padding:14px 0; }
+    .meta-row .cell { display:block; border-left:none; padding:3px 0; }
+
+    .hero { margin:16px 20px 0; height:130px; }
+    .hero span { margin-top:52px; }
+
+    .section { padding:28px 20px 8px; margin-top:24px; }
+    .section.first { padding-top:28px; }
+    .section-label { font-size:12px; margin-bottom:16px; }
+    .section-insight { font-size:13.5px; margin-bottom:18px; }
+
+    .exec-item { font-size:15.5px; margin-bottom:16px; }
+    .stat-band { display:block; border-bottom:1px solid #E2E6EA; margin-bottom:24px; }
+    .stat-band .cell { display:inline-block; width:46%; padding:14px 12px 14px 0; }
+    .stat-num { font-size:28px; }
+
+    .pull-quote { margin:0 20px 32px; }
+    .pull-quote .mark { font-size:64px; }
+    .pull-quote .txt { font-size:22px; }
+
+    .tl-item { display:block; margin-bottom:22px; }
+    .tl-date-col { display:block; width:auto; margin-bottom:4px; }
+    .tl-body-col { display:block; border-left:none; padding-left:0; }
+    .tl-body-col h3 { font-size:19px; }
+    .tl-body-col p { font-size:14.5px; }
+
+    .card { padding:16px 18px; }
+    .card h3 { font-size:18px; }
+
+    .article > summary { padding:16px 18px; }
+    .article-body { padding:8px 18px 24px; }
+    .article-headline { font-size:19px; }
+    .fact-quote .txt { font-size:16px; }
+    .analysis p { font-size:14.5px; }
+
+    .reco { padding:24px 20px 28px; }
+    .reco p { font-size:15px; }
+
+    .appendix { padding:24px 20px 24px; }
+    table.src-table { font-size:12.5px; }
+
+    footer { display:block; padding:16px 20px; }
+    footer .l, footer .r { display:block; text-align:left; margin-bottom:4px; }
+  }
 </style>
 </head>
 <body>
 
 <div class="toolbar no-print">
   <a href="/report/weekly.pdf">⬇ Tải PDF</a>
+  <a href="/report/weekly/email.png">⬇ Email PNG</a>
   <a href="/review">Reviewer Console</a>
   <a href="/dedup">Dedup</a>
   <a href="/alerts">Alerts</a>
