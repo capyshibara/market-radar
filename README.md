@@ -1,119 +1,78 @@
-# Market Radar MVP — status after Batch 5 (steps 1–10 sequence: CORE COMPLETE)
+# Market Radar
 
-**Quick start** (needs JDK 17+ and Maven; see `BATCH*-NOTES.md` for per-batch detail):
+Product-intelligence radar: ingests market/competitor news from a whitelisted set of sources, has an LLM classify and interpret it into evidence-backed claims, runs those claims through a two-gate verification pipeline before anything is auto-published, and renders the result as a weekly report (HTML + PDF) with a full audit trail (review, labels, dedup, alerts).
+
+## Quick start
 ```bash
-mvn clean package          # ⚠️ 4 batches never actually compiled — expect a few small errors, quick fixes
+mvn clean package
 mvn spring-boot:run        # http://localhost:8080
 ```
-Env vars (all OPTIONAL — missing ones fall back to a safe STUB mode: no auto-publish, no Slack fires):
-`ANTHROPIC_API_KEY` (writer) · `VERIFIER_API_KEY` (Gate L2) · `SLACK_WEBHOOK_URL` (hot alert).
+All env vars below are optional — anything unset falls back to a safe STUB mode (no LLM calls, no auto-publish, no Slack, everything routed to human review):
+`ANTHROPIC_API_KEY` (writer LLM) · `VERIFIER_API_KEY` (Gate L2 verifier) · `SLACK_WEBHOOK_URL` (hot alerts).
 
-Main pages: `/report/weekly` (+ `.pdf`) · `/sources` · `/classifications` · `/claims`
-· `/review` · `/labels` · `/dedup` · `/alerts` · `/h2-console`.
-5-beat demo storyline: see the last section of `BATCH5-NOTES.md`.
-
----
-
-# Market Radar MVP — Batch 1 (steps 1–3 / Section 9 sequence)
-
-Scope of this batch: **DB schema + store · fetch/parse for 5 sources · weekly-report template with hand-entered facts**.
-Not yet built: classifier (AI#1), interpreter (AI#3), gate, review page, alerts — later batches.
-
-## ⚠️ Status: CODE NOT COMPILED/TESTED
-Written in an offline environment (Maven dependencies couldn't be downloaded). Before trusting any of this:
-```bash
-mvn clean package        # expect a few small errors (imports/versions) — quick to fix
-mvn spring-boot:run
+## Pipeline
 ```
-Once running:
-- `http://localhost:8080/report/weekly` — weekly report (hand-entered sample facts, canonical Section 7 template)
-- `http://localhost:8080/sources` — auditable source registry + manual ingest-run button
-- `http://localhost:8080/h2-console` — inspect the DB (JDBC URL: `jdbc:h2:mem:marketradar`, user `sa`)
+sources (whitelist) → SafeFetcher/parse → IngestionJob → TopicClassifier (AI#1, N=3 self-consistency)
+   → Interpreter (AI#3, evidence-grounded claims) → Gate L1 (exact-match grounding)
+   → Gate L2 (entailment verifier, different LLM family than the writer)
+        ├─ AUTO_APPROVED → weekly report + hot alert (tier T3-T4)
+        └─ else → human /review queue → approve/edit/reject → labels + (if approved) hot alert
+DedupJob (72h window, exact/hash → Jaccard → LLM pairwise) → duplicates filtered out of the report
+```
 
-## Pre-demo verification checklist (required)
-1. **The 5 `fetchUrl` values in `SeedData.java` are offline placeholders** — open each URL by hand,
-   correct the path (especially MOF/ISA's news-listing pages and TNCK's RSS), then set
-   `urlUnverified = false`.
-2. Sample facts (F-001, F-002) use a **fictional company** — replace with real facts once the pipeline runs.
-3. `marketradar.ingest.enabled=false` by default — demo runs manually via `/sources` to stay deterministic.
-
-## Crawl safety layers (requirement: "must not touch malware")
-Every outbound request goes through **a single gate: `SafeFetcher`**:
-
-| # | Layer | Defends against |
-|---|---|---|
-| 1 | HTTPS only | downgrade/MITM |
-| 2 | Exact-match host whitelist from source_registry | fetching outside scope, including links found in RSS |
-| 3 | DNS resolve → block private/loopback/link-local IPs | SSRF into internal networks |
-| 4 | No redirect following (3xx = fail loud) | escaping the whitelist via redirect |
-| 5 | Content-Type must match the source's declared type | executables disguised as HTML/PDF |
-| 6 | 5 MB body cap + 5s/15s timeouts | oversized payloads, pipeline hangs |
-| 7 | Content is data only: Jsoup `.text()`, PDFBox text-only, templates use only `th:text` | XSS / scripts embedded in crawled content |
-
-**Remaining risk (stated plainly):** a malicious PDF/HTML exploiting a parser-library bug is a theoretical
-risk — mitigated by the size cap, keeping PDFBox/Jsoup up to date, and only ingesting PDFs from tier 1–2 sources.
-Full containment (out of hackathon scope): run the parser in an isolated container/sandbox.
+## Pages / endpoints
+| Path | Purpose |
+|---|---|
+| `GET /report/weekly`, `GET /report/weekly.pdf` | Weekly report, HTML and PDF (same template, same data) |
+| `GET /sources`, `POST /ingest/run` | Source registry (whitelist + tier) and manual ingest trigger |
+| `GET /classifications`, `POST /classify/run` | Classifier output and trigger |
+| `GET /claims`, `POST /interpret/run`, `POST /verify/run` | Interpreted claims, interpreter and Gate L2 verifier triggers |
+| `GET /review`, `GET /review/{id}`, `POST /review/{id}/approve\|edit\|force-approve\|reject` | Human review console |
+| `GET /labels` | Append-only log of every review decision |
+| `GET /dedup`, `POST /dedup/run` | Duplicate/conflict detection and audit |
+| `GET /alerts`, `POST /alerts/test` | Hot-alert (Slack) audit + smoke test |
+| `POST /demo/inject-ungrounded`, `POST /demo/inject-duplicate` | Seed edge cases for demoing the gates |
+| `GET /h2-console` | In-memory DB inspector (dev only) |
 
 ## Structure
 ```
-domain/    Source · RawDoc · EvidenceFact      (source_registry, raw_docs, evidence_store)
-repo/      3 JPA repositories
-fetch/     SafeFetcher                          (the single fetch gate, 7 defense layers)
-parse/     ContentParsers                       (Jsoup / Rome / PDFBox — text-only, fail loud)
-pipeline/  IngestionJob                         (orchestration + SHA-256 dedup + reasoned error logging)
-seed/      SeedData                             (5 sources + sample facts)
-report/    ReportController                     (/report/weekly · /sources · /ingest/run)
-templates/ weekly-report.html · sources.html
+domain/    JPA entities: Source, RawDoc, EvidenceFact, Classification, InterpretedClaim, ClaimVerification,
+           DedupDecision, AlertLog, LabelLog, RoutingRule, LlmCallLog
+repo/      Spring Data repositories for the above
+fetch/     SafeFetcher — the single fetch gate (see safety layers below)
+parse/     ContentParsers — Jsoup/Rome/PDFBox, text-only, fail loud
+classify/  TopicClassifier (AI#1) + Router (category → department lookup)
+interpret/ Interpreter (AI#3), EvidencePack, GroundingGateL1 (exact-match grounding)
+verify/    EntailmentVerifier (Gate L2), VerificationJob
+review/    ReviewController, ReviewRules, RiskTierRouter
+dedup/     DedupRules (Jaccard/normalization), DedupJob, DedupController
+alert/     AlertRules, HotAlertService (Slack webhook), AlertController
+pipeline/  IngestionJob, ClassificationJob — orchestration + SHA-256 dedup-on-ingest
+llm/       LlmClient abstraction: AnthropicLlmClient, OpenAiCompatibleLlmClient, Stub*, factories
+report/    ReportController, ClassificationController, ClaimController, PdfExportService
+seed/      SeedData — 5 seed sources + sample facts
+templates/ Thymeleaf views (weekly-report, sources, classifications, claims, review, labels, dedup, alerts)
 ```
 
-## Invariants built into the code (cross-checked against the full architecture)
-- **Whitelist + tier**: sources outside the registry have no way into the system.
-- **Fail loud**: rejected fetch / parse error → logged + recorded with a reason, never guessed at.
-- **Evidence spans keep the original language verbatim** (zh/vi); translations are labeled separately.
-- **Zero unsourced claims**: the template forces every displayed line to carry an `F-xxx` fact code linking back to its source.
-- The **Fact / AI-suggestion boundary** is visually explicit (Principle 3) — AI-derived areas get a blue background and clear labeling.
+## Safety invariants
+- **Whitelist + tier**: only registered sources are fetchable; nothing outside `source_registry` gets in, including links discovered inside RSS.
+- **SafeFetcher is the only egress path**, enforcing: HTTPS-only · exact host whitelist · DNS-resolved SSRF blocking (private/loopback/link-local) · no redirect following · Content-Type must match declared source type · 5 MB body cap + 5s/15s timeouts · content is parsed as text only (Jsoup `.text()`, PDFBox text-only, templates use `th:text` only) — no live HTML/script ever reaches a browser.
+- **Fail loud everywhere**: rejected fetches, parse errors, schema-invalid LLM output, and disagreeing verifier votes are logged with a reason and routed to review — never silently dropped or guessed.
+- **No verbalized LLM confidence**: classifier status comes from majority vote across N independent runs, not a self-reported score.
+- **Gate L2 requires a different LLM family than the writer** (enforced at startup) — the verifier can't share blind spots with the writer.
+- **Zero unsourced claims**: every line in the report carries an `F-xxx` fact code linking back to its evidence span, kept in its original language (zh/vi); translations are labeled separately.
+- **Fact vs. AI-suggestion boundary is visually explicit** in the report (distinct styling), and manually-approved (`FORCE_APPROVED`) claims are labeled as such.
+- **Full audit trail**: every LLM call (`llm_call_log`), review action (`label_log`), dedup decision (`dedup_decisions`), and alert (`alert_log`) is append-only.
 
-## Next batches (per sequence)
-4. Classifier + routing (AI#1, JSON enum of 5 categories, self-consistency N=3)
-5. Interpreter + Gate L1 exact-match → 6. Gate L2 (Option A: a different-family LLM)
-7. Review page → 8. Hot alert → 9. Dedup/conflict → 10. CSS polish + PDF (OpenHTMLtoPDF)
+Residual, accepted risk: a malicious PDF/HTML exploiting a bug in the parser library itself is theoretical and out of scope for a hackathon MVP; mitigated by the size cap, keeping PDFBox/Jsoup current, and only ingesting PDFs from tier 1–2 sources. Full containment would mean running the parser in an isolated sandbox.
 
-Technical note: the schema currently uses `CLOB` (H2). If migrating to PostgreSQL, change `columnDefinition`
-to `TEXT`.
+## Configuration
+See `src/main/resources/application.yml` for all `marketradar.*` settings (LLM model/sampling, verifier provider, alert thresholds, dedup windows/thresholds, fetch limits). Key points:
+- `marketradar.ingest.enabled=false` by default — ingest is triggered manually via `/ingest/run` for deterministic demos.
+- `marketradar.verifier.model` is a placeholder (`gpt-4o-mini`) pending a final provider decision; the app refuses to start if the verifier model is in the same family as the writer.
+- Missing `ANTHROPIC_API_KEY` / `VERIFIER_API_KEY` / `SLACK_WEBHOOK_URL` each independently fall back to STUB behavior rather than failing — STUB mode is logged loudly at startup and flagged in the UI.
 
----
-
-# Batch 2 — Classifier (AI#1) + Routing (step 4 / sequence)
-
-## Added
-- `domain/` Category (closed 5-label enum) · Department · Classification · RoutingRule · LlmCallLog
-- `llm/` LlmClient · AnthropicLlmClient (REST `/v1/messages`, format verified 07/2026) · StubLlmClient (offline) · LlmClientFactory
-- `classify/` TopicClassifier (self-consistency N=3, schema rejection, ≥2/3 vote) · Router (lookup table)
-- `pipeline/ClassificationJob` · `/classifications` page + `POST /classify/run`
-
-## Running it
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # unset → falls back to STUB mode (keyword-based, not AI)
-mvn spring-boot:run
-# 1) POST /ingest/run (or the button on /sources)  2) POST /classify/run  3) view /classifications
-```
-
-## Invariants built in (cross-checked against the architecture)
-- **No verbalized confidence**: status is derived from votes across N independent runs; `votesJson` stores the evidence.
-- **Schema rejection**: an out-of-enum label / malformed JSON → the run is discarded, never silently filtered.
-- **Routing only via lookup table**: Router reads `routing_rules`; notes explicitly state "because category X maps to dept Y".
-- **Fail loud**: <2 valid runs → UNCERTAIN_REVIEW; disagreement → NO_LABEL_REVIEW; category with no rule → ADMIN_QUEUE. No silent defaults.
-- **Audit + replay**: every LLM response is logged to `llm_call_log`; the replay cache serves as a demo fallback.
-
-## Things worth knowing
-- The routing table is a **placeholder** (a `placeholder=true` column shown in the UI) — the real ontology remains a separate deliverable.
-- STUB mode is logged VERY LOUDLY at startup + a red banner on `/classifications` — impossible to mistake for the real AI.
-- The min-votes=2/3 threshold is a conservative proposal, NOT YET calibrated against real data (per the note in Section 3 of the decision doc).
-
-
-## Batch 4 (steps 7–9): Gate L2 + Reviewer Console + Label log
-- `POST /verify/run` — Gate L2: entailment via an LLM from a DIFFERENT FAMILY than the writer (Invariant #2 enforced at startup)
-- `GET /review` — reviewer queue · `GET /review/{id}` — claim↔evidence, approve button locked until evidence is opened
-- `GET /labels` — every review action becomes a label (label store, MVP just logs it)
-- Verifier config: `marketradar.verifier.*` + env `VERIFIER_API_KEY` (no key → stub, everything goes to review)
-- Details: `BATCH4-NOTES.md` · Standalone test: `Batch4LogicTest.java` (32/32 pass)
+## Known gaps
+- The 5 seed source URLs in `SeedData.java` are unverified placeholders.
+- Jaccard thresholds (0.90 same / 0.50 gray) for dedup are conservative defaults, not calibrated against real data.
+- Verifier LLM provider/model is not finalized.
