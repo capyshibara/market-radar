@@ -1,119 +1,119 @@
-# Market Radar MVP — trạng thái sau Batch 5 (bước 1–10 sequence: ĐỦ PHẦN LÕI)
+# Market Radar MVP — status after Batch 5 (steps 1–10 sequence: CORE COMPLETE)
 
-**Chạy nhanh** (cần JDK 17+ và Maven; xem chi tiết từng batch ở `BATCH*-NOTES.md`):
+**Quick start** (needs JDK 17+ and Maven; see `BATCH*-NOTES.md` for per-batch detail):
 ```bash
-mvn clean package          # ⚠️ 4 batch chưa từng compile thật — kỳ vọng vài lỗi nhỏ, sửa nhanh
+mvn clean package          # ⚠️ 4 batches never actually compiled — expect a few small errors, quick fixes
 mvn spring-boot:run        # http://localhost:8080
 ```
-Env (đều KHÔNG bắt buộc — thiếu thì chạy chế độ STUB an toàn, không auto-publish, không bắn Slack):
+Env vars (all OPTIONAL — missing ones fall back to a safe STUB mode: no auto-publish, no Slack fires):
 `ANTHROPIC_API_KEY` (writer) · `VERIFIER_API_KEY` (Gate L2) · `SLACK_WEBHOOK_URL` (hot alert).
 
-Trang chính: `/report/weekly` (+ `.pdf`) · `/sources` · `/classifications` · `/claims`
+Main pages: `/report/weekly` (+ `.pdf`) · `/sources` · `/classifications` · `/claims`
 · `/review` · `/labels` · `/dedup` · `/alerts` · `/h2-console`.
-Demo storyline 5 nhịp: xem `BATCH5-NOTES.md` mục cuối.
+5-beat demo storyline: see the last section of `BATCH5-NOTES.md`.
 
 ---
 
-# Market Radar MVP — Batch 1 (bước 1–3 / sequence Mục 9)
+# Market Radar MVP — Batch 1 (steps 1–3 / Section 9 sequence)
 
-Phạm vi batch này: **schema DB + store · fetch/parse 5 nguồn · template tuần san với fact đặt tay**.
-Chưa có: classifier (AI#1), interpreter (AI#3), gate, review page, alert — các batch sau.
+Scope of this batch: **DB schema + store · fetch/parse for 5 sources · weekly-report template with hand-entered facts**.
+Not yet built: classifier (AI#1), interpreter (AI#3), gate, review page, alerts — later batches.
 
-## ⚠️ Trạng thái: CODE CHƯA COMPILE/TEST
-Viết trong môi trường offline (không tải được dependency Maven). Trước khi tin bất kỳ dòng nào:
+## ⚠️ Status: CODE NOT COMPILED/TESTED
+Written in an offline environment (Maven dependencies couldn't be downloaded). Before trusting any of this:
 ```bash
-mvn clean package        # kỳ vọng vài lỗi nhỏ (import/version) — sửa được nhanh
+mvn clean package        # expect a few small errors (imports/versions) — quick to fix
 mvn spring-boot:run
 ```
-Sau khi chạy:
-- `http://localhost:8080/report/weekly` — tuần san (fact mẫu đặt tay, template chuẩn Mục 7)
-- `http://localhost:8080/sources` — source registry auditable + nút chạy ingest tay
-- `http://localhost:8080/h2-console` — soi DB (JDBC URL: `jdbc:h2:mem:marketradar`, user `sa`)
+Once running:
+- `http://localhost:8080/report/weekly` — weekly report (hand-entered sample facts, canonical Section 7 template)
+- `http://localhost:8080/sources` — auditable source registry + manual ingest-run button
+- `http://localhost:8080/h2-console` — inspect the DB (JDBC URL: `jdbc:h2:mem:marketradar`, user `sa`)
 
-## Checklist verify trước demo (bắt buộc)
-1. **5 fetchUrl trong `SeedData.java` là placeholder soạn offline** — mở từng URL bằng tay,
-   cập nhật đường dẫn đúng (đặc biệt trang mục tin của MOF/ISA và RSS của TNCK), rồi set
+## Pre-demo verification checklist (required)
+1. **The 5 `fetchUrl` values in `SeedData.java` are offline placeholders** — open each URL by hand,
+   correct the path (especially MOF/ISA's news-listing pages and TNCK's RSS), then set
    `urlUnverified = false`.
-2. Fact mẫu (F-001, F-002) dùng **công ty hư cấu** — thay bằng fact thật khi pipeline chạy.
-3. `marketradar.ingest.enabled=false` mặc định — demo chạy tay qua `/sources` để deterministic.
+2. Sample facts (F-001, F-002) use a **fictional company** — replace with real facts once the pipeline runs.
+3. `marketradar.ingest.enabled=false` by default — demo runs manually via `/sources` to stay deterministic.
 
-## Các lớp an toàn crawl (yêu cầu "không dính mã độc")
-Mọi request ra ngoài đi qua **một cửa duy nhất: `SafeFetcher`**:
+## Crawl safety layers (requirement: "must not touch malware")
+Every outbound request goes through **a single gate: `SafeFetcher`**:
 
-| # | Lớp | Chống gì |
+| # | Layer | Defends against |
 |---|---|---|
-| 1 | Chỉ https | downgrade/MITM |
-| 2 | Host whitelist exact-match từ source_registry | fetch ngoài phạm vi, kể cả link trong RSS |
-| 3 | Resolve DNS → chặn IP private/loopback/link-local | SSRF vào mạng nội bộ |
-| 4 | Không follow redirect (3xx = fail loud) | thoát whitelist qua redirect |
-| 5 | Content-Type phải khớp loại nguồn khai báo | file thực thi đội lốt HTML/PDF |
-| 6 | Cap body 5 MB + timeout 5s/15s | payload quá cỡ, treo pipeline |
-| 7 | Nội dung chỉ là dữ liệu: Jsoup `.text()`, PDFBox text-only, template chỉ `th:text` | XSS / script trong nội dung crawl |
+| 1 | HTTPS only | downgrade/MITM |
+| 2 | Exact-match host whitelist from source_registry | fetching outside scope, including links found in RSS |
+| 3 | DNS resolve → block private/loopback/link-local IPs | SSRF into internal networks |
+| 4 | No redirect following (3xx = fail loud) | escaping the whitelist via redirect |
+| 5 | Content-Type must match the source's declared type | executables disguised as HTML/PDF |
+| 6 | 5 MB body cap + 5s/15s timeouts | oversized payloads, pipeline hangs |
+| 7 | Content is data only: Jsoup `.text()`, PDFBox text-only, templates use only `th:text` | XSS / scripts embedded in crawled content |
 
-**Rủi ro còn lại (nói thẳng):** PDF/HTML độc khai thác lỗ hổng chính parser là rủi ro lý thuyết
-— giảm thiểu bằng size cap + giữ PDFBox/Jsoup bản mới + chỉ ingest PDF từ tier 1–2.
-Chặt tuyệt đối (ngoài scope hackathon): chạy parser trong container/sandbox tách biệt.
+**Remaining risk (stated plainly):** a malicious PDF/HTML exploiting a parser-library bug is a theoretical
+risk — mitigated by the size cap, keeping PDFBox/Jsoup up to date, and only ingesting PDFs from tier 1–2 sources.
+Full containment (out of hackathon scope): run the parser in an isolated container/sandbox.
 
-## Cấu trúc
+## Structure
 ```
 domain/    Source · RawDoc · EvidenceFact      (source_registry, raw_docs, evidence_store)
-repo/      3 JPA repository
-fetch/     SafeFetcher                          (cửa fetch duy nhất, 7 lớp phòng thủ)
+repo/      3 JPA repositories
+fetch/     SafeFetcher                          (the single fetch gate, 7 defense layers)
 parse/     ContentParsers                       (Jsoup / Rome / PDFBox — text-only, fail loud)
-pipeline/  IngestionJob                         (orchestrate + SHA-256 dedup + ghi lỗi có lý do)
-seed/      SeedData                             (5 nguồn + fact mẫu)
+pipeline/  IngestionJob                         (orchestration + SHA-256 dedup + reasoned error logging)
+seed/      SeedData                             (5 sources + sample facts)
 report/    ReportController                     (/report/weekly · /sources · /ingest/run)
 templates/ weekly-report.html · sources.html
 ```
 
-## Invariants đã cài vào code (đối chiếu kiến trúc đầy đủ)
-- **Whitelist + tier**: nguồn ngoài registry không có đường vào hệ thống.
-- **Fail loud**: fetch bị từ chối / parse lỗi → log + record kèm lý do, không đoán nội dung.
-- **Evidence span giữ nguyên văn ngôn ngữ gốc** (zh/vi), bản dịch gắn nhãn riêng.
-- **Zero claim không nguồn**: template ép mọi dòng hiển thị kèm mã fact `F-xxx` click về nguồn.
-- Ranh giới **Fact / Gợi ý AI** hiện hình bằng mắt (Principle 3) — vùng AI nền xanh, nhãn rõ.
+## Invariants built into the code (cross-checked against the full architecture)
+- **Whitelist + tier**: sources outside the registry have no way into the system.
+- **Fail loud**: rejected fetch / parse error → logged + recorded with a reason, never guessed at.
+- **Evidence spans keep the original language verbatim** (zh/vi); translations are labeled separately.
+- **Zero unsourced claims**: the template forces every displayed line to carry an `F-xxx` fact code linking back to its source.
+- The **Fact / AI-suggestion boundary** is visually explicit (Principle 3) — AI-derived areas get a blue background and clear labeling.
 
-## Batch tiếp theo (theo sequence)
-4. Classifier + routing (AI#1, JSON enum 5 category, self-consistency N=3)
-5. Interpreter + gate lớp 1 exact-match → 6. Gate lớp 2 (Option A: LLM khác họ)
+## Next batches (per sequence)
+4. Classifier + routing (AI#1, JSON enum of 5 categories, self-consistency N=3)
+5. Interpreter + Gate L1 exact-match → 6. Gate L2 (Option A: a different-family LLM)
 7. Review page → 8. Hot alert → 9. Dedup/conflict → 10. CSS polish + PDF (OpenHTMLtoPDF)
 
-Ghi chú kỹ thuật: schema đang dùng `CLOB` (H2). Nếu chuyển PostgreSQL, đổi `columnDefinition`
-sang `TEXT`.
+Technical note: the schema currently uses `CLOB` (H2). If migrating to PostgreSQL, change `columnDefinition`
+to `TEXT`.
 
 ---
 
-# Batch 2 — Classifier (AI#1) + Routing (bước 4 / sequence)
+# Batch 2 — Classifier (AI#1) + Routing (step 4 / sequence)
 
-## Thêm mới
-- `domain/` Category (enum đóng 5 nhãn) · Department · Classification · RoutingRule · LlmCallLog
-- `llm/` LlmClient · AnthropicLlmClient (REST `/v1/messages`, format verify 07/2026) · StubLlmClient (offline) · LlmClientFactory
-- `classify/` TopicClassifier (self-consistency N=3, schema reject, vote ≥2/3) · Router (bảng tra)
-- `pipeline/ClassificationJob` · trang `/classifications` + POST `/classify/run`
+## Added
+- `domain/` Category (closed 5-label enum) · Department · Classification · RoutingRule · LlmCallLog
+- `llm/` LlmClient · AnthropicLlmClient (REST `/v1/messages`, format verified 07/2026) · StubLlmClient (offline) · LlmClientFactory
+- `classify/` TopicClassifier (self-consistency N=3, schema rejection, ≥2/3 vote) · Router (lookup table)
+- `pipeline/ClassificationJob` · `/classifications` page + `POST /classify/run`
 
-## Cách chạy
+## Running it
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # không set → tự chuyển STUB mode (keyword, không phải AI)
+export ANTHROPIC_API_KEY=sk-ant-...   # unset → falls back to STUB mode (keyword-based, not AI)
 mvn spring-boot:run
-# 1) POST /ingest/run (hoặc nút trên /sources)  2) POST /classify/run  3) xem /classifications
+# 1) POST /ingest/run (or the button on /sources)  2) POST /classify/run  3) view /classifications
 ```
 
-## Invariants đã cài (đối chiếu kiến trúc)
-- **Không verbalized confidence**: status suy từ vote qua N run độc lập; votesJson lưu bằng chứng.
-- **Schema reject**: nhãn ngoài enum / JSON hỏng → run bị loại, không lọc im lặng.
-- **Routing chỉ qua bảng tra**: Router đọc `routing_rules`, note ghi rõ "vì category X map dept Y".
-- **Fail loud**: <2 run hợp lệ → UNCERTAIN_REVIEW; bất đồng → NO_LABEL_REVIEW; category thiếu rule → ADMIN_QUEUE. Không silent-default.
-- **Audit + replay**: mọi response LLM log vào `llm_call_log`; replay-cache = fallback demo.
+## Invariants built in (cross-checked against the architecture)
+- **No verbalized confidence**: status is derived from votes across N independent runs; `votesJson` stores the evidence.
+- **Schema rejection**: an out-of-enum label / malformed JSON → the run is discarded, never silently filtered.
+- **Routing only via lookup table**: Router reads `routing_rules`; notes explicitly state "because category X maps to dept Y".
+- **Fail loud**: <2 valid runs → UNCERTAIN_REVIEW; disagreement → NO_LABEL_REVIEW; category with no rule → ADMIN_QUEUE. No silent defaults.
+- **Audit + replay**: every LLM response is logged to `llm_call_log`; the replay cache serves as a demo fallback.
 
-## Điểm cần biết
-- Bảng routing là **placeholder** (cột placeholder=true hiển thị trên UI) — ontology thật vẫn là deliverable riêng.
-- STUB mode được log RẤT TO lúc khởi động + banner đỏ trên `/classifications` — không nhầm được với AI thật.
-- Ngưỡng min-votes=2/3 là đề xuất bảo thủ, CHƯA calibrate bằng dữ liệu thật (đúng ghi chú Phần 3 doc quyết định).
+## Things worth knowing
+- The routing table is a **placeholder** (a `placeholder=true` column shown in the UI) — the real ontology remains a separate deliverable.
+- STUB mode is logged VERY LOUDLY at startup + a red banner on `/classifications` — impossible to mistake for the real AI.
+- The min-votes=2/3 threshold is a conservative proposal, NOT YET calibrated against real data (per the note in Section 3 of the decision doc).
 
 
-## Batch 4 (bước 7–9): Gate L2 + Reviewer Console + Label log
-- `POST /verify/run` — Gate L2: entailment bằng LLM KHÁC HỌ với writer (Invariant #2 enforce lúc khởi động)
-- `GET /review` — hàng đợi reviewer · `GET /review/{id}` — claim↔evidence, nút duyệt khoá tới khi mở evidence
-- `GET /labels` — mọi hành động review thành nhãn (label store, MVP chỉ log)
-- Verifier config: `marketradar.verifier.*` + env `VERIFIER_API_KEY` (không key → stub, mọi thứ vào review)
-- Chi tiết: `BATCH4-NOTES.md` · Test standalone: `Batch4LogicTest.java` (32/32 pass)
+## Batch 4 (steps 7–9): Gate L2 + Reviewer Console + Label log
+- `POST /verify/run` — Gate L2: entailment via an LLM from a DIFFERENT FAMILY than the writer (Invariant #2 enforced at startup)
+- `GET /review` — reviewer queue · `GET /review/{id}` — claim↔evidence, approve button locked until evidence is opened
+- `GET /labels` — every review action becomes a label (label store, MVP just logs it)
+- Verifier config: `marketradar.verifier.*` + env `VERIFIER_API_KEY` (no key → stub, everything goes to review)
+- Details: `BATCH4-NOTES.md` · Standalone test: `Batch4LogicTest.java` (32/32 pass)
