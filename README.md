@@ -1,6 +1,6 @@
 # Market Radar
 
-Product-intelligence radar: ingests market/competitor news from a whitelisted set of sources, has an LLM classify and interpret it into evidence-backed claims, runs those claims through a two-gate verification pipeline before anything is auto-published, and renders the result as a weekly report (HTML + PDF) with a full audit trail (review, labels, dedup, alerts).
+Market-intelligence radar: ingests market/competitor news from a whitelisted set of sources, has an LLM classify and interpret it into evidence-backed claims, runs those claims through a two-gate verification pipeline before anything is auto-published, and renders the result as a weekly report (HTML + PDF) with a full audit trail (review, labels, dedup, alerts).
 
 ## Quick start
 ```bash
