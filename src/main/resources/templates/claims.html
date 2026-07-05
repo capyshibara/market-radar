@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title>Market Radar — Audit claim &amp; Gate L1</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#EDEDEA; color:#1B2233; font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+         font-size:14px; line-height:1.6; }
+  .page { max-width:960px; margin:24px auto; background:#FAFAF7; padding:36px 44px;
+          box-shadow:0 1px 6px rgba(0,0,0,.12); }
+  h1 { font-family:Charter,Cambria,Georgia,serif; font-size:24px; margin-bottom:4px; }
+  .sub { color:#5A6172; font-size:13px; margin-bottom:20px; }
+  .counts { font-size:13px; margin-bottom:22px; }
+  .counts b.pass { color:#2F5D3A; } .counts b.fail { color:#A31621; }
+
+  .claim { border:1px solid #DFE2E8; background:#fff; margin-bottom:18px; }
+  .claim-head { display:flex; gap:10px; align-items:center; padding:10px 14px;
+                border-bottom:1px solid #EEF0F3; font-size:12px; color:#5A6172; flex-wrap:wrap; }
+  .code { font-family:Consolas,monospace; font-size:11px; background:#EEF0F3;
+          border:1px solid #D4D8DF; border-radius:2px; padding:0 5px; color:#3A4254; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em;
+           text-transform:uppercase; padding:2px 8px; border-radius:2px; }
+  .b-pass { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
+  .b-fail { background:#F9E4E6; color:#A31621; border:1px solid #E0A9AF; }
+  .b-demo { background:#FFF4E0; color:#7A5A12; border:1px solid #E0B25A; }
+
+  .claim-body { padding:14px; }
+  .claim-text { font-size:14.5px; margin-bottom:10px; }
+  .cols { display:flex; gap:14px; flex-wrap:wrap; }
+  .col { flex:1 1 380px; }
+  .col h4 { font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+            color:#5A6172; margin-bottom:6px; }
+  .span-orig { font-size:12.5px; color:#454C5E; background:#F4F4F0;
+               border-left:3px solid #C9CDBF; padding:8px 12px; margin-bottom:8px; display:block; }
+  .span-orig .lang { font-family:Consolas,monospace; font-size:10px; color:#8A8F7F; margin-right:6px; }
+  pre.detail { font-family:Consolas,monospace; font-size:11px; background:#1B2233; color:#D7DCE6;
+               padding:10px 12px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
+  .empty { color:#8A8F9C; font-style:italic; padding:30px 0; text-align:center; }
+  .nav { font-size:12.5px; margin-bottom:18px; }
+  .nav a { color:#2E5AAC; margin-right:14px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Audit claim &amp; Gate L1</h1>
+  <div class="sub">Mỗi câu diễn giải của AI#3 — kèm evidence được trích dẫn và phán quyết
+    deterministic của Gate lớp 1. Câu FAIL vẫn lưu (fail loud) nhưng không bao giờ vào report.</div>
+  <div class="nav">
+    <a href="/report/weekly">← Tuần san</a>
+    <a href="/classifications">Phân loại</a>
+    <a href="/sources">Nguồn</a>
+    <a href="/review">Reviewer Console</a>
+    <a href="/labels">Label log</a>
+    <a href="/dedup">Dedup</a>
+    <a href="/alerts">Alerts</a>
+  </div>
+  <div class="counts">
+    <b class="pass" th:text="${passCount} + ' PASS'">0 PASS</b> ·
+    <b class="fail" th:text="${failCount} + ' FAIL/REJECT'">0 FAIL</b>
+  </div>
+
+  <div th:if="${#lists.isEmpty(views)}" class="empty">
+    Chưa có claim nào — chạy <code>POST /interpret/run</code> trước.
+  </div>
+
+  <div class="claim" th:each="v : ${views}">
+    <div class="claim-head">
+      <span class="code" th:text="${v.claim.claimCode}">C-001</span>
+      <span th:text="${v.claim.slot}">WHY_MATTERS</span>
+      <span class="badge"
+            th:classappend="${v.claim.gateStatus.name() == 'PASS'} ? 'b-pass' : 'b-fail'"
+            th:text="${v.claim.gateStatus}">PASS</span>
+      <span class="badge b-demo" th:if="${v.claim.origin.name() == 'DEMO_INJECT'}">demo inject</span>
+      <span th:text="'provider: ' + ${v.claim.llmProvider}">provider</span>
+      <span th:if="${v.claim.rawDoc != null}" th:text="'doc#' + ${v.claim.rawDoc.id}">doc</span>
+    </div>
+    <div class="claim-body">
+      <div class="claim-text" th:text="${v.claim.textVi}">Nội dung câu</div>
+      <div class="cols">
+        <div class="col">
+          <h4>Evidence được trích dẫn</h4>
+          <div th:if="${#lists.isEmpty(v.citedFacts)}" style="font-size:12.5px;color:#A31621;">
+            (không resolve được fact nào)
+          </div>
+          <div th:each="f : ${v.citedFacts}">
+            <span class="code" th:text="${f.factCode}">F-001</span>
+            <span class="span-orig">
+              <span class="lang" th:text="${f.spanLanguage}">zh</span>
+              <span th:text="${f.spanText}">span</span>
+            </span>
+          </div>
+        </div>
+        <div class="col">
+          <h4>Chi tiết gate (JSON)</h4>
+          <pre class="detail" th:text="${v.claim.gateDetailJson}">{}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

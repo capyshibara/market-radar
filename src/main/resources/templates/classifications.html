@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/><title>Market Radar — Phân loại &amp; Routing</title>
+<style>
+  body{font-family:"Segoe UI",Arial,sans-serif;font-size:13px;color:#1B2233;background:#FAFAF7;max-width:1000px;margin:32px auto;padding:0 20px}
+  h1,h2{font-family:Charter,Cambria,Georgia,serif}
+  h1{border-bottom:3px solid #A31621;padding-bottom:10px}
+  table{width:100%;border-collapse:collapse;margin:14px 0 28px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#5A6172;border-bottom:2px solid #1B2233;padding:6px}
+  td{border-bottom:1px solid #E5E7EB;padding:8px 6px;vertical-align:top}
+  .pill{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:2px;margin:1px}
+  .s-CONFIRMED{background:#E7ECE7;color:#2F5D3A}
+  .s-OUT_OF_SCOPE{background:#EEF0F3;color:#5A6172}
+  .s-UNCERTAIN_REVIEW,.s-NO_LABEL_REVIEW{background:#FFF4E0;color:#7A5A12}
+  .r-ROUTED{background:#DCE6F7;color:#2E5AAC}
+  .r-ADMIN_QUEUE{background:#F7DCDC;color:#A31621}
+  .r-HELD_FOR_REVIEW{background:#FFF4E0;color:#7A5A12}
+  .mono{font-family:Consolas,monospace;font-size:11px;color:#3A4254;word-break:break-all}
+  .stub-warn{background:#F7DCDC;border:1px solid #D89898;color:#7A1212;padding:8px 14px;font-size:12.5px;margin-bottom:16px}
+  .btn{padding:8px 16px;background:#1B2233;color:#fff;border:none;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+<h1>Phân loại (AI#1) &amp; Routing (bảng tra)</h1>
+
+<div class="stub-warn" th:if="${!items.isEmpty() and items[0].llmProvider == 'STUB'}">
+  ⚠ Kết quả gần nhất chạy ở chế độ <b>STUB</b> (keyword heuristic, không phải AI) —
+  set env <span class="mono">ANTHROPIC_API_KEY</span> để phân loại thật.
+</div>
+
+<form method="post" action="/classify/run"><button class="btn" type="submit">Chạy phân loại + routing</button></form>
+
+<h2>Kết quả</h2>
+<table>
+  <thead><tr><th>Doc</th><th>Nguồn</th><th>Nhãn nhận</th><th>Trạng thái</th><th>Routing</th><th>Phòng ban</th><th>Vote (audit)</th></tr></thead>
+  <tbody>
+    <tr th:each="c : ${items}">
+      <td><span th:text="'#' + ${c.rawDoc.id}">#1</span><br/>
+          <span style="font-size:11px;color:#5A6172" th:text="${c.rawDoc.title}">Tiêu đề</span></td>
+      <td th:text="${c.rawDoc.source.code}">MOF_ISA</td>
+      <td><span class="pill s-CONFIRMED" th:each="l : ${c.labels}" th:text="${l}">LABEL</span></td>
+      <td><span class="pill" th:classappend="'s-' + ${c.status}" th:text="${c.status}">CONFIRMED</span></td>
+      <td><span class="pill" th:classappend="'r-' + ${c.routingStatus}" th:text="${c.routingStatus}">ROUTED</span><br/>
+          <span style="font-size:11px;color:#5A6172" th:text="${c.note}">note</span></td>
+      <td><span th:each="d : ${c.departments}" th:text="${d.ten} + ' '">Phòng</span></td>
+      <td class="mono" th:text="${c.votesJson}">{}</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Bảng tra routing (placeholder — ontology thật là deliverable riêng)</h2>
+<table>
+  <thead><tr><th>Category</th><th>Phòng ban</th><th>Placeholder?</th></tr></thead>
+  <tbody>
+    <tr th:each="r : ${rules}">
+      <td th:text="${r.category}">PRODUCT_LAUNCH</td>
+      <td th:text="${r.department.ten}">Phòng Sản phẩm</td>
+      <td th:text="${r.placeholder} ? '⚠ placeholder' : '✓'">⚠</td>
+    </tr>
+  </tbody>
+</table>
+</body>
+</html>

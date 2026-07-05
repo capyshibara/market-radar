@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title>Market Radar — Review claim</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#EDEDEA; color:#1B2233; font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+         font-size:14px; line-height:1.6; }
+  .page { max-width:960px; margin:24px auto; background:#FAFAF7; padding:36px 44px;
+          box-shadow:0 1px 6px rgba(0,0,0,.12); }
+  h1 { font-family:Charter,Cambria,Georgia,serif; font-size:22px; margin-bottom:4px; }
+  h4 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#5A6172; margin:14px 0 6px; }
+  .sub { color:#5A6172; font-size:13px; margin-bottom:16px; }
+  .nav { font-size:12.5px; margin-bottom:16px; } .nav a { color:#2E5AAC; margin-right:14px; }
+  .flash { background:#F9E4E6; border:1px solid #E0A9AF; color:#A31621;
+           padding:10px 14px; font-size:13px; margin-bottom:16px; white-space:pre-wrap; word-break:break-word; }
+  .code { font-family:Consolas,monospace; font-size:11px; background:#EEF0F3;
+          border:1px solid #D4D8DF; border-radius:2px; padding:0 5px; color:#3A4254; }
+  .badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em;
+           text-transform:uppercase; padding:2px 8px; border-radius:2px; margin-right:6px; }
+  .b-fail { background:#F9E4E6; color:#A31621; border:1px solid #E0A9AF; }
+  .b-pass { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
+  .b-verdict { background:#E8EDF7; color:#2E4A8C; border:1px solid #B6C4E2; }
+  .cols { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; }
+  .col { flex:1 1 400px; }
+  .claim-box { background:#fff; border:1px solid #DFE2E8; padding:14px; font-size:14.5px; }
+  .span-orig { font-size:12.5px; color:#454C5E; background:#F4F4F0;
+               border-left:3px solid #C9CDBF; padding:8px 12px; margin-bottom:8px; display:block; }
+  .span-orig .lang { font-family:Consolas,monospace; font-size:10px; color:#8A8F7F; margin-right:6px; }
+  pre.detail { font-family:Consolas,monospace; font-size:11px; background:#1B2233; color:#D7DCE6;
+               padding:10px 12px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
+  details.evbox > summary { cursor:pointer; font-weight:700; font-size:13px; color:#2E5AAC;
+               background:#E8EDF7; border:1px solid #B6C4E2; padding:8px 12px; list-style:none; }
+  details.evbox[open] > summary { background:#D9E2F4; }
+  .lockmsg { font-size:12px; color:#A31621; margin:8px 0; }
+  .actions { margin-top:20px; border-top:2px solid #DFE2E8; padding-top:16px; }
+  .actions form { margin-bottom:12px; }
+  button { font-size:13px; padding:7px 16px; border-radius:2px; border:1px solid #B9CBBD;
+           background:#E7ECE7; color:#2F5D3A; cursor:pointer; font-weight:700; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.warn { background:#FFF4E0; border-color:#E0B25A; color:#7A5A12; }
+  button.danger { background:#F9E4E6; border-color:#E0A9AF; color:#A31621; }
+  textarea, input[type=text] { width:100%; font-size:13px; padding:7px 9px;
+           border:1px solid #D4D8DF; font-family:inherit; margin-bottom:6px; }
+  textarea { min-height:70px; }
+  .rname { max-width:260px; }
+  .verd-rationale { font-size:12.5px; color:#454C5E; background:#F0F3FA;
+           border-left:3px solid #B6C4E2; padding:8px 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Review <span class="code" th:text="${claim.claimCode}">C-001</span></h1>
+  <div class="sub">
+    <span class="badge" th:classappend="${claim.riskTier=='T3' or claim.riskTier=='T4'} ? 'b-fail' : 'b-pass'"
+          th:text="'Tier ' + ${claim.riskTier}">Tier</span>
+    <span class="badge" th:classappend="${claim.gateStatus.name()=='PASS'} ? 'b-pass' : 'b-fail'"
+          th:text="'Gate L1: ' + ${claim.gateStatus}">gate</span>
+    <span class="badge b-verdict"
+          th:text="'L2: ' + (${verification != null} ? ${verification.verdict} : 'chưa verify')">L2</span>
+    <span class="badge" th:text="${claim.slot}">slot</span>
+    <span class="badge" th:text="${claim.origin}">origin</span>
+  </div>
+  <div class="nav"><a href="/review">← Hàng đợi</a><a href="/claims">Audit claim</a></div>
+
+  <div class="flash" th:if="${msg}" th:text="${msg}">msg</div>
+
+  <div class="cols">
+    <div class="col">
+      <h4>Claim (text hiện tại)</h4>
+      <div class="claim-box" th:text="${claim.textVi}">text</div>
+
+      <h4 th:if="${verification != null}">Lý do verifier
+        (<span th:text="${verification.verifierProvider}">prov</span>)</h4>
+      <div class="verd-rationale" th:if="${verification != null}"
+           th:text="${verification.rationale}">rationale</div>
+
+      <h4>Gate L1 — chi tiết phép kiểm</h4>
+      <pre class="detail" th:text="${claim.gateDetailJson}">{}</pre>
+    </div>
+
+    <div class="col">
+      <h4>Evidence được trích dẫn
+        (<span class="code" th:text="${claim.factCodesCsv}">F-001</span>)</h4>
+      <!-- Panel evidence ĐÓNG mặc định — mở nó là điều kiện mở khoá nút duyệt -->
+      <details class="evbox" id="evbox">
+        <summary>▸ Mở evidence để đối chiếu (bắt buộc trước khi duyệt)</summary>
+        <div style="padding-top:10px">
+          <div th:if="${#lists.isEmpty(citedFacts)}" class="lockmsg">
+            Claim này KHÔNG resolve được fact nào — chỉ có thể reject
+            (Invariant #1: không nguồn thì không xuất bản).
+          </div>
+          <span class="span-orig" th:each="f : ${citedFacts}">
+            <span class="lang" th:text="${f.factCode} + ' · ' + ${f.spanLanguage}">F-001</span>
+            <span th:text="${f.spanText}">span</span>
+            <span th:if="${f.eventDate != null}" class="lang"
+                  th:text="'eventDate: ' + ${f.eventDate}">d</span>
+          </span>
+        </div>
+      </details>
+      <div class="lockmsg" id="lockmsg">🔒 Nút Approve / Sửa / Force khoá tới khi mở evidence.</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <h4>Người review (tự khai — MVP chưa có auth)</h4>
+    <input type="text" class="rname" id="reviewerName" value="reviewer-demo"/>
+
+    <h4>1 · Approve nguyên trạng</h4>
+    <form th:action="@{'/review/' + ${claim.id} + '/approve'}" method="post"
+          onsubmit="return stamp(this)">
+      <input type="hidden" name="evidenceViewed" value="false"/>
+      <input type="hidden" name="reviewerName" value=""/>
+      <button type="submit" class="needs-evidence" disabled>✓ Approve</button>
+    </form>
+
+    <h4>2 · Sửa rồi duyệt — text mới CHẠY LẠI Gate L1</h4>
+    <form th:action="@{'/review/' + ${claim.id} + '/edit'}" method="post"
+          onsubmit="return stamp(this)">
+      <textarea name="newText" th:text="${claim.textVi}"></textarea>
+      <input type="hidden" name="evidenceViewed" value="false"/>
+      <input type="hidden" name="reviewerName" value=""/>
+      <button type="submit" class="needs-evidence" disabled>✎ Sửa &amp; duyệt</button>
+    </form>
+
+    <h4>3 · Force-approve — override gate/verdict, BẮT BUỘC lý do (≥10 ký tự)</h4>
+    <form th:action="@{'/review/' + ${claim.id} + '/force-approve'}" method="post"
+          onsubmit="return stamp(this)">
+      <input type="text" name="reason" placeholder="Vì sao override? (ghi vào label log)"/>
+      <input type="hidden" name="evidenceViewed" value="false"/>
+      <input type="hidden" name="reviewerName" value=""/>
+      <button type="submit" class="warn needs-evidence" disabled>⚠ Force-approve</button>
+    </form>
+
+    <h4>4 · Reject — BẮT BUỘC lý do (chính là nhãn)</h4>
+    <form th:action="@{'/review/' + ${claim.id} + '/reject'}" method="post"
+          onsubmit="return stamp(this)">
+      <input type="text" name="reason" placeholder="Vì sao loại?"/>
+      <input type="hidden" name="reviewerName" value=""/>
+      <button type="submit" class="danger">✕ Reject</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Chống rubber-stamp (bài học PaperTrail): mở evidence mới mở khoá nút duyệt.
+  // Server kiểm tra lại cờ evidenceViewed — 2 tầng, nhưng cờ vẫn từ client:
+  // chặn duyệt VÔ Ý, không chặn cố tình lách (dwell-time/gold-task là việc pilot).
+  var viewed = false;
+  document.getElementById('evbox').addEventListener('toggle', function () {
+    if (this.open && !viewed) {
+      viewed = true;
+      document.querySelectorAll('.needs-evidence').forEach(function (b) { b.disabled = false; });
+      document.getElementById('lockmsg').textContent = '🔓 Evidence đã mở — nút duyệt khả dụng.';
+      document.getElementById('lockmsg').style.color = '#2F5D3A';
+    }
+  });
+  function stamp(form) {
+    var ev = form.querySelector('input[name=evidenceViewed]');
+    if (ev) ev.value = viewed ? 'true' : 'false';
+    form.querySelector('input[name=reviewerName]').value =
+        document.getElementById('reviewerName').value || 'reviewer-demo';
+    return true;
+  }
+</script>
+</body>
+</html>

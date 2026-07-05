@@ -1,0 +1,51 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:marketradar;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: true   # /h2-console — chỉ dùng dev/demo, tắt khi deploy thật
+
+marketradar:
+  ingest:
+    enabled: false          # bật true khi muốn cron chạy thật; demo dùng nút chạy tay /ingest/run
+    fixed-delay-ms: 900000  # 15 phút
+  llm:
+    # API key đọc từ env ANTHROPIC_API_KEY — KHÔNG hardcode vào file config
+    model: claude-sonnet-4-6      # đổi được; lưu ý model Opus 4.7+ từ chối temperature
+    max-tokens: 1024              # nâng từ 300 (batch 3): output interpreter dài hơn classifier
+    temperature: 1.0              # cần đa dạng cho self-consistency; để trống nếu model từ chối
+    samples: 3                    # N lần gọi độc lập
+    min-votes: 2                  # nhãn nhận khi đạt >= 2/3 vote (ngưỡng bảo thủ cố định)
+    replay-cache: true            # đọc lại response đã log — fallback "API lỗi giữa demo"
+  verifier:                        # Batch 4 — Gate L2: verifier PHẢI khác họ với writer (Invariant #2)
+    # API key đọc từ env VERIFIER_API_KEY — không có key → STUB (mọi thứ vào review, không auto-publish)
+    base-url: https://api.openai.com/v1   # endpoint chuẩn OpenAI-compat; đổi provider = đổi dòng này
+    model: gpt-4o-mini                     # PLACEHOLDER — Hanh chốt model thật; app từ chối chạy nếu là họ Claude
+    max-tokens: 512
+  alert:                           # Batch 5 — Hot Alert (bước 8)
+    enabled: true
+    # Slack incoming webhook đọc từ env SLACK_WEBHOOK_URL — rỗng → STUB mode:
+    # không gọi mạng, alert chỉ ghi vào /alerts (demo offline vẫn xem được nội dung)
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+    min-tier: T3                   # chỉ tin T3-T4 mới "sốt dẻo"
+    base-url: http://localhost:8080  # gốc link "hành động" trong alert
+  dedup:                           # Batch 5 — Dedup/Conflict (bước 9)
+    window-hours: 72               # chỉ so cặp tài liệu trong cửa sổ 72h
+    jaccard-same: 0.90             # >= ngưỡng này → trùng deterministic (không cần LLM)
+    jaccard-gray: 0.50             # vùng xám [gray, same) → hỏi LLM pairwise; STUB → chờ người
+  fetch:
+    connect-timeout-seconds: 5
+    request-timeout-seconds: 15
+    max-body-bytes: 5242880   # 5 MB — chống tải payload quá cỡ
+    https-only: true          # nguồn http thuần sẽ bị từ chối (fail loud, log rõ)
+
+logging:
+  level:
+    vn.techcomlife.marketradar: INFO
