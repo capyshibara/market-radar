@@ -2,112 +2,175 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
 <meta charset="UTF-8"/>
-<title th:text="'Market Radar — Tuần san · ' + ${reportPeriod}">Market Radar — Tuần san</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title th:text="'Market Radar — ' + ${reportPeriod}">Market Radar — Tuần san</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,500;1,8..60,600&amp;family=Inter:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <style>
-  /* ============ Token hệ thống ============
-     paper #FAFAF7 · ink #1B2233 · line #DFE2E8
-     accent #A31621 (đỏ báo cáo — chỉ dùng cho masthead & badge)
-     ai-tint #EFF3FB · ai-border #2E5AAC (xanh — vùng diễn giải AI)
-     Chữ: heading Charter/Cambria serif · body hệ sans · mã fact: mono */
+  /* ============ Hệ thống thiết kế (Batch 6 — xem chats/chat1.md) ============
+     Bảng màu "Đỏ + Slate lạnh": đỏ thương hiệu #EA1C24 (kicker/số liệu/mốc thời gian),
+     nền trắng tuyệt đối (tránh cảm giác buồn ngủ), trung tính slate lạnh cho hairline/badge.
+     Chữ: heading + body = Inter, trích dẫn/pull-quote = Source Serif 4 (ý nghiêng),
+     mã/ngày/nhãn kỹ thuật = IBM Plex Mono. Cả 3 font đã kiểm tra dấu tiếng Việt.
+
+     KỸ THUẬT LAYOUT — đã né flexbox/grid/SVG trong toàn bộ template vì bản HTML này
+     LÀ NGUYÊN VĂN bản PDF (OpenHTMLtoPDF 1.0.10, CSS hỗ trợ yếu/không đều cho flex/grid).
+     Mọi layout nhiều cột dùng display:table/table-row/table-cell (CSS2.1, an toàn với
+     OpenHTMLtoPDF); card lưới dùng inline-block (bọc dòng tự nhiên, không cần flex-wrap).
+     Không dùng <svg> — placeholder ảnh hero là khối màu phẳng, không phải hình vẽ. */
   * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    background:#EDEDEA; color:#1B2233;
-    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
-    font-size:14px; line-height:1.6;
-  }
-  .page { max-width:840px; margin:24px auto; background:#FAFAF7;
-          padding:56px 64px; box-shadow:0 1px 6px rgba(0,0,0,.12); }
-  h1,h2,h3 { font-family:Charter,"Bitstream Charter",Cambria,Georgia,serif; font-weight:700; }
+  body { background:#FFFFFF; color:#0C0C0D; font-family:'Inter',"Segoe UI",Arial,sans-serif;
+         font-size:15px; line-height:1.6; }
+  .page { max-width:860px; margin:0 auto; background:#FFFFFF; border:1px solid #E2E6EA; }
+  h1,h2,h3 { font-family:'Inter',sans-serif; }
 
   /* ---- Banner dữ liệu mẫu ---- */
-  .sample-banner { background:#FFF4E0; border:1px solid #E0B25A; color:#7A5A12;
-    padding:8px 14px; font-size:12.5px; margin-bottom:28px; }
+  .sample-banner { background:#8A4B08; color:#FDEBD3; font-family:'IBM Plex Mono',monospace;
+    font-size:12px; letter-spacing:.03em; padding:9px 40px; text-align:center; }
 
-  /* ---- 1. Trang bìa / masthead ---- */
-  .masthead { border-bottom:3px solid #A31621; padding-bottom:18px; margin-bottom:8px; }
-  .masthead .kicker { font-size:11px; letter-spacing:.18em; text-transform:uppercase;
-    color:#A31621; font-weight:600; }
-  .masthead h1 { font-size:34px; letter-spacing:-.01em; margin:4px 0 2px; }
-  .masthead .sub { color:#5A6172; font-size:13px; }
-  .meta-row { display:flex; gap:28px; font-size:12px; color:#5A6172;
-    padding:10px 0 26px; border-bottom:1px solid #DFE2E8; margin-bottom:30px; }
-  .meta-row b { color:#1B2233; }
+  /* ---- Toolbar vận hành nội bộ (không in / không vào PDF) ---- */
+  .toolbar { max-width:860px; margin:14px auto; text-align:right; font-size:12.5px; }
+  .toolbar a { color:#5A6172; text-decoration:none; background:#fff; border:1px solid #E2E6EA;
+    padding:5px 12px; border-radius:3px; margin-left:8px; display:inline-block; }
+  .toolbar a:hover { background:#F7F7F4; }
+
+  /* ---- 1. Masthead ---- */
+  .masthead { padding:56px 56px 0; }
+  .kicker { font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.12em;
+    text-transform:uppercase; color:#EA1C24; font-weight:600; margin-bottom:20px; }
+  .masthead h1 { font-size:52px; font-weight:800; letter-spacing:-.02em; margin:0 0 18px;
+    line-height:1.05; color:#0C0C0D; }
+  .masthead .sub { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:19px;
+    color:#454C5E; margin:0 0 26px; max-width:640px; line-height:1.5; }
+  .meta-row { display:table; width:100%; table-layout:fixed; font-size:13px; color:#5A6172;
+    border-top:1px solid #E2E6EA; }
+  .meta-row .cell { display:table-cell; padding:16px 20px; border-left:1px solid #E2E6EA; }
+  .meta-row .cell.first { border-left:none; padding-left:0; }
+  .meta-row b { color:#0C0C0D; }
+
+  /* ---- Hero placeholder (không dùng ảnh/svg thật — chờ ảnh khu vực) ---- */
+  .hero { margin:28px 56px 0; height:200px; background:#F4F3EE; border:1px solid #DCDBD3;
+    text-align:center; }
+  .hero span { display:inline-block; margin-top:90px; font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px; letter-spacing:.04em; color:#8A8A82; }
 
   /* ---- Section ---- */
-  section { margin-bottom:36px; }
-  section > h2 { font-size:19px; border-bottom:1px solid #DFE2E8;
-    padding-bottom:6px; margin-bottom:14px; }
-  section > h2 .no { color:#A31621; margin-right:8px; }
+  .section { padding:44px 56px 8px; border-top:1px solid #E2E6EA; margin-top:36px; }
+  .section.first { border-top:none; margin-top:0; padding-top:44px; }
+  .section-label { font-family:'Inter',sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:#EA1C24; font-weight:800; margin-bottom:20px; }
+  .section-insight { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:14.5px;
+    color:#5A6172; margin:0 0 24px; }
+  .empty-note { color:#5A6172; font-size:14px; font-style:italic; margin-bottom:8px; }
 
-  /* ---- Nhãn phân loại nội dung (signature: ranh giới fact/diễn giải) ---- */
-  .tag { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.08em;
-    text-transform:uppercase; padding:2px 8px; border-radius:2px; vertical-align:middle; }
-  .tag-fact { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
-  .tag-ai   { background:#DCE6F7; color:#2E5AAC; border:1px solid #A8BEE4; }
-  .tag-dich { background:#F0EBDD; color:#7A5A12; border:1px solid #D8C89A; }
-  /* Batch 5: nhãn riêng cho claim FORCE_APPROVED — override tay của reviewer,
-     người đọc report PHẢI phân biệt được với claim qua verify tự động */
-  .tag-force { background:#FDEBD3; color:#8A4B08; border:1px solid #E0A55A; }
+  /* ---- 2. Executive summary ---- */
+  .exec-item { font-size:17px; line-height:1.75; margin-bottom:18px; }
+  .exec-item strong { color:#0C0C0D; }
 
-  /* Batch 5: toolbar trên đầu report (không in / không vào PDF) */
-  .toolbar { max-width:840px; margin:16px auto 0; display:flex; gap:10px;
-    justify-content:flex-end; font-size:12.5px; }
-  .toolbar a { color:#2E5AAC; text-decoration:none; background:#fff;
-    border:1px solid #DFE2E8; padding:5px 12px; border-radius:3px; }
-  .toolbar a:hover { background:#EFF3FB; }
+  .stat-band { display:table; width:100%; table-layout:fixed; border-top:1px solid #E2E6EA;
+    border-bottom:1px solid #E2E6EA; margin:8px 0 36px; }
+  .stat-band .cell { display:table-cell; padding:26px 20px 26px 0; vertical-align:top; }
+  .stat-num { font-family:'Inter',sans-serif; font-size:36px; font-weight:800; color:#EA1C24;
+    line-height:1; letter-spacing:-.01em; }
+  .stat-label { font-size:13px; color:#5A6172; margin-top:8px; line-height:1.4; max-width:190px; }
 
-  /* Vùng diễn giải AI — nền + viền trái xanh, KHÔNG lẫn được với fact */
-  .ai-block { background:#EFF3FB; border-left:4px solid #2E5AAC;
-    padding:14px 18px; margin-top:10px; }
-  .ai-block .ai-head { font-size:11px; font-weight:700; letter-spacing:.1em;
-    color:#2E5AAC; text-transform:uppercase; margin-bottom:6px; }
+  /* ---- Pull quote ---- */
+  .pull-quote { margin:0 56px 44px; }
+  .pull-quote .mark { font-family:'Source Serif 4',Georgia,serif; font-size:104px; line-height:.4;
+    color:#EA1C24; opacity:.18; }
+  .pull-quote .txt { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-weight:500;
+    font-size:30px; line-height:1.42; color:#0C0C0D; padding-left:4px; }
+  .pull-quote .attrib { font-size:13px; color:#8A8F9C; margin-top:16px; padding-left:4px; }
 
-  /* Vùng fact — nền giấy, mỗi câu kết bằng citation chip */
-  .fact-block { background:#FFFFFF; border:1px solid #DFE2E8; padding:14px 18px; }
+  /* ---- 3. Diễn biến chính — dòng thời gian ---- */
+  .tl-item { display:table; width:100%; table-layout:fixed; margin-bottom:30px; }
+  .tl-date-col { display:table-cell; width:82px; padding-top:2px; vertical-align:top;
+    font-family:'IBM Plex Mono',monospace; font-size:13px; color:#EA1C24; font-weight:600; }
+  .tl-body-col { display:table-cell; vertical-align:top; border-left:2px solid #E2E6EA; padding-left:22px; }
+  .eyebrow { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#9A9A94; margin-bottom:8px; }
+  .tl-body-col h3 { font-size:22px; font-weight:700; margin:0 0 10px; letter-spacing:-.005em; color:#0C0C0D; }
+  .tl-body-col p { font-size:16px; line-height:1.75; color:#3A3A35; margin:0 0 12px; }
 
-  /* Citation chip [F-001] — mono, click về nguồn */
-  .cite { font-family:Consolas,"IBM Plex Mono",monospace; font-size:11px;
-    background:#EEF0F3; border:1px solid #D4D8DF; border-radius:2px;
-    padding:0 5px; color:#3A4254; text-decoration:none; white-space:nowrap; }
-  .cite:hover { background:#E2E6EC; }
+  /* ---- Citation pill + tier badge (dùng khắp report) ----
+     Cố tình dùng inline-block + vertical-align thay vì flexbox (canh giữa bằng
+     width=height=line-height cố định, kỹ thuật y hệt bản gốc) — an toàn với
+     OpenHTMLtoPDF, tránh flex vốn được hỗ trợ yếu/không đều trong engine đó. */
+  .cite-pill { display:inline-block; font-size:13px; font-weight:600;
+    background:#EFF3FB; color:#2E5AAC; border:1px solid #C7D6EF; border-radius:20px;
+    padding:4px 12px; text-decoration:none; white-space:nowrap; }
+  .cite-pill:hover { background:#E4ECFA; }
+  .cite-pill span { vertical-align:middle; }
+  .tier-dot { display:inline-block; width:15px; height:15px; line-height:15px; text-align:center;
+    border-radius:999px; color:#fff; font-size:9.5px; font-weight:700; margin-left:6px; }
+  .tier-dot.t1 { background:#EA1C24; }
+  .tier-dot.t2 { background:#5A6172; }
+  .tier-dot.t3 { background:#9AA0AC; }
+  .tier-dot.t4 { background:#C9CDD4; color:#0C0C0D; }
 
-  /* Span nguyên văn ngôn ngữ gốc */
-  .span-orig { font-size:12.5px; color:#454C5E; background:#F4F4F0;
-    border-left:3px solid #C9CDBF; padding:8px 12px; margin-top:8px;
-    font-style:normal; display:block; }
-  .span-orig .lang { font-family:Consolas,monospace; font-size:10px;
-    color:#8A8F7F; margin-right:6px; }
+  /* ---- 4. Sản phẩm nổi bật ----
+     Đã thử cả inline-block VÀ float cho lưới 2 cột — cả hai đều bị OpenHTMLtoPDF
+     tính SAI chiều cao box khi 2 card dài ngắn khác nhau, khiến citation pill của
+     card cao hơn đè lên đoạn văn của chính nó (kiểm chứng bằng render PDF thật, xem
+     git history). Chuyển hẳn sang XẾP DỌC 1 cột (giống Deep-Dive) — không còn phép
+     tính chiều-cao-box nhiều-cột nào để engine này tính sai; an toàn tuyệt đối. */
+  .card { border:1px solid #E2E6EA; padding:22px 24px; margin-bottom:18px; font-size:15px; }
+  .card h3 { font-size:19px; font-weight:700; margin:0 0 10px; color:#0C0C0D; }
+  .card p { font-size:14.5px; line-height:1.65; color:#3A3A35; margin:0 0 14px; }
+  .card-cite { margin-top:2px; }
 
-  /* ---- Bảng ---- */
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
-    color:#5A6172; border-bottom:2px solid #1B2233; padding:6px 10px 6px 0; }
-  td { border-bottom:1px solid #E5E7EB; padding:9px 10px 9px 0; vertical-align:top; }
-  td a { color:#2E5AAC; }
+  /* ---- 5. Phân tích sâu — mini-article ---- */
+  .article { margin-bottom:26px; border:1px solid #E2E6EA; }
+  .article > summary { cursor:pointer; list-style:none; padding:22px 26px; background:#F7F7F4; }
+  .article > summary::-webkit-details-marker { display:none; }
+  .article-headline { font-family:'Inter',sans-serif; font-size:25px; font-weight:800;
+    letter-spacing:-.01em; color:#0C0C0D; line-height:1.2; }
+  .article-body { padding:8px 26px 30px; }
+  .fact-quote { margin:0 0 20px; padding:4px 0 4px 20px; border-left:3px solid #2F6B3D; }
+  .fact-quote .txt { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:18px;
+    line-height:1.6; color:#0C0C0D; }
+  .fact-quote .attrib { font-size:13px; color:#9A9A94; margin-top:10px; }
+  .fact-quote .attrib a { color:#EA1C24; font-weight:600; text-decoration:none; border-bottom:1px solid #C7C7BE; }
+  .orig-span { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:13.5px;
+    color:#6B7280; margin:10px 0 0; padding-left:20px; }
+  .orig-span .lang { font-family:'IBM Plex Mono',monospace; font-style:normal; font-size:10.5px;
+    color:#9A9A94; text-transform:uppercase; margin-right:6px; }
+  .analysis p { margin:0 0 16px; font-size:15.5px; line-height:1.8; color:#26262B; }
+  .analysis p:last-child { margin-bottom:0; }
+  .override-note { font-size:12.5px; color:#9A9A94; margin-top:14px; }
 
-  .tier-badge { display:inline-block; width:20px; height:20px; line-height:20px;
-    text-align:center; border-radius:50%; font-size:11px; font-weight:700; color:#fff; }
-  .tier-1 { background:#A31621; } .tier-2 { background:#5A6172; }
-  .tier-3 { background:#9AA0AC; } .tier-4 { background:#C9CDD4; color:#1B2233; }
+  /* ---- 6. Khuyến nghị cuối ---- */
+  .reco { background:#F7F7F4; padding:40px 56px 44px; border-top:1px solid #E2E6EA; margin-top:36px; }
+  .reco p { font-size:17px; line-height:1.75; color:#0C0C0D; margin:0 0 16px; }
+  .reco p:last-child { margin-bottom:0; }
 
-  /* ---- Phụ lục ---- */
-  .appendix { font-size:12.5px; color:#454C5E; }
-  .appendix h3 { font-size:14px; margin:14px 0 6px; }
-  .legend li { margin-bottom:6px; list-style:none; }
+  /* ---- 7. Phụ lục (mặc định thu gọn) ---- */
+  .appendix { padding:44px 56px 32px; border-top:1px solid #E2E6EA; }
+  .appendix > summary { cursor:pointer; font-family:'Inter',sans-serif; font-size:13px;
+    letter-spacing:.1em; text-transform:uppercase; color:#EA1C24; font-weight:800; padding:6px 0; list-style:none; }
+  .appendix > summary::-webkit-details-marker { display:none; }
+  .appendix-body { margin-top:22px; font-size:13.5px; color:#454C5E; }
+  table.src-table { width:100%; border-collapse:collapse; font-size:13.5px; margin-bottom:22px; }
+  table.src-table th { text-align:left; padding:7px 10px 7px 0; font-size:11px; text-transform:uppercase;
+    color:#6B6B64; border-bottom:2px solid #0C0C0D; }
+  table.src-table td { padding:9px 10px 9px 0; border-bottom:1px solid #E2E6EA; vertical-align:top; }
+  .legend-pill { display:inline-block; font-size:12px; font-weight:600; border-radius:4px;
+    padding:3px 9px; margin:0 8px 8px 0; }
 
-  footer { border-top:1px solid #DFE2E8; margin-top:40px; padding-top:12px;
-    font-size:11px; color:#8A8F9C; display:flex; justify-content:space-between; }
+  footer { padding:20px 56px; border-top:1px solid #E2E6EA; font-size:12px; color:#9A9A94;
+    display:table; width:100%; }
+  footer .l { display:table-cell; text-align:left; }
+  footer .r { display:table-cell; text-align:right; }
 
   @media print {
     body { background:#fff; }
-    .page { box-shadow:none; margin:0; max-width:100%; }
     .toolbar, .no-print { display:none; }
-    section { page-break-inside:auto; }
-    tr, .fact-block, .ai-block { page-break-inside:avoid; }
+    .page { border:none; }
+    .article, .card, .tl-item { page-break-inside:avoid; }
   }
 </style>
 </head>
 <body>
+
 <div class="toolbar no-print">
   <a href="/report/weekly.pdf">⬇ Tải PDF</a>
   <a href="/review">Reviewer Console</a>
@@ -115,163 +178,223 @@
   <a href="/alerts">Alerts</a>
   <a href="/claims">Audit claim</a>
 </div>
+
 <div class="page">
 
-  <div class="sample-banner">
-    ⚠ BẢN DEMO — Các fact trong báo cáo này là <b>dữ liệu mẫu đặt tay</b> (công ty/sản phẩm hư cấu)
-    để kiểm tra template. Dữ liệu thật sẽ do pipeline đổ vào ở các bước sau.
+  <div class="sample-banner" th:if="${hasSampleData}">
+    ⚠ BẢN DEMO — Báo cáo này còn chứa fact mẫu/hư cấu cho giai đoạn build-out; chưa phải dữ liệu sản xuất.
   </div>
 
-  <!-- 1. TRANG BÌA -->
+  <!-- 1. MASTHEAD -->
   <div class="masthead">
-    <div class="kicker">Techcom Life · Product Intelligence</div>
-    <h1>Market Radar — Tuần san</h1>
-    <div class="sub">Bản tin tình báo sản phẩm bảo hiểm nhân thọ · Thị trường Việt Nam &amp; Trung Quốc</div>
+    <div class="kicker">Market Radar &nbsp;·&nbsp; Product Intelligence</div>
+    <h1>Market Radar</h1>
+    <p class="sub">Bản tin tình báo sản phẩm bảo hiểm nhân thọ — thị trường Việt Nam &amp; Trung Quốc:
+      sản phẩm, giá/phí, quy định và kênh phân phối trong <span th:text="${reportPeriod}">Tuần 27 · 2026</span>.</p>
+    <div class="meta-row">
+      <div class="cell first"><strong th:text="${reportPeriod}">Tuần 27 · 2026</strong></div>
+      <div class="cell">Sinh lúc <b th:text="${generatedAt}">03/07/2026 09:00</b></div>
+      <div class="cell"><b th:text="${#lists.size(sources)}">18</b>&nbsp;nguồn theo dõi</div>
+      <div class="cell"><b th:text="${docCount}">42</b>&nbsp;tài liệu đã xử lý</div>
+    </div>
   </div>
-  <div class="meta-row">
-    <span>Kỳ báo cáo: <b th:text="${reportPeriod}">Tuần 27 · 2026</b></span>
-    <span>Pipeline chạy lúc: <b th:text="${generatedAt}">03/07/2026 09:00</b></span>
-    <span>Phạm vi: <b th:text="${#lists.size(sources)} + ' nguồn'">5 nguồn</b> · <b th:text="${docCount} + ' tài liệu'">2 tài liệu</b></span>
-  </div>
+
+  <!-- hero placeholder -->
+  <div class="hero"><span>ẢNH — hình ảnh minh hoạ thị trường bảo hiểm khu vực sẽ được bổ sung</span></div>
 
   <!-- 2. EXECUTIVE SUMMARY -->
-  <section>
-    <h2><span class="no">01</span>Tóm tắt điều hành <span class="tag tag-ai">Tổng hợp AI</span></h2>
-    <div class="ai-block">
-      <div class="ai-head">Gợi ý AI — nội dung tổng hợp, không phải fact gốc · đã qua Gate L1</div>
-      <p th:if="${#lists.isEmpty(execClaims)}" style="color:#5A6172"><i>(Chưa có câu tổng hợp nào
-      qua gate — chạy <code>POST /interpret/run</code>. Câu bị chặn xem tại /claims.)</i></p>
-      <p th:each="c : ${execClaims}" style="margin-bottom:6px">
-        <span class="tag tag-force" th:if="${c.reviewStatus.name() == 'FORCE_APPROVED'}"
-              title="Reviewer override có lý do — xem /labels">Duyệt tay</span>
-        <span th:text="${c.textVi}">Câu tổng hợp</span>
-        <a class="cite" th:each="code : ${#strings.arraySplit(c.factCodesCsv, ',')}"
-           th:href="'#' + ${#strings.trim(code)}" th:text="${#strings.trim(code)}">F-001</a>
-      </p>
-    </div>
-  </section>
+  <div class="section first">
+    <div class="section-label">Tóm tắt điều hành</div>
 
-  <!-- 3. DIỄN BIẾN CHÍNH -->
-  <section>
-    <h2><span class="no">02</span>Diễn biến chính trong tuần <span class="tag tag-fact">Fact</span></h2>
-    <table>
-      <thead><tr><th style="width:90px">Ngày</th><th>Sự kiện</th><th style="width:180px">Công ty</th><th style="width:110px">Nguồn</th></tr></thead>
-      <tbody>
-        <tr th:each="f : ${allFacts}">
-          <td th:text="${f.eventDate}">2026-06-30</td>
-          <td>
-            <span th:text="${f.summaryVi}">Tóm tắt sự kiện</span>
-            <a class="cite" th:href="'#' + ${f.factCode}" th:text="${f.factCode}">F-001</a>
-          </td>
-          <td th:text="${f.company}">Công ty</td>
-          <td><a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.source.code}" target="_blank" rel="noopener noreferrer">NGUỒN</a></td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <p class="empty-note" th:if="${#lists.isEmpty(execClaims)}">
+      Chưa có câu tổng hợp điều hành nào qua gate/review — chạy <code>POST /interpret/run</code>
+      rồi duyệt ở /review. Câu bị chặn xem tại /claims.
+    </p>
+
+    <p class="exec-item" th:each="c : ${execClaims}"
+       th:with="lead=${#strings.substringBefore(c.textVi,' — ')},
+                rest=${#strings.substringAfter(c.textVi,' — ')},
+                hasDash=${!#strings.isEmpty(rest)}">
+      <strong th:if="${hasDash}" th:text="${lead}">Ý chính</strong><span
+         th:text="${hasDash} ? (' — ' + ${rest}) : ${c.textVi}"> — diễn giải</span>
+      <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+         th:if="${factByCode.get(#strings.trim(code)) != null}"
+         th:href="'#' + ${#strings.trim(code)}">
+        <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+        <span class="tier-dot" th:classappend="'t' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}"
+              th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">1</span>
+      </a>
+    </p>
+
+    <!-- stat band -->
+    <div class="stat-band">
+      <div class="cell">
+        <div class="stat-num" th:text="${factsCount}">3</div>
+        <div class="stat-label">Diễn biến đã xác minh trong tuần</div>
+      </div>
+      <div class="cell">
+        <div class="stat-num" th:text="${#lists.size(sources)}">18</div>
+        <div class="stat-label">Nguồn theo dõi trên toàn khu vực</div>
+      </div>
+      <div class="cell">
+        <div class="stat-num" th:text="${docCount}">42</div>
+        <div class="stat-label">Tài liệu đã crawl &amp; xử lý</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- pull quote — hàm ý AI nổi bật nhất tuần, chọn tự động theo risk tier -->
+  <div class="pull-quote" th:if="${pullQuoteClaim != null}"
+       th:with="firstCode=${#strings.trim(#strings.arraySplit(pullQuoteClaim.factCodesCsv,',')[0])},
+                citedFact=${factByCode.get(firstCode)}">
+    <div class="mark">&ldquo;</div>
+    <div class="txt" th:text="${pullQuoteClaim.textVi}">Trích dẫn nổi bật</div>
+    <div class="attrib">
+      Diễn giải AI · hàm ý kinh doanh — xem chi tiết ở Phân tích sâu
+      <a class="cite-pill" th:if="${citedFact != null}" th:href="'#' + ${firstCode}">
+        <span th:text="${citedFact.rawDoc.source.name}">Nguồn</span>
+        <span class="tier-dot" th:classappend="'t' + ${citedFact.rawDoc.source.tier}"
+              th:text="${citedFact.rawDoc.source.tier}">1</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 3. DIỄN BIẾN CHÍNH TRONG TUẦN — dòng thời gian tường thuật -->
+  <div class="section">
+    <div class="section-label">Diễn biến chính trong tuần</div>
+
+    <p class="empty-note" th:if="${#lists.isEmpty(allFacts)}">Chưa có fact nào cho kỳ báo cáo này.</p>
+
+    <div class="tl-item" th:each="f : ${allFacts}">
+      <div class="tl-date-col" th:text="${#temporals.format(f.eventDate,'dd/MM')}">30/06</div>
+      <div class="tl-body-col">
+        <div class="eyebrow" th:text="${f.category} + ' · ' + ${f.rawDoc.source.countryLabel}">Quy định · Trung Quốc</div>
+        <h3 th:text="${f.productName != null ? f.productName : f.company}">Tiêu đề diễn biến</h3>
+        <p th:text="${f.summaryVi}">Tóm tắt sự kiện.</p>
+        <a class="cite-pill" th:id="${f.factCode}" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
+          <span th:text="${f.rawDoc.source.name}">Nguồn</span>
+          <span class="tier-dot" th:classappend="'t' + ${f.rawDoc.source.tier}" th:text="${f.rawDoc.source.tier}">1</span>
+        </a>
+      </div>
+    </div>
+  </div>
 
   <!-- 4. SẢN PHẨM NỔI BẬT -->
-  <section>
-    <h2><span class="no">03</span>Sản phẩm nổi bật <span class="tag tag-fact">Fact</span></h2>
-    <p style="font-size:12px;color:#5A6172;margin-bottom:10px">
-      "Nổi bật" = có sự kiện groundable trong tuần (ra mắt, hồ sơ nộp regulator, thay đổi
-      phí/quyền lợi công bố chính thức) — <b>không</b> phải xếp hạng doanh số.
+  <div class="section">
+    <div class="section-label">Sản phẩm nổi bật</div>
+    <p class="section-insight" th:if="${factsCount > 0}">
+      <span th:text="${factsCount}">3</span> sự kiện đáng chú ý tuần này — nổi bật vì có căn cứ ra mắt,
+      hồ sơ pháp lý hoặc thay đổi phí/quyền lợi công bố chính thức, không phải vì xếp hạng doanh số.
     </p>
-    <table>
-      <thead><tr><th style="width:160px">Công ty</th><th>Sản phẩm</th><th style="width:130px">Loại sự kiện</th><th style="width:70px">Fact</th></tr></thead>
-      <tbody>
-        <tr th:each="f : ${allFacts}">
-          <td th:text="${f.company}">Công ty</td>
-          <td th:text="${f.productName}">Tên sản phẩm</td>
-          <td th:text="${f.category}">Loại</td>
-          <td><a class="cite" th:href="'#' + ${f.factCode}" th:text="${f.factCode}">F-001</a></td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
 
-  <!-- 5. PHÂN TÍCH SÂU — ranh giới fact/diễn giải hiện hình -->
-  <section>
-    <h2><span class="no">04</span>Phân tích sâu</h2>
-
-    <div th:each="f : ${allFacts}" style="margin-bottom:22px" th:id="${f.factCode}">
-      <h3 style="font-size:15px;margin-bottom:8px">
-        <span th:text="${f.productName}">Sản phẩm</span>
-        <span style="color:#8A8F9C;font-weight:400" th:text="'· ' + ${f.company}">· Công ty</span>
-      </h3>
-
-      <div class="fact-block">
-        <span class="tag tag-fact">Fact</span>
-        <span class="tag tag-dich" th:if="${f.spanLanguage != 'vi'}">Có bản dịch</span>
-        <p style="margin-top:8px" th:text="${f.summaryVi}">Tóm tắt tiếng Việt</p>
-        <span class="span-orig">
-          <span class="lang" th:text="${f.spanLanguage}">zh</span>
-          <span th:text="${f.spanText}">Span nguyên văn ngôn ngữ gốc</span>
-        </span>
-        <p style="font-size:11px;color:#8A8F9C;margin-top:6px">
-          Mã fact: <span class="cite" th:text="${f.factCode}">F-001</span> ·
-          Nguồn: <a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.source.name}" target="_blank" rel="noopener noreferrer">Nguồn</a> ·
-          Tier <span th:text="${f.rawDoc.source.tier}">1</span>
-        </p>
-      </div>
-
-      <div class="ai-block">
-        <div class="ai-head">Gợi ý AI · Hàm ý cho Techcom Life — diễn giải, không phải fact · đã qua Gate L1</div>
-        <th:block th:with="docClaims=${claimsByDoc.get(f.rawDoc.id)}">
-          <p th:if="${docClaims == null or #lists.isEmpty(docClaims)}" style="color:#5A6172">
-            <i>(Chưa có diễn giải nào qua gate cho tài liệu này.)</i></p>
-          <p th:each="c : ${docClaims}" style="margin-bottom:6px">
-            <span class="tag tag-force" th:if="${c.reviewStatus.name() == 'FORCE_APPROVED'}"
-                  title="Reviewer override có lý do — xem /labels">Duyệt tay</span>
-            <b style="font-size:11px;color:#2E5AAC"
-               th:text="${c.slot.name() == 'WHY_MATTERS'} ? 'Vì sao đáng chú ý · ' : 'Hàm ý · '">Vì sao · </b>
-            <span th:text="${c.textVi}">Câu diễn giải</span>
-            <a class="cite" th:each="code : ${#strings.arraySplit(c.factCodesCsv, ',')}"
-               th:href="'#' + ${#strings.trim(code)}" th:text="${#strings.trim(code)}">F-001</a>
-          </p>
-        </th:block>
+    <div class="card-grid">
+      <div class="card" th:each="f : ${allFacts}">
+        <div class="eyebrow" th:text="${f.company} + ' · ' + ${f.category}">Công ty · Loại</div>
+        <h3 th:text="${f.productName != null ? f.productName : f.company}">Tên sản phẩm</h3>
+        <p th:text="${f.summaryVi}">Mô tả ngắn.</p>
+        <!-- bọc pill trong div block riêng — đã kiểm chứng OpenHTMLtoPDF: một <a inline-block>
+             nối ngay sau <p> bên trong card float đôi lúc chồng lên dòng cuối của <p>;
+             một khối block tường minh chặn đứng việc này. -->
+        <div class="card-cite">
+          <a class="cite-pill" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
+            <span th:text="${f.rawDoc.source.name}">Nguồn</span>
+            <span class="tier-dot" th:classappend="'t' + ${f.rawDoc.source.tier}" th:text="${f.rawDoc.source.tier}">1</span>
+          </a>
+        </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- 6. PHỤ LỤC -->
-  <section class="appendix">
-    <h2><span class="no">05</span>Phụ lục</h2>
+  <!-- 5. PHÂN TÍCH SÂU — mini-article; fact = trích dẫn serif, AI = văn xuôi liền mạch -->
+  <div class="section">
+    <div class="section-label">Phân tích sâu</div>
+    <p class="section-insight" th:if="${factsCount > 0}">
+      Những diễn biến đáng đọc kỹ trước khi trao đổi định giá/kế hoạch tuần tới.
+    </p>
 
-    <h3>Danh sách nguồn theo dõi</h3>
-    <table>
-      <thead><tr><th style="width:44px">Tier</th><th style="width:110px">Mã</th><th>Nguồn</th><th style="width:60px">Ngôn ngữ</th></tr></thead>
-      <tbody>
-        <tr th:each="s : ${sources}">
-          <td><span class="tier-badge" th:classappend="'tier-' + ${s.tier}" th:text="${s.tier}">1</span></td>
-          <td th:text="${s.code}">MOF_ISA</td>
-          <td th:text="${s.name}">Tên nguồn</td>
-          <td th:text="${s.language}">vi</td>
-        </tr>
-      </tbody>
-    </table>
+    <details class="article" th:each="f, st : ${allFacts}" th:id="${'deep-' + f.factCode}" th:open="${st.index < 2}">
+      <summary>
+        <div class="eyebrow" th:text="${f.category} + ' · ' + ${f.rawDoc.source.countryLabel} + ' · ' + ${#temporals.format(f.eventDate,'dd/MM/yyyy')}">Loại · Thị trường · Ngày</div>
+        <div class="article-headline" th:text="${f.productName != null ? f.productName : f.company}">Tiêu đề</div>
+      </summary>
+      <div class="article-body">
+        <blockquote class="fact-quote">
+          <div class="txt" th:text="'“' + ${f.summaryVi} + '”'">“Trích fact.”</div>
+          <div class="attrib">
+            Theo <a th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer"
+                    th:text="${f.rawDoc.source.name}">Nguồn</a>
+            <span th:if="${f.spanLanguage != 'vi'}" th:text="'· nguyên văn ' + ${f.spanLanguageLabel}">· nguyên văn</span>
+          </div>
+        </blockquote>
 
-    <h3>Phương pháp (tóm tắt)</h3>
-    <p>Tin được thu thập từ danh sách nguồn whitelist phân tầng độ tin cậy, chuẩn hoá về văn bản,
-    và lưu kèm dấu vết nguồn gốc. Mọi câu trong báo cáo truy được về một mã fact trỏ tới đoạn
-    nguyên văn của tài liệu gốc. Nội dung do AI tổng hợp/diễn giải luôn nằm trong vùng đánh dấu
-    riêng và không được phép chứa thông tin ngoài evidence. Câu không đạt kiểm tra grounding
-    sẽ bị giữ lại chờ người duyệt thay vì tự xuất bản. Tài liệu trùng nhau về cùng một
-    sự kiện trong cửa sổ 72 giờ được khử trùng lặp — bản chính thống hơn (hoặc mới hơn)
-    được giữ; bản trùng bị loại khỏi báo cáo nhưng vẫn lưu vết đầy đủ.</p>
+        <!-- Invariant bắt buộc: span nguyên văn ngôn ngữ gốc luôn hiển thị, không giấu — kể cả khi
+             thiết kế đã bỏ nhãn "TRANSLATED" to; ở đây thể hiện bằng một dòng nhỏ, lặng, không phải hộp màu. -->
+        <p class="orig-span" th:if="${f.spanLanguage != 'vi'}">
+          <span class="lang" th:text="${f.spanLanguage}">zh</span><span th:text="${f.spanText}">Nguyên văn ngôn ngữ gốc</span>
+        </p>
 
-    <h3>Chú giải nhãn</h3>
-    <ul class="legend">
-      <li><span class="tag tag-fact">Fact</span> — thông tin trích trực tiếp từ nguồn, có mã fact truy vết.</li>
-      <li><span class="tag tag-ai">Tổng hợp AI</span> — nội dung do AI diễn giải từ fact; không phải thông tin gốc.</li>
-      <li><span class="tag tag-dich">Có bản dịch</span> — nguyên văn ở ngôn ngữ gốc, phần tiếng Việt là bản dịch/tóm tắt.</li>
-      <li><span class="tag tag-force">Duyệt tay</span> — câu được reviewer override (force-approve) kèm lý do ghi log; vẫn bắt buộc có citation.</li>
-    </ul>
-  </section>
+        <div class="analysis" th:with="docClaims=${claimsByDoc.get(f.rawDoc.id)}">
+          <p class="empty-note" th:if="${docClaims == null or #lists.isEmpty(docClaims)}">
+            Chưa có diễn giải AI nào qua gate/review cho diễn biến này.
+          </p>
+          <p th:each="c : ${docClaims}" th:text="${c.textVi}">Diễn giải AI về hàm ý kinh doanh.</p>
+          <p class="override-note" th:each="c : ${docClaims}"
+             th:if="${forceApproveNotes.get(c.claimCode) != null}">
+            Ghi chú: <span th:text="${forceApproveNotes.get(c.claimCode).reason}">lý do override</span>
+            — soát bởi <span th:text="${forceApproveNotes.get(c.claimCode).reviewerName}">người soát</span>.
+          </p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- 6. KHUYẾN NGHỊ CUỐI — tái dùng claim slot IMPLICATION đã publish -->
+  <div class="reco">
+    <div class="section-label">Khuyến nghị</div>
+    <p class="empty-note" th:if="${#lists.isEmpty(recommendations)}">
+      Chưa có khuyến nghị nào được publish cho kỳ báo cáo này.
+    </p>
+    <p th:each="c : ${recommendations}"
+       th:with="lead=${#strings.substringBefore(c.textVi,' — ')},
+                rest=${#strings.substringAfter(c.textVi,' — ')},
+                hasDash=${!#strings.isEmpty(rest)}">
+      <strong th:if="${hasDash}" th:text="${lead}">Khuyến nghị</strong><span
+         th:text="${hasDash} ? (' — ' + ${rest}) : ${c.textVi}"> — chi tiết</span>
+    </p>
+  </div>
+
+  <!-- 7. PHỤ LỤC — mặc định thu gọn -->
+  <details class="appendix">
+    <summary>Phụ lục — Nguồn &amp; Phương pháp (bấm để mở rộng)</summary>
+    <div class="appendix-body">
+      <table class="src-table">
+        <thead><tr><th style="width:44px">Tier</th><th>Nguồn</th><th style="width:70px">Ngôn ngữ</th></tr></thead>
+        <tbody>
+          <tr th:each="s : ${sources}">
+            <td><span class="tier-dot" th:classappend="'t' + ${s.tier}" th:text="${s.tier}">1</span></td>
+            <td th:text="${s.name}">Tên nguồn</td>
+            <td th:text="${s.language}">vi</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="margin-bottom:22px">Phương pháp: tin được thu thập tự động từ danh sách nguồn đã whitelist theo
+        tier độ tin cậy. Mọi câu trích dẫn (in nghiêng, dạng serif) là fact nguyên văn truy vết được về tài liệu
+        gốc; mọi câu văn xuôi phân tích là diễn giải do AI sinh ra, luôn bám vào ít nhất một fact ở trên và luôn
+        qua ít nhất một lớp kiểm tra tự động trước khi xuất bản — trường hợp người soát ghi đè kiểm tra tự động
+        (force-approve) được ghi chú riêng kèm lý do ngay dưới đoạn phân tích liên quan. Tài liệu trùng lặp về
+        cùng sự kiện trong cửa sổ 72 giờ bị lọc khỏi report (không xoá, vẫn audit được).</p>
+
+      <span class="legend-pill" style="background:#E7EFE6;color:#2F6B3D;border:1px solid #B9D4B9;">TRÍCH IN NGHIÊNG = FACT ĐÃ XÁC MINH</span>
+      <span class="legend-pill" style="background:#2E5AAC;color:#fff;">VĂN XUÔI = DIỄN GIẢI AI</span>
+      <span class="legend-pill" style="background:#F3EEDD;color:#7A5A12;border:1px solid #E3D6A8;">CÓ DÒNG NGUYÊN VĂN = ĐÃ DỊCH</span>
+      <span class="legend-pill" style="background:#FDEBD3;color:#8A4B08;border:1px solid #F0C98A;">CÓ GHI CHÚ SOÁT = NGƯỜI GHI ĐÈ TAY</span>
+    </div>
+  </details>
 
   <footer>
-    <span>Market Radar MVP · Techcom Life (nội bộ)</span>
-    <span th:text="'Sinh tự động lúc ' + ${generatedAt}">Sinh tự động</span>
+    <span class="l">Market Radar MVP (nội bộ) — không phát hành ra ngoài.</span>
+    <span class="r" th:text="'Sinh tự động lúc ' + ${generatedAt}">Sinh tự động</span>
   </footer>
 </div>
 </body>

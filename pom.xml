@@ -11,7 +11,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>vn.techcomlife</groupId>
+  <groupId>com.marketradar</groupId>
   <artifactId>market-radar</artifactId>
   <version>0.1.0-MVP</version>
   <name>Market Radar MVP</name>

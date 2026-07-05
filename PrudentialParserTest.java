@@ -1,4 +1,4 @@
-import vn.techcomlife.marketradar.parse.ContentParsers;
+import com.marketradar.parse.ContentParsers;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

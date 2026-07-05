@@ -48,4 +48,4 @@ marketradar:
 
 logging:
   level:
-    vn.techcomlife.marketradar: INFO
+    com.marketradar: INFO

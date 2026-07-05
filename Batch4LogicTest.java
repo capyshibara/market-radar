@@ -1,4 +1,4 @@
-import vn.techcomlife.marketradar.review.ReviewRules;
+import com.marketradar.review.ReviewRules;
 
 /**
  * Test standalone cho logic thuần Batch 4 — chạy trên JRE trần, KHÔNG cần Maven/Spring.
@@ -6,7 +6,7 @@ import vn.techcomlife.marketradar.review.ReviewRules;
  * → test đúng code sẽ chạy trong app.
  *
  * Chạy:
- *   javac -d out src/main/java/vn/techcomlife/marketradar/review/ReviewRules.java Batch4LogicTest.java
+ *   javac -d out src/main/java/com/marketradar/review/ReviewRules.java Batch4LogicTest.java
  *   java -cp out Batch4LogicTest
  */
 public class Batch4LogicTest {

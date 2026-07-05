@@ -1,5 +1,5 @@
-import vn.techcomlife.marketradar.alert.AlertRules;
-import vn.techcomlife.marketradar.dedup.DedupRules;
+import com.marketradar.alert.AlertRules;
+import com.marketradar.dedup.DedupRules;
 
 import java.util.Set;
 
@@ -9,8 +9,8 @@ import java.util.Set;
  * của main code → test đúng code sẽ chạy trong app.
  *
  * Chạy:
- *   javac -d out src/main/java/vn/techcomlife/marketradar/alert/AlertRules.java \
- *                src/main/java/vn/techcomlife/marketradar/dedup/DedupRules.java Batch5LogicTest.java
+ *   javac -d out src/main/java/com/marketradar/alert/AlertRules.java \
+ *                src/main/java/com/marketradar/dedup/DedupRules.java Batch5LogicTest.java
  *   java -cp out Batch5LogicTest
  */
 public class Batch5LogicTest {
