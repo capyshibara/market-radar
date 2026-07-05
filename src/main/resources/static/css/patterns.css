@@ -1,0 +1,84 @@
+/* ============================================================
+   Market Radar — Radar Pattern Language
+   Decorative, restrained radar-derived textures for surfaces where the
+   brand needs to show up without competing with content: login/empty-state
+   backgrounds, the report hero/masthead, a nav-rail corner accent.
+
+   Intentional exception to "flat, no gradients" (see readme Visual
+   foundations): these three classes are the ONLY place radial/conic
+   gradients are used in the system, scoped to brand decoration only —
+   never for surfaces, cards, or status color.
+
+   Usage: layer one or more classes on an absolutely-positioned full-bleed
+   element behind your content (position: relative on the container,
+   z-index: 1 on the real content). Always pair with .is-watermark or
+   .is-subtle over body copy — never at full opacity behind text.
+   ============================================================ */
+
+:root {
+  --pattern-ring-color: var(--slate-400);
+  --pattern-ring-accent: var(--brand-red-500);
+  --pattern-ring-gap: 34px;
+  --pattern-sweep-angle: 200deg; /* @kind other */
+
+  /* Pre-alpha'd, baked-in-opacity versions for direct use on `body` (see
+     base.css) — painting straight into background-image avoids needing an
+     extra layer + z-index just to dim a decorative layer under real content. */
+  --pattern-ring-color-faint: oklch(56% 0.018 255 / 0.05);
+  --pattern-ring-accent-faint: oklch(52% 0.20 25 / 0.045);
+}
+
+.radar-pattern-rings {
+  background-image: repeating-radial-gradient(
+    circle at 50% 50%,
+    transparent 0,
+    transparent calc(var(--pattern-ring-gap) - 1px),
+    var(--pattern-ring-color) calc(var(--pattern-ring-gap) - 1px),
+    var(--pattern-ring-color) var(--pattern-ring-gap)
+  );
+}
+
+.radar-pattern-sweep {
+  background-image: conic-gradient(
+    from var(--pattern-sweep-angle) at 50% 50%,
+    var(--pattern-ring-accent) 0deg,
+    transparent 65deg,
+    transparent 360deg
+  );
+}
+
+.radar-pattern-blips {
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(circle 3px at 22% 28%, var(--pattern-ring-accent) 100%, transparent 100%),
+    radial-gradient(circle 2px at 64% 16%, var(--pattern-ring-color) 100%, transparent 100%),
+    radial-gradient(circle 2.5px at 81% 52%, var(--pattern-ring-accent) 100%, transparent 100%),
+    radial-gradient(circle 2px at 38% 68%, var(--pattern-ring-color) 100%, transparent 100%),
+    radial-gradient(circle 2px at 89% 84%, var(--pattern-ring-color) 100%, transparent 100%),
+    radial-gradient(circle 2.5px at 12% 82%, var(--pattern-ring-accent) 100%, transparent 100%),
+    radial-gradient(circle 2px at 52% 42%, var(--pattern-ring-color) 100%, transparent 100%);
+}
+
+/* Strength variants — apply alongside any pattern class above */
+.radar-pattern.is-watermark,
+.radar-pattern-rings.is-watermark,
+.radar-pattern-sweep.is-watermark,
+.radar-pattern-blips.is-watermark,
+.radar-pattern-hero.is-watermark { opacity: 0.05; }
+
+.radar-pattern.is-subtle,
+.radar-pattern-rings.is-subtle,
+.radar-pattern-sweep.is-subtle,
+.radar-pattern-blips.is-subtle,
+.radar-pattern-hero.is-subtle { opacity: 0.14; }
+
+/* Composite: rings + sweep + blips together, for large hero/login surfaces */
+.radar-pattern-hero {
+  background-image:
+    conic-gradient(from var(--pattern-sweep-angle) at 50% 50%, var(--pattern-ring-accent) 0deg, transparent 65deg, transparent 360deg),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent calc(var(--pattern-ring-gap) - 1px), var(--pattern-ring-color) calc(var(--pattern-ring-gap) - 1px), var(--pattern-ring-color) var(--pattern-ring-gap)),
+    radial-gradient(circle 3px at 78% 22%, var(--pattern-ring-accent) 100%, transparent 100%),
+    radial-gradient(circle 2px at 15% 62%, var(--pattern-ring-color) 100%, transparent 100%),
+    radial-gradient(circle 2.5px at 90% 78%, var(--pattern-ring-accent) 100%, transparent 100%);
+  background-repeat: no-repeat;
+}

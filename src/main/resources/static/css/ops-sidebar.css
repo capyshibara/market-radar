@@ -1,0 +1,53 @@
+/* ============================================================
+   Market Radar — Ops Console — Sidebar shell
+   Persistent left nav: Needs Action / Audit Trail / Pipeline Config /
+   Reference groups, account switcher, EN/VI toggle. Dark surface
+   (--surface-nav) distinguishes it from the light content canvas.
+   ============================================================ */
+
+.ops-sidebar { width: 240px; flex: none; height: 100vh; position: sticky; top: 0; align-self: flex-start;
+  background: var(--surface-nav); display: flex; flex-direction: column; overflow-y: auto; }
+.ops-sidebar-head { padding: 18px 18px 14px; display: flex; align-items: center; justify-content: space-between; }
+
+.lang-toggle { display: flex; border-radius: var(--radius-pill); background: var(--slate-800); padding: 2px; }
+.lang-toggle a { border: none; cursor: pointer; border-radius: var(--radius-pill); padding: 3px 7px; font-size: var(--text-2xs);
+  font-weight: var(--weight-bold); text-transform: uppercase; color: var(--slate-400); text-decoration: none; display: inline-block; }
+.lang-toggle a.is-active { background: var(--brand-red-500); color: #fff; }
+
+.ops-sidebar-body { flex: 1; padding: 4px 12px; display: flex; flex-direction: column; gap: 18px; }
+.ops-nav-group-label { font-size: var(--text-2xs); font-weight: var(--weight-bold); color: var(--slate-500);
+  text-transform: uppercase; letter-spacing: var(--tracking-label); padding: 0 8px 6px; }
+.ops-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.ops-nav-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: none; cursor: pointer;
+  text-align: left; text-decoration: none; background: transparent; color: var(--text-nav); font-size: var(--text-sm);
+  font-weight: var(--weight-medium); padding: 8px 10px; border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-standard); }
+.ops-nav-item:hover { background: var(--border-nav); }
+.ops-nav-item.is-active { background: var(--brand-red-500); color: var(--text-nav-active); font-weight: var(--weight-semibold); }
+.ops-nav-item .nav-badge { font-size: var(--text-2xs); font-weight: var(--weight-bold); min-width: 18px; text-align: center;
+  background: var(--slate-700); color: var(--slate-200); border-radius: var(--radius-pill); padding: 1px 6px; }
+.ops-nav-item.is-active .nav-badge { background: rgba(255,255,255,0.25); color: #fff; }
+
+.ops-sidebar-footer { padding: 12px; border-top: 1px solid var(--border-nav); position: relative; }
+.ops-account { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: var(--radius-sm); }
+.ops-account:hover { background: var(--border-nav); }
+.ops-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--slate-700); color: #fff; display: flex;
+  align-items: center; justify-content: center; font-size: var(--text-2xs); font-weight: 700; flex: none; }
+.ops-account-name { flex: 1; min-width: 0; font-size: var(--text-xs); font-weight: 600; color: #fff; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.ops-account-role { font-size: var(--text-2xs); color: var(--slate-400); }
+.ops-account-caret { color: var(--slate-400); font-size: 10px; }
+.ops-switcher { display: none; margin-top: 6px; background: var(--slate-800); border-radius: var(--radius-sm); overflow: hidden; }
+.ops-switcher.is-open { display: block; }
+.ops-switcher-label { padding: 6px 10px; font-size: var(--text-2xs); color: var(--slate-400); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--tracking-label); }
+.ops-switcher-item { padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+.ops-switcher-item:hover { background: var(--slate-700); }
+.ops-switcher-item .n { font-size: var(--text-xs); color: #fff; font-weight: 600; }
+.ops-switcher-item .r { font-size: var(--text-2xs); color: var(--slate-400); }
+.ops-signout { padding: 8px 10px; cursor: pointer; font-size: var(--text-xs); color: var(--rose-400); font-weight: 600;
+  border-top: 1px solid var(--border-nav); }
+.ops-signout:hover { background: var(--slate-700); }
+
+/* Pages hidden entirely for a role (not just disabled) get this on the <html> via JS */
+[data-hide-for-role] { display: none !important; }

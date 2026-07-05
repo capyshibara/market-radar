@@ -1,0 +1,10 @@
+/* ============================================================
+   Market Radar — Ops Console — Fonts
+   Two-typeface system: Inter (UI/body) + IBM Plex Mono (data/code).
+   Source Serif 4 is the weekly-report's editorial typeface and is
+   intentionally NOT used here — the ops console is a dense
+   operational tool, not an editorial reading surface.
+   Loaded via Google Fonts (no local binaries were provided).
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');

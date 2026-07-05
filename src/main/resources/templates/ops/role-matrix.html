@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="#{ops.roleMatrix.title}">Roles &amp; Permissions</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .role-card { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 14px 16px;
+    display: flex; gap: 16px; align-items: flex-start; margin-bottom: 10px; }
+  .role-card .rc-meta { width: 150px; flex: none; }
+  .role-card .rc-scope { font-size: var(--text-2xs); color: var(--text-tertiary); margin-top: 6px; }
+  .role-card .rc-desc { font-size: var(--text-sm); color: var(--text-secondary); line-height: var(--leading-sm); }
+  .rm-section-title { font-size: var(--text-lg); font-weight: 600; margin: 24px 0 4px; }
+  .rm-section-desc { font-size: var(--text-sm); color: var(--text-secondary); margin: 0 0 12px; }
+  .check-yes { color: var(--green-600); font-weight: 700; }
+  .check-no { color: var(--slate-300); }
+  .rm-note { margin-top: 20px; font-size: var(--text-xs); color: var(--text-tertiary); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); padding: 12px 14px; background: var(--surface-card-sunk); }
+</style>
+</head>
+<body>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('rolematrix', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+      <div class="page-header">
+        <div>
+          <h1 th:text="#{ops.roleMatrix.title}">Roles &amp; Permissions</h1>
+          <p th:text="#{ops.roleMatrix.description}">description</p>
+        </div>
+      </div>
+
+      <div class="role-card">
+        <div class="rc-meta"><span class="badge badge-info">Maker</span><div class="rc-scope" th:text="#{ops.roleMatrix.deptScoped}">Department-scoped</div></div>
+        <div class="rc-desc" th:text="#{ops.roleMatrix.descMaker}">desc</div>
+      </div>
+      <div class="role-card">
+        <div class="rc-meta"><span class="badge badge-info">Checker</span><div class="rc-scope" th:text="#{ops.roleMatrix.deptScoped}">Department-scoped</div></div>
+        <div class="rc-desc" th:text="#{ops.roleMatrix.descChecker}">desc</div>
+      </div>
+      <div class="role-card">
+        <div class="rc-meta"><span class="badge badge-override">Compliance Admin</span><div class="rc-scope" th:text="#{ops.roleMatrix.allDepts}">All departments</div></div>
+        <div class="rc-desc" th:text="#{ops.roleMatrix.descAdmin}">desc</div>
+      </div>
+      <div class="role-card">
+        <div class="rc-meta"><span class="badge badge-neutral">Auditor</span><div class="rc-scope" th:text="#{ops.roleMatrix.allDepts}">All departments</div></div>
+        <div class="rc-desc" th:text="#{ops.roleMatrix.descAuditor}">desc</div>
+      </div>
+
+      <div class="rm-section-title" th:text="#{ops.roleMatrix.pageAccessTitle}">Access by page</div>
+      <p class="rm-section-desc" th:text="#{ops.roleMatrix.pageAccessDesc}">desc</p>
+      <div class="data-table-wrap"><div class="data-table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th th:text="#{ops.roleMatrix.colRole}">Role</th>
+            <th th:text="#{ops.roleMatrix.colPipelineConfig}">View pipeline config</th>
+            <th th:text="#{ops.roleMatrix.colRunJobs}">Run pipeline jobs</th>
+            <th th:text="#{ops.roleMatrix.colReviewView}">View Review</th>
+            <th th:text="#{ops.roleMatrix.colAuditView}">View Claims/Labels/Alerts</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><strong>Maker</strong></td><td><span class="check-no">—</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td></tr>
+            <tr><td><strong>Checker</strong></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td></tr>
+            <tr><td><strong>Compliance Admin</strong></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td></tr>
+            <tr><td><strong>Auditor</strong></td><td><span class="check-yes">✓</span></td><td><span class="check-no">—</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td></tr>
+          </tbody>
+        </table>
+      </div></div>
+
+      <div class="rm-section-title" th:text="#{ops.roleMatrix.actionsTitle}">Claim actions (Review page)</div>
+      <p class="rm-section-desc" th:text="#{ops.roleMatrix.actionsDesc}">desc</p>
+      <div class="data-table-wrap"><div class="data-table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th th:text="#{ops.roleMatrix.colRole}">Role</th>
+            <th th:text="#{ops.roleMatrix.colEdit}">Edit text</th>
+            <th th:text="#{ops.roleMatrix.colApprove}">Approve</th>
+            <th th:text="#{ops.roleMatrix.colEditApprove}">Edit + approve</th>
+            <th th:text="#{ops.roleMatrix.colForce}">Force-approve</th>
+            <th th:text="#{ops.roleMatrix.colReject}">Reject</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><strong>Maker</strong></td><td><span class="check-yes">✓</span></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td></tr>
+            <tr><td><strong>Checker</strong></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td></tr>
+            <tr><td><strong>Compliance Admin</strong></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td><td><span class="check-yes">✓</span></td></tr>
+            <tr><td><strong>Auditor</strong></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td><td><span class="check-no">—</span></td></tr>
+          </tbody>
+        </table>
+      </div></div>
+
+      <div class="rm-note" th:text="#{ops.roleMatrix.decisionNote}">note</div>
+    </div>
+  </div>
+</div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+</body>
+</html>

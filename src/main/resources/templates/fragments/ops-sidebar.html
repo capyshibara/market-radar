@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="sidebar(active, queueCount)" class="ops-sidebar">
+  <div class="ops-sidebar-head">
+    <a href="/review" style="line-height:0"><th:block th:replace="~{fragments/radar-mark :: lockup(18, 'light')}"></th:block></a>
+    <div class="lang-toggle">
+      <a href="?lang=en" th:classappend="${#locale.language == 'en'} ? 'is-active'">EN</a>
+      <a href="?lang=vi" th:classappend="${#locale.language == 'vi'} ? 'is-active'">VI</a>
+    </div>
+  </div>
+
+  <div class="ops-sidebar-body">
+    <div>
+      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupAction}">Needs action</div>
+      <div class="ops-nav-group">
+        <a href="/review" class="ops-nav-item" th:classappend="${active == 'review'} ? 'is-active'">
+          <span th:text="#{ops.sidebar.navReview}">Reviewer Queue</span>
+          <span class="nav-badge" th:if="${queueCount != null and queueCount > 0}" th:text="${queueCount}">3</span>
+        </a>
+      </div>
+    </div>
+
+    <div>
+      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupAudit}">Audit trail</div>
+      <div class="ops-nav-group">
+        <a href="/claims" class="ops-nav-item" th:classappend="${active == 'claims'} ? 'is-active'" th:text="#{ops.sidebar.navClaims}">Claim Audit</a>
+        <a href="/labels" class="ops-nav-item" th:classappend="${active == 'labels'} ? 'is-active'" th:text="#{ops.sidebar.navLabels}">Label Log</a>
+        <a href="/alerts" class="ops-nav-item" th:classappend="${active == 'alerts'} ? 'is-active'" th:text="#{ops.sidebar.navAlerts}">Hot Alert Log</a>
+      </div>
+    </div>
+
+    <div data-nav-group="pipeline">
+      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupPipeline}">Pipeline config</div>
+      <div class="ops-nav-group">
+        <a href="/sources" class="ops-nav-item" th:classappend="${active == 'sources'} ? 'is-active'" th:text="#{ops.sidebar.navSources}">Source Registry</a>
+        <a href="/classifications" class="ops-nav-item" th:classappend="${active == 'classifications'} ? 'is-active'" th:text="#{ops.sidebar.navClassifications}">Classifier + Routing</a>
+        <a href="/dedup" class="ops-nav-item" th:classappend="${active == 'dedup'} ? 'is-active'" th:text="#{ops.sidebar.navDedup}">Dedup / Conflict</a>
+      </div>
+    </div>
+
+    <div>
+      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupReference}">Reference</div>
+      <div class="ops-nav-group">
+        <a href="/ops/role-matrix" class="ops-nav-item" th:classappend="${active == 'rolematrix'} ? 'is-active'" th:text="#{ops.sidebar.navRoleMatrix}">Roles &amp; Permissions</a>
+        <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navReport}">Weekly report ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="ops-sidebar-footer">
+    <div class="ops-account" id="ops-account-toggle">
+      <div class="ops-avatar" id="ops-avatar">··</div>
+      <div style="flex:1;min-width:0">
+        <div class="ops-account-name" id="ops-account-name">—</div>
+        <div class="ops-account-role" id="ops-account-role">—</div>
+      </div>
+      <span class="ops-account-caret">▾</span>
+    </div>
+    <div class="ops-switcher" id="ops-switcher">
+      <div class="ops-switcher-label" th:text="#{ops.common.switchAccount}">Switch demo account</div>
+      <div class="ops-switcher-item" th:each="acc : ${T(java.util.List).of(
+              T(java.util.Map).of('name','Trần Minh','email','minh.tran@marketradar-demo.vn','role','Checker · Compliance'),
+              T(java.util.Map).of('name','Phạm Lan','email','lan.pham@marketradar-demo.vn','role','Maker · Product'),
+              T(java.util.Map).of('name','Nguyễn An','email','an.nguyen@marketradar-demo.vn','role','Compliance Admin'),
+              T(java.util.Map).of('name','Lê Hoa','email','hoa.le@marketradar-demo.vn','role','Auditor'))}"
+           th:attr="data-email=${acc.get('email')}">
+        <div class="n" th:text="${acc.get('name')}">Name</div>
+        <div class="r" th:text="${acc.get('role')}">Role</div>
+      </div>
+      <div class="ops-signout" id="ops-signout" th:text="#{ops.common.signOut}">Sign out</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

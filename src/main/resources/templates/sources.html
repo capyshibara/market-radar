@@ -1,35 +1,74 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
-<meta charset="UTF-8"/><title>Market Radar — Source Registry</title>
-<style>
-  body{font-family:"Segoe UI",Arial,sans-serif;font-size:14px;color:#1B2233;background:#FAFAF7;max-width:840px;margin:32px auto;padding:0 20px}
-  h1{font-family:Charter,Cambria,Georgia,serif;border-bottom:3px solid #A31621;padding-bottom:10px}
-  table{width:100%;border-collapse:collapse;margin-top:18px}
-  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#5A6172;border-bottom:2px solid #1B2233;padding:6px}
-  td{border-bottom:1px solid #E5E7EB;padding:9px 6px;vertical-align:top}
-  .warn{color:#A35A12;font-size:11px}
-  .btn{display:inline-block;margin-top:20px;padding:8px 16px;background:#1B2233;color:#fff;border:none;cursor:pointer;font-size:13px}
-</style>
+<meta charset="UTF-8"/>
+<title th:text="#{ops.sources.title}">Source Registry</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
 </head>
 <body>
-<h1>Source Registry — cấu hình auditable</h1>
-<p>Whitelist nguồn + tier cố định. Chỉ URL khớp host trong bảng này mới được fetch.</p>
-<table>
-  <thead><tr><th>Tier</th><th>Mã</th><th>Nguồn</th><th>Loại</th><th>Ngôn ngữ</th><th>Host whitelist</th><th>Trạng thái URL</th></tr></thead>
-  <tbody>
-    <tr th:each="s : ${sources}">
-      <td th:text="${s.tier}">1</td>
-      <td th:text="${s.code}">MOF_ISA</td>
-      <td th:text="${s.name}">Tên</td>
-      <td th:text="${s.type}">HTML</td>
-      <td th:text="${s.language}">vi</td>
-      <td th:text="${s.allowedHost}">mof.gov.vn</td>
-      <td><span class="warn" th:if="${s.urlUnverified}">⚠ chưa verify</span><span th:unless="${s.urlUnverified}">✓</span></td>
-    </tr>
-  </tbody>
-</table>
-<form method="post" action="/ingest/run"><button class="btn" type="submit">Chạy ingest ngay (tay)</button></form>
-<p style="font-size:12px;color:#5A6172;margin-top:8px">Kết quả từng nguồn (kể cả lý do bị từ chối) sẽ hiển thị dạng text — fail loud.</p>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('sources', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+
+      <div id="pipeline-denied" class="empty-state" style="display:none;margin-top:24px">
+        <div class="title" th:text="#{ops.sources.deniedTitle}">No access</div>
+        <div class="desc" th:text="#{ops.sources.deniedDesc}">Restricted.</div>
+      </div>
+
+      <div id="pipeline-content">
+        <div class="page-header">
+          <div>
+            <h1 th:text="#{ops.sources.title}">Source Registry</h1>
+            <p th:text="#{ops.sources.description}">description</p>
+          </div>
+        </div>
+
+        <div class="data-table-wrap"><div class="data-table-scroll">
+          <table class="data-table">
+            <thead><tr>
+              <th th:text="#{ops.sources.colTier}">Tier</th>
+              <th th:text="#{ops.sources.colCode}">Code</th>
+              <th th:text="#{ops.sources.colName}">Name</th>
+              <th th:text="#{ops.sources.colFetchType}">Fetch type</th>
+              <th th:text="#{ops.sources.colLang}">Lang</th>
+              <th th:text="#{ops.sources.colHost}">Host</th>
+              <th th:text="#{ops.sources.colVerified}">URL verified</th>
+            </tr></thead>
+            <tbody>
+              <tr th:each="s : ${sources}">
+                <td><span class="badge" th:classappend="${s.tier == 1} ? 'badge-success' : (${s.tier == 2} ? 'badge-info' : (${s.tier == 3} ? 'badge-warn' : 'badge-neutral'))"
+                          th:text="'Tier ' + ${s.tier}">Tier 1</span></td>
+                <td><span class="code-chip code-chip-sm" th:text="${s.code}">MOF_ISA</span></td>
+                <td th:text="${s.name}">Name</td>
+                <td th:text="${s.type}">HTML</td>
+                <td th:text="${s.language}">vi</td>
+                <td style="font-family:var(--font-mono);font-size:var(--text-xs)" th:text="${s.allowedHost}">host</td>
+                <td>
+                  <span th:if="${s.urlUnverified}" class="badge badge-warn" th:text="#{ops.sources.unverified}">Unverified</span>
+                  <span th:unless="${s.urlUnverified}" class="badge badge-success" th:text="#{ops.sources.verified}">Verified</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div></div>
+
+        <form method="post" action="/ingest/run" style="margin-top:16px">
+          <button class="btn btn-primary" type="submit" th:text="#{ops.sources.actionLabel}">Run ingest now</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+<script src="/js/ops-pipeline-guard.js"></script>
 </body>
 </html>

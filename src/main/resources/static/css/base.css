@@ -1,0 +1,43 @@
+/* ============================================================
+   Market Radar — Ops Console — Base resets
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--surface-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  /* Radar pattern watermark — corner-accent rings/sweep + a faint blip
+     scatter, on every page. Baked-in low-alpha colors (see
+     tokens/patterns.css) so this needs no extra layer or z-index — it
+     paints under body's normal content the way any CSS background does. */
+  background-image:
+    conic-gradient(from 205deg at 92% -6%, var(--pattern-ring-accent-faint) 0deg, transparent 70deg, transparent 360deg),
+    repeating-radial-gradient(circle at 92% -6%, transparent 0, transparent 33px, var(--pattern-ring-color-faint) 33px, var(--pattern-ring-color-faint) 34px),
+    radial-gradient(circle 3px at 18% 62%, var(--pattern-ring-accent-faint) 100%, transparent 100%),
+    radial-gradient(circle 2px at 52% 88%, var(--pattern-ring-color-faint) 100%, transparent 100%),
+    radial-gradient(circle 2.5px at 78% 34%, var(--pattern-ring-accent-faint) 100%, transparent 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+body { min-height: 100vh; }
+
+table { border-collapse: collapse; }
+
+button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+::selection { background: var(--brand-red-100); }
+
+a { color: var(--text-link); }
+
+code, pre, kbd { font-family: var(--font-mono); }

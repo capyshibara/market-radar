@@ -1,73 +1,127 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
 <meta charset="UTF-8"/>
-<title>Market Radar — Reviewer Console</title>
+<title th:text="#{ops.review.queue.title}">Reviewer Queue</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#EDEDEA; color:#1B2233; font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
-         font-size:14px; line-height:1.6; }
-  .page { max-width:960px; margin:24px auto; background:#FAFAF7; padding:36px 44px;
-          box-shadow:0 1px 6px rgba(0,0,0,.12); }
-  h1 { font-family:Charter,Cambria,Georgia,serif; font-size:24px; margin-bottom:4px; }
-  .sub { color:#5A6172; font-size:13px; margin-bottom:20px; }
-  .nav { font-size:12.5px; margin-bottom:18px; }
-  .nav a { color:#2E5AAC; margin-right:14px; }
-  .flash { background:#FFF4E0; border:1px solid #E0B25A; color:#7A5A12;
-           padding:10px 14px; font-size:13px; margin-bottom:18px; }
-  table { width:100%; border-collapse:collapse; background:#fff; font-size:13px; }
-  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em;
-       color:#5A6172; border-bottom:2px solid #DFE2E8; padding:8px 10px; }
-  td { border-bottom:1px solid #EEF0F3; padding:9px 10px; vertical-align:top; }
-  .code { font-family:Consolas,monospace; font-size:11px; background:#EEF0F3;
-          border:1px solid #D4D8DF; border-radius:2px; padding:0 5px; color:#3A4254; }
-  .badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em;
-           text-transform:uppercase; padding:2px 8px; border-radius:2px; }
-  .b-t3 { background:#F9E4E6; color:#A31621; border:1px solid #E0A9AF; }
-  .b-t1 { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
-  .b-gate-fail { background:#F9E4E6; color:#A31621; border:1px solid #E0A9AF; }
-  .b-gate-pass { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
-  .b-verdict { background:#E8EDF7; color:#2E4A8C; border:1px solid #B6C4E2; }
-  a.open { color:#2E5AAC; font-weight:600; }
-  .empty { color:#8A8F9C; font-style:italic; padding:30px 0; text-align:center; }
+  .q-group-title { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .q-group-title h2 { font-size: var(--text-md); font-weight: 700; margin: 0; color: var(--text-primary); }
+  .q-group-title .cnt { font-size: var(--text-xs); color: var(--text-tertiary); }
+  .q-group-title .hint { font-size: var(--text-2xs); color: var(--text-tertiary); }
+  .q-group { margin-bottom: 26px; }
+  .q-row { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); background: var(--surface-card); cursor: pointer; margin-bottom: 8px;
+    border-left: 3px solid transparent; transition: background var(--duration-fast) var(--ease-standard); text-decoration: none; }
+  .q-row:hover { background: var(--slate-50); }
+  .q-row.tier-T4 { border-left-color: var(--brand-red-500); }
+  .q-row.tier-T3 { border-left-color: var(--orange-500); }
+  .q-row .preview { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--text-primary); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .q-row .open-link { color: var(--text-link); font-size: var(--text-xs); font-weight: 600; flex: none; }
+  #scope-badge { display: none; }
 </style>
 </head>
 <body>
-<div class="page">
-  <h1>Reviewer Console — hàng đợi</h1>
-  <div class="sub">Claim cần người: Gate L1 fail, hoặc verdict L2 không ENTAILED,
-    hoặc tier ≥ T2 (E1). Tier cao xếp trước. Nút duyệt trong trang chi tiết
-    <b>khoá tới khi mở evidence</b>.</div>
-  <div class="nav">
-    <a href="/report/weekly">← Tuần san</a>
-    <a href="/claims">Audit claim</a>
-    <a href="/labels">Label log</a>
-    <a href="/sources">Nguồn</a>
-    <a href="/dedup">Dedup</a>
-    <a href="/alerts">Alerts</a>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('review', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+      <div class="page-header">
+        <div>
+          <h1 th:text="#{ops.review.queue.title}">Reviewer Queue</h1>
+          <p th:text="#{ops.review.queue.description}">description</p>
+        </div>
+        <div class="actions">
+          <span class="badge badge-neutral" id="scope-badge"></span>
+        </div>
+      </div>
+
+      <div th:if="${#lists.isEmpty(items)}" class="empty-state">
+        <svg width="36" height="36" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <circle cx="32" cy="32" r="27" stroke="currentColor" stroke-width="1.6" opacity="0.55"/>
+          <circle cx="32" cy="32" r="18" stroke="currentColor" stroke-width="1.6" opacity="0.55"/>
+          <circle cx="32" cy="32" r="9" stroke="currentColor" stroke-width="1.6" opacity="0.55"/>
+          <line x1="32" y1="32" x2="49.36" y2="11.32" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+          <circle cx="32" cy="32" r="1.8" fill="currentColor"/>
+        </svg>
+        <div class="title" th:text="#{ops.review.queue.emptyTitle}">Queue cleared</div>
+        <div class="desc" th:text="#{ops.review.queue.emptyDesc}">Nothing waiting on you.</div>
+      </div>
+
+      <th:block th:unless="${#lists.isEmpty(items)}"
+                th:with="urgent=${items.?[claim.riskTier == 'T4' or claim.riskTier == 'T3']},
+                         medium=${items.?[claim.riskTier == 'T2']},
+                         low=${items.?[claim.riskTier == 'T1' or claim.riskTier == 'T0']}">
+
+        <div class="q-group" th:if="${!#lists.isEmpty(urgent)}">
+          <div class="q-group-title">
+            <h2 th:text="#{ops.review.queue.groupUrgent}">Needs approval now</h2>
+            <span class="cnt" th:text="#{ops.review.queue.claimCount(${#lists.size(urgent)})}">3 claims</span>
+            <span class="hint">· <span th:text="#{ops.review.queue.groupUrgentHint}">hint</span></span>
+          </div>
+          <a class="q-row" th:each="it : ${urgent}" th:href="@{'/review/' + ${it.claim.id}}"
+             th:classappend="'tier-' + ${it.claim.riskTier}">
+            <span class="badge" th:classappend="'badge-tier-' + ${it.claim.riskTier}" th:text="${it.claim.riskTier}">T3</span>
+            <span class="code-chip code-chip-sm" th:text="${it.claim.claimCode}">C-001</span>
+            <span class="preview" th:text="${#strings.abbreviate(it.claim.textVi, 140)}">preview</span>
+            <span class="badge" th:classappend="'badge-gate-' + ${it.claim.gateStatus}" th:text="${it.claim.gateStatus}">PASS</span>
+            <span class="badge badge-info" th:text="${it.verdict}">NEUTRAL</span>
+            <span class="open-link" th:text="#{ops.review.queue.openLink}">Open →</span>
+          </a>
+        </div>
+
+        <div class="q-group" th:if="${!#lists.isEmpty(medium)}">
+          <div class="q-group-title">
+            <h2 th:text="#{ops.review.queue.groupMedium}">Medium priority</h2>
+            <span class="cnt" th:text="#{ops.review.queue.claimCount(${#lists.size(medium)})}">3 claims</span>
+          </div>
+          <a class="q-row" th:each="it : ${medium}" th:href="@{'/review/' + ${it.claim.id}}">
+            <span class="badge" th:classappend="'badge-tier-' + ${it.claim.riskTier}" th:text="${it.claim.riskTier}">T2</span>
+            <span class="code-chip code-chip-sm" th:text="${it.claim.claimCode}">C-001</span>
+            <span class="preview" th:text="${#strings.abbreviate(it.claim.textVi, 140)}">preview</span>
+            <span class="badge" th:classappend="'badge-gate-' + ${it.claim.gateStatus}" th:text="${it.claim.gateStatus}">PASS</span>
+            <span class="badge badge-info" th:text="${it.verdict}">NEUTRAL</span>
+            <span class="open-link" th:text="#{ops.review.queue.openLink}">Open →</span>
+          </a>
+        </div>
+
+        <div class="q-group" th:if="${!#lists.isEmpty(low)}">
+          <div class="q-group-title">
+            <h2 th:text="#{ops.review.queue.groupLow}">Low priority</h2>
+            <span class="cnt" th:text="#{ops.review.queue.claimCount(${#lists.size(low)})}">3 claims</span>
+          </div>
+          <a class="q-row" th:each="it : ${low}" th:href="@{'/review/' + ${it.claim.id}}">
+            <span class="badge" th:classappend="'badge-tier-' + ${it.claim.riskTier}" th:text="${it.claim.riskTier}">T1</span>
+            <span class="code-chip code-chip-sm" th:text="${it.claim.claimCode}">C-001</span>
+            <span class="preview" th:text="${#strings.abbreviate(it.claim.textVi, 140)}">preview</span>
+            <span class="badge" th:classappend="'badge-gate-' + ${it.claim.gateStatus}" th:text="${it.claim.gateStatus}">PASS</span>
+            <span class="badge badge-info" th:text="${it.verdict}">NEUTRAL</span>
+            <span class="open-link" th:text="#{ops.review.queue.openLink}">Open →</span>
+          </a>
+        </div>
+      </th:block>
+    </div>
   </div>
-
-  <div class="flash" th:if="${msg}" th:text="${msg}">msg</div>
-
-  <div th:if="${#lists.isEmpty(items)}" class="empty">
-    Hàng đợi trống — không có claim nào chờ review. 🎉
-  </div>
-
-  <table th:unless="${#lists.isEmpty(items)}">
-    <tr><th>Claim</th><th>Tier</th><th>Gate L1</th><th>Verdict L2</th><th>Text</th><th></th></tr>
-    <tr th:each="it : ${items}">
-      <td><span class="code" th:text="${it.claim.claimCode}">C-001</span></td>
-      <td><span class="badge"
-            th:classappend="${it.claim.riskTier == 'T3' or it.claim.riskTier == 'T4'} ? 'b-t3' : 'b-t1'"
-            th:text="${it.claim.riskTier}">T3</span></td>
-      <td><span class="badge"
-            th:classappend="${it.claim.gateStatus.name() == 'PASS'} ? 'b-gate-pass' : 'b-gate-fail'"
-            th:text="${it.claim.gateStatus}">PASS</span></td>
-      <td><span class="badge b-verdict" th:text="${it.verdict}">NEUTRAL</span></td>
-      <td th:text="${#strings.abbreviate(it.claim.textVi, 120)}">text…</td>
-      <td><a class="open" th:href="@{'/review/' + ${it.claim.id}}">Mở →</a></td>
-    </tr>
-  </table>
 </div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+<script th:inline="javascript">
+  document.addEventListener('DOMContentLoaded', function () {
+    var session = window.MR_ROLES.getSession();
+    if (!session) return;
+    var role = window.MR_ROLES.roleDef(session);
+    var badge = document.getElementById('scope-badge');
+    badge.textContent = role.deptScoped ? ('Scope: ' + session.dept) : 'All departments';
+    badge.style.display = 'inline-flex';
+  });
+</script>
 </body>
 </html>

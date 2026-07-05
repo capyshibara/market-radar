@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Full-detail mark: 3 rings + sweep wedge + blip w/ ping — nav, hero, large lockup. -->
+<svg th:fragment="icon(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Market Radar">
+  <circle cx="32" cy="32" r="27" stroke="var(--slate-400)" stroke-width="1.6" opacity="0.55"/>
+  <circle cx="32" cy="32" r="18" stroke="var(--slate-400)" stroke-width="1.6" opacity="0.55"/>
+  <circle cx="32" cy="32" r="9" stroke="var(--slate-400)" stroke-width="1.6" opacity="0.55"/>
+  <defs>
+    <linearGradient id="rm-sweep" x1="49.4" y1="11.3" x2="18.5" y2="8.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="var(--brand-red-500)" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="var(--brand-red-500)" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M32,32 L49.36,11.32 A27,27 0 0,0 18.5,8.62 Z" fill="url(#rm-sweep)"/>
+  <line x1="32" y1="32" x2="49.36" y2="11.32" stroke="var(--brand-red-500)" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="20.43" cy="45.79" r="8" stroke="var(--brand-red-500)" stroke-width="1" opacity="0.15" fill="none"/>
+  <circle cx="20.43" cy="45.79" r="5" stroke="var(--brand-red-500)" stroke-width="1.2" opacity="0.35" fill="none"/>
+  <circle cx="20.43" cy="45.79" r="2.6" fill="var(--brand-red-500)"/>
+  <circle cx="32" cy="32" r="1.8" fill="var(--slate-600)"/>
+</svg>
+
+<!-- Favicon-weight mark: 2 rings, heavier strokes, no pulse — anything under ~32px. -->
+<svg th:fragment="iconSimple(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Market Radar">
+  <circle cx="32" cy="32" r="27" stroke="var(--slate-400)" stroke-width="3.4" opacity="0.9"/>
+  <circle cx="32" cy="32" r="12" stroke="var(--slate-400)" stroke-width="3.4" opacity="0.9"/>
+  <defs>
+    <linearGradient id="rm-sweep-s" x1="49.4" y1="11.3" x2="18.5" y2="8.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="var(--brand-red-500)" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="var(--brand-red-500)" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M32,32 L49.36,11.32 A27,27 0 0,0 18.5,8.62 Z" fill="url(#rm-sweep-s)"/>
+  <line x1="32" y1="32" x2="49.36" y2="11.32" stroke="var(--brand-red-500)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="20.43" cy="45.79" r="3.6" fill="var(--brand-red-500)"/>
+  <circle cx="32" cy="32" r="2.4" fill="var(--slate-600)"/>
+</svg>
+
+<!-- Icon + "MARKET RADAR" wordmark. tone: dark (default) | light (for dark/red backgrounds). -->
+<span th:fragment="lockup(size, tone)" style="display:inline-flex; align-items:center;"
+      th:style="'display:inline-flex;align-items:center;gap:' + (${size} * 0.28) + 'px'">
+  <th:block th:replace="~{fragments/radar-mark :: icon(${size})}"></th:block>
+  <span th:style="'font-family:var(--font-ui);font-weight:var(--weight-semibold);font-size:' + (${size} * 0.46) + 'px;letter-spacing:var(--tracking-wide);text-transform:uppercase;white-space:nowrap;color:' + (${tone} == 'light' ? '#fff' : 'var(--slate-900)')">
+    Market <span style="color:var(--brand-red-500)">Radar</span>
+  </span>
+</span>
+
+</body>
+</html>

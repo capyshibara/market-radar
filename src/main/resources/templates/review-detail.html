@@ -1,168 +1,247 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
 <meta charset="UTF-8"/>
-<title>Market Radar — Review claim</title>
+<title th:text="#{ops.review.detail.title(${claim.claimCode})}">Reviewer Detail</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#EDEDEA; color:#1B2233; font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
-         font-size:14px; line-height:1.6; }
-  .page { max-width:960px; margin:24px auto; background:#FAFAF7; padding:36px 44px;
-          box-shadow:0 1px 6px rgba(0,0,0,.12); }
-  h1 { font-family:Charter,Cambria,Georgia,serif; font-size:22px; margin-bottom:4px; }
-  h4 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#5A6172; margin:14px 0 6px; }
-  .sub { color:#5A6172; font-size:13px; margin-bottom:16px; }
-  .nav { font-size:12.5px; margin-bottom:16px; } .nav a { color:#2E5AAC; margin-right:14px; }
-  .flash { background:#F9E4E6; border:1px solid #E0A9AF; color:#A31621;
-           padding:10px 14px; font-size:13px; margin-bottom:16px; white-space:pre-wrap; word-break:break-word; }
-  .code { font-family:Consolas,monospace; font-size:11px; background:#EEF0F3;
-          border:1px solid #D4D8DF; border-radius:2px; padding:0 5px; color:#3A4254; }
-  .badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em;
-           text-transform:uppercase; padding:2px 8px; border-radius:2px; margin-right:6px; }
-  .b-fail { background:#F9E4E6; color:#A31621; border:1px solid #E0A9AF; }
-  .b-pass { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
-  .b-verdict { background:#E8EDF7; color:#2E4A8C; border:1px solid #B6C4E2; }
-  .cols { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; }
-  .col { flex:1 1 400px; }
-  .claim-box { background:#fff; border:1px solid #DFE2E8; padding:14px; font-size:14.5px; }
-  .span-orig { font-size:12.5px; color:#454C5E; background:#F4F4F0;
-               border-left:3px solid #C9CDBF; padding:8px 12px; margin-bottom:8px; display:block; }
-  .span-orig .lang { font-family:Consolas,monospace; font-size:10px; color:#8A8F7F; margin-right:6px; }
-  pre.detail { font-family:Consolas,monospace; font-size:11px; background:#1B2233; color:#D7DCE6;
-               padding:10px 12px; overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
-  details.evbox > summary { cursor:pointer; font-weight:700; font-size:13px; color:#2E5AAC;
-               background:#E8EDF7; border:1px solid #B6C4E2; padding:8px 12px; list-style:none; }
-  details.evbox[open] > summary { background:#D9E2F4; }
-  .lockmsg { font-size:12px; color:#A31621; margin:8px 0; }
-  .actions { margin-top:20px; border-top:2px solid #DFE2E8; padding-top:16px; }
-  .actions form { margin-bottom:12px; }
-  button { font-size:13px; padding:7px 16px; border-radius:2px; border:1px solid #B9CBBD;
-           background:#E7ECE7; color:#2F5D3A; cursor:pointer; font-weight:700; }
-  button:disabled { opacity:.4; cursor:not-allowed; }
-  button.warn { background:#FFF4E0; border-color:#E0B25A; color:#7A5A12; }
-  button.danger { background:#F9E4E6; border-color:#E0A9AF; color:#A31621; }
-  textarea, input[type=text] { width:100%; font-size:13px; padding:7px 9px;
-           border:1px solid #D4D8DF; font-family:inherit; margin-bottom:6px; }
-  textarea { min-height:70px; }
-  .rname { max-width:260px; }
-  .verd-rationale { font-size:12.5px; color:#454C5E; background:#F0F3FA;
-           border-left:3px solid #B6C4E2; padding:8px 12px; }
+  .rd-back { background: none; border: none; color: var(--text-link); font-size: var(--text-sm); cursor: pointer;
+    padding: 0; margin-bottom: 8px; text-decoration: none; display: inline-block; }
+  .rd-badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .rd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .rd-grid > div { min-width: 0; }
+  @media (max-width: 900px) { .rd-grid { grid-template-columns: 1fr; } }
+  .rd-panel { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 14px; background: var(--surface-card); }
+  .rd-panel + .rd-panel { margin-top: 14px; }
+  .rd-panel-label { font-size: var(--text-2xs); font-weight: 700; color: var(--text-tertiary); text-transform: uppercase;
+    letter-spacing: var(--tracking-label); margin-bottom: 6px; }
+  .rd-claim-text { font-size: var(--text-md); line-height: var(--leading-md); }
+  .rd-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .rd-note { font-size: var(--text-2xs); color: var(--text-tertiary); text-align: center; }
+  .rd-edit-toggle { font-size: var(--text-xs); color: var(--text-link); background: none; border: none; cursor: pointer; padding: 0; margin-top: 8px; }
+  #edit-panel, #force-panel, #reject-panel { display: none; margin-top: 10px; }
+  #edit-panel.is-open, #force-panel.is-open, #reject-panel.is-open { display: block; }
 </style>
 </head>
 <body>
-<div class="page">
-  <h1>Review <span class="code" th:text="${claim.claimCode}">C-001</span></h1>
-  <div class="sub">
-    <span class="badge" th:classappend="${claim.riskTier=='T3' or claim.riskTier=='T4'} ? 'b-fail' : 'b-pass'"
-          th:text="'Tier ' + ${claim.riskTier}">Tier</span>
-    <span class="badge" th:classappend="${claim.gateStatus.name()=='PASS'} ? 'b-pass' : 'b-fail'"
-          th:text="'Gate L1: ' + ${claim.gateStatus}">gate</span>
-    <span class="badge b-verdict"
-          th:text="'L2: ' + (${verification != null} ? ${verification.verdict} : 'chưa verify')">L2</span>
-    <span class="badge" th:text="${claim.slot}">slot</span>
-    <span class="badge" th:text="${claim.origin}">origin</span>
-  </div>
-  <div class="nav"><a href="/review">← Hàng đợi</a><a href="/claims">Audit claim</a></div>
-
-  <div class="flash" th:if="${msg}" th:text="${msg}">msg</div>
-
-  <div class="cols">
-    <div class="col">
-      <h4>Claim (text hiện tại)</h4>
-      <div class="claim-box" th:text="${claim.textVi}">text</div>
-
-      <h4 th:if="${verification != null}">Lý do verifier
-        (<span th:text="${verification.verifierProvider}">prov</span>)</h4>
-      <div class="verd-rationale" th:if="${verification != null}"
-           th:text="${verification.rationale}">rationale</div>
-
-      <h4>Gate L1 — chi tiết phép kiểm</h4>
-      <pre class="detail" th:text="${claim.gateDetailJson}">{}</pre>
-    </div>
-
-    <div class="col">
-      <h4>Evidence được trích dẫn
-        (<span class="code" th:text="${claim.factCodesCsv}">F-001</span>)</h4>
-      <!-- Panel evidence ĐÓNG mặc định — mở nó là điều kiện mở khoá nút duyệt -->
-      <details class="evbox" id="evbox">
-        <summary>▸ Mở evidence để đối chiếu (bắt buộc trước khi duyệt)</summary>
-        <div style="padding-top:10px">
-          <div th:if="${#lists.isEmpty(citedFacts)}" class="lockmsg">
-            Claim này KHÔNG resolve được fact nào — chỉ có thể reject
-            (Invariant #1: không nguồn thì không xuất bản).
-          </div>
-          <span class="span-orig" th:each="f : ${citedFacts}">
-            <span class="lang" th:text="${f.factCode} + ' · ' + ${f.spanLanguage}">F-001</span>
-            <span th:text="${f.spanText}">span</span>
-            <span th:if="${f.eventDate != null}" class="lang"
-                  th:text="'eventDate: ' + ${f.eventDate}">d</span>
-          </span>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('review', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+      <a href="/review" class="rd-back" th:text="#{ops.review.detail.back}">← Back to queue</a>
+      <div class="page-header">
+        <div>
+          <h1 th:text="#{ops.review.detail.title(${claim.claimCode})}">Reviewer Detail</h1>
+          <p th:text="#{ops.review.detail.description}">description</p>
         </div>
-      </details>
-      <div class="lockmsg" id="lockmsg">🔒 Nút Approve / Sửa / Force khoá tới khi mở evidence.</div>
+      </div>
+
+      <div th:if="${msg}" class="flash flash-warn" th:text="${msg}">msg</div>
+      <div class="flash flash-stub" id="auditor-flash" style="display:none" th:text="#{ops.review.detail.auditorNotice}">read-only</div>
+
+      <div class="rd-badges">
+        <span class="code-chip" th:text="${claim.claimCode}">C-001</span>
+        <span class="badge" th:classappend="'badge-tier-' + ${claim.riskTier}" th:text="${claim.riskTier}">T3</span>
+        <span class="badge" th:classappend="'badge-gate-' + ${claim.gateStatus}" th:text="${claim.gateStatus}">PASS</span>
+        <span class="badge badge-info" th:text="${verification != null ? verification.verdict : 'PENDING'}">NEUTRAL</span>
+        <span class="badge badge-neutral" th:text="${claim.slot}">WHY_MATTERS</span>
+        <span class="badge badge-override" th:if="${claim.origin.name() == 'DEMO_INJECT'}">DEMO_INJECT</span>
+        <span class="provider-tag" th:classappend="${claim.llmProvider == 'STUB' or claim.llmProvider == 'DEMO'} ? 'provider-stub' : 'provider-ai'"
+              th:text="${claim.llmProvider == 'STUB' or claim.llmProvider == 'DEMO'} ? 'STUB' : 'AI'">AI</span>
+      </div>
+
+      <div class="rd-grid">
+        <!-- Left: claim text + verifier rationale + gate detail -->
+        <div>
+          <div class="rd-panel">
+            <div class="rd-panel-label" th:text="#{ops.review.detail.claimTextLabel}">Claim text</div>
+            <div class="rd-claim-text" th:text="${claim.textVi}">claim text</div>
+          </div>
+
+          <div class="rd-panel" th:if="${verification != null}">
+            <div class="rd-panel-label" th:text="#{ops.review.detail.rationaleLabel}">Verifier's rationale</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);line-height:var(--leading-sm);margin-bottom:6px"
+                 th:text="${verification.rationale}">rationale</div>
+            <span class="provider-tag provider-ai" th:text="${verification.verifierProvider}">provider</span>
+          </div>
+
+          <div class="rd-panel" style="padding:0;overflow:hidden">
+            <div class="json-viewer" style="border:none;border-radius:0">
+              <div class="json-viewer-head"><span class="title" th:text="#{ops.review.detail.gateDetailTitle}">Gate L1 detail</span><span class="toggle">Collapse</span></div>
+              <pre th:text="${claim.gateDetailJson}">{}</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: evidence (always visible) + affirmation + actions -->
+        <div>
+          <div class="rd-panel-label" th:text="#{ops.review.detail.evidenceLabel} + ' (' + ${#lists.size(citedFacts)} + ')'">Source evidence</div>
+
+          <div th:if="${#lists.isEmpty(citedFacts)}" class="no-evidence-notice">
+            <div class="title" th:text="#{ops.review.detail.noEvidenceTitle}">No evidence resolved</div>
+            <div class="desc" th:text="#{ops.review.detail.noEvidenceDesc}">Only Reject is offered.</div>
+          </div>
+
+          <div th:unless="${#lists.isEmpty(citedFacts)}">
+            <div class="citation-block" th:each="f : ${citedFacts}" style="margin-bottom:10px">
+              <div class="citation-head">
+                <span class="citation-lang" th:text="${f.spanLanguage.toUpperCase()}">VI</span>
+                <span class="citation-source" th:text="${f.rawDoc.source.name} + ' · ' + ${f.factCode}">Source · F-001</span>
+                <span class="badge" th:classappend="${f.rawDoc.source.tier <= 2} ? 'badge-success' : 'badge-neutral'" th:text="'Tier ' + ${f.rawDoc.source.tier}">Tier 1</span>
+              </div>
+              <blockquote th:text="'“' + ${f.spanText} + '”'">"quote"</blockquote>
+            </div>
+
+            <label class="evidence-affirm is-unchecked" id="affirm-label">
+              <input type="checkbox" id="affirm-checkbox"/>
+              <span class="txt" id="affirm-text" th:text="#{ops.review.detail.confirmUnchecked}">confirm</span>
+            </label>
+          </div>
+
+          <div style="margin-top:14px">
+            <div class="field-label"><span class="lbl" th:text="#{ops.review.detail.reviewerLabel}">Reviewer</span>
+              <span class="hint" th:text="#{ops.review.detail.reviewerHint}">current session</span></div>
+            <input class="ops-input" id="reviewer-display" disabled value="—"/>
+          </div>
+
+          <div class="rd-actions" id="rd-actions" th:with="hasEvidence=${!#lists.isEmpty(citedFacts)}">
+
+            <!-- 1. Approve as-is -->
+            <form th:action="@{'/review/' + ${claim.id} + '/approve'}" method="post" class="rd-action-form" data-role-hide="maker">
+              <input type="hidden" name="evidenceViewed" value="false" class="ev-flag"/>
+              <input type="hidden" name="reviewerName" value="" class="reviewer-flag"/>
+              <button type="submit" class="btn btn-primary btn-full needs-evidence" th:disabled="${!hasEvidence}" disabled
+                      th:text="#{ops.review.detail.approveBtn}">Approve as-is</button>
+            </form>
+
+            <!-- 2. Edit then approve -->
+            <div data-role-hide="" th:if="${!#lists.isEmpty(citedFacts)}">
+              <button type="button" class="btn btn-secondary btn-full needs-evidence" id="edit-toggle-btn" disabled
+                      th:text="#{ops.review.detail.editThenApproveBtn}">Edit then approve</button>
+              <div id="edit-panel">
+                <form th:action="@{'/review/' + ${claim.id} + '/edit'}" method="post" class="rd-action-form">
+                  <textarea name="newText" class="ops-textarea" rows="4" th:text="${claim.textVi}"></textarea>
+                  <input type="hidden" name="evidenceViewed" value="false" class="ev-flag"/>
+                  <input type="hidden" name="reviewerName" value="" class="reviewer-flag"/>
+                  <button type="submit" class="btn btn-secondary btn-full" style="margin-top:8px" id="edit-submit-btn"
+                          th:text="#{ops.review.detail.submitEditApproveBtn}">Submit edit + approve</button>
+                  <div class="rd-note" id="maker-note" style="display:none" th:text="#{ops.review.detail.makerNote}">Maker cannot self-approve.</div>
+                </form>
+              </div>
+            </div>
+
+            <!-- 3. Force-approve -->
+            <div data-role-hide="maker">
+              <button type="button" class="btn btn-override btn-full needs-evidence" id="force-toggle-btn" th:disabled="${!hasEvidence}" disabled
+                      th:text="#{ops.review.detail.forceApproveBtn}">Force-approve</button>
+              <div id="force-panel">
+                <form th:action="@{'/review/' + ${claim.id} + '/force-approve'}" method="post" class="rd-action-form">
+                  <div class="field-label"><span class="lbl req" th:text="#{ops.review.detail.forceReasonLabel}">Reason</span>
+                    <span class="hint" th:text="#{ops.review.detail.forceReasonHint}">≥10 chars, logged</span></div>
+                  <textarea name="reason" class="ops-textarea" rows="2" id="force-reason"></textarea>
+                  <div class="charcount" id="force-charcount">0/10 characters minimum</div>
+                  <input type="hidden" name="evidenceViewed" value="false" class="ev-flag"/>
+                  <input type="hidden" name="reviewerName" value="" class="reviewer-flag"/>
+                  <button type="submit" class="btn btn-override btn-full" style="margin-top:8px"
+                          th:text="#{ops.review.detail.confirmForceBtn}">Confirm force-approve</button>
+                </form>
+              </div>
+            </div>
+
+            <!-- 4. Reject -->
+            <div data-role-hide="maker">
+              <button type="button" class="btn btn-destructive btn-full" id="reject-toggle-btn"
+                      th:text="#{ops.review.detail.rejectBtn}">Reject</button>
+              <div id="reject-panel">
+                <form th:action="@{'/review/' + ${claim.id} + '/reject'}" method="post" class="rd-action-form">
+                  <div class="field-label"><span class="lbl req" th:text="#{ops.review.detail.rejectReasonLabel}">Reason</span>
+                    <span class="hint" th:text="#{ops.review.detail.rejectReasonHint}">logged</span></div>
+                  <textarea name="reason" class="ops-textarea" rows="2" id="reject-reason"></textarea>
+                  <div class="charcount" id="reject-charcount">0/5 characters minimum</div>
+                  <input type="hidden" name="reviewerName" value="" class="reviewer-flag"/>
+                  <button type="submit" class="btn btn-destructive btn-full" style="margin-top:8px"
+                          th:text="#{ops.review.detail.confirmRejectBtn}">Confirm reject</button>
+                </form>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
-
-  <div class="actions">
-    <h4>Người review (tự khai — MVP chưa có auth)</h4>
-    <input type="text" class="rname" id="reviewerName" value="reviewer-demo"/>
-
-    <h4>1 · Approve nguyên trạng</h4>
-    <form th:action="@{'/review/' + ${claim.id} + '/approve'}" method="post"
-          onsubmit="return stamp(this)">
-      <input type="hidden" name="evidenceViewed" value="false"/>
-      <input type="hidden" name="reviewerName" value=""/>
-      <button type="submit" class="needs-evidence" disabled>✓ Approve</button>
-    </form>
-
-    <h4>2 · Sửa rồi duyệt — text mới CHẠY LẠI Gate L1</h4>
-    <form th:action="@{'/review/' + ${claim.id} + '/edit'}" method="post"
-          onsubmit="return stamp(this)">
-      <textarea name="newText" th:text="${claim.textVi}"></textarea>
-      <input type="hidden" name="evidenceViewed" value="false"/>
-      <input type="hidden" name="reviewerName" value=""/>
-      <button type="submit" class="needs-evidence" disabled>✎ Sửa &amp; duyệt</button>
-    </form>
-
-    <h4>3 · Force-approve — override gate/verdict, BẮT BUỘC lý do (≥10 ký tự)</h4>
-    <form th:action="@{'/review/' + ${claim.id} + '/force-approve'}" method="post"
-          onsubmit="return stamp(this)">
-      <input type="text" name="reason" placeholder="Vì sao override? (ghi vào label log)"/>
-      <input type="hidden" name="evidenceViewed" value="false"/>
-      <input type="hidden" name="reviewerName" value=""/>
-      <button type="submit" class="warn needs-evidence" disabled>⚠ Force-approve</button>
-    </form>
-
-    <h4>4 · Reject — BẮT BUỘC lý do (chính là nhãn)</h4>
-    <form th:action="@{'/review/' + ${claim.id} + '/reject'}" method="post"
-          onsubmit="return stamp(this)">
-      <input type="text" name="reason" placeholder="Vì sao loại?"/>
-      <input type="hidden" name="reviewerName" value=""/>
-      <button type="submit" class="danger">✕ Reject</button>
-    </form>
   </div>
 </div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+<script th:inline="javascript">
+  document.addEventListener('DOMContentLoaded', function () {
+    var session = window.MR_ROLES.requireSession();
+    if (!session) return;
+    var role = window.MR_ROLES.roleDef(session);
+    document.getElementById('reviewer-display').value = session.name;
+    document.querySelectorAll('.reviewer-flag').forEach(function (el) { el.value = session.name; });
 
-<script>
-  // Chống rubber-stamp (bài học PaperTrail): mở evidence mới mở khoá nút duyệt.
-  // Server kiểm tra lại cờ evidenceViewed — 2 tầng, nhưng cờ vẫn từ client:
-  // chặn duyệt VÔ Ý, không chặn cố tình lách (dwell-time/gold-task là việc pilot).
-  var viewed = false;
-  document.getElementById('evbox').addEventListener('toggle', function () {
-    if (this.open && !viewed) {
-      viewed = true;
-      document.querySelectorAll('.needs-evidence').forEach(function (b) { b.disabled = false; });
-      document.getElementById('lockmsg').textContent = '🔓 Evidence đã mở — nút duyệt khả dụng.';
-      document.getElementById('lockmsg').style.color = '#2F5D3A';
+    // Role gating: hide buttons this role can never use (client-only — see OpsController).
+    document.querySelectorAll('[data-role-hide]').forEach(function (el) {
+      var hideFor = el.dataset.roleHide.split(',').filter(Boolean);
+      if (role.readOnly || hideFor.indexOf(role.id) !== -1) el.style.display = 'none';
+    });
+    if (role.canEditOnly && !role.canApprove) {
+      document.getElementById('maker-note').style.display = 'block';
     }
+    if (role.readOnly) {
+      document.getElementById('auditor-flash').style.display = 'flex';
+      document.querySelectorAll('.rd-actions button').forEach(function (b) { b.disabled = true; });
+      document.getElementById('affirm-checkbox') && (document.getElementById('affirm-checkbox').disabled = true);
+      return;
+    }
+
+    // Evidence affirmation — replaces the old collapsed-disclosure lock. Reviewer must
+    // explicitly check "I have compared this" before Approve/Edit/Force unlock.
+    var box = document.getElementById('affirm-checkbox');
+    if (box) {
+      box.addEventListener('change', function () {
+        document.querySelectorAll('.needs-evidence').forEach(function (b) { b.disabled = !box.checked; });
+        document.querySelectorAll('.ev-flag').forEach(function (el) { el.value = box.checked ? 'true' : 'false'; });
+        var label = document.getElementById('affirm-label');
+        var text = document.getElementById('affirm-text');
+        label.classList.toggle('is-checked', box.checked);
+        label.classList.toggle('is-unchecked', !box.checked);
+        text.textContent = box.checked
+          ? /*[[#{ops.review.detail.confirmChecked}]]*/ 'Evidence confirmed — actions unlocked.'
+          : /*[[#{ops.review.detail.confirmUnchecked}]]*/ 'I have compared the claim text above against this source evidence before deciding.';
+      });
+    }
+
+    function wireToggle(btnId, panelId) {
+      var btn = document.getElementById(btnId), panel = document.getElementById(panelId);
+      if (!btn || !panel) return;
+      btn.addEventListener('click', function () { panel.classList.toggle('is-open'); });
+    }
+    wireToggle('edit-toggle-btn', 'edit-panel');
+    wireToggle('force-toggle-btn', 'force-panel');
+    wireToggle('reject-toggle-btn', 'reject-panel');
+
+    function wireCharcount(inputId, countId, min) {
+      var input = document.getElementById(inputId), count = document.getElementById(countId);
+      if (!input || !count) return;
+      input.addEventListener('input', function () {
+        var len = input.value.trim().length;
+        var short = len < min;
+        count.textContent = len + '/' + min + ' characters minimum' + (short ? ' — required' : '');
+        count.classList.toggle('is-short', short);
+      });
+    }
+    wireCharcount('force-reason', 'force-charcount', 10);
+    wireCharcount('reject-reason', 'reject-charcount', 5);
   });
-  function stamp(form) {
-    var ev = form.querySelector('input[name=evidenceViewed]');
-    if (ev) ev.value = viewed ? 'true' : 'false';
-    form.querySelector('input[name=reviewerName]').value =
-        document.getElementById('reviewerName').value || 'reviewer-demo';
-    return true;
-  }
 </script>
 </body>
 </html>

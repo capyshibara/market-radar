@@ -1,98 +1,97 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
 <meta charset="UTF-8"/>
-<title>Market Radar — Dedup / Conflict</title>
+<title th:text="#{ops.dedup.title}">Dedup / Conflict</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#EDEDEA; color:#1B2233; font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
-         font-size:14px; line-height:1.6; }
-  .page { max-width:960px; margin:24px auto; background:#FAFAF7; padding:36px 44px;
-          box-shadow:0 1px 6px rgba(0,0,0,.12); }
-  h1 { font-family:Charter,Cambria,Georgia,serif; font-size:24px; margin-bottom:4px; }
-  h2 { font-family:Charter,Cambria,Georgia,serif; font-size:17px; margin:22px 0 10px;
-       border-bottom:1px solid #DFE2E8; padding-bottom:5px; }
-  .sub { color:#5A6172; font-size:13px; margin-bottom:20px; }
-  .nav { font-size:12.5px; margin-bottom:18px; }
-  .nav a { color:#2E5AAC; margin-right:14px; }
-  .code { font-family:Consolas,monospace; font-size:11px; background:#EEF0F3;
-          border:1px solid #D4D8DF; border-radius:2px; padding:0 5px; color:#3A4254; }
-  .badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.06em;
-           text-transform:uppercase; padding:2px 8px; border-radius:2px; }
-  .b-same { background:#E7ECE7; color:#2F5D3A; border:1px solid #B9CBBD; }
-  .b-diff { background:#EEF0F3; color:#5A6172; border:1px solid #D4D8DF; }
-  .b-flag { background:#F9E4E6; color:#A31621; border:1px solid #E0A9AF; }
-  table { width:100%; border-collapse:collapse; font-size:12.5px; }
-  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
-       color:#5A6172; border-bottom:2px solid #1B2233; padding:6px 8px 6px 0; }
-  td { border-bottom:1px solid #E5E7EB; padding:8px 8px 8px 0; vertical-align:top; }
-  .detail { color:#5A6172; font-size:12px; }
-  .empty { color:#8A8F9C; font-style:italic; padding:24px 0; text-align:center; }
-  .hint { font-size:12.5px; color:#5A6172; background:#EFF3FB; border:1px solid #A8BEE4;
-          padding:10px 14px; margin-bottom:18px; }
-  .hint code { font-family:Consolas,monospace; font-size:11.5px; }
-  .flagbox { background:#FDF3F4; border:1px solid #E0A9AF; padding:10px 14px; margin-bottom:8px; }
+  .rm-section-title { font-size: var(--text-lg); font-weight: 600; margin: 28px 0 4px; }
+  .rm-section-desc { font-size: var(--text-sm); color: var(--text-secondary); margin: 0 0 12px; }
+  .flag-card { border: 1px solid var(--rose-500); background: var(--rose-50); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 10px; }
+  .flag-card .detail { font-size: var(--text-xs); color: var(--rose-600); margin-top: 6px; }
 </style>
 </head>
 <body>
-<div class="page">
-  <div class="nav">
-    <a href="/report/weekly">← Tuần san</a>
-    <a href="/review">Reviewer Console</a>
-    <a href="/alerts">Alerts</a>
-    <a href="/claims">Audit claim</a>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('dedup', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+
+      <div id="pipeline-denied" class="empty-state" style="display:none;margin-top:24px">
+        <div class="title" th:text="#{ops.dedup.deniedTitle}">No access</div>
+        <div class="desc" th:text="#{ops.dedup.deniedDesc}">Restricted.</div>
+      </div>
+
+      <div id="pipeline-content">
+        <div class="page-header">
+          <div>
+            <h1 th:text="#{ops.dedup.title}">Dedup / Conflict</h1>
+            <p th:text="#{ops.dedup.description}">description</p>
+          </div>
+        </div>
+
+        <div class="rm-section-title" th:text="#{ops.dedup.pendingTitle}">Awaiting a human call</div>
+        <p class="rm-section-desc" th:text="#{ops.dedup.pendingDesc}">desc</p>
+        <div th:if="${#lists.isEmpty(needsReview)}" class="empty-state">
+          <div class="title" th:text="#{ops.dedup.emptyTitle}">Nothing stuck</div>
+          <div class="desc" th:text="#{ops.dedup.emptyDesc}">All resolved.</div>
+        </div>
+        <div class="flag-card" th:each="d : ${needsReview}">
+          <span class="code-chip code-chip-sm" th:text="'doc#' + ${d.docAId}">doc#1</span>
+          <span th:text="${d.docATitle}">title A</span><br/>
+          <span class="code-chip code-chip-sm" th:text="'doc#' + ${d.docBId}">doc#2</span>
+          <span th:text="${d.docBTitle}">title B</span>
+          <div class="detail" th:text="${d.detail}">reason</div>
+        </div>
+
+        <div class="rm-section-title" th:text="#{ops.dedup.logTitle}">Decision log</div>
+        <p class="rm-section-desc" th:text="#{ops.dedup.logDesc}">desc</p>
+        <div th:if="${#lists.isEmpty(decisions)}" class="empty-state">
+          <div class="desc">No decisions yet — run POST /dedup/run.</div>
+        </div>
+        <div class="data-table-wrap" th:if="${!#lists.isEmpty(decisions)}"><div class="data-table-scroll">
+          <table class="data-table">
+            <thead><tr>
+              <th th:text="#{ops.dedup.colPair}">Pair</th>
+              <th>Titles</th>
+              <th th:text="#{ops.dedup.colMethod}">Method</th>
+              <th th:text="#{ops.dedup.colScore}">Score</th>
+              <th th:text="#{ops.dedup.colVerdict}">Verdict</th>
+              <th th:text="#{ops.dedup.colWinner}">Winner</th>
+            </tr></thead>
+            <tbody>
+              <tr th:each="d : ${decisions}">
+                <td><span class="code-chip code-chip-sm" th:text="'#' + ${d.docAId} + '↔#' + ${d.docBId}">#1↔#2</span></td>
+                <td>
+                  <div th:text="${d.docATitle}">A</div>
+                  <div style="color:var(--text-tertiary)" th:text="${d.docBTitle}">B</div>
+                  <div style="font-size:var(--text-2xs);color:var(--text-tertiary);margin-top:2px" th:text="${d.detail}">detail</div>
+                </td>
+                <td th:text="${d.method}">JACCARD_TITLE</td>
+                <td th:text="${d.jaccardScore != null} ? ${#numbers.formatDecimal(d.jaccardScore,1,2)} : '—'">0.95</td>
+                <td th:switch="${d.verdict.name()}">
+                  <span th:case="'SAME_EVENT'" class="badge badge-info">SAME EVENT</span>
+                  <span th:case="'DIFFERENT'" class="badge badge-neutral">DIFFERENT</span>
+                  <span th:case="*" class="badge badge-warn">NEEDS HUMAN</span>
+                </td>
+                <td><span th:if="${d.winnerDocId != null}" class="code-chip code-chip-sm" th:text="'doc#' + ${d.winnerDocId}">doc#1</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div></div>
+      </div>
+    </div>
   </div>
-
-  <h1>Dedup / Conflict</h1>
-  <p class="sub">Cặp tài liệu trong cửa sổ 72h: <b>URL/hash exact → Jaccard title → LLM pairwise</b>.
-  Trùng nhau → giữ bản theo rule <b>official &gt; media · mới &gt; cũ</b>; cùng tier không phân định
-  → <b>flag người</b> (hệ thống không đoán). Bản trùng chỉ bị lọc khỏi report — không xoá gì.</p>
-
-  <div class="hint">
-    Chạy tay: <code>curl -X POST localhost:8080/dedup/run</code> ·
-    Nhịp demo: <code>curl -X POST localhost:8080/demo/inject-duplicate</code> rồi chạy dedup —
-    bản đăng lại bị bắt sống, report tự sạch.
-  </div>
-
-  <h2>⚑ Chờ người quyết (NEEDS_REVIEW)</h2>
-  <p class="empty" th:if="${#lists.isEmpty(needsReview)}">Không có cặp nào chờ người.</p>
-  <div class="flagbox" th:each="d : ${needsReview}">
-    <span class="code" th:text="'doc#' + ${d.docAId}">doc#1</span>
-    <span th:text="${d.docATitle}">title A</span><br/>
-    <span class="code" th:text="'doc#' + ${d.docBId}">doc#2</span>
-    <span th:text="${d.docBTitle}">title B</span>
-    <div class="detail" th:text="${d.detail}">lý do flag</div>
-  </div>
-
-  <h2>Toàn bộ quyết định (append-only)</h2>
-  <p class="empty" th:if="${#lists.isEmpty(decisions)}">Chưa có quyết định nào —
-  chạy <code>POST /dedup/run</code>.</p>
-  <table th:if="${!#lists.isEmpty(decisions)}">
-    <thead><tr>
-      <th style="width:110px">Cặp</th><th>Tiêu đề A / B</th>
-      <th style="width:120px">Cách bắt</th><th style="width:60px">Jaccard</th>
-      <th style="width:110px">Kết luận</th><th style="width:80px">Giữ</th>
-    </tr></thead>
-    <tbody>
-      <tr th:each="d : ${decisions}">
-        <td><span class="code" th:text="'#' + ${d.docAId} + '↔#' + ${d.docBId}">#1↔#2</span></td>
-        <td>
-          <span th:text="${d.docATitle}">A</span><br/>
-          <span style="color:#5A6172" th:text="${d.docBTitle}">B</span>
-          <div class="detail" th:text="${d.detail}">detail</div>
-        </td>
-        <td th:text="${d.method}">JACCARD_TITLE</td>
-        <td th:text="${d.jaccardScore != null} ? ${#numbers.formatDecimal(d.jaccardScore,1,2)} : '—'">0.95</td>
-        <td th:switch="${d.verdict.name()}">
-          <span th:case="'SAME_EVENT'" class="badge b-same">TRÙNG</span>
-          <span th:case="'DIFFERENT'" class="badge b-diff">KHÁC</span>
-          <span th:case="*" class="badge b-flag">CHỜ NGƯỜI</span>
-        </td>
-        <td><span class="code" th:if="${d.winnerDocId != null}"
-                  th:text="'doc#' + ${d.winnerDocId}">doc#1</span></td>
-      </tr>
-    </tbody>
-  </table>
 </div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+<script src="/js/ops-pipeline-guard.js"></script>
 </body>
 </html>

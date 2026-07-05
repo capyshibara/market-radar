@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="#{ops.login.title}">Sign in to Ops Console</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<style>
+  body { background: var(--slate-900); }
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  .login-hero-bg { position: absolute; inset: 0; opacity: 0.14; }
+  .login-lang { position: absolute; top: 20px; right: 20px; z-index: 2; }
+  .login-col { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+  .login-card { width: 400px; background: var(--slate-0); border-radius: var(--radius-lg); border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-lg); padding: 32px; }
+  .login-card-head { text-align: center; margin-bottom: 22px; }
+  .login-card-title { font-size: var(--text-lg); font-weight: 700; color: var(--text-primary); }
+  .login-card-sub { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: 4px; }
+  .sso-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; height: 44px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--slate-0);
+    color: var(--text-primary); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+  .sso-disclaimer { margin-top: 14px; font-size: var(--text-2xs); color: var(--text-tertiary); text-align: center; }
+  .picker-title { font-size: var(--text-md); font-weight: 700; color: var(--text-primary); margin-bottom: 2px; }
+  .picker-domain { font-size: var(--text-xs); color: var(--text-tertiary); margin-bottom: 16px; }
+  .picker-list { display: flex; flex-direction: column; gap: 2px; }
+  .picker-item { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+  .picker-item:hover { background: var(--slate-50); }
+  .picker-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--blue-500); color: #fff; display: flex;
+    align-items: center; justify-content: center; font-size: var(--text-xs); font-weight: 700; flex: none; }
+  .picker-name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+  .picker-email { font-size: var(--text-2xs); color: var(--text-tertiary); }
+  .picker-back { margin-top: 14px; background: none; border: none; color: var(--text-link); font-size: var(--text-xs); cursor: pointer; padding: 0; }
+  .consent-title { font-size: var(--text-md); font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+  .consent-email { font-size: var(--text-xs); color: var(--text-tertiary); margin-bottom: 14px; }
+  .consent-list { margin: 0 0 18px; padding: 0 0 0 18px; font-size: var(--text-sm); color: var(--text-secondary);
+    line-height: var(--leading-md); display: flex; flex-direction: column; gap: 6px; }
+  .consent-actions { display: flex; gap: 8px; }
+  .login-step { display: none; } .login-step.is-active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-hero-bg radar-pattern-hero"></div>
+
+  <div class="login-lang lang-toggle">
+    <a href="?lang=en" th:classappend="${#locale.language == 'en'} ? 'is-active'">EN</a>
+    <a href="?lang=vi" th:classappend="${#locale.language == 'vi'} ? 'is-active'">VI</a>
+  </div>
+
+  <div class="login-col">
+    <th:block th:replace="~{fragments/radar-mark :: lockup(26, 'light')}"></th:block>
+
+    <div class="login-card login-step is-active" id="step-start">
+      <div class="login-card-head">
+        <div class="login-card-title" th:text="#{ops.login.title}">Sign in to Ops Console</div>
+        <div class="login-card-sub" th:text="#{ops.login.subtitle}">Internal — for authorized operators only</div>
+      </div>
+      <button class="sso-btn" onclick="mrLoginStep('picker')">
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="0" y="0" width="7" height="7" fill="#4285C4"/><rect x="9" y="0" width="7" height="7" fill="#77C14A"/><rect x="0" y="9" width="7" height="7" fill="#F4B400"/><rect x="9" y="9" width="7" height="7" fill="#DE3E35"/></svg>
+        <span th:text="#{ops.login.ssoButton}">Sign in with company account (SSO)</span>
+      </button>
+      <div class="sso-disclaimer" th:text="#{ops.login.disclaimer}">Simulated for design purposes — not real authentication.</div>
+    </div>
+
+    <div class="login-card login-step" id="step-picker">
+      <div class="picker-title" th:text="#{ops.login.pickerTitle}">Choose an account</div>
+      <div class="picker-domain" th:text="#{ops.login.pickerDomain}">marketradar-demo.vn</div>
+      <div class="picker-list" id="picker-list"></div>
+      <button class="picker-back" onclick="mrLoginStep('start')" th:text="'← ' + #{ops.common.back}">← Back</button>
+    </div>
+
+    <div class="login-card login-step" id="step-consent">
+      <div class="consent-title" th:text="#{ops.login.consentTitle}">Market Radar Ops Console wants to:</div>
+      <div class="consent-email" id="consent-email"></div>
+      <ul class="consent-list">
+        <li th:text="#{ops.login.perm1}">Verify your company identity</li>
+        <li th:text="#{ops.login.perm2}">Read your assigned role &amp; department scope</li>
+        <li th:text="#{ops.login.perm3}">Log review actions under your name</li>
+      </ul>
+      <div class="consent-actions">
+        <button class="btn btn-secondary btn-full" onclick="mrLoginStep('picker')" th:text="#{ops.common.cancel}">Cancel</button>
+        <button class="btn btn-primary btn-full" id="consent-accept" th:text="#{ops.common.accept}">Accept</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/ops-session.js"></script>
+<script th:inline="javascript">
+  var picked = null;
+  function mrLoginStep(step) {
+    document.querySelectorAll('.login-step').forEach(function (el) { el.classList.remove('is-active'); });
+    document.getElementById('step-' + step).classList.add('is-active');
+  }
+  var list = document.getElementById('picker-list');
+  window.MR_ROLES.ACCOUNTS.forEach(function (acc) {
+    var row = document.createElement('div');
+    row.className = 'picker-item';
+    row.innerHTML = '<div class="picker-avatar">' + window.MR_ROLES.initials(acc.name) + '</div>' +
+      '<div><div class="picker-name">' + acc.name + '</div><div class="picker-email">' + acc.email + '</div></div>';
+    row.addEventListener('click', function () {
+      picked = acc;
+      document.getElementById('consent-email').textContent = acc.email;
+      mrLoginStep('consent');
+    });
+    list.appendChild(row);
+  });
+  document.getElementById('consent-accept').addEventListener('click', function () {
+    if (!picked) return;
+    window.MR_ROLES.setSession(picked);
+    window.location.href = '/review';
+  });
+</script>
+</body>
+</html>

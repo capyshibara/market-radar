@@ -1,0 +1,154 @@
+/* ============================================================
+   Market Radar — Ops Console — Color Tokens
+   Base palette (raw values) + semantic aliases.
+   Brand red (#EA1C24) is reserved for: active nav, primary action,
+   and T4/critical severity. Everything else is a cool-slate,
+   data-dense operational palette — not the editorial report palette.
+   ============================================================ */
+
+:root {
+  /* ---------- Base: brand ---------- */
+  --brand-red-50:  oklch(96% 0.02 25);
+  --brand-red-100: oklch(91% 0.05 25);
+  --brand-red-500: #EA1C24;
+  --brand-red-600: oklch(52% 0.20 25);
+  --brand-red-700: oklch(44% 0.19 25);
+
+  /* ---------- Base: slate neutrals ---------- */
+  --slate-0:   #ffffff;
+  --slate-25:  oklch(98.5% 0.002 255);
+  --slate-50:  oklch(97% 0.004 255);
+  --slate-100: oklch(94.5% 0.006 255);
+  --slate-150: oklch(92% 0.008 255);
+  --slate-200: oklch(88% 0.010 255);
+  --slate-300: oklch(80% 0.013 255);
+  --slate-400: oklch(68% 0.016 255);
+  --slate-500: oklch(56% 0.018 255);
+  --slate-600: oklch(46% 0.018 255);
+  --slate-700: oklch(37% 0.016 255);
+  --slate-800: oklch(28% 0.014 255);
+  --slate-900: oklch(20% 0.012 255);
+  --slate-950: oklch(15% 0.010 255);
+
+  /* ---------- Base: categorical status hues ---------- */
+  /* green — pass / success / approved */
+  --green-50:  oklch(95% 0.045 155);
+  --green-100: oklch(90% 0.07 155);
+  --green-500: oklch(58% 0.14 155);
+  --green-600: oklch(50% 0.13 155);
+  --green-700: oklch(40% 0.11 155);
+
+  /* amber — warning / pending / needs attention */
+  --amber-50:  oklch(96% 0.045 85);
+  --amber-100: oklch(91% 0.08 85);
+  --amber-500: oklch(70% 0.15 75);
+  --amber-600: oklch(58% 0.14 65);
+  --amber-700: oklch(46% 0.12 60);
+
+  /* blue — info / routed / entailed-adjacent neutral-positive */
+  --blue-50:  oklch(96% 0.02 240);
+  --blue-100: oklch(91% 0.04 240);
+  --blue-500: oklch(56% 0.13 245);
+  --blue-600: oklch(48% 0.13 250);
+  --blue-700: oklch(40% 0.12 255);
+
+  /* violet — override / system / stub / admin */
+  --violet-50:  oklch(96% 0.02 300);
+  --violet-100: oklch(90% 0.045 300);
+  --violet-500: oklch(55% 0.15 300);
+  --violet-600: oklch(47% 0.15 300);
+  --violet-700: oklch(38% 0.13 300);
+
+  /* rose — distinct failure-reason hue (name-not-in-evidence family) */
+  --rose-50:  oklch(96% 0.02 10);
+  --rose-100: oklch(90% 0.05 10);
+  --rose-500: oklch(58% 0.17 15);
+  --rose-600: oklch(50% 0.17 15);
+
+  /* orange — distinct failure-reason hue (unknown-fact-code family) */
+  --orange-50:  oklch(96% 0.03 55);
+  --orange-100: oklch(90% 0.07 50);
+  --orange-500: oklch(62% 0.16 45);
+  --orange-600: oklch(53% 0.15 42);
+
+  /* fuchsia — distinct failure-reason hue (date-not-in-evidence family) */
+  --fuchsia-50:  oklch(96% 0.02 330);
+  --fuchsia-100: oklch(90% 0.05 330);
+  --fuchsia-500: oklch(56% 0.16 335);
+  --fuchsia-600: oklch(48% 0.16 335);
+
+  /* teal — distinct action hue (edit-approve) */
+  --teal-50:  oklch(96% 0.03 190);
+  --teal-100: oklch(90% 0.055 190);
+  --teal-500: oklch(55% 0.10 195);
+  --teal-600: oklch(46% 0.10 195);
+
+  /* ---------- Semantic: surfaces ---------- */
+  --surface-app:       var(--slate-0);
+  --surface-canvas:    var(--slate-0);
+  --surface-card:      var(--slate-0);
+  --surface-card-sunk: var(--slate-50);
+  --surface-nav:       var(--slate-900);
+  --surface-overlay:   oklch(20% 0.01 255 / 0.5);
+  --surface-code:      var(--slate-900);
+
+  /* ---------- Semantic: borders ---------- */
+  --border-subtle:  var(--slate-150);
+  --border-default: var(--slate-200);
+  --border-strong:  var(--slate-300);
+  --border-focus:   var(--blue-500);
+  --border-nav:     oklch(100% 0 0 / 0.08);
+
+  /* ---------- Semantic: text ---------- */
+  --text-primary:   var(--slate-900);
+  --text-secondary: var(--slate-600);
+  --text-tertiary:  var(--slate-400);
+  --text-inverse:   var(--slate-0);
+  --text-nav:       oklch(85% 0.008 255);
+  --text-nav-active: var(--slate-0);
+  --text-link:      var(--blue-600);
+  --text-code:      oklch(88% 0.01 255);
+
+  /* ---------- Semantic: brand action ---------- */
+  --action-primary:        var(--brand-red-500);
+  --action-primary-hover:  var(--brand-red-600);
+  --action-primary-active: var(--brand-red-700);
+  --action-primary-text:   var(--slate-0);
+  --focus-ring: 0 0 0 3px oklch(52% 0.20 25 / 0.28);
+
+  /* ---------- Semantic: status vocabulary ---------- */
+  /* Gate L1 */
+  --status-pass-bg: var(--green-50);   --status-pass-fg: var(--green-700);   --status-pass-dot: var(--green-500);
+  --status-schema-bg: var(--slate-150); --status-schema-fg: var(--slate-700); --status-schema-dot: var(--slate-500);
+  --status-nocitation-bg: var(--amber-50); --status-nocitation-fg: var(--amber-700); --status-nocitation-dot: var(--amber-500);
+  --status-unkfact-bg: var(--orange-50); --status-unkfact-fg: var(--orange-600); --status-unkfact-dot: var(--orange-500);
+  --status-namenotinev-bg: var(--rose-50); --status-namenotinev-fg: var(--rose-600); --status-namenotinev-dot: var(--rose-500);
+  --status-datenotinev-bg: var(--fuchsia-50); --status-datenotinev-fg: var(--fuchsia-600); --status-datenotinev-dot: var(--fuchsia-500);
+  --status-numnotinev-bg: var(--violet-50); --status-numnotinev-fg: var(--violet-600); --status-numnotinev-dot: var(--violet-500);
+
+  /* Generic severity (info/warn/danger/success/neutral/override) */
+  --sev-success-bg: var(--green-50);  --sev-success-fg: var(--green-700);
+  --sev-warn-bg:    var(--amber-50);  --sev-warn-fg:    var(--amber-700);
+  --sev-danger-bg:  var(--rose-50);   --sev-danger-fg:  var(--rose-600);
+  --sev-info-bg:    var(--blue-50);   --sev-info-fg:    var(--blue-700);
+  --sev-neutral-bg: var(--slate-150); --sev-neutral-fg: var(--slate-700);
+  --sev-override-bg: var(--violet-50); --sev-override-fg: var(--violet-700);
+
+  /* Risk tier ordinal ramp T0 (low) -> T4 (critical, brand red) */
+  --tier-0-bg: var(--slate-100); --tier-0-fg: var(--slate-600);
+  --tier-1-bg: var(--blue-50);   --tier-1-fg: var(--blue-700);
+  --tier-2-bg: var(--amber-50);  --tier-2-fg: var(--amber-700);
+  --tier-3-bg: var(--orange-100); --tier-3-fg: var(--orange-600);
+  --tier-4-bg: var(--brand-red-50); --tier-4-fg: var(--brand-red-600);
+
+  /* Provider / STUB safety indicator */
+  --provider-ai-bg: var(--blue-50);    --provider-ai-fg: var(--blue-700);
+  --provider-stub-bg: var(--violet-100); --provider-stub-fg: var(--violet-700); --provider-stub-border: var(--violet-500);
+
+  /* ---------- Elevation ---------- */
+  --shadow-xs: 0 1px 2px oklch(20% 0.02 255 / 0.06);
+  --shadow-sm: 0 1px 3px oklch(20% 0.02 255 / 0.08), 0 1px 2px oklch(20% 0.02 255 / 0.04);
+  --shadow-md: 0 4px 10px oklch(20% 0.02 255 / 0.10), 0 2px 4px oklch(20% 0.02 255 / 0.06);
+  --shadow-lg: 0 12px 28px oklch(20% 0.02 255 / 0.16), 0 4px 10px oklch(20% 0.02 255 / 0.08);
+  --shadow-focus: var(--focus-ring);
+}

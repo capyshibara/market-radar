@@ -21,6 +21,9 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
 
     boolean existsByRawDocAndOrigin(RawDoc rawDoc, InterpretedClaim.Origin origin);
 
+    /** Batch 8: live queue-count badge on the ops sidebar (see OpsSidebarAdvice). */
+    long countByReviewStatus(InterpretedClaim.ReviewStatus status);
+
     boolean existsBySlotAndOrigin(InterpretedClaim.Slot slot, InterpretedClaim.Origin origin);
 
     // ---- Batch 4 ----
