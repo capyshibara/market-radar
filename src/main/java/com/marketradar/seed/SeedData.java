@@ -370,7 +370,9 @@ public class SeedData implements CommandLineRunner {
                 .company("Huasheng Life (mẫu — hư cấu)")
                 .productName("金福长盈 — bảo hiểm trọn đời có chia lãi")
                 .category("Ra mắt sản phẩm")
-                .summaryVi("[Bản dịch/tóm tắt] Được phê duyệt sản phẩm trọn đời chia lãi mới, lãi suất đảm bảo 2,0%, phí tối thiểu năm đầu 10.000 NDT, bán toàn quốc từ 01/07/2026."));
+                .categoryEn("Product Launch")
+                .summaryVi("[Bản dịch/tóm tắt] Được phê duyệt sản phẩm trọn đời chia lãi mới, lãi suất đảm bảo 2,0%, phí tối thiểu năm đầu 10.000 NDT, bán toàn quốc từ 01/07/2026.")
+                .summaryEn("[Translation/summary] Approved a new participating whole-life product, guaranteed rate 2.0%, minimum first-year premium RMB 10,000, sold nationwide from 07/01/2026."));
 
         facts.save(new EvidenceFact("F-002", docVi, FactType.FEE_CHANGE,
                 "điều chỉnh phí quản lý quỹ của sản phẩm liên kết đơn vị 'An Phát Đầu Tư' từ 2,0%/năm xuống 1,75%/năm, áp dụng từ ngày 01/08/2026 cho cả hợp đồng mới và hợp đồng hiện hữu.",
@@ -379,7 +381,9 @@ public class SeedData implements CommandLineRunner {
                 .company("BHNT Hoa Sen (mẫu — hư cấu)")
                 .productName("An Phát Đầu Tư (unit-linked)")
                 .category("Thay đổi phí")
-                .summaryVi("Giảm phí quản lý quỹ ULP từ 2,0% xuống 1,75%/năm, hiệu lực 01/08/2026, áp dụng cả hợp đồng hiện hữu."));
+                .categoryEn("Fee Change")
+                .summaryVi("Giảm phí quản lý quỹ ULP từ 2,0% xuống 1,75%/năm, hiệu lực 01/08/2026, áp dụng cả hợp đồng hiện hữu.")
+                .summaryEn("Cut the unit-linked fund management fee from 2.0% to 1.75%/year, effective 08/01/2026, applying to existing contracts too."));
     }
 
     /**

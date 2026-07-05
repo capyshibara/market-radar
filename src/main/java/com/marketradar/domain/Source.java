@@ -76,14 +76,24 @@ public class Source {
      * nguồn — domain KHÔNG có trường "country" riêng. Đây là suy luận HIỂN THỊ
      * (xấp xỉ, vd "en" có thể là HK/SG/nhiều nơi), không phải fact; dùng cho dòng
      * mô tả "Danh mục · Thị trường" trong report, không phải căn cứ đối chiếu.
+     * Batch 7 (i18n): tham số hoá theo ngôn ngữ hiển thị hiện tại.
      */
-    public String getCountryLabel() {
+    public String getCountryLabel(String uiLang) {
+        if ("vi".equals(uiLang)) {
+            return switch (language) {
+                case "vi" -> "Việt Nam";
+                case "zh" -> "Trung Quốc";
+                case "ko" -> "Hàn Quốc";
+                case "ja" -> "Nhật Bản";
+                default -> "Quốc tế";
+            };
+        }
         return switch (language) {
-            case "vi" -> "Việt Nam";
-            case "zh" -> "Trung Quốc";
-            case "ko" -> "Hàn Quốc";
-            case "ja" -> "Nhật Bản";
-            default -> "Quốc tế";
+            case "vi" -> "Vietnam";
+            case "zh" -> "China";
+            case "ko" -> "Korea";
+            case "ja" -> "Japan";
+            default -> "International";
         };
     }
 

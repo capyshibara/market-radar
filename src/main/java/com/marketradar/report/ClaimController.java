@@ -96,15 +96,17 @@ public class ClaimController {
 
         String claimText = "Sản phẩm \"Kim Phúc Trường Doanh\" là sản phẩm bán chạy nhất tuần qua "
                 + "với 25.000 hợp đồng khai thác mới.";
+        String claimTextEn = "\"Kim Phúc Trường Doanh\" was the best-selling product this week "
+                + "with 25,000 newly written policies.";
         List<String> cited = List.of(target.getFactCode());
 
-        GroundingGateL1.GateResult r = gate.check(claimText, cited, List.of(target),
-                Set.of(target.getFactCode()));
+        GroundingGateL1.GateResult r = gate.checkBilingual(claimText, claimTextEn, cited,
+                List.of(target), Set.of(target.getFactCode()));
 
         InterpretedClaim c = new InterpretedClaim(
                 String.format("C-%03d", claims.count() + 1),
                 target.getRawDoc(), Slot.WHY_MATTERS, Origin.DEMO_INJECT,
-                claimText, String.join(",", cited),
+                claimText, claimTextEn, String.join(",", cited),
                 r.status(), r.detailJson(), "DEMO");
         // Batch 4: DEMO_INJECT → T3 → vào thẳng Reviewer Console
         // (nhịp demo #4: gate chặn sống → mở /review → reviewer sửa trong vài giây)

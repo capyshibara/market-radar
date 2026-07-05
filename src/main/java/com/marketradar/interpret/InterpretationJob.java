@@ -86,10 +86,12 @@ public class InterpretationJob {
         String docLabel = doc == null ? "EXEC" : "doc#" + doc.getId();
 
         if (out.schemaRejected()) {
-            // Output không parse được → 1 record SCHEMA_REJECTED giữ raw để audit (fail loud)
+            // Output không parse được → 1 record SCHEMA_REJECTED giữ raw để audit (fail loud).
+            // Chỉ có raw response (chưa tách được vi/en) — lưu cùng raw vào cả hai cột.
+            String raw = truncate(out.rawResponse(), 2000);
             InterpretedClaim c = new InterpretedClaim(nextCode(),
                     doc, doc == null ? Slot.EXEC_SUMMARY : Slot.WHY_MATTERS, Origin.PIPELINE,
-                    truncate(out.rawResponse(), 2000), null,
+                    raw, raw, null,
                     GateStatus.SCHEMA_REJECTED, "{\"reason\":\"output không đúng schema JSON\"}",
                     interpreter.providerName());
             // Batch 4: schema-reject luôn cần người nhìn (fail loud)
@@ -104,9 +106,10 @@ public class InterpretationJob {
         for (Interpreter.Sentence s : out.sentences()) {
             List<EvidenceFact> cited = s.factCodes().stream()
                     .map(byCode::get).filter(Objects::nonNull).toList();
-            GroundingGateL1.GateResult r = gate.check(s.text(), s.factCodes(), cited, pack.codes());
+            GroundingGateL1.GateResult r = gate.checkBilingual(
+                    s.textVi(), s.textEn(), s.factCodes(), cited, pack.codes());
             InterpretedClaim c = new InterpretedClaim(nextCode(), doc, s.slot(), Origin.PIPELINE,
-                    s.text(), String.join(",", s.factCodes()),
+                    s.textVi(), s.textEn(), String.join(",", s.factCodes()),
                     r.status(), r.detailJson(), interpreter.providerName());
             // Batch 4: gán tier (placeholder RiskTierRouter) + route:
             //   L1 PASS → chờ Gate L2 (PENDING_VERIFICATION)

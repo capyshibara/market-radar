@@ -17,12 +17,18 @@ public class StubLlmClient implements LlmClient {
         // Text stub cố tình KHÔNG chứa số/ngày/tên → luôn qua Gate L1 (chỉ để test luồng).
         if (systemPrompt != null && systemPrompt.contains("MODE:INTERPRET_DOC")) {
             String code = firstFactCode(userPrompt);
-            return "{\"why\":[{\"text\":\"[STUB] Sự kiện này đáng chú ý với thị trường đang theo dõi.\",\"fact_codes\":[\"" + code + "\"]}],"
-                 + "\"implication\":[{\"text\":\"[STUB] Cần theo dõi thêm để đánh giá hàm ý cho danh mục sản phẩm.\",\"fact_codes\":[\"" + code + "\"]}]}";
+            return "{\"why\":[{\"text_vi\":\"[STUB] Sự kiện này đáng chú ý với thị trường đang theo dõi.\","
+                 + "\"text_en\":\"[STUB] This development is notable for the market under watch.\","
+                 + "\"fact_codes\":[\"" + code + "\"]}],"
+                 + "\"implication\":[{\"text_vi\":\"[STUB] Cần theo dõi thêm để đánh giá hàm ý cho danh mục sản phẩm.\","
+                 + "\"text_en\":\"[STUB] Further monitoring is needed to assess the implication for the product portfolio.\","
+                 + "\"fact_codes\":[\"" + code + "\"]}]}";
         }
         if (systemPrompt != null && systemPrompt.contains("MODE:EXEC_SUMMARY")) {
             String code = firstFactCode(userPrompt);
-            return "{\"sentences\":[{\"text\":\"[STUB] Tuần qua ghi nhận các diễn biến trong phạm vi theo dõi.\",\"fact_codes\":[\"" + code + "\"]}]}";
+            return "{\"sentences\":[{\"text_vi\":\"[STUB] Tuần qua ghi nhận các diễn biến trong phạm vi theo dõi.\","
+                 + "\"text_en\":\"[STUB] This week saw developments within the tracked scope.\","
+                 + "\"fact_codes\":[\"" + code + "\"]}]}";
         }
         String t = userPrompt.toLowerCase(Locale.ROOT);
         List<String> labels = new ArrayList<>();

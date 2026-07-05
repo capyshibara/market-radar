@@ -36,7 +36,10 @@ public class PdfExportService {
             body { background:#fff !important; }
             body, h1, h2, h3, h4, p, li, td, th, span, div, b, i, a, blockquote, summary, em, strong
               { font-family:'DejaVu Sans', sans-serif !important; }
-            .cite, .cite-pill, .tier-dot, .code, .span-orig .lang, .orig-span .lang, pre, code
+            /* Batch 7 (i18n): .cite-pill hiển thị TÊN NGUỒN thật (có dấu tiếng Việt) —
+             * KHÔNG được ép Mono ở đây (từng gây lỗi hiển thị, xem EmailPngExportService).
+             * Chỉ ép Mono cho nội dung chắc chắn ascii: tier-dot (chữ số), mã ngôn ngữ 2 ký tự. */
+            .tier-dot, .code, .span-orig .lang, .orig-span .lang, pre, code
               { font-family:'DejaVu Sans Mono', monospace !important; }
             .page { box-shadow:none !important; margin:0 !important;
                     max-width:100% !important; padding:0 !important; }
@@ -56,9 +59,11 @@ public class PdfExportService {
         this.templateEngine = templateEngine;
     }
 
-    /** @param model đúng model của trang HTML — bảo đảm PDF và web luôn khớp nhau */
-    public byte[] renderWeeklyReportPdf(Map<String, Object> model) {
-        Context ctx = new Context(Locale.forLanguageTag("vi"), model);
+    /** @param model đúng model của trang HTML — bảo đảm PDF và web luôn khớp nhau
+     *  @param locale Batch 7 (i18n): cùng locale đã dùng để build model, để #{...} và
+     *                #temporals trong template resolve đúng ngôn ngữ trong PDF */
+    public byte[] renderWeeklyReportPdf(Map<String, Object> model, Locale locale) {
+        Context ctx = new Context(locale, model);
         String html = templateEngine.process("weekly-report", ctx);
 
         // HTML5 → XHTML well-formed + chèn CSS override cho PDF

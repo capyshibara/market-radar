@@ -133,6 +133,28 @@ public class GroundingGateL1 {
         return new GateResult(status, detail.toString());
     }
 
+    /**
+     * Batch 7 (i18n bilingual report): mỗi câu AI sinh giờ có CẢ textVi và textEn
+     * trong cùng một lần gọi LLM. Gate L1 chạy exact-match trên CẢ HAI bản (tên/ngày/số
+     * phải verbatim-đúng-script trong evidence ở từng ngôn ngữ) — dịch sai lệch một con số
+     * hay đánh rơi tên trong ngoặc kép ở bản tiếng Anh phải bị chặn giống hệt bản tiếng Việt,
+     * không được "free pass" chỉ vì bản kia PASS. Lỗi nặng hơn (ordinal nhỏ hơn) thắng.
+     */
+    public GateResult checkBilingual(String textVi, String textEn, List<String> citedCodes,
+                                     List<EvidenceFact> citedFacts, Set<String> allCodesInPack) {
+        GateResult viResult = check(textVi, citedCodes, citedFacts, allCodesInPack);
+        GateResult enResult = check(textEn, citedCodes, citedFacts, allCodesInPack);
+        GateStatus worst = viResult.status().ordinal() <= enResult.status().ordinal()
+                ? viResult.status() : enResult.status();
+        ObjectNode combined = mapper.createObjectNode();
+        combined.put("status", worst.name());
+        try {
+            combined.set("vi", mapper.readTree(viResult.detailJson()));
+            combined.set("en", mapper.readTree(enResult.detailJson()));
+        } catch (Exception ignored) { /* detailJson luôn tự sinh hợp lệ ở trên — không xảy ra */ }
+        return new GateResult(worst, combined.toString());
+    }
+
     // ================= helpers =================
 
     static List<String> extractQuoted(String text) {

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title th:text="'Market Radar — ' + ${reportPeriod}">Market Radar — Tuần san</title>
+<title th:text="#{report.title(${reportPeriod})}">Market Radar — Weekly Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,500;1,8..60,600&amp;family=Inter:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -228,56 +228,57 @@
 <body>
 
 <div class="toolbar no-print">
-  <a href="/report/weekly.pdf">⬇ Tải PDF</a>
-  <a href="/report/weekly/email.png">⬇ Email PNG</a>
-  <a href="/review">Reviewer Console</a>
-  <a href="/dedup">Dedup</a>
-  <a href="/alerts">Alerts</a>
-  <a href="/claims">Audit claim</a>
+  <a href="/report/weekly?lang=en">EN</a>
+  <a href="/report/weekly?lang=vi">VI</a>
+  <a href="/report/weekly.pdf" th:text="#{toolbar.pdf}">⬇ Download PDF</a>
+  <a href="/report/weekly/email.png" th:text="#{toolbar.emailPng}">⬇ Email PNG</a>
+  <a href="/review" th:text="#{toolbar.review}">Reviewer Console</a>
+  <a href="/dedup" th:text="#{toolbar.dedup}">Dedup</a>
+  <a href="/alerts" th:text="#{toolbar.alerts}">Alerts</a>
+  <a href="/claims" th:text="#{toolbar.claims}">Audit Claims</a>
 </div>
 
-<div class="page">
+<div class="page" th:with="lang=${#locale.language}">
 
-  <div class="sample-banner" th:if="${hasSampleData}">
-    ⚠ BẢN DEMO — Báo cáo này còn chứa fact mẫu/hư cấu cho giai đoạn build-out; chưa phải dữ liệu sản xuất.
+  <div class="sample-banner" th:if="${hasSampleData}" th:text="#{report.sampleBanner}">
+    ⚠ DEMO — This report still contains sample/fictional facts for the build-out phase; not production data.
   </div>
 
   <!-- 1. MASTHEAD -->
   <div class="masthead">
-    <div class="kicker">Market Radar &nbsp;·&nbsp; Product Intelligence</div>
-    <h1>Market Radar</h1>
-    <p class="sub">Bản tin tình báo sản phẩm bảo hiểm nhân thọ — thị trường Việt Nam &amp; Trung Quốc:
-      sản phẩm, giá/phí, quy định và kênh phân phối trong <span th:text="${reportPeriod}">Tuần 27 · 2026</span>.</p>
+    <div class="kicker" th:text="#{report.kicker}">Market Radar · Market Intelligence</div>
+    <h1 th:text="#{report.h1}">Market Radar</h1>
+    <p class="sub" th:text="#{report.sub(${reportPeriod})}">Life insurance market intelligence bulletin.</p>
     <div class="meta-row">
-      <div class="cell first"><strong th:text="${reportPeriod}">Tuần 27 · 2026</strong></div>
-      <div class="cell">Sinh lúc <b th:text="${generatedAt}">03/07/2026 09:00</b></div>
-      <div class="cell"><b th:text="${#lists.size(sources)}">18</b>&nbsp;nguồn theo dõi</div>
-      <div class="cell"><b th:text="${docCount}">42</b>&nbsp;tài liệu đã xử lý</div>
+      <div class="cell first"><strong th:text="${reportPeriod}">Week 27 · 2026</strong></div>
+      <div class="cell" th:text="#{report.meta.generatedAt} + ' ' + ${generatedAt}">Generated Jul 5, 2026, 08:00</div>
+      <div class="cell"><b th:text="${#lists.size(sources)}">18</b>&nbsp;<span th:text="#{report.meta.sourcesTracked}">sources tracked</span></div>
+      <div class="cell"><b th:text="${docCount}">42</b>&nbsp;<span th:text="#{report.meta.docsProcessed}">documents processed</span></div>
     </div>
   </div>
 
   <!-- hero placeholder -->
-  <div class="hero"><span>ẢNH — hình ảnh minh hoạ thị trường bảo hiểm khu vực sẽ được bổ sung</span></div>
+  <div class="hero"><span th:text="#{report.hero.placeholder}">IMAGE — regional insurance market imagery to be added</span></div>
 
   <!-- 2. EXECUTIVE SUMMARY -->
   <div class="section first">
-    <div class="section-label">Tóm tắt điều hành</div>
+    <div class="section-label" th:text="#{report.section.execSummary}">Executive Summary</div>
 
-    <p class="empty-note" th:if="${#lists.isEmpty(execClaims)}">
-      Chưa có câu tổng hợp điều hành nào qua gate/review — chạy <code>POST /interpret/run</code>
-      rồi duyệt ở /review. Câu bị chặn xem tại /claims.
+    <p class="empty-note" th:if="${#lists.isEmpty(execClaims)}" th:text="#{report.execSummary.empty}">
+      No executive-summary sentence has passed gate/review yet.
     </p>
 
     <p class="exec-item" th:each="c : ${execClaims}"
-       th:with="lead=${#strings.substringBefore(c.textVi,' — ')},
-                rest=${#strings.substringAfter(c.textVi,' — ')},
+       th:with="ctext=${c.text(lang)},
+                lead=${#strings.substringBefore(ctext,' — ')},
+                rest=${#strings.substringAfter(ctext,' — ')},
                 hasDash=${!#strings.isEmpty(rest)}">
-      <strong th:if="${hasDash}" th:text="${lead}">Ý chính</strong><span
-         th:text="${hasDash} ? (' — ' + ${rest}) : ${c.textVi}"> — diễn giải</span>
+      <strong th:if="${hasDash}" th:text="${lead}">Headline</strong><span
+         th:text="${hasDash} ? (' — ' + ${rest}) : ${ctext}"> — detail</span>
       <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
          th:if="${factByCode.get(#strings.trim(code)) != null}"
          th:href="'#' + ${#strings.trim(code)}">
-        <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+        <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Source</span>
         <span class="tier-dot" th:classappend="'t' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}"
               th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">1</span>
       </a>
@@ -287,15 +288,15 @@
     <div class="stat-band">
       <div class="cell">
         <div class="stat-num" th:text="${factsCount}">3</div>
-        <div class="stat-label">Diễn biến đã xác minh trong tuần</div>
+        <div class="stat-label" th:text="#{report.stat.verifiedDevelopments}">Verified developments this week</div>
       </div>
       <div class="cell">
         <div class="stat-num" th:text="${#lists.size(sources)}">18</div>
-        <div class="stat-label">Nguồn theo dõi trên toàn khu vực</div>
+        <div class="stat-label" th:text="#{report.stat.sourcesTracked}">Sources tracked across the region</div>
       </div>
       <div class="cell">
         <div class="stat-num" th:text="${docCount}">42</div>
-        <div class="stat-label">Tài liệu đã crawl &amp; xử lý</div>
+        <div class="stat-label" th:text="#{report.stat.docsProcessed}">Documents crawled &amp; processed</div>
       </div>
     </div>
   </div>
@@ -305,11 +306,11 @@
        th:with="firstCode=${#strings.trim(#strings.arraySplit(pullQuoteClaim.factCodesCsv,',')[0])},
                 citedFact=${factByCode.get(firstCode)}">
     <div class="mark">&ldquo;</div>
-    <div class="txt" th:text="${pullQuoteClaim.textVi}">Trích dẫn nổi bật</div>
+    <div class="txt" th:text="${pullQuoteClaim.text(lang)}">Featured quote</div>
     <div class="attrib">
-      Diễn giải AI · hàm ý kinh doanh — xem chi tiết ở Phân tích sâu
+      <span th:text="#{report.pullQuote.caption}">AI interpretation · business implication</span>
       <a class="cite-pill" th:if="${citedFact != null}" th:href="'#' + ${firstCode}">
-        <span th:text="${citedFact.rawDoc.source.name}">Nguồn</span>
+        <span th:text="${citedFact.rawDoc.source.name}">Source</span>
         <span class="tier-dot" th:classappend="'t' + ${citedFact.rawDoc.source.tier}"
               th:text="${citedFact.rawDoc.source.tier}">1</span>
       </a>
@@ -318,18 +319,19 @@
 
   <!-- 3. DIỄN BIẾN CHÍNH TRONG TUẦN — dòng thời gian tường thuật -->
   <div class="section">
-    <div class="section-label">Diễn biến chính trong tuần</div>
+    <div class="section-label" th:text="#{report.section.keyDevelopments}">This Week's Key Developments</div>
 
-    <p class="empty-note" th:if="${#lists.isEmpty(allFacts)}">Chưa có fact nào cho kỳ báo cáo này.</p>
+    <p class="empty-note" th:if="${#lists.isEmpty(allFacts)}" th:text="#{report.keyDevelopments.empty}">No facts yet.</p>
 
     <div class="tl-item" th:each="f : ${allFacts}">
-      <div class="tl-date-col" th:text="${#temporals.format(f.eventDate,'dd/MM')}">30/06</div>
+      <div class="tl-date-col"
+           th:text="${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM')} : ${#temporals.format(f.eventDate,'MMM d')}">Jun 30</div>
       <div class="tl-body-col">
-        <div class="eyebrow" th:text="${f.category} + ' · ' + ${f.rawDoc.source.countryLabel}">Quy định · Trung Quốc</div>
-        <h3 th:text="${f.productName != null ? f.productName : f.company}">Tiêu đề diễn biến</h3>
-        <p th:text="${f.summaryVi}">Tóm tắt sự kiện.</p>
+        <div class="eyebrow" th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)}">Regulation · China</div>
+        <h3 th:text="${f.productName != null ? f.productName : f.company}">Development headline</h3>
+        <p th:text="${f.summary(lang)}">Event summary.</p>
         <a class="cite-pill" th:id="${f.factCode}" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
-          <span th:text="${f.rawDoc.source.name}">Nguồn</span>
+          <span th:text="${f.rawDoc.source.name}">Source</span>
           <span class="tier-dot" th:classappend="'t' + ${f.rawDoc.source.tier}" th:text="${f.rawDoc.source.tier}">1</span>
         </a>
       </div>
@@ -338,23 +340,22 @@
 
   <!-- 4. SẢN PHẨM NỔI BẬT -->
   <div class="section">
-    <div class="section-label">Sản phẩm nổi bật</div>
-    <p class="section-insight" th:if="${factsCount > 0}">
-      <span th:text="${factsCount}">3</span> sự kiện đáng chú ý tuần này — nổi bật vì có căn cứ ra mắt,
-      hồ sơ pháp lý hoặc thay đổi phí/quyền lợi công bố chính thức, không phải vì xếp hạng doanh số.
+    <div class="section-label" th:text="#{report.section.notableProducts}">Notable Products</div>
+    <p class="section-insight" th:if="${factsCount > 0}" th:text="#{report.notableProducts.insight(${factsCount})}">
+      Notable developments this week.
     </p>
 
     <div class="card-grid">
       <div class="card" th:each="f : ${allFacts}">
-        <div class="eyebrow" th:text="${f.company} + ' · ' + ${f.category}">Công ty · Loại</div>
-        <h3 th:text="${f.productName != null ? f.productName : f.company}">Tên sản phẩm</h3>
-        <p th:text="${f.summaryVi}">Mô tả ngắn.</p>
+        <div class="eyebrow" th:text="${f.company} + ' · ' + ${f.categoryLabel(lang)}">Company · Category</div>
+        <h3 th:text="${f.productName != null ? f.productName : f.company}">Product name</h3>
+        <p th:text="${f.summary(lang)}">Short description.</p>
         <!-- bọc pill trong div block riêng — đã kiểm chứng OpenHTMLtoPDF: một <a inline-block>
              nối ngay sau <p> bên trong card float đôi lúc chồng lên dòng cuối của <p>;
              một khối block tường minh chặn đứng việc này. -->
         <div class="card-cite">
           <a class="cite-pill" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
-            <span th:text="${f.rawDoc.source.name}">Nguồn</span>
+            <span th:text="${f.rawDoc.source.name}">Source</span>
             <span class="tier-dot" th:classappend="'t' + ${f.rawDoc.source.tier}" th:text="${f.rawDoc.source.tier}">1</span>
           </a>
         </div>
@@ -364,41 +365,44 @@
 
   <!-- 5. PHÂN TÍCH SÂU — mini-article; fact = trích dẫn serif, AI = văn xuôi liền mạch -->
   <div class="section">
-    <div class="section-label">Phân tích sâu</div>
-    <p class="section-insight" th:if="${factsCount > 0}">
-      Những diễn biến đáng đọc kỹ trước khi trao đổi định giá/kế hoạch tuần tới.
+    <div class="section-label" th:text="#{report.section.deepDive}">Deep-Dive Analysis</div>
+    <p class="section-insight" th:if="${factsCount > 0}" th:text="#{report.deepDive.insight}">
+      Developments worth reading closely.
     </p>
 
     <details class="article" th:each="f, st : ${allFacts}" th:id="${'deep-' + f.factCode}" th:open="${st.index < 2}">
       <summary>
-        <div class="eyebrow" th:text="${f.category} + ' · ' + ${f.rawDoc.source.countryLabel} + ' · ' + ${#temporals.format(f.eventDate,'dd/MM/yyyy')}">Loại · Thị trường · Ngày</div>
-        <div class="article-headline" th:text="${f.productName != null ? f.productName : f.company}">Tiêu đề</div>
+        <div class="eyebrow"
+             th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)} + ' · ' +
+                      (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM/yyyy')} : ${#temporals.format(f.eventDate,'MMM d, yyyy')})">Category · Market · Date</div>
+        <div class="article-headline" th:text="${f.productName != null ? f.productName : f.company}">Headline</div>
       </summary>
       <div class="article-body">
         <blockquote class="fact-quote">
-          <div class="txt" th:text="'“' + ${f.summaryVi} + '”'">“Trích fact.”</div>
+          <div class="txt" th:text="'“' + ${f.summary(lang)} + '”'">“Fact quote.”</div>
           <div class="attrib">
-            Theo <a th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer"
-                    th:text="${f.rawDoc.source.name}">Nguồn</a>
-            <span th:if="${f.spanLanguage != 'vi'}" th:text="'· nguyên văn ' + ${f.spanLanguageLabel}">· nguyên văn</span>
+            <span th:text="#{report.deepDive.attribution}">As reported by</span>
+            <a th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer"
+               th:text="${f.rawDoc.source.name}">Source</a>
+            <span th:if="${f.spanLanguage != lang}" th:text="#{report.deepDive.originalIn(${f.getSpanLanguageLabel(lang)})}">· original in Chinese</span>
           </div>
         </blockquote>
 
         <!-- Invariant bắt buộc: span nguyên văn ngôn ngữ gốc luôn hiển thị, không giấu — kể cả khi
              thiết kế đã bỏ nhãn "TRANSLATED" to; ở đây thể hiện bằng một dòng nhỏ, lặng, không phải hộp màu. -->
-        <p class="orig-span" th:if="${f.spanLanguage != 'vi'}">
-          <span class="lang" th:text="${f.spanLanguage}">zh</span><span th:text="${f.spanText}">Nguyên văn ngôn ngữ gốc</span>
+        <p class="orig-span" th:if="${f.spanLanguage != lang}">
+          <span class="lang" th:text="${f.spanLanguage}">zh</span><span th:text="${f.spanText}">Original-language span</span>
         </p>
 
         <div class="analysis" th:with="docClaims=${claimsByDoc.get(f.rawDoc.id)}">
-          <p class="empty-note" th:if="${docClaims == null or #lists.isEmpty(docClaims)}">
-            Chưa có diễn giải AI nào qua gate/review cho diễn biến này.
+          <p class="empty-note" th:if="${docClaims == null or #lists.isEmpty(docClaims)}" th:text="#{report.deepDive.noAnalysis}">
+            No AI interpretation yet.
           </p>
-          <p th:each="c : ${docClaims}" th:text="${c.textVi}">Diễn giải AI về hàm ý kinh doanh.</p>
+          <p th:each="c : ${docClaims}" th:text="${c.text(lang)}">AI interpretation of business implication.</p>
           <p class="override-note" th:each="c : ${docClaims}"
-             th:if="${forceApproveNotes.get(c.claimCode) != null}">
-            Ghi chú: <span th:text="${forceApproveNotes.get(c.claimCode).reason}">lý do override</span>
-            — soát bởi <span th:text="${forceApproveNotes.get(c.claimCode).reviewerName}">người soát</span>.
+             th:if="${forceApproveNotes.get(c.claimCode) != null}"
+             th:text="#{report.deepDive.overrideNote(${forceApproveNotes.get(c.claimCode).reason},${forceApproveNotes.get(c.claimCode).reviewerName})}">
+            Note: override reason — reviewed by reviewer.
           </p>
         </div>
       </div>
@@ -407,51 +411,47 @@
 
   <!-- 6. KHUYẾN NGHỊ CUỐI — tái dùng claim slot IMPLICATION đã publish -->
   <div class="reco">
-    <div class="section-label">Khuyến nghị</div>
-    <p class="empty-note" th:if="${#lists.isEmpty(recommendations)}">
-      Chưa có khuyến nghị nào được publish cho kỳ báo cáo này.
+    <div class="section-label" th:text="#{report.section.recommendation}">Final Recommendation</div>
+    <p class="empty-note" th:if="${#lists.isEmpty(recommendations)}" th:text="#{report.recommendation.empty}">
+      No recommendation published yet.
     </p>
     <p th:each="c : ${recommendations}"
-       th:with="lead=${#strings.substringBefore(c.textVi,' — ')},
-                rest=${#strings.substringAfter(c.textVi,' — ')},
+       th:with="ctext=${c.text(lang)},
+                lead=${#strings.substringBefore(ctext,' — ')},
+                rest=${#strings.substringAfter(ctext,' — ')},
                 hasDash=${!#strings.isEmpty(rest)}">
-      <strong th:if="${hasDash}" th:text="${lead}">Khuyến nghị</strong><span
-         th:text="${hasDash} ? (' — ' + ${rest}) : ${c.textVi}"> — chi tiết</span>
+      <strong th:if="${hasDash}" th:text="${lead}">Recommendation</strong><span
+         th:text="${hasDash} ? (' — ' + ${rest}) : ${ctext}"> — detail</span>
     </p>
   </div>
 
   <!-- 7. PHỤ LỤC — mặc định thu gọn -->
   <details class="appendix">
-    <summary>Phụ lục — Nguồn &amp; Phương pháp (bấm để mở rộng)</summary>
+    <summary th:text="#{report.appendix.title}">Appendix — Sources &amp; Methodology (click to expand)</summary>
     <div class="appendix-body">
       <table class="src-table">
-        <thead><tr><th style="width:44px">Tier</th><th>Nguồn</th><th style="width:70px">Ngôn ngữ</th></tr></thead>
+        <thead><tr><th style="width:44px" th:text="#{report.appendix.tier}">Tier</th><th th:text="#{report.appendix.source}">Source</th><th style="width:70px" th:text="#{report.appendix.language}">Language</th></tr></thead>
         <tbody>
           <tr th:each="s : ${sources}">
             <td><span class="tier-dot" th:classappend="'t' + ${s.tier}" th:text="${s.tier}">1</span></td>
-            <td th:text="${s.name}">Tên nguồn</td>
+            <td th:text="${s.name}">Source name</td>
             <td th:text="${s.language}">vi</td>
           </tr>
         </tbody>
       </table>
 
-      <p style="margin-bottom:22px">Phương pháp: tin được thu thập tự động từ danh sách nguồn đã whitelist theo
-        tier độ tin cậy. Mọi câu trích dẫn (in nghiêng, dạng serif) là fact nguyên văn truy vết được về tài liệu
-        gốc; mọi câu văn xuôi phân tích là diễn giải do AI sinh ra, luôn bám vào ít nhất một fact ở trên và luôn
-        qua ít nhất một lớp kiểm tra tự động trước khi xuất bản — trường hợp người soát ghi đè kiểm tra tự động
-        (force-approve) được ghi chú riêng kèm lý do ngay dưới đoạn phân tích liên quan. Tài liệu trùng lặp về
-        cùng sự kiện trong cửa sổ 72 giờ bị lọc khỏi report (không xoá, vẫn audit được).</p>
+      <p style="margin-bottom:22px" th:text="#{report.appendix.methodology}">Methodology.</p>
 
-      <span class="legend-pill" style="background:#E7EFE6;color:#2F6B3D;border:1px solid #B9D4B9;">TRÍCH IN NGHIÊNG = FACT ĐÃ XÁC MINH</span>
-      <span class="legend-pill" style="background:#2E5AAC;color:#fff;">VĂN XUÔI = DIỄN GIẢI AI</span>
-      <span class="legend-pill" style="background:#F3EEDD;color:#7A5A12;border:1px solid #E3D6A8;">CÓ DÒNG NGUYÊN VĂN = ĐÃ DỊCH</span>
-      <span class="legend-pill" style="background:#FDEBD3;color:#8A4B08;border:1px solid #F0C98A;">CÓ GHI CHÚ SOÁT = NGƯỜI GHI ĐÈ TAY</span>
+      <span class="legend-pill" style="background:#E7EFE6;color:#2F6B3D;border:1px solid #B9D4B9;" th:text="#{report.legend.fact}">ITALIC QUOTE = VERIFIED FACT</span>
+      <span class="legend-pill" style="background:#2E5AAC;color:#fff;" th:text="#{report.legend.ai}">PROSE = AI INTERPRETATION</span>
+      <span class="legend-pill" style="background:#F3EEDD;color:#7A5A12;border:1px solid #E3D6A8;" th:text="#{report.legend.translated}">HAS ORIGINAL-TEXT LINE = TRANSLATED</span>
+      <span class="legend-pill" style="background:#FDEBD3;color:#8A4B08;border:1px solid #F0C98A;" th:text="#{report.legend.reviewed}">HAS REVIEW NOTE = MANUAL OVERRIDE</span>
     </div>
   </details>
 
   <footer>
-    <span class="l">Market Radar MVP (nội bộ) — không phát hành ra ngoài.</span>
-    <span class="r" th:text="'Sinh tự động lúc ' + ${generatedAt}">Sinh tự động</span>
+    <span class="l" th:text="#{report.footer.internal}">Market Radar MVP (internal) — not for external release.</span>
+    <span class="r" th:text="#{report.footer.generatedAt(${generatedAt})}">Automatically generated</span>
   </footer>
 </div>
 </body>

@@ -71,26 +71,26 @@ public class ReportController {
     }
 
     @GetMapping("/report/weekly")
-    public String weeklyReport(Model model) {
-        model.addAllAttributes(buildWeeklyModel());
+    public String weeklyReport(Model model, Locale locale) {
+        model.addAllAttributes(buildWeeklyModel(locale));
         return "weekly-report";
     }
 
     /** Batch 5: PDF export — đúng model + template của bản HTML (một nguồn sự thật). */
     @GetMapping("/report/weekly.pdf")
-    public ResponseEntity<byte[]> weeklyReportPdf() {
-        byte[] pdf = pdfExport.renderWeeklyReportPdf(buildWeeklyModel());
+    public ResponseEntity<byte[]> weeklyReportPdf(Locale locale) {
+        byte[] pdf = pdfExport.renderWeeklyReportPdf(buildWeeklyModel(locale), locale);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"market-radar-tuan-san.pdf\"")
+                        "attachment; filename=\"market-radar-weekly-report.pdf\"")
                 .body(pdf);
     }
 
     /** Email PNG export: same model as HTML/PDF, compact "email-summary" template rasterized to PNG. */
     @GetMapping("/report/weekly/email.png")
-    public ResponseEntity<byte[]> weeklyReportEmailPng() {
-        byte[] png = emailPngExport.renderWeeklySummaryPng(buildWeeklyModel());
+    public ResponseEntity<byte[]> weeklyReportEmailPng(Locale locale) {
+        byte[] png = emailPngExport.renderWeeklySummaryPng(buildWeeklyModel(locale), locale);
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_PNG)
                 .body(png);
@@ -100,14 +100,20 @@ public class ReportController {
      * Model dùng chung HTML + PDF. Batch 5: mọi fact/claim thuộc doc có
      * duplicateOfId != null bị LỌC khỏi report (bản trùng thua theo rule dedup);
      * dữ liệu KHÔNG bị xoá — vẫn audit được ở /claims, /dedup, H2 console.
+     * Batch 7 (i18n): locale (resolved bằng CookieLocaleResolver, xem WebConfig)
+     * quyết định "Tuần N · YYYY" vs "Week N · YYYY" và định dạng generatedAt —
+     * nội dung claim/fact song ngữ tự chọn theo locale ngay trong template.
      */
-    private Map<String, Object> buildWeeklyModel() {
+    private Map<String, Object> buildWeeklyModel(Locale locale) {
         Map<String, Object> model = new HashMap<>();
+        boolean vi = "vi".equals(locale.getLanguage());
         LocalDate today = LocalDate.now();
         int week = today.get(WeekFields.of(Locale.forLanguageTag("vi")).weekOfWeekBasedYear());
-        model.put("reportPeriod", "Tuần " + week + " · " + today.getYear());
-        model.put("generatedAt",
-                java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+        model.put("reportPeriod", (vi ? "Tuần " : "Week ") + week + " · " + today.getYear());
+        DateTimeFormatter genFmt = vi
+                ? DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+                : DateTimeFormatter.ofPattern("MMM d, yyyy, HH:mm", Locale.ENGLISH);
+        model.put("generatedAt", java.time.ZonedDateTime.now().format(genFmt));
         model.put("sources", sources.findAllByOrderByTierAsc());
         model.put("docCount", rawDocs.count());
 

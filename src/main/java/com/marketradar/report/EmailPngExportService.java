@@ -37,12 +37,13 @@ public class EmailPngExportService {
     private static final float RENDER_DPI = 192f;         // 2x for a crisp embed
     private static final int CROP_BOTTOM_PADDING_PX = 0;  // content already ends with its own legal-line padding
 
+    /** Batch 7 (i18n): kicker/stat-label/src đều có thể mang text tiếng Việt có dấu tuỳ
+     * locale (tên nguồn, nhãn) — KHÔNG ép Mono cho các lớp này (DejaVu Sans Mono thiếu
+     * glyph một số dấu tiếng Việt); chỉ toàn bộ dùng DejaVu Sans để bảo đảm hiển thị đúng. */
     private static final String PDF_OVERRIDE_CSS = """
             @page { size: %fmm %fmm; margin: 0; }
             body, h1, h2, h3, h4, p, li, td, th, span, div, b, i, a, strong
               { font-family:'DejaVu Sans', sans-serif !important; }
-            .kicker, .stat-label, .src
-              { font-family:'DejaVu Sans Mono', monospace !important; }
             """.formatted(PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
 
     private final SpringTemplateEngine templateEngine;
@@ -51,9 +52,10 @@ public class EmailPngExportService {
         this.templateEngine = templateEngine;
     }
 
-    /** @param model đúng model của trang HTML/PDF — email PNG là bản tóm tắt của cùng dữ liệu */
-    public byte[] renderWeeklySummaryPng(Map<String, Object> model) {
-        Context ctx = new Context(Locale.forLanguageTag("vi"), model);
+    /** @param model đúng model của trang HTML/PDF — email PNG là bản tóm tắt của cùng dữ liệu
+     *  @param locale Batch 7 (i18n): cùng locale đã dùng để build model */
+    public byte[] renderWeeklySummaryPng(Map<String, Object> model, Locale locale) {
+        Context ctx = new Context(locale, model);
         String html = templateEngine.process("email-summary", ctx);
 
         Document jdoc = Jsoup.parse(html);

@@ -43,7 +43,9 @@ public class EvidenceFact {
     @Column(length = 256) private String company;
     @Column(length = 512) private String productName;
     @Column(length = 256) private String category;
+    @Column(length = 256) private String categoryEn; // Batch 7 (i18n): bản tiếng Anh của category
     @Lob @Column(columnDefinition = "CLOB") private String summaryVi; // tóm tắt tiếng Việt, gắn nhãn bản dịch/tóm tắt
+    @Lob @Column(columnDefinition = "CLOB") private String summaryEn; // Batch 7 (i18n): bản tiếng Anh của summary
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
@@ -69,20 +71,39 @@ public class EvidenceFact {
     public String getCompany() { return company; }
     public String getProductName() { return productName; }
     public String getCategory() { return category; }
+    public String getCategoryEn() { return categoryEn; }
     public String getSummaryVi() { return summaryVi; }
+    public String getSummaryEn() { return summaryEn; }
     public Instant getCreatedAt() { return createdAt; }
+
+    /** Batch 7 (i18n): chọn theo ngôn ngữ hiển thị hiện tại — dùng trong template.
+     * Tên khác "category"/"summary" (không phải overload) vì đã trùng chữ ký với
+     * builder fluent category(String)/summaryVi(String) phía dưới. */
+    public String categoryLabel(String lang) { return "vi".equals(lang) ? category : (categoryEn != null ? categoryEn : category); }
+    public String summary(String lang) { return "vi".equals(lang) ? summaryVi : (summaryEn != null ? summaryEn : summaryVi); }
 
     /** Batch 6 (report redesign): tên ngôn ngữ hiển thị cho dòng "nguyên văn tiếng X" —
      * suy từ spanLanguage của CHÍNH fact này (không phải Source.language) vì đây là
-     * ngôn ngữ thật của span trích, dùng cho invariant "luôn hiện nguyên văn gốc". */
-    public String getSpanLanguageLabel() {
+     * ngôn ngữ thật của span trích, dùng cho invariant "luôn hiện nguyên văn gốc".
+     * Batch 7 (i18n): tham số hoá theo ngôn ngữ hiển thị (không phải ngôn ngữ span). */
+    public String getSpanLanguageLabel(String uiLang) {
+        if ("vi".equals(uiLang)) {
+            return switch (spanLanguage) {
+                case "vi" -> "tiếng Việt";
+                case "zh" -> "tiếng Trung";
+                case "ko" -> "tiếng Hàn";
+                case "ja" -> "tiếng Nhật";
+                case "en" -> "tiếng Anh";
+                default -> "ngôn ngữ gốc (" + spanLanguage + ")";
+            };
+        }
         return switch (spanLanguage) {
-            case "vi" -> "tiếng Việt";
-            case "zh" -> "tiếng Trung";
-            case "ko" -> "tiếng Hàn";
-            case "ja" -> "tiếng Nhật";
-            case "en" -> "tiếng Anh";
-            default -> "ngôn ngữ gốc (" + spanLanguage + ")";
+            case "vi" -> "Vietnamese";
+            case "zh" -> "Chinese";
+            case "ko" -> "Korean";
+            case "ja" -> "Japanese";
+            case "en" -> "English";
+            default -> "original language (" + spanLanguage + ")";
         };
     }
 
@@ -90,5 +111,7 @@ public class EvidenceFact {
     public EvidenceFact company(String c) { this.company = c; return this; }
     public EvidenceFact productName(String p) { this.productName = p; return this; }
     public EvidenceFact category(String c) { this.category = c; return this; }
+    public EvidenceFact categoryEn(String c) { this.categoryEn = c; return this; }
     public EvidenceFact summaryVi(String s) { this.summaryVi = s; return this; }
+    public EvidenceFact summaryEn(String s) { this.summaryEn = s; return this; }
 }

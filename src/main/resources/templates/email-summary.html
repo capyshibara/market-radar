@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
 <meta charset="UTF-8"/>
-<title>Market Radar — Email Summary</title>
+<title th:text="#{email.h1}">Market Radar — Email Summary</title>
 <style>
   /* Fixed-width, table-layout-only markup (same OpenHTMLtoPDF constraint as
      weekly-report.html) — this template is only ever rendered to PDF then
@@ -44,37 +44,38 @@
 </head>
 <body>
 
-<div class="card">
+<div class="card" th:with="lang=${#locale.language}">
 
-  <div class="sample-banner" th:if="${hasSampleData}">SAMPLE DATA — illustrative facts for the build-out phase.</div>
+  <div class="sample-banner" th:if="${hasSampleData}" th:text="#{email.sampleBanner}">SAMPLE DATA — illustrative facts for the build-out phase.</div>
 
   <div class="masthead">
-    <div class="kicker">Market Radar &nbsp;·&nbsp; Market Intelligence</div>
-    <h1>Life Insurance Market Radar</h1>
-    <div class="sub" th:text="'Vietnam &amp; China — ' + ${reportPeriod}">Vietnam &amp; China — week</div>
+    <div class="kicker" th:text="#{report.kicker}">Market Radar · Market Intelligence</div>
+    <h1 th:text="#{email.h1}">Life Insurance Market Radar</h1>
+    <div class="sub" th:text="#{email.sub(${reportPeriod})}">Vietnam &amp; China — week</div>
     <div class="meta">
       <span th:text="${reportPeriod}">Week 27 · 2026</span> &nbsp;·&nbsp;
-      Generated <span th:text="${generatedAt}">05/07/2026 08:00</span> &nbsp;·&nbsp;
-      <span th:text="${#lists.size(sources)}">18</span> sources &nbsp;·&nbsp;
-      <span th:text="${docCount}">42</span> documents
+      <span th:text="#{report.meta.generatedAt}">Generated</span> <span th:text="${generatedAt}">05/07/2026 08:00</span> &nbsp;·&nbsp;
+      <span th:text="${#lists.size(sources)}">18</span> <span th:text="#{report.meta.sourcesTracked}">sources tracked</span> &nbsp;·&nbsp;
+      <span th:text="${docCount}">42</span> <span th:text="#{report.meta.docsProcessed}">documents processed</span>
     </div>
   </div>
 
   <div class="body-pad">
-    <div class="section-label">Executive Summary</div>
+    <div class="section-label" th:text="#{report.section.execSummary}">Executive Summary</div>
 
-    <p class="exec-item" th:if="${#lists.isEmpty(execClaims)}" style="color:#5A6172;font-style:italic;">
+    <p class="exec-item" th:if="${#lists.isEmpty(execClaims)}" style="color:#5A6172;font-style:italic;" th:text="#{email.noExecSummary}">
       No executive summary claims have cleared review for this period yet.
     </p>
 
     <div class="exec-item" th:each="c, st : ${execClaims}" th:if="${st.index < 3}"
-         th:with="lead=${#strings.substringBefore(c.textVi,' — ')},
-                  rest=${#strings.substringAfter(c.textVi,' — ')},
+         th:with="ctext=${c.text(lang)},
+                  lead=${#strings.substringBefore(ctext,' — ')},
+                  rest=${#strings.substringAfter(ctext,' — ')},
                   hasDash=${!#strings.isEmpty(rest)},
                   firstCode=${#strings.trim(#strings.arraySplit(c.factCodesCsv,',')[0])},
                   citedFact=${factByCode.get(firstCode)}">
       <strong th:if="${hasDash}" th:text="${lead}">Headline</strong><span
-         th:text="${hasDash} ? (' — ' + ${rest}) : ${c.textVi}"> — detail</span>
+         th:text="${hasDash} ? (' — ' + ${rest}) : ${ctext}"> — detail</span>
       <span class="src" th:if="${citedFact != null}" th:text="' ' + ${citedFact.rawDoc.source.name}"> Source</span>
     </div>
 
@@ -82,26 +83,26 @@
       <tr>
         <td class="cell">
           <div class="stat-num" th:text="${factsCount}">3</div>
-          <div class="stat-label">Verified developments</div>
+          <div class="stat-label" th:text="#{email.statVerified}">Verified developments</div>
         </td>
         <td class="cell">
           <div class="stat-num" th:text="${#lists.size(sources)}">18</div>
-          <div class="stat-label">Sources tracked</div>
+          <div class="stat-label" th:text="#{email.statSources}">Sources tracked</div>
         </td>
         <td class="cell">
           <div class="stat-num" th:text="${docCount}">42</div>
-          <div class="stat-label">Documents processed</div>
+          <div class="stat-label" th:text="#{email.statDocuments}">Documents processed</div>
         </td>
       </tr>
     </table>
   </div>
 
   <div class="cta">
-    <div class="headline">Full Deep-Dive Analysis &amp; Final Recommendation &rarr;</div>
-    <div class="sub">Open the full report on the intranet for sourcing and analysis.</div>
+    <div class="headline" th:text="#{email.ctaHeadline}">Full Deep-Dive Analysis &amp; Final Recommendation &rarr;</div>
+    <div class="sub" th:text="#{email.ctaSub}">Open the full report on the intranet for sourcing and analysis.</div>
   </div>
 
-  <div class="legal">Internal — Market Radar. Not for external distribution.</div>
+  <div class="legal" th:text="#{email.legal}">Internal — Market Radar. Not for external distribution.</div>
 </div>
 
 </body>

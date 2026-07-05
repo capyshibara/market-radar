@@ -64,6 +64,15 @@ public class InterpretedClaim {
     @Lob @Column(columnDefinition = "CLOB", nullable = false)
     private String textVi;
 
+    /** Bilingual report support: bản tiếng Anh, do Interpreter sinh CÙNG lúc với textVi
+     * (một lời gọi LLM, hai ngôn ngữ) — không phải bản dịch máy tách rời. Gate L1 kiểm
+     * CẢ HAI bản (xem GroundingGateL1#checkBilingual); Gate L2/entailment vẫn chỉ chạy
+     * trên textVi (nguồn sự thật cho quyết định publish — tránh nhân đôi lời gọi verifier
+     * và khả năng hai ngôn ngữ bất đồng verdict). Sửa tay ở /review (edit) chỉ sửa textVi;
+     * textEn giữ nguyên bản gốc AI sinh trong trường hợp đó (biết trước, chấp nhận cho MVP). */
+    @Lob @Column(columnDefinition = "CLOB", nullable = false)
+    private String textEn;
+
     /** CSV các factCode được câu trích dẫn, vd "F-001,F-002" */
     @Column(length = 512)
     private String factCodesCsv;
@@ -94,13 +103,14 @@ public class InterpretedClaim {
     protected InterpretedClaim() {}
 
     public InterpretedClaim(String claimCode, RawDoc rawDoc, Slot slot, Origin origin,
-                            String textVi, String factCodesCsv,
+                            String textVi, String textEn, String factCodesCsv,
                             GateStatus gateStatus, String gateDetailJson, String llmProvider) {
         this.claimCode = claimCode;
         this.rawDoc = rawDoc;
         this.slot = slot;
         this.origin = origin;
         this.textVi = textVi;
+        this.textEn = textEn;
         this.factCodesCsv = factCodesCsv;
         this.gateStatus = gateStatus;
         this.gateDetailJson = gateDetailJson;
@@ -113,6 +123,9 @@ public class InterpretedClaim {
     public Slot getSlot() { return slot; }
     public Origin getOrigin() { return origin; }
     public String getTextVi() { return textVi; }
+    public String getTextEn() { return textEn; }
+    /** Batch 7 (i18n): chọn bản theo ngôn ngữ hiển thị hiện tại, dùng trong template: th:text="${c.text(#locale.language)}" */
+    public String text(String lang) { return "vi".equals(lang) ? textVi : textEn; }
     public String getFactCodesCsv() { return factCodesCsv; }
     public GateStatus getGateStatus() { return gateStatus; }
     public String getGateDetailJson() { return gateDetailJson; }

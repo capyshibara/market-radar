@@ -39,8 +39,9 @@ public class Interpreter {
 
     private static final Logger log = LoggerFactory.getLogger(Interpreter.class);
 
-    /** Một câu do model trả về, đã qua parse (CHƯA qua gate). */
-    public record Sentence(Slot slot, String text, List<String> factCodes) {}
+    /** Một câu do model trả về, đã qua parse (CHƯA qua gate). Batch 7 (i18n):
+     * model sinh CẢ hai bản trong cùng lần gọi, không phải dịch máy tách rời. */
+    public record Sentence(Slot slot, String textVi, String textEn, List<String> factCodes) {}
 
     /** Kết quả 1 lần gọi: parse OK → sentences; parse hỏng → schemaRejected + raw. */
     public record InterpretOutput(boolean schemaRejected, List<Sentence> sentences, String rawResponse) {}
@@ -64,7 +65,8 @@ public class Interpreter {
         Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ (Việt Nam).
         Bạn nhận một EVIDENCE PACK gồm các fact, mỗi fact có mã (vd F-001) và đoạn nguyên văn.
 
-        Nhiệm vụ: điền 2 slot, bằng tiếng Việt:
+        Nhiệm vụ: điền 2 slot, MỖI câu viết SONG NGỮ (tiếng Việt VÀ tiếng Anh, cùng ý,
+        cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không phải dịch máy qua loa):
         - "why": 1-2 câu "vì sao sự kiện này đáng chú ý"
         - "implication": 1-2 câu "hàm ý kinh doanh"
 
@@ -72,10 +74,14 @@ public class Interpreter {
         1. Chỉ được dùng thông tin CÓ TRONG evidence pack. Không thêm con số, ngày tháng,
            tên sản phẩm/công ty nào không có trong pack.
         2. Mọi tên sản phẩm/công ty khi nhắc đến phải đặt trong ngoặc kép "…" và chép
-           NGUYÊN VĂN đúng script gốc trong evidence (tên tiếng Trung giữ chữ Hán, không dịch).
-        3. Mỗi câu phải kèm danh sách fact_codes là các mã fact làm căn cứ cho câu đó.
-        4. Trả về DUY NHẤT một JSON object đúng dạng:
-           {"why":[{"text":"...","fact_codes":["F-001"]}],"implication":[{"text":"...","fact_codes":["F-001"]}]}
+           NGUYÊN VĂN đúng script gốc trong evidence (tên tiếng Trung giữ chữ Hán, không dịch)
+           — TRONG CẢ HAI bản tiếng Việt và tiếng Anh, y hệt nhau.
+        3. Mọi con số và ngày tháng phải giống hệt nhau (cùng giá trị, cùng định dạng số/ngày)
+           giữa bản tiếng Việt và bản tiếng Anh của cùng một câu.
+        4. Mỗi câu phải kèm danh sách fact_codes là các mã fact làm căn cứ cho câu đó.
+        5. Trả về DUY NHẤT một JSON object đúng dạng:
+           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}],
+            "implication":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
         """;
 
@@ -84,15 +90,19 @@ public class Interpreter {
         Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ (Việt Nam).
         Bạn nhận một EVIDENCE PACK gồm các fact của tuần, mỗi fact có mã (vd F-001).
 
-        Nhiệm vụ: viết TÓM TẮT ĐIỀU HÀNH 3-7 câu tiếng Việt cho tuần san.
+        Nhiệm vụ: viết TÓM TẮT ĐIỀU HÀNH 3-7 câu, MỖI câu viết SONG NGỮ (tiếng Việt VÀ
+        tiếng Anh, cùng ý, cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không
+        phải dịch máy qua loa) cho tuần san.
 
         RÀNG BUỘC TUYỆT ĐỐI:
         1. Chỉ được dùng thông tin CÓ TRONG evidence pack. Không thêm con số, ngày tháng,
            tên sản phẩm/công ty nào không có trong pack. Không xếp hạng "bán chạy nhất"
            hay nhận định doanh số nếu pack không có fact doanh số.
-        2. Tên sản phẩm/công ty đặt trong ngoặc kép "…", chép NGUYÊN VĂN đúng script gốc.
-        3. Mỗi câu kèm fact_codes.
-        4. Trả về DUY NHẤT JSON: {"sentences":[{"text":"...","fact_codes":["F-001"]}]}
+        2. Tên sản phẩm/công ty đặt trong ngoặc kép "…", chép NGUYÊN VĂN đúng script gốc
+           — TRONG CẢ HAI bản tiếng Việt và tiếng Anh, y hệt nhau.
+        3. Mọi con số và ngày tháng phải giống hệt nhau giữa hai bản của cùng một câu.
+        4. Mỗi câu kèm fact_codes.
+        5. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
         """;
 
@@ -132,22 +142,26 @@ public class Interpreter {
     // ================= internals =================
 
     /**
-     * Parse "khoan dung có kỷ luật": câu có text hợp lệ được nhận vào danh sách
-     * (kể cả fact_codes rỗng — để Gate L1 đánh FAIL_NO_CITATION tường minh,
-     * thay vì schema-reject cả batch làm mất dấu vết câu lỗi).
+     * Parse "khoan dung có kỷ luật": câu có CẢ text_vi và text_en hợp lệ được nhận vào
+     * danh sách (kể cả fact_codes rỗng — để Gate L1 đánh FAIL_NO_CITATION tường minh,
+     * thay vì schema-reject cả batch làm mất dấu vết câu lỗi). Batch 7 (i18n): thiếu
+     * MỘT trong hai bản ngôn ngữ → bỏ câu đó (không nhận bản song ngữ thiếu một nửa —
+     * cùng triết lý "fail loud" như thiếu fact_codes, chỉ khác là bỏ hẳn thay vì để gate
+     * bắt, vì đây là lỗi cấu trúc output chứ không phải lỗi grounding).
      */
     private void parseSentences(JsonNode arr, Slot slot, List<Sentence> out) {
         if (arr == null || !arr.isArray()) return;
         for (JsonNode n : arr) {
-            String text = n.path("text").asText("").strip();
-            if (text.isEmpty()) continue;
+            String textVi = n.path("text_vi").asText("").strip();
+            String textEn = n.path("text_en").asText("").strip();
+            if (textVi.isEmpty() || textEn.isEmpty()) continue;
             List<String> codes = new ArrayList<>();
             JsonNode fc = n.get("fact_codes");
             if (fc != null && fc.isArray()) fc.forEach(c -> {
                 String v = c.asText("").strip();
                 if (!v.isEmpty()) codes.add(v);
             });
-            out.add(new Sentence(slot, text, codes));
+            out.add(new Sentence(slot, textVi, textEn, codes));
         }
     }
 
