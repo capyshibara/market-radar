@@ -17,17 +17,27 @@ marketradar:
     enabled: false          # bật true khi muốn cron chạy thật; demo dùng nút chạy tay /ingest/run
     fixed-delay-ms: 900000  # 15 phút
   llm:
-    # API key đọc từ env ANTHROPIC_API_KEY — KHÔNG hardcode vào file config
+    # Writer (AI#3 interpreter) — API key đọc từ env ANTHROPIC_API_KEY — KHÔNG hardcode vào file config
     model: claude-sonnet-4-6      # đổi được; lưu ý model Opus 4.7+ từ chối temperature
     max-tokens: 1024              # nâng từ 300 (batch 3): output interpreter dài hơn classifier
     temperature: 1.0              # cần đa dạng cho self-consistency; để trống nếu model từ chối
     samples: 3                    # N lần gọi độc lập
     min-votes: 2                  # nhãn nhận khi đạt >= 2/3 vote (ngưỡng bảo thủ cố định)
     replay-cache: true            # đọc lại response đã log — fallback "API lỗi giữa demo"
+  classifier:                      # AI#1 — bean riêng, mặc định RỖNG = dùng lại writer ở trên (không đổi hành vi cũ)
+    # Đây là stage tốn LLM call nhiều nhất khi crawl volume tăng (3x self-consistency/doc) —
+    # đổi sang provider rẻ hơn TẠI ĐÂY, không cần sửa code. API key đọc từ env CLASSIFIER_API_KEY.
+    # Gợi ý: Qwen-Flash (base-url=https://dashscope-intl.aliyuncs.com/compatible-mode/v1, model=qwen-flash)
+    #    hoặc DeepSeek V4 Flash (base-url=https://api.deepseek.com, model=deepseek-chat)
+    base-url: ""
+    model: ""
+    max-tokens: 200
   verifier:                        # Batch 4 — Gate L2: verifier PHẢI khác họ với writer (Invariant #2)
     # API key đọc từ env VERIFIER_API_KEY — không có key → STUB (mọi thứ vào review, không auto-publish)
-    base-url: https://api.openai.com/v1   # endpoint chuẩn OpenAI-compat; đổi provider = đổi dòng này
-    model: gpt-4o-mini                     # PLACEHOLDER — Hanh chốt model thật; app từ chối chạy nếu là họ Claude
+    # DeepSeek V4 Flash: rẻ (~$0.14/$0.28 mỗi 1M token), khác họ với writer Anthropic, và OpenAI-compat
+    # nên cắm thẳng vào base-url/model dưới đây — thay cho placeholder gpt-4o-mini trước đó.
+    base-url: https://api.deepseek.com     # endpoint OpenAI-compat; đổi provider = đổi dòng này
+    model: deepseek-chat                    # alias tương thích DeepSeek V4 Flash (soát lại nếu deprecate sau 2026-07-24)
     max-tokens: 512
   alert:                           # Batch 5 — Hot Alert (bước 8)
     enabled: true

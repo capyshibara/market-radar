@@ -59,6 +59,7 @@ public class InterpretationJob {
         int docsDone = 0, docsSkipped = 0;
         for (var entry : byDoc.entrySet()) {
             RawDoc doc = entry.getKey();
+            if (doc.getDuplicateOfId() != null) { docsSkipped++; continue; } // dedup đã lọc — khỏi tốn LLM viết claim
             if (claims.existsByRawDocAndOrigin(doc, Origin.PIPELINE)) { docsSkipped++; continue; }
             EvidencePack pack = new EvidencePack(doc.getId(), entry.getValue());
             Interpreter.InterpretOutput out = interpreter.interpretDoc(pack);

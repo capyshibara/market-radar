@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.marketradar.classify.Router;
 import com.marketradar.classify.TopicClassifier;
+import com.marketradar.dedup.DedupJob;
 import com.marketradar.domain.Classification;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.repo.ClassificationRepository;
@@ -14,6 +15,10 @@ import com.marketradar.repo.RawDocRepository;
 /**
  * Bước 4 pipeline: phân loại (AI#1) + routing (bảng tra) cho các RawDoc
  * đã ingest OK và chưa được phân loại.
+ *
+ * Dedup LUÔN chạy trước classify trong cùng lần gọi (không phụ thuộc thứ tự
+ * curl tay) — RawDoc đã bị đánh dấu duplicateOfId (bản thua) thì KHÔNG tốn
+ * LLM call phân loại, vì báo cáo cuối cùng lọc bản trùng ra rồi (ReportController).
  */
 @Service
 public class ClassificationJob {
@@ -24,21 +29,26 @@ public class ClassificationJob {
     private final ClassificationRepository classifications;
     private final TopicClassifier classifier;
     private final Router router;
+    private final DedupJob dedupJob;
 
     public ClassificationJob(RawDocRepository rawDocs, ClassificationRepository classifications,
-                             TopicClassifier classifier, Router router) {
+                             TopicClassifier classifier, Router router, DedupJob dedupJob) {
         this.rawDocs = rawDocs;
         this.classifications = classifications;
         this.classifier = classifier;
         this.router = router;
+        this.dedupJob = dedupJob;
     }
 
     @Transactional
     public String runOnce() {
-        int done = 0, skipped = 0;
+        String dedupSummary = dedupJob.runOnce();
+
+        int done = 0, skipped = 0, skippedDuplicate = 0;
         StringBuilder summary = new StringBuilder();
         for (RawDoc doc : rawDocs.findAll()) {
             if (doc.getParseStatus() != RawDoc.ParseStatus.OK) { skipped++; continue; }
+            if (doc.getDuplicateOfId() != null) { skippedDuplicate++; continue; }
             if (classifications.existsByRawDoc(doc)) { skipped++; continue; }
             try {
                 Classification c = classifier.classify(doc);
@@ -55,7 +65,9 @@ public class ClassificationJob {
                        .append(e.getMessage()).append('\n');
             }
         }
-        summary.insert(0, "Phân loại xong " + done + " doc, bỏ qua " + skipped + " (đã phân loại/parse lỗi)\n");
+        summary.insert(0, "Phân loại xong " + done + " doc, bỏ qua " + skipped
+                + " (đã phân loại/parse lỗi), bỏ qua " + skippedDuplicate + " (bản trùng, dedup lọc trước khi tốn LLM)\n"
+                + "--- Dedup (chạy trước classify) ---\n" + dedupSummary + "---\n");
         return summary.toString();
     }
 }

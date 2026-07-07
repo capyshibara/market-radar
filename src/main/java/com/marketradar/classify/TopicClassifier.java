@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.marketradar.domain.Category;
@@ -41,7 +42,7 @@ public class TopicClassifier {
     private final Double temperature;
     private final boolean replayCache;
 
-    public TopicClassifier(LlmClient llm, LlmCallLogRepository callLog,
+    public TopicClassifier(@Qualifier("classifierLlmClient") LlmClient llm, LlmCallLogRepository callLog,
                            @Value("${marketradar.llm.samples:3}") int samples,
                            @Value("${marketradar.llm.min-votes:2}") int minVotes,
                            @Value("${marketradar.llm.temperature:1.0}") Double temperature,

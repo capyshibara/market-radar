@@ -160,7 +160,7 @@ public class IngestionJob {
 
     private boolean storeIfNew(Source source, String url, String title,
                                Instant publishedAt, String text, String note) {
-        String hash = sha256(text);
+        String hash = sha256(normalizeForHash(text));
         if (rawDocs.existsByContentHash(hash)) {
             log.debug("Dedup hash trùng, bỏ qua: {}", url);
             return false;
@@ -183,6 +183,18 @@ public class IngestionJob {
         } catch (Exception e) {
             throw new IllegalStateException("SHA-256 không khả dụng", e);
         }
+    }
+
+    /**
+     * Chỉ chuẩn hoá chuỗi dùng để HASH (rawText lưu DB vẫn giữ nguyên — invariant
+     * "GIỮ NGUYÊN ngôn ngữ gốc"). Gộp mọi khoảng trắng liên tiếp (space/tab/newline)
+     * thành 1 space + trim, để bản đăng lại chỉ khác nhau ở xuống dòng/khoảng trắng
+     * (không đổi câu chữ) vẫn khớp hash — khỏi rơi vào vùng xám Jaccard tốn LLM pairwise.
+     */
+    private static String normalizeForHash(String text) {
+        if (text == null) return "";
+        return java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
+                .strip().replaceAll("\\s+", " ");
     }
 
     private static String safeHost(String url) {
