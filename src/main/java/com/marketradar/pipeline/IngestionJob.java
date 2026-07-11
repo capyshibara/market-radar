@@ -36,15 +36,18 @@ public class IngestionJob {
     private final SafeFetcher fetcher;
     private final ContentParsers parsers;
     private final boolean scheduledEnabled;
+    private final int maxItemsPerSource;
 
     public IngestionJob(SourceRepository sources, RawDocRepository rawDocs,
                         SafeFetcher fetcher, ContentParsers parsers,
-                        @Value("${marketradar.ingest.enabled:false}") boolean scheduledEnabled) {
+                        @Value("${marketradar.ingest.enabled:false}") boolean scheduledEnabled,
+                        @Value("${marketradar.ingest.max-items-per-source:25}") int maxItemsPerSource) {
         this.sources = sources;
         this.rawDocs = rawDocs;
         this.fetcher = fetcher;
         this.parsers = parsers;
         this.scheduledEnabled = scheduledEnabled;
+        this.maxItemsPerSource = maxItemsPerSource;
     }
 
     @Scheduled(fixedDelayString = "${marketradar.ingest.fixed-delay-ms:900000}")
@@ -113,9 +116,21 @@ public class IngestionJob {
         };
     }
 
+    /**
+     * Cap số item lấy mỗi nguồn mỗi lần chạy (mặc định 25, config max-items-per-source).
+     * Nhiều feed/listing trả NGUYÊN archive (FSC_TW ~800 item nhiều năm tuổi) — không cap thì
+     * mỗi doc cũ đó lại tốn classify (3 LLM call) + phình cặp so sánh dedup O(n²).
+     * Parser trả item MỚI NHẤT trước (thứ tự trang/feed gốc) nên cap = lấy tin mới nhất.
+     */
+    private <T> java.util.List<T> capItems(Source source, java.util.List<T> items) {
+        if (items.size() <= maxItemsPerSource) return items;
+        log.info("Cap ingest [{}]: {} item → giữ {} mới nhất", source.getCode(), items.size(), maxItemsPerSource);
+        return items.subList(0, maxItemsPerSource);
+    }
+
     private int ingestListing(Source source, java.util.List<ContentParsers.ListingItem> listing) {
         int stored = 0;
-        for (var item : listing) {
+        for (var item : capItems(source, listing)) {
             if (storeIfNew(source, item.link(), item.title(), item.publishedAt(), item.title())) stored++;
         }
         return stored;
@@ -139,7 +154,7 @@ public class IngestionJob {
         var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
                 SafeFetcher.ExpectedKind.RSS);
         int stored = 0;
-        for (var item : parsers.parseRss(result.body())) {
+        for (var item : capItems(source, parsers.parseRss(result.body()))) {
             String link = item.link() == null ? source.getFetchUrl() : item.link();
             // Ghi chú host lạ ngay từ ingest — audit trail cho bước fetch full-text sau này
             String note = null;

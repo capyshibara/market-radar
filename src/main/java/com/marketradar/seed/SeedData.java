@@ -75,9 +75,14 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("IAV_VN", "Hiệp hội Bảo hiểm Việt Nam",
                 "https://iav.vn", "iav.vn",
                 Source.SourceType.HTML, 2, "vi"));
-        sources.save(new Source("TNCK_VN", "Tin nhanh Chứng khoán — chuyên mục bảo hiểm",
+        // Track 2 recheck 2026-07-11: /bao-hiem/rss VÀ mọi biến thể /rss đều 302 → trang 404;
+        // homepage không còn nhắc RSS ở đâu — site đã BỎ RSS. Deactivate (bật lại nếu viết
+        // parser HTML cho chuyên mục /bao-hiem/ — Batch 6b).
+        Source tnck = new Source("TNCK_VN", "Tin nhanh Chứng khoán — chuyên mục bảo hiểm",
                 "https://www.tinnhanhchungkhoan.vn/bao-hiem/rss", "www.tinnhanhchungkhoan.vn",
-                Source.SourceType.RSS, 2, "vi"));
+                Source.SourceType.RSS, 2, "vi");
+        tnck.setActive(false);
+        sources.save(tnck);
         sources.save(new Source("CBIRC_NEWS", "21世纪经济报道 — 保险频道",
                 "https://www.21jingji.com", "www.21jingji.com",
                 Source.SourceType.HTML, 3, "zh"));
@@ -96,30 +101,38 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("FSA_JP", "Financial Services Agency (Japan)",
                 "https://www.fsa.go.jp/fsaEnNewsList_rss2.xml", "www.fsa.go.jp",
                 Source.SourceType.RSS, 1, "en"));
-        // Track 2 2026-07-05: feed shape valid but ZERO <item> entries, zh-TW content despite
-        // language=english param (ignored) — this serno wrong/stale. NOT fixed, needs a different
-        // official feed ID (confirmed live in real ingest run: "FSC_TW: PARSE_ERROR — Feed không có entry nào").
+        // Track 2 fix 2026-07-11: language=english trả channel RỖNG (0 item), nhưng
+        // language=chinese CÙNG serno trả ~800 item (xác nhận live) — đổi sang bản Chinese,
+        // language field "zh" (pipeline đã xử lý nguồn tiếng Trung: NFRA_CN, CBIRC_NEWS).
         sources.save(new Source("FSC_TW", "Financial Supervisory Commission (Taiwan)",
-                "https://www.fsc.gov.tw/RSS/Messages?serno=201202290001&language=english",
-                "www.fsc.gov.tw", Source.SourceType.RSS, 1, "en"));
+                "https://www.fsc.gov.tw/RSS/Messages?serno=201202290001&language=chinese",
+                "www.fsc.gov.tw", Source.SourceType.RSS, 1, "zh"));
         sources.save(new Source("HKMA", "Hong Kong Monetary Authority",
                 "https://www.hkma.gov.hk/eng/other-information/rss/rss_press-release.xml",
                 "www.hkma.gov.hk", Source.SourceType.RSS, 1, "en"));
-        // Track 2 fix 2026-07-05: 301 → same URL + trailing slash (same host) — SafeFetcher rejects redirects.
-        sources.save(new Source("AIR", "Asia Insurance Review (eDaily)",
+        // Track 2 recheck 2026-07-11: backend feed CHẾT phía server — /desktopmodules/rssedaily
+        // 302 → trang 404 (status=500), /RSS.aspx trả channel rỗng. Mọi biến thể đều hỏng.
+        // Deactivate (trang HTML /News vẫn sống — cần parser riêng nếu muốn bật lại).
+        Source air = new Source("AIR", "Asia Insurance Review (eDaily)",
                 "https://www.asiainsurancereview.com/desktopmodules/rssedaily/",
-                "www.asiainsurancereview.com", Source.SourceType.RSS, 2, "en"));
-        // Track 2 2026-07-05: 301 → /rss-feeds, itself an HTML index page not an XML feed — no direct
-        // machine-readable feed at this URL. NOT fixed — needs a concrete .xml/.rss link off that index.
-        sources.save(new Source("BT_SG", "The Business Times (Singapore)",
-                "https://www.businesstimes.com.sg/rss", "www.businesstimes.com.sg",
+                "www.asiainsurancereview.com", Source.SourceType.RSS, 2, "en");
+        air.setActive(false);
+        sources.save(air);
+        // Track 2 fix 2026-07-11: /rss là index HTML, nhưng site có feed XML thật theo chuyên mục —
+        // /rss/banking-finance xác nhận live 200 text/xml (sát ngành bảo hiểm nhất trong danh sách feed).
+        sources.save(new Source("BT_SG", "The Business Times (Singapore) — Banking & Finance",
+                "https://www.businesstimes.com.sg/rss/banking-finance", "www.businesstimes.com.sg",
                 Source.SourceType.RSS, 2, "en"));
 
         // ---- GROUP B: https, HTML-only — needs Batch 6b per-site parser ----
         // Vietnam life insurers
-        sources.save(new Source("BVNT", "Bảo Việt Nhân thọ",
+        // Track 2 recheck 2026-07-11: 403 với CẢ UA browser lẫn UA MarketRadar — WAF chặn
+        // automated fetch. Deactivate (không lách bot-protection; cần kênh khác, vd RSS/API chính thức).
+        Source bvnt = new Source("BVNT", "Bảo Việt Nhân thọ",
                 "https://www.baovietnhantho.com.vn/", "www.baovietnhantho.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 2, "vi");
+        bvnt.setActive(false);
+        sources.save(bvnt);
         // Track 2 fix + Batch 6b (2026-07-05): root 301 → /vi.html, then found the real news listing
         // page from that page's own nav (confirmed live, real press-release cards — see parseAia).
         sources.save(new Source("AIA_VN", "AIA Việt Nam",
@@ -127,9 +140,13 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "vi"));
         // Batch 6b (2026-07-05): root was homepage only — found real news listing page from its nav
         // (confirmed live, real press-release teasers — see parseManulife).
-        sources.save(new Source("MANULIFE_VN", "Manulife Việt Nam",
+        // Track 2 recheck 2026-07-11: giờ trả 403 với CẢ UA browser lẫn UA MarketRadar — site đã bật
+        // WAF/bot-protection sau 07-05. Deactivate (parser parseManulife GIỮ NGUYÊN — bật lại nếu hết chặn).
+        Source manulife = new Source("MANULIFE_VN", "Manulife Việt Nam",
                 "https://www.manulife.com.vn/vi/ve-chung-toi/tin-tuc-va-su-kien/thong-cao-bao-chi.html",
-                "www.manulife.com.vn", Source.SourceType.HTML, 2, "vi"));
+                "www.manulife.com.vn", Source.SourceType.HTML, 2, "vi");
+        manulife.setActive(false);
+        sources.save(manulife);
         // Track 2 fix + Batch 6b (2026-07-05): root 301 → /vi/, but that's the homepage (blog teasers
         // only, not press releases) — found the real press-release listing page from its nav
         // (confirmed live — see parsePrudential).

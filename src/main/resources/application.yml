@@ -16,6 +16,8 @@ marketradar:
   ingest:
     enabled: false          # bật true khi muốn cron chạy thật; demo dùng nút chạy tay /ingest/run
     fixed-delay-ms: 900000  # 15 phút
+    max-items-per-source: 25  # cap tin mới nhất mỗi nguồn mỗi lần chạy — chặn feed dump nguyên archive
+                              # (FSC_TW ~800 item) làm phình chi phí classify + cặp dedup O(n²)
   llm:
     # Writer (AI#3 interpreter) — API key đọc từ env ANTHROPIC_API_KEY — KHÔNG hardcode vào file config
     model: claude-sonnet-4-6      # đổi được; lưu ý model Opus 4.7+ từ chối temperature
