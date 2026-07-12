@@ -27,8 +27,14 @@ import java.time.Duration;
  */
 public class OpenAiCompatibleLlmClient implements LlmClient {
 
+    // HTTP/1.1 ép buộc: DeepSeek (và một số OpenAI-compat khác) đóng kết nối h2 keep-alive
+    // giữa chuỗi call tuần tự → IOException(null) hàng loạt. HTTP/1.1 + retry ổn định hơn hẳn
+    // (quan sát thật 2026-07-12: 286/552 call classify lỗi "null" trước khi có fix này).
     private final HttpClient http = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10)).build();
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_BACKOFF_MS = 800;
     private final ObjectMapper mapper = new ObjectMapper();
     private final String baseUrl;   // vd https://api.openai.com/v1
     private final String apiKey;
@@ -65,22 +71,42 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
-        try {
-            HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() / 100 != 2) {
-                throw new LlmException("Verifier API HTTP " + resp.statusCode() + ": "
-                        + truncate(resp.body(), 500));
+
+        // Retry BỊ CHẶN cho lỗi kết nối / 5xx / 429 (transient); KHÔNG retry 4xx khác
+        // (bad request/key sai — retry chỉ lặp lại lỗi). Idempotent: chat/completions
+        // không tạo state phía server nên retry an toàn.
+        LlmException last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
+                int sc = resp.statusCode();
+                if (sc / 100 == 2) {
+                    JsonNode root = mapper.readTree(resp.body());
+                    JsonNode content = root.path("choices").path(0).path("message").path("content");
+                    if (content.isMissingNode() || content.asText().isBlank()) {
+                        throw new LlmException("OpenAI-compat API (" + model
+                                + "): response không có choices[0].message.content");
+                    }
+                    return content.asText();
+                }
+                LlmException httpErr = new LlmException("OpenAI-compat API (" + model + ") HTTP " + sc
+                        + ": " + truncate(resp.body(), 500));
+                if (sc != 429 && sc / 100 != 5) throw httpErr; // 4xx khác — không retry
+                last = httpErr;
+            } catch (IOException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new LlmException("OpenAI-compat API (" + model + ") bị interrupt", e);
+                }
+                last = new LlmException("OpenAI-compat API (" + model + ") lỗi kết nối: "
+                        + e.getMessage(), e);
             }
-            JsonNode root = mapper.readTree(resp.body());
-            JsonNode content = root.path("choices").path(0).path("message").path("content");
-            if (content.isMissingNode() || content.asText().isBlank()) {
-                throw new LlmException("Verifier API: response không có choices[0].message.content");
+            if (attempt < MAX_ATTEMPTS) {
+                try { Thread.sleep(RETRY_BACKOFF_MS * attempt); }
+                catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new LlmException("interrupt khi chờ retry", ie); }
             }
-            return content.asText();
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            throw new LlmException("Verifier API lỗi kết nối: " + e.getMessage(), e);
         }
+        throw new LlmException(last.getMessage() + " (sau " + MAX_ATTEMPTS + " lần thử)", last);
     }
 
     @Override
