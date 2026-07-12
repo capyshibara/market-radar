@@ -1,6 +1,9 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:marketradar;DB_CLOSE_DELAY=-1
+    # File-backed (đổi từ in-mem 2026-07-12): restart KHÔNG mất dữ liệu nữa — raw docs,
+    # classification, LlmCallLog (replay-cache) đều giữ lại. Demo chạy lại pipeline
+    # = replay từ cache, KHÔNG tốn API call, không cần mạng. Backup = copy thư mục ./data.
+    url: jdbc:h2:file:./data/marketradar;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
     username: sa
     password: ""

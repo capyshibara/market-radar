@@ -3,9 +3,13 @@ package com.marketradar.repo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import com.marketradar.domain.EvidenceFact;
+import com.marketradar.domain.RawDoc;
 import java.util.List;
 
 public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long> {
+
+    /** Batch 8 (extraction): guard idempotent — doc đã trích fact thì không trích lại. */
+    boolean existsByRawDoc(RawDoc rawDoc);
 
     /**
      * JOIN FETCH rawDoc + source để render template ngoài transaction
