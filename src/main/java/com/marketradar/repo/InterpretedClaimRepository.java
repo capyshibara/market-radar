@@ -57,4 +57,14 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
      */
     @Query("select c.claimCode from InterpretedClaim c")
     List<String> findAllClaimCodes();
+
+    /**
+     * Batch 9 ("Force Retry"): xoá claim cũ của MỘT doc (thường là bản SCHEMA_REJECTED
+     * duy nhất) để InterpretationJob coi doc đó là CHƯA interpret — existsByRawDocAndOrigin
+     * sẽ trả false, doc được xử lý lại ở lần chạy /interpret/run tiếp theo.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("delete from InterpretedClaim c where c.rawDoc.id = :rawDocId and c.origin = :origin")
+    void deleteByRawDocIdAndOrigin(@Param("rawDocId") Long rawDocId,
+                                   @Param("origin") InterpretedClaim.Origin origin);
 }

@@ -16,6 +16,9 @@ import com.marketradar.review.RiskTierRouter;
 import com.marketradar.verify.VerificationJob;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
+import com.marketradar.repo.LlmCallLogRepository;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.function.Function;
@@ -40,16 +43,19 @@ public class ClaimController {
     private final GroundingGateL1 gate;
     private final VerificationJob verifyJob;
     private final RiskTierRouter tierRouter;
+    private final LlmCallLogRepository callLog;
 
     public ClaimController(InterpretedClaimRepository claims, EvidenceFactRepository facts,
                            InterpretationJob job, GroundingGateL1 gate,
-                           VerificationJob verifyJob, RiskTierRouter tierRouter) {
+                           VerificationJob verifyJob, RiskTierRouter tierRouter,
+                           LlmCallLogRepository callLog) {
         this.claims = claims;
         this.facts = facts;
         this.job = job;
         this.gate = gate;
         this.verifyJob = verifyJob;
         this.tierRouter = tierRouter;
+        this.callLog = callLog;
     }
 
     /** Batch 4: chạy Gate L2 (entailment độc lập) cho mọi claim PENDING_VERIFICATION. */
@@ -63,6 +69,29 @@ public class ClaimController {
     @ResponseBody
     public String runInterpret() {
         return "Kết quả interpret + gate L1:\n" + job.runOnce();
+    }
+
+    /**
+     * Batch 9 ("Force Retry"): xoá claim SCHEMA_REJECTED (và cache LLM tương ứng) của
+     * MỘT doc để lần chạy /interpret/run tiếp theo xử lý lại — thay cho việc phải nhờ
+     * can thiệp SQL tay (đúng thứ đêm nay phải làm thủ công cho doc#135/136).
+     * CHỈ xoá khi claim đang là SCHEMA_REJECTED — không cho xoá claim PASS/FAIL đã có
+     * nội dung thật (tránh bấm nhầm làm mất audit trail của kết quả hợp lệ).
+     */
+    @PostMapping("/claims/force-retry/{rawDocId}")
+    @ResponseBody
+    @Transactional
+    public String forceRetry(@PathVariable Long rawDocId) {
+        boolean hasSchemaRejected = claims.findAllForAudit().stream()
+                .anyMatch(c -> c.getRawDoc() != null && rawDocId.equals(c.getRawDoc().getId())
+                        && c.getGateStatus() == GateStatus.SCHEMA_REJECTED);
+        if (!hasSchemaRejected) {
+            return "Không tìm thấy claim SCHEMA_REJECTED cho doc#" + rawDocId + " — không có gì để retry.";
+        }
+        claims.deleteByRawDocIdAndOrigin(rawDocId, Origin.PIPELINE);
+        callLog.deleteByPurposeAndRawDocId("INTERPRET_DOC", rawDocId);
+        return "Đã xoá claim SCHEMA_REJECTED + cache của doc#" + rawDocId
+                + " — chạy lại POST /interpret/run (hoặc bấm Interpret ở /pipeline) để thử lại.";
     }
 
     /** View model để template không phải tự resolve fact từ CSV. */
@@ -104,7 +133,7 @@ public class ClaimController {
                 List.of(target), Set.of(target.getFactCode()));
 
         InterpretedClaim c = new InterpretedClaim(
-                String.format("C-%03d", claims.count() + 1),
+                nextClaimCode(),
                 target.getRawDoc(), Slot.WHY_MATTERS, Origin.DEMO_INJECT,
                 claimText, claimTextEn, String.join(",", cited),
                 r.status(), r.detailJson(), "DEMO");
@@ -118,6 +147,14 @@ public class ClaimController {
                 + "Gate L1 phán: " + r.status() + "\n"
                 + "Chi tiết: " + r.detailJson() + "\n"
                 + "→ Mở /claims để xem claim bị chặn, hoặc /review để xử lý (Batch 4).";
+    }
+
+    /** Cùng cách tính với InterpretationJob.nextCode() (fix 2026-07-13: count()+1 vỡ khi có row bị xoá). */
+    private String nextClaimCode() {
+        int max = claims.findAllClaimCodes().stream()
+                .mapToInt(code -> { try { return Integer.parseInt(code.substring(2)); } catch (Exception e) { return 0; } })
+                .max().orElse(0);
+        return String.format("C-%03d", max + 1);
     }
 
     private static List<EvidenceFact> resolve(String csv, Map<String, EvidenceFact> byCode) {
