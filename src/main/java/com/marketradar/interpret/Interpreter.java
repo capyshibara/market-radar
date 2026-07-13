@@ -79,7 +79,10 @@ public class Interpreter {
         3. Mọi con số và ngày tháng phải giống hệt nhau (cùng giá trị, cùng định dạng số/ngày)
            giữa bản tiếng Việt và bản tiếng Anh của cùng một câu.
         4. Mỗi câu phải kèm danh sách fact_codes là các mã fact làm căn cứ cho câu đó.
-        5. Trả về DUY NHẤT một JSON object đúng dạng:
+        5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
+           escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
+           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
+        6. Trả về DUY NHẤT một JSON object đúng dạng:
            {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}],
             "implication":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
@@ -102,7 +105,10 @@ public class Interpreter {
            — TRONG CẢ HAI bản tiếng Việt và tiếng Anh, y hệt nhau.
         3. Mọi con số và ngày tháng phải giống hệt nhau giữa hai bản của cùng một câu.
         4. Mỗi câu kèm fact_codes.
-        5. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
+        5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
+           escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
+           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
+        6. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
         """;
 

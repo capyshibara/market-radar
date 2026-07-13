@@ -57,6 +57,10 @@ public class FactExtractionJob {
             - "span" phải là chuỗi CHÉP NGUYÊN VĂN từ tài liệu, KHÔNG sửa một ký tự nào
               (kể cả dấu câu, khoảng trắng). Hệ thống sẽ đối chiếu exact-match và loại
               mọi span không khớp.
+            - QUAN TRỌNG (JSON hợp lệ): nếu văn bản gốc trong span có dấu ngoặc kép "
+              (vd thuật ngữ được định nghĩa như "NFYP", "HĐBH"), PHẢI escape thành \"
+              trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc JSON và toàn
+              bộ output bị loại. Ví dụ ĐÚNG: "span":"...phí bảo hiểm (\"NFYP\") bao gồm..."
             - KHÔNG bịa thông tin không có trong tài liệu. Tài liệu không có gì đáng
               trích → trả {"facts": []}.
             - company / product_name: chỉ điền nếu tên đó nằm NGUYÊN VĂN trong span.
