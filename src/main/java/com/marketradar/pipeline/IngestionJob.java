@@ -134,28 +134,51 @@ public class IngestionJob {
      * TOÀN VĂN từng bài theo link (vẫn qua SafeFetcher, CHỈ khi link cùng
      * allowedHost — không mở rộng whitelist ngầm), lưu URL bài chính xác.
      * Fetch bài lỗi → fallback lưu title-only như cũ (fail loud vào note).
+     *
+     * Fix Hanh 2026-07-14: check cũ "URL đã tồn tại + OK" khiến doc title-only
+     * TỪ TRƯỚC KHI có full-text fetch không bao giờ được backfill — vì URL đó
+     * đã "tồn tại + OK" ngay từ lần ingest headline-only đầu tiên. Giờ check
+     * đúng field fullTextFetched: doc cũ (mặc định false) → backfill TẠI CHỖ
+     * (upgradeToFullText, KHÔNG insert row mới — tránh tự tạo cặp trùng URL).
      */
     private int ingestListing(Source source, java.util.List<ContentParsers.ListingItem> listing) {
         int stored = 0;
         for (var item : capItems(source, listing)) {
             String link = item.link() == null ? source.getFetchUrl() : item.link();
+            var existing = rawDocs.findFirstByUrlOrderByIdAsc(link);
+            if (existing.isPresent() && existing.get().isFullTextFetched()) continue; // đã có toàn văn — khỏi fetch lại
+
             String linkHost = safeHost(link);
             String fullText = null, note = null;
             if (linkHost != null && linkHost.equalsIgnoreCase(source.getAllowedHost())) {
-                // Skip fetch nếu bài này đã có trong DB theo URL (đỡ tốn round-trip mỗi vòng)
-                if (rawDocs.existsByUrlAndParseStatus(link, RawDoc.ParseStatus.OK)) continue;
                 try {
                     var art = fetcher.fetch(link, source.getAllowedHost(), SafeFetcher.ExpectedKind.HTML);
                     fullText = parsers.parseHtml(art.body()).text();
                 } catch (Exception e) {
-                    note = "Fetch toàn văn lỗi (" + truncateNote(e.getMessage()) + ") — lưu title-only";
+                    note = "Full-text fetch failed (" + truncateNote(e.getMessage()) + ") — kept title-only";
                     log.warn("Full-article fetch lỗi [{}] {}: {}", source.getCode(), link, e.getMessage());
                 }
             } else {
-                note = "Link bài trỏ host ngoài whitelist (" + linkHost + ") — chỉ lưu title";
+                note = "Article link points outside the whitelist (" + linkHost + ") — title-only";
             }
-            String text = (fullText == null || fullText.isBlank()) ? item.title() : fullText;
-            if (storeIfNew(source, link, item.title(), item.publishedAt(), text, note)) stored++;
+
+            if (fullText == null || fullText.isBlank()) {
+                if (existing.isEmpty() && storeIfNew(source, link, item.title(), item.publishedAt(), item.title(), note)) stored++;
+                // existing nhưng vẫn chưa fetch được toàn văn (vd mạng lỗi lần này) → giữ nguyên, thử lại lần ingest sau
+                continue;
+            }
+            String hash = sha256(normalizeForHash(fullText));
+            if (existing.isPresent()) {
+                existing.get().upgradeToFullText(hash, fullText, note);
+                rawDocs.save(existing.get());
+                stored++;
+            } else if (!rawDocs.existsByContentHash(hash)) {
+                RawDoc doc = new RawDoc(source, link, item.title(), item.publishedAt(), Instant.now(),
+                        hash, fullText, source.getLanguage(), RawDoc.ParseStatus.OK, note);
+                doc.upgradeToFullText(hash, fullText, note);
+                rawDocs.save(doc);
+                stored++;
+            }
         }
         return stored;
     }

@@ -63,6 +63,20 @@ public class RawDoc {
      */
     private Long duplicateOfId;
 
+    /**
+     * Batch 9 (fix Hanh 2026-07-14): true = rawText là TOÀN VĂN bài viết đã fetch
+     * thành công (không phải chỉ tiêu đề). Dùng để quyết định có cần fetch lại
+     * không — trước đây IngestionJob chỉ check "URL đã tồn tại + OK" để bỏ qua,
+     * nghĩa là doc title-only từ TRƯỚC KHI có tính năng full-text fetch sẽ
+     * KHÔNG BAO GIỜ được backfill (bug). Field mặc định false nên mọi row cũ
+     * (tạo trước migration này) tự động đủ điều kiện backfill ở lần ingest tới.
+     */
+    // columnDefinition có DEFAULT FALSE: bắt buộc để ALTER TABLE ADD COLUMN ... NOT NULL
+    // không lỗi trên DB đã có sẵn row cũ (H2/hầu hết DB từ chối thêm cột NOT NULL
+    // không có default cho bảng không rỗng — bug thật gặp khi test trên bản copy dữ liệu).
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean fullTextFetched = false;
+
     protected RawDoc() {}
 
     public RawDoc(Source source, String url, String title, Instant publishedAt,
@@ -95,4 +109,14 @@ public class RawDoc {
     public void setSampleData(boolean sampleData) { this.sampleData = sampleData; }
     public Long getDuplicateOfId() { return duplicateOfId; }
     public void setDuplicateOfId(Long duplicateOfId) { this.duplicateOfId = duplicateOfId; }
+    public boolean isFullTextFetched() { return fullTextFetched; }
+
+    /** Batch 9: nâng cấp doc title-only lên toàn văn TẠI CHỖ (không insert row mới,
+     * tránh phải xử lý dedup EXACT_URL cho 2 bản của cùng 1 bài). */
+    public void upgradeToFullText(String contentHash, String rawText, String note) {
+        this.contentHash = contentHash;
+        this.rawText = rawText;
+        this.note = note;
+        this.fullTextFetched = true;
+    }
 }
