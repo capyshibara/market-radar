@@ -231,6 +231,7 @@
   <a href="/report/weekly?lang=en">EN</a>
   <a href="/report/weekly?lang=vi">VI</a>
   <a href="/report/weekly.pdf" th:text="#{toolbar.pdf}">⬇ Download PDF</a>
+  <a href="/report/monthly" th:text="${#locale.language == 'vi'} ? 'Tạp chí tháng' : 'Monthly magazine'">Monthly magazine</a>
   <a href="/report/weekly/email.png" th:text="#{toolbar.emailPng}">⬇ Email PNG</a>
   <a href="/review" th:text="#{toolbar.review}">Reviewer Console</a>
   <a href="/dedup" th:text="#{toolbar.dedup}">Dedup</a>
