@@ -20,6 +20,10 @@ import org.springframework.context.annotation.Configuration;
  * (mặc định NEUTRAL → mọi thứ vào review, không bao giờ tự xuất bản).
  *
  * Batch 9 ("Change LLM" UI): bean trả về là SwitchableLlmClient.
+ * Batch 9 (đối xứng với writer): marketradar.verifier.anthropic-model + env
+ * ANTHROPIC_API_KEY → boot thẳng bằng Claude native cho verifier (chỉ hợp lệ khi
+ * writer KHÔNG phải Claude — Invariant2 kiểm tra y hệt nhánh OpenAI-compat bên dưới).
+ * Đây chỉ là tiện ích lúc khởi động — /llm-settings luôn cho đổi runtime rồi.
  */
 @Configuration
 public class VerifierClientFactory {
@@ -32,7 +36,18 @@ public class VerifierClientFactory {
             LlmClient writerClient,  // bean @Primary — writer
             @Value("${marketradar.verifier.base-url:https://api.openai.com/v1}") String baseUrl,
             @Value("${marketradar.verifier.model:gpt-4o-mini}") String model,
+            @Value("${marketradar.verifier.anthropic-model:}") String anthropicModel,
             @Value("${marketradar.verifier.max-tokens:512}") int maxTokens) {
+
+        String anthropicKey = System.getenv("ANTHROPIC_API_KEY");
+        if (!anthropicModel.isBlank() && anthropicKey != null && !anthropicKey.isBlank()) {
+            var anthropicConfig = new SwitchableLlmClient.Config(
+                    SwitchableLlmClient.Kind.ANTHROPIC, null, anthropicModel, maxTokens);
+            Invariant2.assertDifferentFamily(((SwitchableLlmClient) writerClient).config(), anthropicConfig);
+            log.info("VERIFIER MODE: ANTHROPIC (model={}) — khác họ với writer {}",
+                    anthropicModel, writerClient.providerName());
+            return new SwitchableLlmClient(new AnthropicLlmClient(anthropicKey, anthropicModel, maxTokens), anthropicConfig);
+        }
 
         String apiKey = System.getenv("VERIFIER_API_KEY");
         if (apiKey == null || apiKey.isBlank()) {
