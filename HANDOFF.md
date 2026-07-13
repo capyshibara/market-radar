@@ -67,11 +67,10 @@ sentence must be "please restart before testing."
 `SCHEMA_REJECTED` claim that deletes that claim row + its cached LLM
 response, so the next Interpret run genuinely retries the doc instead of
 being silently skipped forever. Endpoint: `POST /claims/force-retry/{rawDocId}`.
-**Classification does not have an equivalent yet** — a doc stuck in
-`UNCERTAIN_REVIEW`/`NO_LABEL_REVIEW` still needs manual SQL to retry. This is
-the natural next thing to build if it comes up again (mirror the same
-pattern: delete the `Classification` row + its `CLASSIFY`-purpose
-`LlmCallLog` entries for that doc, add a button on `/classifications`).
+**Classification now has the equivalent too** (added after this handoff was
+first written): a doc stuck in `UNCERTAIN_REVIEW`/`NO_LABEL_REVIEW` gets a
+Force Retry button on `/classifications`, endpoint
+`POST /classify/force-retry/{rawDocId}`, same delete-row-plus-cache pattern.
 
 ## What changed tonight (chronological, so root causes are traceable)
 
@@ -122,7 +121,13 @@ pattern: delete the `Classification` row + its `CLASSIFY`-purpose
 
 ## Known remaining gaps (roughly priority order)
 
-- **Classification has no Force Retry equivalent** (see table above).
+- ~~**Classification has no Force Retry equivalent**~~ — closed 2026-07-13: mirrors
+  `ClaimController#forceRetry` exactly. `POST /classify/force-retry/{rawDocId}`
+  (`ClassificationController`), guarded on `UNCERTAIN_REVIEW`/`NO_LABEL_REVIEW`, deletes
+  the `Classification` row (`ClassificationRepository.deleteByRawDocId`, new) + its
+  `CLASSIFY`-purpose `LlmCallLog` entries (reused the existing generic
+  `deleteByPurposeAndRawDocId`). Button added to `/classifications` next to the status
+  badge, same visibility rule as the claims page.
 - **No mobile pass on the ops console** (by design — desk-bound tool).
 - **Maker→Checker handoff isn't real** — Maker's edit still self-approves
   server-side.

@@ -64,6 +64,10 @@
                   <span class="badge badge-sm"
                         th:classappend="${c.status.name() == 'CONFIRMED'} ? 'badge-success' : (${c.status.name() == 'OUT_OF_SCOPE'} ? 'badge-neutral' : 'badge-warn')"
                         th:text="${c.status}">CONFIRMED</span>
+                  <form th:if="${c.status.name() == 'UNCERTAIN_REVIEW' or c.status.name() == 'NO_LABEL_REVIEW'}"
+                        method="post" th:action="'/classify/force-retry/' + ${c.rawDoc.id}" style="margin-top:4px">
+                    <button class="btn btn-sm" type="submit" title="Delete this classification and its cached response so the next classify run retries this document">Force Retry</button>
+                  </form>
                 </td>
                 <td>
                   <span class="badge badge-sm"
