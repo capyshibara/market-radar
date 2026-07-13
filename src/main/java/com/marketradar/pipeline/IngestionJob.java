@@ -99,13 +99,63 @@ public class IngestionJob {
      */
     private int ingestJson(Source source)
             throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
-        var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                SafeFetcher.ExpectedKind.JSON);
         return switch (source.getCode()) {
-            case "BIDV_METLIFE" -> ingestListing(source, parsers.parseBidvMetlife(result.body(), source.getFetchUrl()));
+            case "BIDV_METLIFE" -> {
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON);
+                yield ingestListing(source, parsers.parseBidvMetlife(result.body(), source.getFetchUrl()));
+            }
+            case "MOF_ISA" -> ingestMofIsa(source);
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };
+    }
+
+    /** rootCategoryId của chuyên mục "Quản lý giám sát bảo hiểm" trên portal MOF (xác nhận live 2026-07-14). */
+    private static final String MOF_INSURANCE_ROOT_CATEGORY = "8dc0b2a0-38bd-427c-b6d5-c97a6f9952b4";
+
+    /**
+     * MOF_ISA: danh sách qua POST /api/article/reads (body rootCategoryId), rồi mỗi bài
+     * lấy full text qua GET /api/article/getbyslug (article page là SPA nên KHÔNG fetch
+     * HTML như ingestListing được — phải qua API chi tiết). publishedAt lấy từ
+     * publicationTime của API (ngày THẬT — đúng thứ bộ lọc độ mới cần).
+     */
+    private int ingestMofIsa(Source source)
+            throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
+        String listBody = "{\"rootCategoryId\":\"" + MOF_INSURANCE_ROOT_CATEGORY + "\"}";
+        var listRes = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                SafeFetcher.ExpectedKind.JSON, listBody);
+        int stored = 0;
+        for (var art : capItems(source, parsers.parseMofList(listRes.body(), source.getFetchUrl()))) {
+            var existing = rawDocs.findFirstByUrlOrderByIdAsc(art.url());
+            if (existing.isPresent() && existing.get().isFullTextFetched()) continue;
+
+            String fullText = null, note = null;
+            try {
+                String detailUrl = "https://" + source.getAllowedHost()
+                        + "/api/article/getbyslug?slug=" + art.slug();
+                var detail = fetcher.fetch(detailUrl, source.getAllowedHost(), SafeFetcher.ExpectedKind.JSON);
+                fullText = parsers.parseMofContent(detail.body());
+            } catch (Exception e) {
+                note = "MOF detail fetch failed (" + truncateNote(e.getMessage()) + ") — dùng title+mô tả";
+                log.warn("MOF_ISA detail lỗi [{}]: {}", art.slug(), e.getMessage());
+            }
+            // Fallback khi API chi tiết lỗi/rỗng: title + description (vẫn có ngày thật để lọc)
+            boolean isFull = fullText != null && !fullText.isBlank();
+            String text = isFull ? fullText
+                    : (art.title() + (art.description().isBlank() ? "" : "\n\n" + art.description()));
+            String hash = sha256(normalizeForHash(text));
+            if (existing.isPresent()) {
+                if (isFull) { existing.get().upgradeToFullText(hash, text, note); rawDocs.save(existing.get()); stored++; }
+            } else if (!rawDocs.existsByContentHash(hash)) {
+                RawDoc doc = new RawDoc(source, art.url(), art.title(), art.publishedAt(), Instant.now(),
+                        hash, text, source.getLanguage(), RawDoc.ParseStatus.OK, note);
+                if (isFull) doc.upgradeToFullText(hash, text, note);
+                rawDocs.save(doc);
+                stored++;
+            }
+        }
+        return stored;
     }
 
     /**

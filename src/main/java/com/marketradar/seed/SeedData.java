@@ -58,13 +58,14 @@ public class SeedData implements CommandLineRunner {
     }
 
     private void seedSources() {
-        // ⚠️ TẤT CẢ fetchUrl dưới đây cần verify khi có mạng (đường dẫn mục tin có thể khác)
-        // Collision fix 2026-07-05: old URL now 301 dead (nginx). Registry's URL is live but different
-        // host (www.mof.gov.vn) — host updated too. Still a client-rendered SPA (<div id="app">), same
-        // blocker as before — fetch works now, parser still can't extract content without JS (see Track 3).
+        // Fix 2026-07-14 (Hanh: ưu tiên regulator VN): portal MOF là SPA (Vue) — HTML tĩnh chỉ
+        // là <div id="app"> rỗng, KHÔNG parse được. JS gọi REST API sạch: danh sách qua
+        // POST /api/article/reads (body {"rootCategoryId":<id chuyên mục BH>}), chi tiết qua
+        // GET /api/article/getbyslug. fetchUrl = endpoint danh sách; rootCategoryId + endpoint
+        // chi tiết nằm trong ingestMofIsa/parseMofList (đặc thù site, như các parser riêng khác).
         mofIsa = sources.save(new Source("MOF_ISA", "Cục Quản lý, giám sát bảo hiểm — Bộ Tài chính",
-                "https://www.mof.gov.vn/quan-ly-giam-sat-bao-hiem", "www.mof.gov.vn",
-                Source.SourceType.HTML, 1, "vi"));
+                "https://www.mof.gov.vn/api/article/reads?offset=0&limit=25", "www.mof.gov.vn",
+                Source.SourceType.JSON, 1, "vi"));
         // Collision check 2026-07-05: registry's "root" URL is a meta-refresh redirect TO this exact
         // deep path — current seed is already the real target. No change.
         nfra = sources.save(new Source("NFRA_CN", "国家金融监督管理总局 (NFRA)",

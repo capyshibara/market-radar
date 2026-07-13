@@ -13,6 +13,7 @@ import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Set;
@@ -76,6 +77,17 @@ public class SafeFetcher {
      */
     public FetchResult fetch(String url, String allowedHost, ExpectedKind kind)
             throws FetchRejectedException {
+        return fetch(url, allowedHost, kind, null);
+    }
+
+    /**
+     * Biến thể POST (postJsonBody != null): dùng cho API danh sách trả JSON qua POST
+     * (vd MOF_ISA /api/article/reads cần body {"rootCategoryId":...}). MỌI lớp phòng
+     * thủ #1–#6 GIỮ NGUYÊN — chỉ khác method + body + Content-Type. postJsonBody == null
+     * ⇒ GET như cũ (mọi caller cũ không đổi).
+     */
+    public FetchResult fetch(String url, String allowedHost, ExpectedKind kind, String postJsonBody)
+            throws FetchRejectedException {
 
         final URI uri;
         try {
@@ -114,12 +126,17 @@ public class SafeFetcher {
             throw new FetchRejectedException("Could not resolve host: " + host);
         }
 
-        HttpRequest request = HttpRequest.newBuilder(uri)
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(requestTimeout)
                 .header("User-Agent", "MarketRadar-MVP/0.1 (internal research; contact: market-radar)")
-                .header("Accept", acceptHeaderFor(kind))
-                .GET()
-                .build();
+                .header("Accept", acceptHeaderFor(kind));
+        if (postJsonBody != null) {
+            builder.header("Content-Type", "application/json")
+                   .POST(HttpRequest.BodyPublishers.ofString(postJsonBody, StandardCharsets.UTF_8));
+        } else {
+            builder.GET();
+        }
+        HttpRequest request = builder.build();
 
         HttpResponse<InputStream> response;
         try {

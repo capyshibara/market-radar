@@ -470,9 +470,80 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * MOF_ISA (mof.gov.vn) — Cục QLGS Bảo hiểm. Portal là SPA (Vue), HTML tĩnh chỉ là
+     * &lt;div id="app"&gt; rỗng. JS gọi REST API sạch:
+     *   • DANH SÁCH: POST /api/article/reads?offset&amp;limit, body {"rootCategoryId": &lt;id BH&gt;}
+     *     → data[] có title, slug, publicationTime (ISO), categorySlug, rootCategorySlug, description.
+     *   • CHI TIẾT: GET /api/article/getbyslug?slug=… → data.articleContent (là chuỗi JSON
+     *     lồng {"Content":"&lt;html&gt;"}), lấy full text (xem parseMofContent).
+     * Link người đọc: /{rootCategorySlug}/{categorySlug}/{slug} (route SPA).
+     * Fix 2026-07-14 (Hanh: ưu tiên regulator VN trước).
+     */
+    public List<MofArticle> parseMofList(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode data = JSON.readTree(body).get("data");
+            if (data == null || !data.isArray() || data.isEmpty()) {
+                throw new ParseFailedException("MOF_ISA: JSON không có mảng 'data' — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<MofArticle> items = new ArrayList<>();
+            for (JsonNode a : data) {
+                String title = a.path("title").asText("").strip();
+                String slug = a.path("slug").asText("").strip();
+                String catSlug = a.path("categorySlug").asText("").strip();
+                String rootSlug = a.path("rootCategorySlug").asText("").strip();
+                if (title.isBlank() || slug.isBlank()) continue;
+                String url = origin + "/" + rootSlug + "/" + catSlug + "/" + slug;
+                Instant publishedAt = parseFlexibleInstant(a.path("publicationTime").asText(""));
+                items.add(new MofArticle(title, url, slug, publishedAt, a.path("description").asText("").strip()));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("MOF_ISA: 'data' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("MOF_ISA: lỗi parse JSON danh sách: " + e.getMessage());
+        }
+    }
+
+    /** Chi tiết MOF: data.articleContent là chuỗi JSON lồng {"Content":"&lt;html&gt;"} → text. null nếu hỏng. */
+    public String parseMofContent(byte[] detailBody) {
+        try {
+            String articleContent = JSON.readTree(detailBody).path("data").path("articleContent").asText("");
+            if (articleContent.isBlank()) return null;
+            String html = JSON.readTree(articleContent).path("Content").asText("");
+            if (html.isBlank()) return null;
+            String text = Jsoup.parse(html).text().strip();
+            return text.isBlank() ? null : text;
+        } catch (Exception e) {
+            log.warn("MOF_ISA: không parse được articleContent: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** ISO có Z/millis (Instant.parse) hoặc không zone ("2025-04-10T08:31:01") → coi giờ VN. */
+    private static Instant parseFlexibleInstant(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Instant.parse(raw.strip());
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(raw.strip()).atZone(VN_ZONE).toInstant();
+            } catch (DateTimeParseException e2) {
+                log.warn("MOF_ISA: không parse được publicationTime '{}'", raw);
+                return null;
+            }
+        }
+    }
+
     public record ParsedText(String title, String text, String note) {}
     public record RssItem(String title, String link, String descriptionText, Instant publishedAt) {}
     public record ListingItem(String title, String link, Instant publishedAt) {}
+    public record MofArticle(String title, String url, String slug, Instant publishedAt, String description) {}
 
     public static class ParseFailedException extends Exception {
         public ParseFailedException(String message) { super(message); }
