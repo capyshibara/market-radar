@@ -95,14 +95,14 @@ public class FactExtractionJob {
 
     public String runOnce() {
         if ("STUB".equals(llm.providerName())) {
-            return "EXTRACT: LLM đang STUB — không trích fact (không có fact heuristic giả). "
-                    + "Set ANTHROPIC_API_KEY rồi chạy lại.\n";
+            return "EXTRACT: LLM is STUB — not extracting facts (no fake heuristic facts). "
+                    + "Configure a writer key (WRITER_API_KEY or ANTHROPIC_API_KEY) and run again.\n";
         }
 
         List<Classification> confirmed = classifications.findAllForDisplay().stream()
                 .filter(c -> c.getStatus() == Classification.Status.CONFIRMED)
                 .toList();
-        if (confirmed.isEmpty()) return "Chưa có doc CONFIRMED nào — chạy /classify/run trước.\n";
+        if (confirmed.isEmpty()) return "No CONFIRMED docs yet — run Classify first.\n";
 
         StringBuilder sb = new StringBuilder();
         int docsDone = 0, docsSkipped = 0, factsSaved = 0, spansRejected = 0;
@@ -126,7 +126,7 @@ public class FactExtractionJob {
             ParseResult pr = parseAndGate(raw, doc);
             spansRejected += pr.rejected;
             if (pr.schemaRejected) {
-                sb.append("doc#").append(doc.getId()).append(": SCHEMA_REJECTED (output không phải JSON đúng dạng)\n");
+                sb.append("doc#").append(doc.getId()).append(": SCHEMA_REJECTED (output was not valid JSON)\n");
                 continue;
             }
             for (EvidenceFact f : pr.accepted) {
@@ -135,14 +135,14 @@ public class FactExtractionJob {
             }
             docsDone++;
             sb.append("doc#").append(doc.getId()).append(": +").append(pr.accepted.size())
-              .append(" fact").append(pr.rejected > 0 ? " (" + pr.rejected + " span bị loại — không khớp nguyên văn)" : "")
+              .append(" fact").append(pr.rejected > 0 ? " (" + pr.rejected + " span rejected — not verbatim)" : "")
               .append(" — ").append(truncate(doc.getTitle(), 60)).append('\n');
-            log.info("Extract doc#{} → +{} fact, {} span loại", doc.getId(), pr.accepted.size(), pr.rejected);
+            log.info("Extract doc#{} → +{} fact, {} span rejected", doc.getId(), pr.accepted.size(), pr.rejected);
         }
 
-        sb.insert(0, "Extract xong " + docsDone + " doc (+" + factsSaved + " fact, "
-                + spansRejected + " span bị loại vì không khớp nguyên văn), bỏ qua "
-                + docsSkipped + " (trùng/đã trích/không có text). Provider: " + llm.providerName() + "\n");
+        sb.insert(0, "Extracted " + docsDone + " doc(s) (+" + factsSaved + " fact(s), "
+                + spansRejected + " span(s) rejected — not verbatim), skipped "
+                + docsSkipped + " (duplicate/already extracted/no text). Provider: " + llm.providerName() + "\n");
         return sb.toString();
     }
 

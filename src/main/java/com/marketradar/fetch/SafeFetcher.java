@@ -80,23 +80,23 @@ public class SafeFetcher {
         try {
             uri = URI.create(url);
         } catch (IllegalArgumentException e) {
-            throw new FetchRejectedException("URL không hợp lệ: " + url);
+            throw new FetchRejectedException("Invalid URL: " + url);
         }
 
         // #1 scheme
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
         if (httpsOnly && !"https".equals(scheme)) {
-            throw new FetchRejectedException("Từ chối scheme '" + scheme + "' (chỉ cho phép https): " + url);
+            throw new FetchRejectedException("Rejected scheme '" + scheme + "' (https only): " + url);
         }
         if (!"https".equals(scheme) && !"http".equals(scheme)) {
-            throw new FetchRejectedException("Scheme không được hỗ trợ: " + scheme);
+            throw new FetchRejectedException("Unsupported scheme: " + scheme);
         }
 
         // #2 host whitelist — exact match
         String host = uri.getHost();
         if (host == null || !host.equalsIgnoreCase(allowedHost)) {
             throw new FetchRejectedException(
-                    "Host '" + host + "' không khớp whitelist '" + allowedHost + "'");
+                    "Host '" + host + "' does not match whitelist '" + allowedHost + "'");
         }
 
         // #3 SSRF guard — chặn IP nội bộ sau khi resolve DNS
@@ -106,11 +106,11 @@ public class SafeFetcher {
                         || addr.isLinkLocalAddress() || addr.isMulticastAddress()
                         || addr.isAnyLocalAddress()) {
                     throw new FetchRejectedException(
-                            "Host resolve về IP nội bộ (" + addr.getHostAddress() + ") — chặn SSRF");
+                            "Host resolved to an internal IP (" + addr.getHostAddress() + ") — SSRF blocked");
                 }
             }
         } catch (UnknownHostException e) {
-            throw new FetchRejectedException("Không resolve được host: " + host);
+            throw new FetchRejectedException("Could not resolve host: " + host);
         }
 
         HttpRequest request = HttpRequest.newBuilder(uri)
@@ -125,19 +125,19 @@ public class SafeFetcher {
             response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            throw new FetchRejectedException("Lỗi mạng khi fetch " + url + ": " + e.getMessage());
+            throw new FetchRejectedException("Network error fetching " + url + ": " + e.getMessage());
         }
 
         int status = response.statusCode();
         // #4 redirect = fail loud
         if (status >= 300 && status < 400) {
-            String location = response.headers().firstValue("Location").orElse("(không có Location)");
+            String location = response.headers().firstValue("Location").orElse("(no Location header)");
             throw new FetchRejectedException(
-                    "Nguồn trả redirect " + status + " → " + location
-                    + " — không follow (chính sách an toàn). Cập nhật fetchUrl trong registry nếu URL đã đổi.");
+                    "Source returned redirect " + status + " → " + location
+                    + " — not followed (safety policy). Update fetchUrl in the registry if the URL changed.");
         }
         if (status != 200) {
-            throw new FetchRejectedException("HTTP " + status + " từ " + url);
+            throw new FetchRejectedException("HTTP " + status + " from " + url);
         }
 
         // #5 content-type check
@@ -145,7 +145,7 @@ public class SafeFetcher {
                 .orElse("").split(";")[0].trim().toLowerCase(Locale.ROOT);
         if (!allowedTypesFor(kind).contains(contentType)) {
             throw new FetchRejectedException(
-                    "Content-Type '" + contentType + "' không khớp loại nguồn " + kind);
+                    "Content-Type '" + contentType + "' does not match source type " + kind);
         }
 
         // #6 đọc body có giới hạn dung lượng
@@ -164,13 +164,13 @@ public class SafeFetcher {
                 total += n;
                 if (total > cap) {
                     throw new FetchRejectedException(
-                            "Body vượt giới hạn " + cap + " bytes — chặn: " + url);
+                            "Body exceeds " + cap + " byte cap — blocked: " + url);
                 }
                 out.write(buf, 0, n);
             }
             return out.toByteArray();
         } catch (IOException e) {
-            throw new FetchRejectedException("Lỗi đọc body từ " + url + ": " + e.getMessage());
+            throw new FetchRejectedException("Error reading body from " + url + ": " + e.getMessage());
         }
     }
 

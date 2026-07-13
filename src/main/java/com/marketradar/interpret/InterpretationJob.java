@@ -50,7 +50,7 @@ public class InterpretationJob {
     public String runOnce() {
         StringBuilder summary = new StringBuilder();
         List<EvidenceFact> allFacts = facts.findAllForReport();
-        if (allFacts.isEmpty()) return "Không có evidence fact nào — chưa chạy interpreter.\n";
+        if (allFacts.isEmpty()) return "No evidence facts yet — run Extract first.\n";
 
         // ---- Gom fact theo doc ----
         Map<RawDoc, List<EvidenceFact>> byDoc = new LinkedHashMap<>();
@@ -73,11 +73,11 @@ public class InterpretationJob {
             Interpreter.InterpretOutput out = interpreter.interpretExecSummary(globalPack);
             summary.append(persist(out, globalPack, null));
         } else {
-            summary.append("Exec summary đã có — bỏ qua.\n");
+            summary.append("Exec summary already exists — skipped.\n");
         }
 
-        summary.insert(0, "Interpret xong " + docsDone + " doc, bỏ qua " + docsSkipped
-                + " (đã interpret). Provider: " + interpreter.providerName() + "\n");
+        summary.insert(0, "Interpreted " + docsDone + " doc(s), skipped " + docsSkipped
+                + " (already interpreted). Provider: " + interpreter.providerName() + "\n");
         return summary.toString();
     }
 
@@ -93,13 +93,13 @@ public class InterpretationJob {
             InterpretedClaim c = new InterpretedClaim(nextCode(),
                     doc, doc == null ? Slot.EXEC_SUMMARY : Slot.WHY_MATTERS, Origin.PIPELINE,
                     raw, raw, null,
-                    GateStatus.SCHEMA_REJECTED, "{\"reason\":\"output không đúng schema JSON\"}",
+                    GateStatus.SCHEMA_REJECTED, "{\"reason\":\"output was not valid JSON schema\"}",
                     interpreter.providerName());
             // Batch 4: schema-reject luôn cần người nhìn (fail loud)
             c.setRiskTier(tierRouter.assignTier(doc, Origin.PIPELINE));
             c.setReviewStatus(ReviewStatus.PENDING_REVIEW);
             claims.save(c);
-            sb.append(docLabel).append(": SCHEMA_REJECTED (raw giữ trong claim ").append(c.getClaimCode()).append(")\n");
+            sb.append(docLabel).append(": SCHEMA_REJECTED (raw output kept in claim ").append(c.getClaimCode()).append(")\n");
             return sb.toString();
         }
 

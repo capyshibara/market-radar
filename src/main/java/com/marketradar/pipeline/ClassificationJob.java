@@ -71,9 +71,10 @@ public class ClassificationJob {
                        .append(e.getMessage()).append('\n');
             }
         }
-        summary.insert(0, "Phân loại xong " + done + " doc, bỏ qua " + skipped
-                + " (đã phân loại/parse lỗi), bỏ qua " + skippedDuplicate + " (bản trùng, dedup lọc trước khi tốn LLM)\n"
-                + "--- Dedup (chạy trước classify) ---\n" + dedupSummary + "---\n");
+        summary.insert(0, "Classified " + done + " doc(s), skipped " + skipped
+                + " (already classified/parse error), skipped " + skippedDuplicate
+                + " (duplicate — filtered by dedup before costing an LLM call)\n"
+                + "--- Dedup (runs before classify) ---\n" + dedupSummary + "---\n");
         return summary.toString();
     }
 }

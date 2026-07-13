@@ -71,7 +71,7 @@ public class IngestionJob {
                 log.warn("PARSE FAILED [{}]: {}", source.getCode(), e.getMessage());
                 recordFailure(source, source.getFetchUrl(),
                         RawDoc.ParseStatus.PARSE_ERROR, e.getMessage());
-                summary.append(source.getCode()).append(": PARSE_ERROR — ").append(e.getMessage()).append('\n');
+                summary.append(source.getCode()).append(": PARSE ERROR — ").append(e.getMessage()).append('\n');
             } catch (Exception e) {
                 log.error("UNEXPECTED [{}]", source.getCode(), e);
                 summary.append(source.getCode()).append(": ERROR — ").append(e.getMessage()).append('\n');

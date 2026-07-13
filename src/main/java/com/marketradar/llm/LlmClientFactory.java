@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Configuration;
  *   2. env ANTHROPIC_API_KEY → Anthropic Messages API (đường cũ, không đổi hành vi).
  *   3. Không có gì → STUB.
  * Chế độ đang chạy được log RẤT TO lúc khởi động — không được mập mờ.
+ *
+ * Batch 9 ("Change LLM" UI): bean trả về là SwitchableLlmClient — /llm-settings
+ * có thể đổi provider/model lúc runtime mà không cần khởi động lại app.
  */
 @Configuration
 public class LlmClientFactory {
@@ -29,7 +32,8 @@ public class LlmClientFactory {
         String compatKey = System.getenv("WRITER_API_KEY");
         if (!baseUrl.isBlank() && compatKey != null && !compatKey.isBlank()) {
             log.info("LLM MODE (WRITER): OPENAI_COMPAT (base-url={}, model={})", baseUrl, model);
-            return new OpenAiCompatibleLlmClient(baseUrl, compatKey, model, maxTokens);
+            return new SwitchableLlmClient(new OpenAiCompatibleLlmClient(baseUrl, compatKey, model, maxTokens),
+                    new SwitchableLlmClient.Config(SwitchableLlmClient.Kind.OPENAI_COMPAT, baseUrl, model, maxTokens));
         }
         if (!baseUrl.isBlank()) {
             log.warn("marketradar.llm.base-url được set nhưng THIẾU env WRITER_API_KEY — bỏ qua, thử đường Anthropic.");
@@ -37,13 +41,15 @@ public class LlmClientFactory {
         String apiKey = System.getenv("ANTHROPIC_API_KEY");
         if (apiKey != null && !apiKey.isBlank()) {
             log.info("LLM MODE (WRITER): ANTHROPIC (model={})", model);
-            return new AnthropicLlmClient(apiKey, model, maxTokens);
+            return new SwitchableLlmClient(new AnthropicLlmClient(apiKey, model, maxTokens),
+                    new SwitchableLlmClient.Config(SwitchableLlmClient.Kind.ANTHROPIC, null, model, maxTokens));
         }
         log.warn("╔══════════════════════════════════════════════════════╗");
         log.warn("║ LLM MODE: STUB — không có WRITER_API_KEY (+base-url)  ║");
         log.warn("║ hoặc ANTHROPIC_API_KEY.                               ║");
         log.warn("║ Phân loại chạy bằng keyword heuristic, KHÔNG phải AI. ║");
         log.warn("╚══════════════════════════════════════════════════════╝");
-        return new StubLlmClient();
+        return new SwitchableLlmClient(new StubLlmClient(),
+                new SwitchableLlmClient.Config(SwitchableLlmClient.Kind.STUB, null, "STUB", maxTokens));
     }
 }

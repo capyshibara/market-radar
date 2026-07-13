@@ -55,7 +55,7 @@ public class VerificationJob {
     public String runOnce() {
         List<InterpretedClaim> pending =
                 claims.findByReviewStatusFetched(ReviewStatus.PENDING_VERIFICATION);
-        if (pending.isEmpty()) return "Không có claim nào chờ verify (PENDING_VERIFICATION).\n";
+        if (pending.isEmpty()) return "No claims awaiting verification (PENDING_VERIFICATION).\n";
 
         Map<String, EvidenceFact> factByCode = facts.findAllForReport().stream()
                 .collect(Collectors.toMap(EvidenceFact::getFactCode, Function.identity()));
@@ -83,7 +83,7 @@ public class VerificationJob {
             log.info("Gate L2 {} [{}] → {} → {}", c.getClaimCode(), c.getRiskTier(),
                     r.verdict(), c.getReviewStatus());
         }
-        sb.insert(0, "Verify xong " + pending.size() + " claim: "
+        sb.insert(0, "Verified " + pending.size() + " claim(s): "
                 + auto + " AUTO_APPROVED, " + toReview + " → review.\n");
         return sb.toString();
     }

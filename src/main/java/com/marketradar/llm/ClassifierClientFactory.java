@@ -37,15 +37,20 @@ public class ClassifierClientFactory {
             @Value("${marketradar.classifier.max-tokens:200}") int maxTokens) {
 
         String apiKey = System.getenv("CLASSIFIER_API_KEY");
+        // Batch 9: instance RIÊNG (không phải cùng object với writer) — khởi tạo bằng bản
+        // SAO CHÉP trạng thái writer lúc boot, sau đó hai slot độc lập hoàn toàn qua
+        // /llm-settings (đổi cái này không tự kéo theo cái kia — dễ đoán hơn cho UI).
+        SwitchableLlmClient writer = (SwitchableLlmClient) llmClient;
         if (apiKey == null || apiKey.isBlank() || baseUrl.isBlank() || model.isBlank()) {
             log.info("CLASSIFIER MODE: dùng chung writer client ({}) — chưa cấu hình provider riêng "
                     + "(marketradar.classifier.base-url/model + env CLASSIFIER_API_KEY) để giảm chi phí.",
                     llmClient.providerName());
-            return llmClient;
+            return new SwitchableLlmClient(writer.delegate(), writer.config());
         }
 
         log.info("CLASSIFIER MODE: OPENAI_COMPAT (base-url={}, model={}) — tách riêng khỏi writer "
                 + "để giảm chi phí phân loại khối lượng lớn (self-consistency 3x/doc).", baseUrl, model);
-        return new OpenAiCompatibleLlmClient(baseUrl, apiKey, model, maxTokens);
+        return new SwitchableLlmClient(new OpenAiCompatibleLlmClient(baseUrl, apiKey, model, maxTokens),
+                new SwitchableLlmClient.Config(SwitchableLlmClient.Kind.OPENAI_COMPAT, baseUrl, model, maxTokens));
     }
 }

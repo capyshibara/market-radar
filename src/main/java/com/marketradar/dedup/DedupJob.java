@@ -79,7 +79,7 @@ public class DedupJob {
                 .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
                 .sorted((a, b) -> Long.compare(a.getId(), b.getId()))
                 .toList();
-        if (docs.size() < 2) return "Chưa đủ tài liệu (parse OK) để dedup.\n";
+        if (docs.size() < 2) return "Not enough documents (parse OK) to dedup yet.\n";
 
         StringBuilder sb = new StringBuilder();
         int same = 0, diff = 0, flagged = 0, skipped = 0;
@@ -104,7 +104,7 @@ public class DedupJob {
                     rawDocs.save(loser);
                     same++;
                     sb.append("doc#").append(a.getId()).append(" ↔ doc#").append(b.getId())
-                      .append(" [").append(o.method).append("] SAME_EVENT — giữ doc#")
+                      .append(" [").append(o.method).append("] SAME_EVENT — kept doc#")
                       .append(o.winner.getId()).append(" (").append(o.detail).append(")\n");
                 } else if (o.verdict == Verdict.NEEDS_REVIEW) {
                     flagged++;
@@ -117,8 +117,8 @@ public class DedupJob {
                 log.info("Dedup doc#{} ↔ doc#{} [{}] → {}", a.getId(), b.getId(), o.method, o.verdict);
             }
         }
-        sb.insert(0, "Dedup xong: " + same + " cặp trùng (đã đánh dấu), " + diff
-                + " khác nhau, " + flagged + " chờ người (/dedup), " + skipped + " cặp bỏ qua.\n");
+        sb.insert(0, "Dedup done: " + same + " duplicate pair(s) marked, " + diff
+                + " different, " + flagged + " awaiting human review (/dedup), " + skipped + " pair(s) skipped.\n");
         return sb.toString();
     }
 
@@ -136,20 +136,20 @@ public class DedupJob {
         if (j >= jaccardSame) return sameEvent(a, b, Method.JACCARD_TITLE, j);
         if (j < jaccardGray)
             return new Outcome(Method.JACCARD_TITLE, j, Verdict.DIFFERENT, null,
-                    "Jaccard " + fmt(j) + " < ngưỡng xám " + fmt(jaccardGray));
+                    "Jaccard " + fmt(j) + " < gray threshold " + fmt(jaccardGray));
 
         // Vùng xám → LLM pairwise
         if ("STUB".equals(llm.providerName()))
             return new Outcome(Method.LLM_PAIRWISE, j, Verdict.NEEDS_REVIEW, null,
-                    "Vùng xám (Jaccard " + fmt(j) + ") + LLM đang STUB — không đoán, chờ người.");
+                    "Gray zone (Jaccard " + fmt(j) + ") + LLM is STUB — not guessing, awaiting human review.");
 
         Boolean sameEvent = askLlm(a, b);
         if (sameEvent == null)
             return new Outcome(Method.LLM_PAIRWISE, j, Verdict.NEEDS_REVIEW, null,
-                    "Vùng xám (Jaccard " + fmt(j) + "), output LLM không parse được — chờ người.");
+                    "Gray zone (Jaccard " + fmt(j) + "), LLM output unparseable — awaiting human review.");
         if (!sameEvent)
             return new Outcome(Method.LLM_PAIRWISE, j, Verdict.DIFFERENT, null,
-                    "LLM pairwise: khác sự kiện (Jaccard " + fmt(j) + ").");
+                    "LLM pairwise: different event (Jaccard " + fmt(j) + ").");
         return sameEvent(a, b, Method.LLM_PAIRWISE, j);
     }
 
@@ -164,16 +164,16 @@ public class DedupJob {
             case 'B' -> new Outcome(method, score, Verdict.SAME_EVENT, b,
                     winReason(b, a));
             default -> new Outcome(method, score, Verdict.NEEDS_REVIEW, null,
-                    "Cùng sự kiện nhưng CÙNG tier nguồn và không phân định được thời gian"
-                    + " — flag reviewer (rule: không tự quyết).");
+                    "Same event but SAME source tier and no clear time order"
+                    + " — flagged for reviewer (rule: never auto-decide).");
         };
     }
 
     private static String winReason(RawDoc winner, RawDoc loser) {
         if (winner.getSource().getTier() != loser.getSource().getTier())
             return "official > media: tier " + winner.getSource().getTier()
-                    + " thắng tier " + loser.getSource().getTier();
-        return "mới > cũ: cùng tier, bản xuất bản mới hơn thắng";
+                    + " beats tier " + loser.getSource().getTier();
+        return "newer > older: same tier, more recently published wins";
     }
 
     // ---------- LLM pairwise + replay-cache (cùng cơ chế các job cũ) ----------

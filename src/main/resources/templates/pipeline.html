@@ -12,22 +12,35 @@
 <link rel="stylesheet" href="/css/ops-components.css"/>
 <link rel="stylesheet" href="/css/ops-sidebar.css"/>
 <style>
-  .stage-row { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border-default);
+  .stage-row { border: 1px solid var(--border-default);
     border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px; }
+  .stage-row .st-top { display: flex; align-items: center; gap: 12px; }
   .stage-row .st-num { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-card-sunk);
     display: flex; align-items: center; justify-content: center; font-size: var(--text-xs);
     font-weight: 700; color: var(--text-secondary); flex: none; }
-  .stage-row .st-meta { flex: 1; }
+  .stage-row .st-meta { flex: 1; min-width: 0; }
   .stage-row .st-name { font-weight: 600; font-size: var(--text-sm); }
   .stage-row .st-desc { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: 2px; }
+  .stage-row .st-llm { font-size: var(--text-2xs); color: var(--text-tertiary); margin-top: 6px; font-family: monospace; }
+  .stage-row .st-llm a { margin-left: 8px; }
   .stage-row form { margin: 0; flex: none; }
-  .stage-row.is-last-run { border-color: var(--brand-red, #c0392b); }
-  .pl-output { margin-top: 20px; }
+  .stage-row.is-running { border-color: var(--blue-400, #5B8DEF); }
+  .stage-row.is-failed { border-color: var(--red-400, #E0585B); }
+  .badge-status { display: inline-block; font-size: var(--text-2xs); font-weight: 700; text-transform: uppercase;
+    letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; margin-left: 10px; }
+  .badge-idle { background: var(--surface-card-sunk); color: var(--text-tertiary); }
+  .badge-running { background: var(--blue-50, #EAF1FE); color: var(--blue-700, #2255BB); }
+  .badge-success { background: var(--green-50, #EAF7EF); color: var(--green-700, #1C6B3C); }
+  .badge-failed { background: var(--red-50, #FDECEC); color: var(--red-700, #A32626); }
+  .pl-output { margin-top: 10px; }
   .pl-output pre { background: var(--surface-card-sunk); border: 1px solid var(--border-default);
     border-radius: var(--radius-md); padding: 14px 16px; font-size: var(--text-xs);
-    line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 480px; overflow-y: auto; }
+    line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow-y: auto; }
   .pl-note { font-size: var(--text-xs); color: var(--text-tertiary); border: 1px solid var(--border-default);
     border-radius: var(--radius-md); padding: 12px 14px; background: var(--surface-card-sunk); margin-bottom: 18px; }
+  .pl-legend { font-size: var(--text-xs); color: var(--text-tertiary); margin: 4px 0 18px; }
+  .pl-legend dt { font-weight: 600; color: var(--text-secondary); display: inline; }
+  .pl-legend dd { display: inline; margin: 0 18px 0 4px; }
 </style>
 </head>
 <body>
@@ -51,55 +64,82 @@
 
       <div class="pl-note" th:text="#{ops.pipeline.note}">Stages calling a real LLM can take minutes; demo on preloaded data + replay cache runs instantly with zero API calls.</div>
 
-      <div class="stage-row" th:classappend="${stage == 'ingest'} ? 'is-last-run'">
-        <div class="st-num">1</div>
-        <div class="st-meta">
-          <div class="st-name" th:text="#{ops.pipeline.stageIngest}">Ingest</div>
-          <div class="st-desc" th:text="#{ops.pipeline.stageIngestDesc}">Fetch whitelisted sources → raw docs (hash dedup, no LLM)</div>
+      <dl class="pl-legend">
+        <dt>+N doc</dt><dd>N new documents stored. 0 usually means "already up to date" (hash/URL dedup), not a failure.</dd>
+        <dt>REJECTED</dt><dd>a source's fetch failed (dead link, blocked, timeout) — logged so it's never silent, but not something this run broke.</dd>
+      </dl>
+
+      <div class="stage-row" data-stage="ingest">
+        <div class="st-top">
+          <div class="st-num">1</div>
+          <div class="st-meta">
+            <div class="st-name" th:text="#{ops.pipeline.stageIngest}">Ingest</div>
+            <div class="st-desc" th:text="#{ops.pipeline.stageIngestDesc}">Fetch whitelisted sources → raw docs (hash dedup, no LLM)</div>
+            <div class="st-llm" th:text="${ingestLlmLabel}">No LLM</div>
+          </div>
+          <span class="badge-status badge-idle" data-badge>IDLE</span>
+          <form method="post" action="/pipeline/run/ingest"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
-        <form method="post" action="/pipeline/run/ingest"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
-      <div class="stage-row" th:classappend="${stage == 'classify'} ? 'is-last-run'">
-        <div class="st-num">2</div>
-        <div class="st-meta">
-          <div class="st-name" th:text="#{ops.pipeline.stageClassify}">Dedup + Classify (AI#1)</div>
-          <div class="st-desc" th:text="#{ops.pipeline.stageClassifyDesc}">Near-duplicate filter first, then 3-vote topic classification + routing</div>
+      <div class="stage-row" data-stage="classify">
+        <div class="st-top">
+          <div class="st-num">2</div>
+          <div class="st-meta">
+            <div class="st-name" th:text="#{ops.pipeline.stageClassify}">Dedup + Classify (AI#1)</div>
+            <div class="st-desc" th:text="#{ops.pipeline.stageClassifyDesc}">Near-duplicate filter first, then 3-vote topic classification + routing</div>
+            <div class="st-llm" th:text="${classifyLlmLabel}">Model</div>
+          </div>
+          <span class="badge-status badge-idle" data-badge>IDLE</span>
+          <form method="post" action="/pipeline/run/classify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
-        <form method="post" action="/pipeline/run/classify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
-      <div class="stage-row" th:classappend="${stage == 'extract'} ? 'is-last-run'">
-        <div class="st-num">3</div>
-        <div class="st-meta">
-          <div class="st-name" th:text="#{ops.pipeline.stageExtract}">Extract evidence (AI#2)</div>
-          <div class="st-desc" th:text="#{ops.pipeline.stageExtractDesc}">Verbatim spans from CONFIRMED docs — exact-substring gate, rejects any modified span</div>
+      <div class="stage-row" data-stage="extract">
+        <div class="st-top">
+          <div class="st-num">3</div>
+          <div class="st-meta">
+            <div class="st-name" th:text="#{ops.pipeline.stageExtract}">Extract evidence (AI#2)</div>
+            <div class="st-desc" th:text="#{ops.pipeline.stageExtractDesc}">Verbatim spans from CONFIRMED docs — exact-substring gate, rejects any modified span</div>
+            <div class="st-llm" th:text="${extractLlmLabel}">Model</div>
+          </div>
+          <span class="badge-status badge-idle" data-badge>IDLE</span>
+          <form method="post" action="/pipeline/run/extract"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
-        <form method="post" action="/pipeline/run/extract"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
-      <div class="stage-row" th:classappend="${stage == 'interpret'} ? 'is-last-run'">
-        <div class="st-num">4</div>
-        <div class="st-meta">
-          <div class="st-name" th:text="#{ops.pipeline.stageInterpret}">Interpret + Gate L1 (AI#3)</div>
-          <div class="st-desc" th:text="#{ops.pipeline.stageInterpretDesc}">Bilingual claim sentences from evidence packs; deterministic grounding gate on both languages</div>
+      <div class="stage-row" data-stage="interpret">
+        <div class="st-top">
+          <div class="st-num">4</div>
+          <div class="st-meta">
+            <div class="st-name" th:text="#{ops.pipeline.stageInterpret}">Interpret + Gate L1 (AI#3)</div>
+            <div class="st-desc" th:text="#{ops.pipeline.stageInterpretDesc}">Bilingual claim sentences from evidence packs; deterministic grounding gate on both languages</div>
+            <div class="st-llm" th:text="${interpretLlmLabel}">Model</div>
+          </div>
+          <span class="badge-status badge-idle" data-badge>IDLE</span>
+          <form method="post" action="/pipeline/run/interpret"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
-        <form method="post" action="/pipeline/run/interpret"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
-      <div class="stage-row" th:classappend="${stage == 'verify'} ? 'is-last-run'">
-        <div class="st-num">5</div>
-        <div class="st-meta">
-          <div class="st-name" th:text="#{ops.pipeline.stageVerify}">Verify — Gate L2</div>
-          <div class="st-desc" th:text="#{ops.pipeline.stageVerifyDesc}">Independent entailment check by a different model family; routes to auto-approve or review</div>
+      <div class="stage-row" data-stage="verify">
+        <div class="st-top">
+          <div class="st-num">5</div>
+          <div class="st-meta">
+            <div class="st-name" th:text="#{ops.pipeline.stageVerify}">Verify — Gate L2</div>
+            <div class="st-desc" th:text="#{ops.pipeline.stageVerifyDesc}">Independent entailment check by a different model family; routes to auto-approve or review</div>
+            <div class="st-llm" th:text="${verifyLlmLabel}">Model</div>
+          </div>
+          <span class="badge-status badge-idle" data-badge>IDLE</span>
+          <form method="post" action="/pipeline/run/verify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
-        <form method="post" action="/pipeline/run/verify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
-      <div class="pl-output" th:if="${output != null}">
-        <div class="rm-section-title" th:text="#{ops.pipeline.outputTitle(${stage})}">Output</div>
-        <pre th:text="${output}">output</pre>
-      </div>
+      <p style="margin-top:14px"><a href="/llm-settings" th:text="#{ops.pipeline.changeLlm}">Change LLM provider/model per stage →</a></p>
       </div><!-- /runner-content -->
     </div>
   </div>
@@ -119,6 +159,64 @@
       document.getElementById('runner-content').style.display = 'none';
       document.getElementById('runner-denied').style.display = 'block';
     }
+  });
+})();
+</script>
+<script>
+/* Batch 9 (feedback Hanh): job giờ chạy nền — poll trạng thái mỗi 2s để hiện
+ * RUNNING/SUCCESS/FAILED + output KHÔNG cần reload trang, và tắt mọi nút Run
+ * trong lúc có stage nào đó đang chạy (executor chạy tuần tự, chồng nút chỉ
+ * gây nhầm lẫn "đã bấm mà không thấy gì" — đúng bug Hanh báo). */
+(function () {
+  function fmtElapsed(sec) {
+    if (sec == null) return '';
+    if (sec < 60) return sec + 's';
+    return Math.floor(sec / 60) + 'm ' + (sec % 60) + 's';
+  }
+
+  function poll() {
+    fetch('/pipeline/status.json').then(r => r.json()).then(data => {
+      var anyRunning = false;
+      document.querySelectorAll('.stage-row[data-stage]').forEach(function (row) {
+        var stage = row.dataset.stage;
+        var s = data[stage];
+        if (!s) return;
+        var badge = row.querySelector('[data-badge]');
+        var outWrap = row.querySelector('[data-output]');
+        var outPre = outWrap.querySelector('pre');
+        var btn = row.querySelector('button');
+
+        row.classList.remove('is-running', 'is-failed');
+        badge.className = 'badge-status';
+        if (s.state === 'RUNNING') {
+          anyRunning = true;
+          row.classList.add('is-running');
+          badge.classList.add('badge-running');
+          badge.textContent = 'RUNNING' + (s.elapsedSeconds != null ? ' · ' + fmtElapsed(s.elapsedSeconds) : '');
+        } else if (s.state === 'SUCCESS') {
+          badge.classList.add('badge-success');
+          badge.textContent = 'DONE · ' + fmtElapsed(s.elapsedSeconds);
+        } else if (s.state === 'FAILED') {
+          row.classList.add('is-failed');
+          badge.classList.add('badge-failed');
+          badge.textContent = 'FAILED';
+        } else {
+          badge.classList.add('badge-idle');
+          badge.textContent = 'NOT RUN YET';
+        }
+
+        var text = s.state === 'FAILED' ? ('ERROR: ' + s.error) : s.output;
+        if (text) { outPre.textContent = text; outWrap.style.display = 'block'; }
+      });
+      document.querySelectorAll('.stage-row form button').forEach(function (btn) {
+        btn.disabled = anyRunning;
+      });
+    }).catch(function () { /* transient — next tick retries */ });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    poll();
+    setInterval(poll, 2000);
   });
 })();
 </script>

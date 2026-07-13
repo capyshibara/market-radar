@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title>LLM Settings</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .slot-card { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 18px 20px; margin-bottom: 18px; }
+  .slot-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .slot-head h2 { font-size: var(--text-md); margin: 0; }
+  .slot-desc { font-size: var(--text-xs); color: var(--text-tertiary); margin: 0 0 14px; }
+  .slot-current { font-family: monospace; font-size: var(--text-xs); background: var(--surface-card-sunk);
+    border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 6px 10px; margin-bottom: 14px; display: inline-block; }
+  .slot-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 14px; align-items: end; }
+  .slot-form label { display: block; font-size: var(--text-2xs); color: var(--text-tertiary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+  .slot-form input, .slot-form select { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm); font-size: var(--text-sm); font-family: inherit; }
+  .slot-form .actions { grid-column: 1 / -1; margin-top: 4px; }
+  .flash { padding: 10px 14px; border-radius: var(--radius-sm); font-size: var(--text-sm); margin-bottom: 18px; }
+  .flash-success { background: var(--green-50, #EAF7EF); color: var(--green-700, #1C6B3C); border: 1px solid var(--green-200, #B7E3C6); }
+  .flash-error { background: var(--red-50, #FDECEC); color: var(--red-700, #A32626); border: 1px solid var(--red-200, #F4BABA); }
+</style>
+</head>
+<body>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('llmsettings', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+
+      <div id="pipeline-denied" class="empty-state" style="display:none;margin-top:24px">
+        <div class="title">No access</div>
+        <div class="desc">Your role cannot change LLM settings.</div>
+      </div>
+
+      <div id="pipeline-content">
+        <div class="page-header">
+          <div>
+            <h1>LLM Settings</h1>
+            <p>Change the provider/model each pipeline stage uses — takes effect immediately, no app restart. API keys are kept in memory only for this run, never written to disk.</p>
+          </div>
+        </div>
+
+        <div class="flash flash-success" th:if="${success != null}" th:text="${success}">Updated</div>
+        <div class="flash flash-error" th:if="${error != null}" th:text="${error}">Error</div>
+
+        <!-- CLASSIFIER -->
+        <div class="slot-card">
+          <div class="slot-head"><h2>Classifier (AI#1)</h2></div>
+          <p class="slot-desc">Highest call volume (3x self-consistency per doc) — cheapest stage to run on a budget provider.</p>
+          <div class="slot-current" th:text="'Current: ' + ${classifierProvider} + ' — kind=' + ${classifier.kind()} + ', model=' + ${classifier.model()} + (${classifier.baseUrl() != null} ? (', base-url=' + ${classifier.baseUrl()}) : '')">current</div>
+          <form class="slot-form" method="post" action="/llm-settings/classifier">
+            <div><label>Provider kind</label>
+              <select name="kind">
+                <option value="OPENAI_COMPAT">OpenAI-compatible (Gemini/DeepSeek/Qwen)</option>
+                <option value="ANTHROPIC">Anthropic (Claude)</option>
+                <option value="STUB">STUB (offline, keyword heuristic)</option>
+              </select>
+            </div>
+            <div><label>Base URL</label><input type="text" name="baseUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/openai"/></div>
+            <div><label>Model</label><input type="text" name="model" placeholder="gemini-3.5-flash"/></div>
+            <div><label>API key</label><input type="password" name="apiKey" placeholder="(unchanged if blank not supported — re-enter to switch)"/></div>
+            <div><label>Max tokens</label><input type="number" name="maxTokens" value="200"/></div>
+            <div class="actions"><button class="btn btn-primary" type="submit">Apply to Classifier</button></div>
+          </form>
+        </div>
+
+        <!-- WRITER -->
+        <div class="slot-card">
+          <div class="slot-head"><h2>Writer (AI#2 Extract + AI#3 Interpret + dedup pairwise)</h2></div>
+          <p class="slot-desc">Quality-critical stage — bilingual claim writing and verbatim span selection. Low call volume.</p>
+          <div class="slot-current" th:text="'Current: ' + ${writerProvider} + ' — kind=' + ${writer.kind()} + ', model=' + ${writer.model()} + (${writer.baseUrl() != null} ? (', base-url=' + ${writer.baseUrl()}) : '')">current</div>
+          <form class="slot-form" method="post" action="/llm-settings/writer">
+            <div><label>Provider kind</label>
+              <select name="kind">
+                <option value="ANTHROPIC">Anthropic (Claude)</option>
+                <option value="OPENAI_COMPAT">OpenAI-compatible (Gemini/DeepSeek/Qwen)</option>
+                <option value="STUB">STUB (offline)</option>
+              </select>
+            </div>
+            <div><label>Base URL (OpenAI-compat only)</label><input type="text" name="baseUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/openai"/></div>
+            <div><label>Model</label><input type="text" name="model" placeholder="claude-sonnet-4-6 or gemini-3.5-flash"/></div>
+            <div><label>API key</label><input type="password" name="apiKey"/></div>
+            <div><label>Max tokens</label><input type="number" name="maxTokens" value="1024"/></div>
+            <div class="actions"><button class="btn btn-primary" type="submit">Apply to Writer</button></div>
+          </form>
+        </div>
+
+        <!-- VERIFIER -->
+        <div class="slot-card">
+          <div class="slot-head"><h2>Verifier (Gate L2)</h2></div>
+          <p class="slot-desc"><strong>Invariant #2:</strong> must be a different model family than the Writer. Applying a same-family combination is rejected below, not silently allowed.</p>
+          <div class="slot-current" th:text="'Current: ' + ${verifierProvider} + ' — kind=' + ${verifier.kind()} + ', model=' + ${verifier.model()} + (${verifier.baseUrl() != null} ? (', base-url=' + ${verifier.baseUrl()}) : '')">current</div>
+          <form class="slot-form" method="post" action="/llm-settings/verifier">
+            <div><label>Provider kind</label>
+              <select name="kind">
+                <option value="OPENAI_COMPAT">OpenAI-compatible (DeepSeek/Gemini/Qwen)</option>
+                <option value="ANTHROPIC">Anthropic (Claude)</option>
+                <option value="STUB">STUB (offline, always NEUTRAL)</option>
+              </select>
+            </div>
+            <div><label>Base URL</label><input type="text" name="baseUrl" placeholder="https://api.deepseek.com"/></div>
+            <div><label>Model</label><input type="text" name="model" placeholder="deepseek-chat"/></div>
+            <div><label>API key</label><input type="password" name="apiKey"/></div>
+            <div><label>Max tokens</label><input type="number" name="maxTokens" value="512"/></div>
+            <div class="actions"><button class="btn btn-primary" type="submit">Apply to Verifier</button></div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+<script src="/js/ops-pipeline-guard.js"></script>
+</body>
+</html>
