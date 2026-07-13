@@ -10,6 +10,7 @@ import com.marketradar.domain.Classification;
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.LlmCallLog;
 import com.marketradar.domain.RawDoc;
+import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
 import com.marketradar.repo.ClassificationRepository;
@@ -193,16 +194,22 @@ public class FactExtractionJob {
 
     private ParseResult parseAndGate(String raw, RawDoc doc) {
         JsonNode arr;
+        String cleaned = raw.strip()
+                .replaceAll("(?s)^```(?:json)?", "")
+                .replaceAll("(?s)```$", "")
+                .strip();
         try {
-            String cleaned = raw.strip()
-                    .replaceAll("(?s)^```(?:json)?", "")
-                    .replaceAll("(?s)```$", "")
-                    .strip();
             arr = mapper.readTree(cleaned).get("facts");
-            if (arr == null || !arr.isArray()) return new ParseResult(true, List.of(), 0);
-        } catch (Exception e) {
-            return new ParseResult(true, List.of(), 0);
+        } catch (Exception first) {
+            // Lưới an toàn: prompt đã nhắc escape dấu " trong span nhưng model thỉnh
+            // thoảng vẫn quên (quan sát thật 2026-07-13) — thử lại sau khi JsonRepair sửa.
+            try {
+                arr = mapper.readTree(JsonRepair.repairUnescapedQuotes(cleaned)).get("facts");
+            } catch (Exception second) {
+                return new ParseResult(true, List.of(), 0);
+            }
         }
+        if (arr == null || !arr.isArray()) return new ParseResult(true, List.of(), 0);
 
         // Gate đối chiếu trên rawText ĐẦY ĐỦ (span phải nằm trong phần model được xem,
         // nhưng contains trên full text vẫn đúng và đơn giản hơn)

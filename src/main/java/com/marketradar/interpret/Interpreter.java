@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.InterpretedClaim.Slot;
 import com.marketradar.domain.LlmCallLog;
+import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
 import com.marketradar.repo.LlmCallLogRepository;
@@ -119,7 +120,7 @@ public class Interpreter {
         if (raw == null) return new InterpretOutput(true, List.of(), "(LLM_ERROR)");
         List<Sentence> out = new ArrayList<>();
         try {
-            JsonNode root = mapper.readTree(cleanFences(raw));
+            JsonNode root = parseWithRepairFallback(raw);
             parseSentences(root.get("why"), Slot.WHY_MATTERS, out);
             parseSentences(root.get("implication"), Slot.IMPLICATION, out);
             if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
@@ -134,12 +135,27 @@ public class Interpreter {
         if (raw == null) return new InterpretOutput(true, List.of(), "(LLM_ERROR)");
         List<Sentence> out = new ArrayList<>();
         try {
-            JsonNode root = mapper.readTree(cleanFences(raw));
+            JsonNode root = parseWithRepairFallback(raw);
             parseSentences(root.get("sentences"), Slot.EXEC_SUMMARY, out);
             if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
             return new InterpretOutput(false, out, raw);
         } catch (Exception e) {
             return new InterpretOutput(true, List.of(), raw);
+        }
+    }
+
+    /**
+     * Thử parse strict trước (đường phổ biến, KHÔNG đụng vào response đã hợp lệ);
+     * chỉ khi lỗi mới thử lại sau khi JsonRepair sửa dấu " chưa escape trong string.
+     * Quan sát thật: prompt đã nhắc escape nhưng model vẫn thỉnh thoảng quên — cần
+     * lưới an toàn này, không chỉ dựa vào prompt compliance.
+     */
+    private JsonNode parseWithRepairFallback(String raw) throws Exception {
+        String cleaned = cleanFences(raw);
+        try {
+            return mapper.readTree(cleaned);
+        } catch (Exception first) {
+            return mapper.readTree(JsonRepair.repairUnescapedQuotes(cleaned));
         }
     }
 
