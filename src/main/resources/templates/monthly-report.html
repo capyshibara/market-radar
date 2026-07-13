@@ -167,7 +167,7 @@
       <div th:each="st, stit : ${s.stories}" style="padding:16px 0;border-bottom:1px solid #E1DDD2;break-inside:avoid;">
         <div class="om-label" style="color:#4F9B90;" th:text="${st.fact.categoryLabel(lang)} + (${st.fact.company != null} ? ' · ' + ${st.fact.company} : '')">label</div>
         <div class="caslon" style="font-size:17.5px;font-weight:700;color:#2647E8;line-height:1.35;margin-top:6px;"
-             th:text="${st.fact.summary(lang)} ?: ${st.fact.spanText}">headline</div>
+             th:text="${st.fact.summary(lang) ?: st.fact.spanText}">headline</div>
         <div th:each="c : ${st.docClaims}" style="font-size:13px;line-height:1.5;margin-top:8px;color:#33322E;" th:text="${c.text(lang)}">claim</div>
         <div style="font-size:10.5px;color:#8A8878;margin-top:8px;"
              th:text="(${vi} ? 'Nguồn: ' : 'Source: ') + ${st.fact.rawDoc.source.name} + ' · tier ' + ${st.fact.rawDoc.source.tier} + (${st.fact.eventDate != null} ? ' · ' + ${st.fact.eventDate} : '')">source</div>

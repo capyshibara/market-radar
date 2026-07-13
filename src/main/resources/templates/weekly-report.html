@@ -343,7 +343,7 @@
                th:text="${f.eventDate == null} ? '—' : (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM')} : ${#temporals.format(f.eventDate,'MMM d')})">Jun 30</div>
           <div class="tl-body-col">
             <div class="eyebrow" th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)}">Regulation · China</div>
-            <h3 th:text="${f.summary(lang)} ?: (${f.productName} ?: ${f.company} ?: ${f.rawDoc.source.name})">Development headline</h3>
+            <h3 th:text="${f.summary(lang) ?: (f.productName ?: (f.company ?: f.rawDoc.source.name))}">Development headline</h3>
             <p th:if="${f.productName != null or f.company != null}"
                th:text="(${f.company} ?: '') + (${f.productName != null and f.company != null} ? ' — ' : '') + (${f.productName} ?: '')">Company — Product</p>
             <a class="cite-pill" th:id="${f.factCode}" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
@@ -396,7 +396,7 @@
              th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)} +
                       (${f.eventDate == null} ? '' : (' · ' + (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM/yyyy')} : ${#temporals.format(f.eventDate,'MMM d, yyyy')})))">Category · Market · Date</div>
         <!-- Batch 9: headline = summary digest của extractor (fallback product/company — không bao giờ trống) -->
-        <div class="article-headline" th:text="${f.summary(lang)} ?: (${f.productName} ?: ${f.company} ?: ${f.rawDoc.source.name})">Headline</div>
+        <div class="article-headline" th:text="${f.summary(lang) ?: (f.productName ?: (f.company ?: f.rawDoc.source.name))}">Headline</div>
       </summary>
       <div class="article-body">
         <!-- Batch 9: "As reported by" giờ trích SPAN NGUYÊN VĂN thật (đúng nghĩa trích dẫn),
