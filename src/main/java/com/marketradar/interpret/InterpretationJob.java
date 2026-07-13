@@ -126,9 +126,19 @@ public class InterpretationJob {
         return sb.toString();
     }
 
-    /** C-001, C-002... — tuần tự theo count (đủ cho MVP đơn luồng). */
+    /**
+     * C-001, C-002... — dựa trên MÃ LỚN NHẤT hiện có, không dùng count() (fix
+     * 2026-07-13: count() vỡ khi có row bị xoá — xem InterpretedClaimRepository).
+     */
     private String nextCode() {
-        return String.format("C-%03d", claims.count() + 1);
+        int max = claims.findAllClaimCodes().stream()
+                .mapToInt(InterpretationJob::codeSuffix)
+                .max().orElse(0);
+        return String.format("C-%03d", max + 1);
+    }
+
+    private static int codeSuffix(String code) {
+        try { return Integer.parseInt(code.substring(2)); } catch (Exception e) { return 0; }
     }
 
     private static String truncate(String s, int max) {

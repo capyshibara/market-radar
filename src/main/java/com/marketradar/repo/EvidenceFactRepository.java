@@ -19,4 +19,9 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
            "join fetch f.rawDoc d join fetch d.source " +
            "order by f.eventDate desc")
     List<EvidenceFact> findAllForReport();
+
+    /** Fix 2026-07-13: cùng lý do với InterpretedClaimRepository.findAllClaimCodes()
+     * — count()+1 vỡ khi có row bị xoá. Tính max ở tầng Java. */
+    @Query("select f.factCode from EvidenceFact f")
+    List<String> findAllFactCodes();
 }

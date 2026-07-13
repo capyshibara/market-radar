@@ -255,9 +255,21 @@ public class FactExtractionJob {
         return new ParseResult(false, accepted, rejected);
     }
 
-    /** F-003, F-004... — tuần tự theo count hiện có (F-001/F-002 là fact mẫu seed). */
+    /**
+     * F-003, F-004... — dựa trên MÃ LỚN NHẤT hiện có (F-001/F-002 là fact mẫu seed),
+     * không dùng count() (fix 2026-07-13: count() vỡ khi có row bị xoá — xem
+     * EvidenceFactRepository). offsetInDoc tránh trùng code giữa các fact CÙNG một
+     * doc đang xử lý trong vòng lặp (chưa save nên count/max chưa đổi giữa các lần gọi).
+     */
     private String nextCode(int offsetInDoc) {
-        return String.format("F-%03d", facts.count() + 1 + offsetInDoc);
+        int max = facts.findAllFactCodes().stream()
+                .mapToInt(FactExtractionJob::codeSuffix)
+                .max().orElse(0);
+        return String.format("F-%03d", max + 1 + offsetInDoc);
+    }
+
+    private static int codeSuffix(String code) {
+        try { return Integer.parseInt(code.substring(2)); } catch (Exception e) { return 0; }
     }
 
     private static String categoryVi(EvidenceFact.FactType t) {

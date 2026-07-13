@@ -47,4 +47,14 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
 
     @Query("select c from InterpretedClaim c left join fetch c.rawDoc where c.id = :id")
     java.util.Optional<InterpretedClaim> findByIdFetched(@Param("id") Long id);
+
+    /**
+     * Fix 2026-07-13: nextCode() cũ dùng count()+1 — SAI khi có row bị xoá (vd dọn
+     * claim SCHEMA_REJECTED cũ để chạy lại), vì count() giảm nhưng code lớn nhất đã
+     * cấp phát trước đó không giảm theo → code mới trùng code cũ, vỡ unique constraint.
+     * Lấy hết code hiện có, tính max ở tầng Java (đơn giản, đủ nhanh ở quy mô này,
+     * tránh phụ thuộc cú pháp SUBSTRING/CAST khác nhau giữa các bản Hibernate/DB).
+     */
+    @Query("select c.claimCode from InterpretedClaim c")
+    List<String> findAllClaimCodes();
 }
