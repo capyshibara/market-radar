@@ -107,6 +107,19 @@ public class EvidenceFact {
         };
     }
 
+    /**
+     * Ngày hiển thị cho report (fix 2026-07-14): eventDate nếu có, không thì ngày
+     * CÔNG BỐ của nguồn (publishedAt). KHÔNG bao giờ dùng fetchedAt — đó là thời
+     * điểm crawl, không phải ngày của tin (xem ReportWindow). null → template hiện "—".
+     */
+    public LocalDate displayDate() {
+        if (eventDate != null) return eventDate;
+        if (rawDoc != null && rawDoc.getPublishedAt() != null) {
+            return rawDoc.getPublishedAt().atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate();
+        }
+        return null;
+    }
+
     public EvidenceFact eventDate(LocalDate d) { this.eventDate = d; return this; }
     public EvidenceFact company(String c) { this.company = c; return this; }
     public EvidenceFact productName(String p) { this.productName = p; return this; }

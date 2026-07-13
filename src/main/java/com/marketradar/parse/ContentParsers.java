@@ -45,6 +45,10 @@ public class ContentParsers {
     private static final DateTimeFormatter PRU_FMT = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
+    // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
+    // dùng làm fallback khi card KHÔNG có div ngày, để tin cũ vẫn có publishedAt (năm-01-01)
+    // và bị bộ lọc "7 ngày" loại đúng, thay vì rơi về fetchedAt=hôm nay rồi hiện như tin mới.
+    private static final java.util.regex.Pattern AIA_URL_YEAR = java.util.regex.Pattern.compile("/(20\\d{2})/");
     private static final java.util.regex.Pattern DDMMYYYY = java.util.regex.Pattern.compile("(\\d{2}/\\d{2}/\\d{4})");
 
     /** HTML → text thuần + title. */
@@ -206,7 +210,19 @@ public class ContentParsers {
                         publishedAt = java.time.LocalDate.parse(dateEl.text().strip(), AIA_FMT)
                                 .atStartOfDay(VN_ZONE).toInstant();
                     } catch (DateTimeParseException e) {
-                        log.warn("AIA_VN: không parse được ngày '{}' — publishedAt để null", dateEl.text());
+                        log.warn("AIA_VN: không parse được ngày '{}' — thử fallback năm từ URL", dateEl.text());
+                    }
+                }
+                if (publishedAt == null) {
+                    // Card cũ không có div ngày → lấy năm từ path URL (.../2024/...) làm mốc thô
+                    // (năm-01-01). Đủ để bộ lọc độ mới loại đúng tin cũ; KHÔNG để null (sẽ rơi
+                    // về fetchedAt=hôm nay và hiện như tin mới — lỗi "mọi tin đều cũ").
+                    var ym = AIA_URL_YEAR.matcher(link);
+                    if (ym.find()) {
+                        publishedAt = java.time.LocalDate.of(Integer.parseInt(ym.group(1)), 1, 1)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } else {
+                        log.warn("AIA_VN: card không có ngày và URL không có năm ({}) — publishedAt để null", link);
                     }
                 }
                 items.add(new ListingItem(title, link, publishedAt));

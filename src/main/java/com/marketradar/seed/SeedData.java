@@ -168,8 +168,11 @@ public class SeedData implements CommandLineRunner {
         // <div class="row article-list-wrapper"></div> — AJAX-populated (global MetLife platform),
         // same architecture blocker as MOF VN/HK IA. No per-site parser written — root URL kept as
         // generic parseHtml dump for now.
+        // Fix 2026-07-14 (feedback Hanh): trước đây trỏ ROOT "/" → chỉ crawl được trang
+        // chủ ("Trang chủ | Metlife"), không phải tin. Đổi sang trang tin thật để có bài
+        // + tiêu đề + (khi parser riêng viết sau) ngày công bố.
         sources.save(new Source("BIDV_METLIFE", "BIDV MetLife",
-                "https://www.bidvmetlife.com.vn/", "www.bidvmetlife.com.vn",
+                "https://www.bidvmetlife.com.vn/about-us/news/", "www.bidvmetlife.com.vn",
                 Source.SourceType.HTML, 2, "vi"));
         // Added 2026-07-05, confirmed live then. Track 2 recheck 2026-07-14: now fails TLS
         // handshake — "unable to get local issuer certificate" (their server stopped sending the

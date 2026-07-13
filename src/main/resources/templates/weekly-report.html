@@ -338,9 +338,9 @@
       <div th:if="${!#lists.isEmpty(grpFacts)}">
         <div class="market-label" th:text="${grp == 'vn'} ? #{report.market.vn} : #{report.market.regional}">Vietnam — Competitor Moves</div>
         <p class="market-note" th:if="${grp == 'regional'}" th:text="#{report.market.regionalNote}">Not direct competitors — read for inspiration.</p>
-        <div class="tl-item" th:each="f : ${grpFacts}">
+        <div class="tl-item" th:each="f : ${grpFacts}" th:with="fdate=${f.displayDate()}">
           <div class="tl-date-col"
-               th:text="${f.eventDate == null} ? '—' : (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM')} : ${#temporals.format(f.eventDate,'MMM d')})">Jun 30</div>
+               th:text="${fdate == null} ? '—' : (${lang == 'vi'} ? ${#temporals.format(fdate,'dd/MM/yyyy')} : ${#temporals.format(fdate,'MMM d, yyyy')})">Jun 30</div>
           <div class="tl-body-col">
             <div class="eyebrow" th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)}">Regulation · China</div>
             <h3 th:text="${f.summary(lang) ?: (f.productName ?: (f.company ?: f.rawDoc.source.name))}">Development headline</h3>
@@ -390,11 +390,12 @@
       Developments worth reading closely.
     </p>
 
-    <details class="article" th:each="f, st : ${allFacts}" th:id="${'deep-' + f.factCode}" th:open="${st.index < 2}">
+    <details class="article" th:each="f, st : ${allFacts}" th:id="${'deep-' + f.factCode}" th:open="${st.index < 2}"
+             th:with="fdate=${f.displayDate()}">
       <summary>
         <div class="eyebrow"
              th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)} +
-                      (${f.eventDate == null} ? '' : (' · ' + (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM/yyyy')} : ${#temporals.format(f.eventDate,'MMM d, yyyy')})))">Category · Market · Date</div>
+                      (${fdate == null} ? '' : (' · ' + (${lang == 'vi'} ? ${#temporals.format(fdate,'dd/MM/yyyy')} : ${#temporals.format(fdate,'MMM d, yyyy')})))">Category · Market · Date</div>
         <!-- Batch 9: headline = summary digest của extractor (fallback product/company — không bao giờ trống) -->
         <div class="article-headline" th:text="${f.summary(lang) ?: (f.productName ?: (f.company ?: f.rawDoc.source.name))}">Headline</div>
       </summary>

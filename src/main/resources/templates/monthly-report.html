@@ -169,8 +169,16 @@
         <div class="caslon" style="font-size:17.5px;font-weight:700;color:#2647E8;line-height:1.35;margin-top:6px;"
              th:text="${st.fact.summary(lang) ?: st.fact.spanText}">headline</div>
         <div th:each="c : ${st.docClaims}" style="font-size:13px;line-height:1.5;margin-top:8px;color:#33322E;" th:text="${c.text(lang)}">claim</div>
-        <div style="font-size:10.5px;color:#8A8878;margin-top:8px;"
-             th:text="(${vi} ? 'Nguồn: ' : 'Source: ') + ${st.fact.rawDoc.source.name} + ' · tier ' + ${st.fact.rawDoc.source.tier} + (${st.fact.eventDate != null} ? ' · ' + ${st.fact.eventDate} : '')">source</div>
+        <!-- Fix 2026-07-14 (feedback Hanh): tên nguồn giờ là LINK bấm được về bài gốc để
+             người đọc tự kiểm chứng; ngày dùng displayDate() (eventDate ?: publishedAt). -->
+        <div style="font-size:10.5px;color:#8A8878;margin-top:8px;" th:with="fdate=${st.fact.displayDate()}">
+          <span th:text="${vi} ? 'Nguồn: ' : 'Source: '">Source: </span>
+          <a th:href="${st.fact.rawDoc.url}" target="_blank" rel="noopener noreferrer"
+             style="color:#2647E8;text-decoration:underline;" th:text="${st.fact.rawDoc.source.name}">Source</a>
+          <span th:text="' · tier ' + ${st.fact.rawDoc.source.tier}"> · tier 1</span>
+          <span th:if="${fdate != null}"
+                th:text="' · ' + (${vi} ? ${#temporals.format(fdate,'dd/MM/yyyy')} : ${#temporals.format(fdate,'MMM d, yyyy')})"> · date</span>
+        </div>
       </div>
       <div th:if="${#lists.isEmpty(s.stories)}" style="font-size:14px;color:#8A8878;"
            th:text="${vi} ? 'Tháng này chưa có diễn biến thuộc nhóm này.' : 'No developments in this category this month.'">empty</div>
