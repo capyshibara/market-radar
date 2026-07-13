@@ -94,6 +94,27 @@ public class ClaimController {
                 + " — chạy lại POST /interpret/run (hoặc bấm Interpret ở /pipeline) để thử lại.";
     }
 
+    /**
+     * Force Retry cho claim CẤP REPORT (EXEC_SUMMARY, rawDoc null) — forceRetry() ở trên
+     * cần rawDocId nên không xử lý được case này. Phát hiện 2026-07-13: EXEC_SUMMARY chỉ
+     * được InterpretationJob thử sinh MỘT LẦN DUY NHẤT (existsBySlotAndOrigin guard); nếu
+     * lần đó SCHEMA_REJECTED, claim kẹt vĩnh viễn — không nút nào xoá được, report không
+     * bao giờ có Executive Summary cho tới khi ai đó SQL tay hoặc bấm nút này.
+     */
+    @PostMapping("/claims/force-retry-exec-summary")
+    @ResponseBody
+    @Transactional
+    public String forceRetryExecSummary() {
+        boolean stuck = claims.findAllForAudit().stream()
+                .anyMatch(c -> c.getSlot() == Slot.EXEC_SUMMARY && c.getGateStatus() == GateStatus.SCHEMA_REJECTED);
+        if (!stuck) {
+            return "Không tìm thấy EXEC_SUMMARY claim SCHEMA_REJECTED — không có gì để retry.";
+        }
+        claims.deleteBySlotAndOrigin(Slot.EXEC_SUMMARY, Origin.PIPELINE);
+        callLog.deleteByPurposeAndRawDocIdIsNull("INTERPRET_EXEC");
+        return "Đã xoá EXEC_SUMMARY claim + cache — chạy lại POST /interpret/run để thử lại.";
+    }
+
     /** View model để template không phải tự resolve fact từ CSV. */
     public record ClaimView(InterpretedClaim claim, List<EvidenceFact> citedFacts) {}
 

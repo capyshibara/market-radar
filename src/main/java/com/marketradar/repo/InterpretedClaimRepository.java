@@ -67,4 +67,16 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
     @Query("delete from InterpretedClaim c where c.rawDoc.id = :rawDocId and c.origin = :origin")
     void deleteByRawDocIdAndOrigin(@Param("rawDocId") Long rawDocId,
                                    @Param("origin") InterpretedClaim.Origin origin);
+
+    /**
+     * Force Retry cho claim CẤP REPORT (EXEC_SUMMARY, rawDoc null) — deleteByRawDocIdAndOrigin
+     * ở trên không áp dụng được (không có rawDocId). InterpretationJob chỉ thử sinh
+     * EXEC_SUMMARY MỘT LẦN DUY NHẤT (existsBySlotAndOrigin guard) — nếu lần đó
+     * SCHEMA_REJECTED, xoá row này là cách duy nhất để lần /interpret/run tiếp theo
+     * thử lại.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("delete from InterpretedClaim c where c.slot = :slot and c.origin = :origin")
+    void deleteBySlotAndOrigin(@Param("slot") InterpretedClaim.Slot slot,
+                               @Param("origin") InterpretedClaim.Origin origin);
 }

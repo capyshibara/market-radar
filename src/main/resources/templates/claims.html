@@ -59,6 +59,10 @@
                 method="post" th:action="'/claims/force-retry/' + ${v.claim.rawDoc.id}" style="margin-left:auto">
             <button class="btn btn-sm" type="submit" title="Delete this failed attempt and its cached response so the next Interpret run retries this document">Force Retry</button>
           </form>
+          <form th:if="${v.claim.gateStatus.name() == 'SCHEMA_REJECTED' and v.claim.rawDoc == null}"
+                method="post" action="/claims/force-retry-exec-summary" style="margin-left:auto">
+            <button class="btn btn-sm" type="submit" title="Delete this failed report-level (Executive Summary) attempt and its cached response so the next Interpret run retries it">Force Retry</button>
+          </form>
         </div>
         <div class="claim-card-body">
           <div class="claim-card-text" th:text="${v.claim.textVi}">claim text</div>
