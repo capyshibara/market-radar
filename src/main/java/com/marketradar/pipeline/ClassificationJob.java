@@ -3,7 +3,6 @@ package com.marketradar.pipeline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import com.marketradar.classify.Router;
 import com.marketradar.classify.TopicClassifier;
 import com.marketradar.dedup.DedupJob;
@@ -40,7 +39,14 @@ public class ClassificationJob {
         this.dedupJob = dedupJob;
     }
 
-    @Transactional
+    /**
+     * KHÔNG @Transactional (bỏ 2026-07-13): trước đây cả vòng chạy là MỘT transaction —
+     * classify DeepSeek giờ cao điểm mất hàng giờ, suốt thời gian đó không thấy tiến độ,
+     * và Ctrl+C/crash mất TOÀN BỘ kết quả + LlmCallLog (mất luôn replay-cache đã trả tiền).
+     * Giờ mỗi doc tự commit (save từng entity = transaction riêng): tiến độ nhìn được
+     * ngay ở /classifications, chạy lại tiếp tục từ chỗ dừng nhờ guard existsByRawDoc.
+     * DedupJob giữ @Transactional riêng của nó (gọi qua proxy — nhanh, ~10s).
+     */
     public String runOnce() {
         String dedupSummary = dedupJob.runOnce();
 
