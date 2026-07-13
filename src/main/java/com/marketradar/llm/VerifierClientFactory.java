@@ -54,6 +54,18 @@ public class VerifierClientFactory {
                 + "cấu hình model/endpoint họ Claude (" + baseUrl + ", " + model + "). "
                 + "Đổi marketradar.verifier.* sang model khác họ rồi khởi động lại.");
         }
+        // Batch 9: writer giờ có thể là OpenAI-compat (Gemini/DeepSeek/...) — cùng HOST
+        // endpoint với verifier nghĩa là CÙNG provider → vi phạm y như trên.
+        if (writerClient instanceof OpenAiCompatibleLlmClient w) {
+            String writerHost = java.net.URI.create(w.baseUrl()).getHost();
+            String verifierHost = java.net.URI.create(baseUrl).getHost();
+            if (writerHost != null && writerHost.equalsIgnoreCase(verifierHost)) {
+                throw new IllegalStateException(
+                    "VI PHẠM INVARIANT #2 (Verifier ≠ Writer): writer và verifier cùng trỏ về "
+                    + writerHost + " (" + w.model() + " vs " + model + "). "
+                    + "Verifier phải là provider KHÁC HỌ — đổi marketradar.verifier.* rồi khởi động lại.");
+            }
+        }
 
         log.info("VERIFIER MODE: OPENAI_COMPAT (base-url={}, model={}) — khác họ với writer {}",
                 baseUrl, model, writerFamily);

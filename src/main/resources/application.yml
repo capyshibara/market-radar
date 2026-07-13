@@ -22,7 +22,13 @@ marketradar:
     max-items-per-source: 25  # cap tin mới nhất mỗi nguồn mỗi lần chạy — chặn feed dump nguyên archive
                               # (FSC_TW ~800 item) làm phình chi phí classify + cặp dedup O(n²)
   llm:
-    # Writer (AI#3 interpreter) — API key đọc từ env ANTHROPIC_API_KEY — KHÔNG hardcode vào file config
+    # Writer (AI#2 extractor + AI#3 interpreter + dedup pairwise).
+    # Batch 9 — hai đường, chọn bằng config:
+    #   base-url RỖNG  → Anthropic Messages API, key từ env ANTHROPIC_API_KEY (đường cũ)
+    #   base-url ĐƯỢC SET → endpoint OpenAI-compat, key từ env WRITER_API_KEY
+    #     Gemini:  base-url=https://generativelanguage.googleapis.com/v1beta/openai  model=gemini-2.5-flash
+    # KHÔNG hardcode key vào file này.
+    base-url: ""
     model: claude-sonnet-4-6      # đổi được; lưu ý model Opus 4.7+ từ chối temperature
     max-tokens: 1024              # nâng từ 300 (batch 3): output interpreter dài hơn classifier
     temperature: 1.0              # cần đa dạng cho self-consistency; để trống nếu model từ chối
