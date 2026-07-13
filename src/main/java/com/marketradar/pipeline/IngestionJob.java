@@ -128,12 +128,40 @@ public class IngestionJob {
         return items.subList(0, maxItemsPerSource);
     }
 
+    /**
+     * Batch 9 (feedback Hanh): trước đây chỉ lưu TIÊU ĐỀ của từng item listing —
+     * fact/claim sinh ra mỏng và link đôi khi dừng ở trang listing. Giờ fetch
+     * TOÀN VĂN từng bài theo link (vẫn qua SafeFetcher, CHỈ khi link cùng
+     * allowedHost — không mở rộng whitelist ngầm), lưu URL bài chính xác.
+     * Fetch bài lỗi → fallback lưu title-only như cũ (fail loud vào note).
+     */
     private int ingestListing(Source source, java.util.List<ContentParsers.ListingItem> listing) {
         int stored = 0;
         for (var item : capItems(source, listing)) {
-            if (storeIfNew(source, item.link(), item.title(), item.publishedAt(), item.title())) stored++;
+            String link = item.link() == null ? source.getFetchUrl() : item.link();
+            String linkHost = safeHost(link);
+            String fullText = null, note = null;
+            if (linkHost != null && linkHost.equalsIgnoreCase(source.getAllowedHost())) {
+                // Skip fetch nếu bài này đã có trong DB theo URL (đỡ tốn round-trip mỗi vòng)
+                if (rawDocs.existsByUrlAndParseStatus(link, RawDoc.ParseStatus.OK)) continue;
+                try {
+                    var art = fetcher.fetch(link, source.getAllowedHost(), SafeFetcher.ExpectedKind.HTML);
+                    fullText = parsers.parseHtml(art.body()).text();
+                } catch (Exception e) {
+                    note = "Fetch toàn văn lỗi (" + truncateNote(e.getMessage()) + ") — lưu title-only";
+                    log.warn("Full-article fetch lỗi [{}] {}: {}", source.getCode(), link, e.getMessage());
+                }
+            } else {
+                note = "Link bài trỏ host ngoài whitelist (" + linkHost + ") — chỉ lưu title";
+            }
+            String text = (fullText == null || fullText.isBlank()) ? item.title() : fullText;
+            if (storeIfNew(source, link, item.title(), item.publishedAt(), text, note)) stored++;
         }
         return stored;
+    }
+
+    private static String truncateNote(String s) {
+        return s == null ? "?" : (s.length() <= 120 ? s : s.substring(0, 120) + "…");
     }
 
     private int ingestPdf(Source source)

@@ -117,8 +117,11 @@ public class ReportController {
         model.put("sources", sources.findAllByOrderByTierAsc());
         model.put("docCount", rawDocs.count());
 
+        // Batch 9: weekly CHỈ hiện tin trong 7 ngày gần nhất (eventDate, fallback ngày doc)
+        LocalDate weekStart = ReportWindow.weeklyStart(today);
         List<EvidenceFact> visibleFacts = facts.findAllForReport().stream()
                 .filter(f -> f.getRawDoc().getDuplicateOfId() == null)
+                .filter(f -> ReportWindow.factInWindow(f, weekStart, today))
                 .toList();
         // Batch 8: khi ĐÃ có fact thật (extractor AI#2 chạy trên doc crawl thật) thì ẨN
         // fact mẫu hư cấu khỏi report — fact mẫu chỉ còn là fallback lúc DB trống
@@ -133,6 +136,12 @@ public class ReportController {
         model.put("allFacts", visibleFacts);
         model.put("factsCount", visibleFacts.size());
         model.put("hasSampleData", visibleFacts.stream().anyMatch(f -> f.getRawDoc().isSampleData()));
+        // Batch 9 (feedback Hanh): VN = động thái đối thủ trực tiếp; khu vực = bài học/
+        // cảm hứng (không đọc như tin đối thủ). Report chia hai khối tương ứng.
+        model.put("vnFacts", visibleFacts.stream()
+                .filter(f -> "VN".equals(com.marketradar.extract.FactExtractionJob.market(f.getRawDoc()))).toList());
+        model.put("regionalFacts", visibleFacts.stream()
+                .filter(f -> !"VN".equals(com.marketradar.extract.FactExtractionJob.market(f.getRawDoc()))).toList());
 
         // Batch 6: F-code -> fact, để nghị luận/exec-summary/final-recommendation tra ra
         // tên nguồn + link + tier cho citation pill mà KHÔNG cần hiện mã F-00x ra mặt chữ.
@@ -151,11 +160,12 @@ public class ReportController {
                 InterpretedClaim.ReviewStatus.FORCE_APPROVED));
         // Batch 8: cùng rule với facts — có dữ liệu thật thì claim từ doc mẫu cũng ẩn
         // (claim cấp report như EXEC_SUMMARY có rawDoc=null → giữ nguyên).
-        final List<InterpretedClaim> passed = hasRealFacts
-                ? passedAll.stream()
-                        .filter(c -> c.getRawDoc() == null || !c.getRawDoc().isSampleData())
-                        .toList()
-                : passedAll;
+        final List<InterpretedClaim> passed = passedAll.stream()
+                .filter(c -> !hasRealFacts || c.getRawDoc() == null || !c.getRawDoc().isSampleData())
+                // Batch 9: claim gắn doc ngoài cửa sổ 7 ngày cũng ẩn (claim cấp report giữ nguyên)
+                .filter(c -> c.getRawDoc() == null
+                        || ReportWindow.docInWindow(c.getRawDoc(), weekStart, today))
+                .toList();
 
         List<InterpretedClaim> execClaims = passed.stream()
                 .filter(c -> c.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY).toList();

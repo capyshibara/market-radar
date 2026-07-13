@@ -61,7 +61,14 @@ public class FactExtractionJob {
               trích → trả {"facts": []}.
             - company / product_name: chỉ điền nếu tên đó nằm NGUYÊN VĂN trong span.
             - event_date: chỉ điền nếu ngày ghi rõ trong tài liệu, dạng YYYY-MM-DD.
-            - summary_vi / summary_en: 1 câu tóm tắt (đây là phần DIỄN GIẢI duy nhất).
+            - summary_vi / summary_en: MỘT câu làm TIÊU ĐỀ digest kinh doanh — người đọc
+              lướt qua phải nắm được ngay điều gì xảy ra và vì sao đáng chú ý
+              (chủ thể + hành động + con số/chi tiết đắt nhất). KHÔNG viết kiểu
+              "Bài viết nói về…", không lặp nguyên văn span.
+            - Nếu phần NGỮ CẢNH ghi thị trường là REGIONAL (nguồn ngoài Việt Nam —
+              không phải đối thủ trực tiếp): viết summary theo hướng BÀI HỌC/GỢI Ý
+              cho công ty bảo hiểm nhân thọ Việt Nam (ý tưởng sản phẩm, quy trình,
+              mô hình vận hành có thể tham khảo), không viết như tin đối thủ.
 
             Trả về DUY NHẤT JSON đúng dạng (không markdown, không giải thích):
             {"facts":[{"span":"...","fact_type":"EVENT|PRODUCT_LAUNCH|FEE_CHANGE|REGULATION|METRIC",
@@ -159,8 +166,21 @@ public class FactExtractionJob {
     private String buildUserPrompt(RawDoc doc) {
         String text = doc.getRawText();
         if (text.length() > MAX_INPUT_CHARS) text = text.substring(0, MAX_INPUT_CHARS);
-        return "TIÊU ĐỀ: " + (doc.getTitle() == null ? "(không tiêu đề)" : doc.getTitle())
+        return "NGỮ CẢNH: thị trường=" + market(doc)
+                + " · nguồn=" + doc.getSource().getName()
+                + "\nTIÊU ĐỀ: " + (doc.getTitle() == null ? "(không tiêu đề)" : doc.getTitle())
                 + "\n\nNỘI DUNG:\n" + text;
+    }
+
+    /**
+     * VN = đối thủ trực tiếp (competitor watch); REGIONAL = nguồn khu vực/toàn cầu —
+     * đọc như bài học/cảm hứng, không phải động thái đối thủ (feedback Hanh 2026-07-13).
+     * Suy deterministic từ nguồn: ngôn ngữ vi hoặc host .vn → VN.
+     */
+    public static String market(RawDoc doc) {
+        String host = doc.getSource().getAllowedHost();
+        return "vi".equals(doc.getSource().getLanguage())
+                || (host != null && host.endsWith(".vn")) ? "VN" : "REGIONAL";
     }
 
     // ---------- Parse + gate nguyên văn ----------

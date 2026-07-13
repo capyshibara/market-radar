@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title th:text="#{report.title(${reportPeriod})}">Market Radar — Weekly Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,500;1,8..60,600&amp;family=Inter:wght@400;500;600;700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&amp;family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
 <style>
   /* ============ Hệ thống thiết kế (Batch 6 — xem chats/chat1.md) ============
-     Bảng màu "Đỏ + Slate lạnh": đỏ thương hiệu #EA1C24 (kicker/số liệu/mốc thời gian),
+     Bảng màu "Đỏ + Slate lạnh": đỏ thương hiệu #2647E8 (kicker/số liệu/mốc thời gian),
      nền trắng tuyệt đối (tránh cảm giác buồn ngủ), trung tính slate lạnh cho hairline/badge.
      Chữ: heading + body = Inter, trích dẫn/pull-quote = Source Serif 4 (ý nghiêng),
      mã/ngày/nhãn kỹ thuật = IBM Plex Mono. Cả 3 font đã kiểm tra dấu tiếng Việt.
@@ -19,10 +19,11 @@
      OpenHTMLtoPDF); card lưới dùng inline-block (bọc dòng tự nhiên, không cần flex-wrap).
      Không dùng <svg> — placeholder ảnh hero là khối màu phẳng, không phải hình vẽ. */
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#FFFFFF; color:#0C0C0D; font-family:'Inter',"Segoe UI",Arial,sans-serif;
+  body { background:#F8F6F1; color:#33322E; font-family:'Work Sans',"Segoe UI",Arial,sans-serif;
          font-size:15px; line-height:1.6; }
-  .page { max-width:860px; margin:0 auto; background:#FFFFFF; border:1px solid #E2E6EA; }
-  h1,h2,h3 { font-family:'Inter',sans-serif; }
+  .page { max-width:860px; margin:0 auto; background:#F8F6F1; border:1px solid #E1DDD2; }
+  /* Meridian: display/headline = Caslon serif; body/label = Work Sans */
+  h1,h2,h3 { font-family:'Libre Caslon Text',Georgia,serif; }
 
   /* ---- Banner dữ liệu mẫu ---- */
   .sample-banner { background:#8A4B08; color:#FDEBD3; font-family:'IBM Plex Mono',monospace;
@@ -30,23 +31,23 @@
 
   /* ---- Toolbar vận hành nội bộ (không in / không vào PDF) ---- */
   .toolbar { max-width:860px; margin:14px auto; text-align:right; font-size:12.5px; }
-  .toolbar a { color:#5A6172; text-decoration:none; background:#fff; border:1px solid #E2E6EA;
+  .toolbar a { color:#8A8878; text-decoration:none; background:#fff; border:1px solid #E1DDD2;
     padding:5px 12px; border-radius:3px; margin-left:8px; display:inline-block; }
-  .toolbar a:hover { background:#F7F7F4; }
+  .toolbar a:hover { background:#F2EFE8; }
 
   /* ---- 1. Masthead ---- */
   .masthead { padding:56px 56px 0; }
-  .kicker { font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.12em;
-    text-transform:uppercase; color:#EA1C24; font-weight:600; margin-bottom:20px; }
-  .masthead h1 { font-size:52px; font-weight:800; letter-spacing:-.02em; margin:0 0 18px;
-    line-height:1.05; color:#0C0C0D; }
-  .masthead .sub { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:19px;
+  .kicker { font-family:'Work Sans',sans-serif; font-size:12px; letter-spacing:.08em;
+    text-transform:uppercase; color:#8A8878; font-weight:600; margin-bottom:20px; }
+  .masthead h1 { font-size:52px; font-weight:700; letter-spacing:-.01em; margin:0 0 18px;
+    line-height:1.05; color:#2647E8; }
+  .masthead .sub { font-family:'Libre Caslon Text',Georgia,serif; font-style:italic; font-size:19px;
     color:#454C5E; margin:0 0 26px; max-width:640px; line-height:1.5; }
-  .meta-row { display:table; width:100%; table-layout:fixed; font-size:13px; color:#5A6172;
-    border-top:1px solid #E2E6EA; }
-  .meta-row .cell { display:table-cell; padding:16px 20px; border-left:1px solid #E2E6EA; }
+  .meta-row { display:table; width:100%; table-layout:fixed; font-size:13px; color:#8A8878;
+    border-top:1px solid #E1DDD2; }
+  .meta-row .cell { display:table-cell; padding:16px 20px; border-left:1px solid #E1DDD2; }
   .meta-row .cell.first { border-left:none; padding-left:0; }
-  .meta-row b { color:#0C0C0D; }
+  .meta-row b { color:#33322E; }
 
   /* ---- Hero placeholder (không dùng ảnh/svg thật — chờ ảnh khu vực) ---- */
   .hero { margin:28px 56px 0; height:200px; background:#F4F3EE; border:1px solid #DCDBD3;
@@ -55,40 +56,46 @@
     font-size:12.5px; letter-spacing:.04em; color:#8A8A82; }
 
   /* ---- Section ---- */
-  .section { padding:44px 56px 8px; border-top:1px solid #E2E6EA; margin-top:36px; }
+  .section { padding:44px 56px 8px; border-top:1px solid #E1DDD2; margin-top:36px; }
   .section.first { border-top:none; margin-top:0; padding-top:44px; }
-  .section-label { font-family:'Inter',sans-serif; font-size:13px; letter-spacing:.1em;
-    text-transform:uppercase; color:#EA1C24; font-weight:800; margin-bottom:20px; }
-  .section-insight { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:14.5px;
-    color:#5A6172; margin:0 0 24px; }
-  .empty-note { color:#5A6172; font-size:14px; font-style:italic; margin-bottom:8px; }
+  .section-label { font-family:'Work Sans',sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:#2647E8; font-weight:800; margin-bottom:20px; }
+  .section-insight { font-family:'Libre Caslon Text',Georgia,serif; font-style:italic; font-size:14.5px;
+    color:#8A8878; margin:0 0 24px; }
+  .empty-note { color:#8A8878; font-size:14px; font-style:italic; margin-bottom:8px; }
+  /* Batch 9: nhãn khối VN vs khu vực trong Key Developments */
+  .market-label { font-family:'Work Sans',sans-serif; font-size:12px; letter-spacing:.08em;
+    text-transform:uppercase; color:#8A8878; font-weight:700; border-top:2px solid #2647E8;
+    padding-top:8px; margin:30px 0 4px; }
+  .market-note { font-family:'Libre Caslon Text',Georgia,serif; font-style:italic;
+    font-size:13.5px; color:#8A8878; margin:0 0 16px; }
 
   /* ---- 2. Executive summary ---- */
   .exec-item { font-size:17px; line-height:1.75; margin-bottom:18px; }
-  .exec-item strong { color:#0C0C0D; }
+  .exec-item strong { color:#33322E; }
 
-  .stat-band { display:table; width:100%; table-layout:fixed; border-top:1px solid #E2E6EA;
-    border-bottom:1px solid #E2E6EA; margin:8px 0 36px; }
+  .stat-band { display:table; width:100%; table-layout:fixed; border-top:1px solid #E1DDD2;
+    border-bottom:1px solid #E1DDD2; margin:8px 0 36px; }
   .stat-band .cell { display:table-cell; padding:26px 20px 26px 0; vertical-align:top; }
-  .stat-num { font-family:'Inter',sans-serif; font-size:36px; font-weight:800; color:#EA1C24;
+  .stat-num { font-family:'Work Sans',sans-serif; font-size:36px; font-weight:800; color:#2647E8;
     line-height:1; letter-spacing:-.01em; }
-  .stat-label { font-size:13px; color:#5A6172; margin-top:8px; line-height:1.4; max-width:190px; }
+  .stat-label { font-size:13px; color:#8A8878; margin-top:8px; line-height:1.4; max-width:190px; }
 
   /* ---- Pull quote ---- */
   .pull-quote { margin:0 56px 44px; }
-  .pull-quote .mark { font-family:'Source Serif 4',Georgia,serif; font-size:104px; line-height:.4;
-    color:#EA1C24; opacity:.18; }
-  .pull-quote .txt { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-weight:500;
-    font-size:30px; line-height:1.42; color:#0C0C0D; padding-left:4px; }
+  .pull-quote .mark { font-family:'Libre Caslon Text',Georgia,serif; font-size:104px; line-height:.4;
+    color:#2647E8; opacity:.18; }
+  .pull-quote .txt { font-family:'Libre Caslon Text',Georgia,serif; font-style:italic; font-weight:500;
+    font-size:30px; line-height:1.42; color:#33322E; padding-left:4px; }
   .pull-quote .attrib { font-size:13px; color:#8A8F9C; margin-top:16px; padding-left:4px; }
 
   /* ---- 3. Diễn biến chính — dòng thời gian ---- */
   .tl-item { display:table; width:100%; table-layout:fixed; margin-bottom:30px; }
   .tl-date-col { display:table-cell; width:82px; padding-top:2px; vertical-align:top;
-    font-family:'IBM Plex Mono',monospace; font-size:13px; color:#EA1C24; font-weight:600; }
-  .tl-body-col { display:table-cell; vertical-align:top; border-left:2px solid #E2E6EA; padding-left:22px; }
-  .eyebrow { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#9A9A94; margin-bottom:8px; }
-  .tl-body-col h3 { font-size:22px; font-weight:700; margin:0 0 10px; letter-spacing:-.005em; color:#0C0C0D; }
+    font-family:'IBM Plex Mono',monospace; font-size:13px; color:#2647E8; font-weight:600; }
+  .tl-body-col { display:table-cell; vertical-align:top; border-left:2px solid #E1DDD2; padding-left:22px; }
+  .eyebrow { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#8A8878; margin-bottom:8px; }
+  .tl-body-col h3 { font-size:22px; font-weight:700; margin:0 0 10px; letter-spacing:-.005em; color:#33322E; }
   .tl-body-col p { font-size:16px; line-height:1.75; color:#3A3A35; margin:0 0 12px; }
 
   /* ---- Citation pill + tier badge (dùng khắp report) ----
@@ -102,10 +109,10 @@
   .cite-pill span { vertical-align:middle; }
   .tier-dot { display:inline-block; width:15px; height:15px; line-height:15px; text-align:center;
     border-radius:999px; color:#fff; font-size:9.5px; font-weight:700; margin-left:6px; }
-  .tier-dot.t1 { background:#EA1C24; }
-  .tier-dot.t2 { background:#5A6172; }
+  .tier-dot.t1 { background:#2647E8; }
+  .tier-dot.t2 { background:#8A8878; }
   .tier-dot.t3 { background:#9AA0AC; }
-  .tier-dot.t4 { background:#C9CDD4; color:#0C0C0D; }
+  .tier-dot.t4 { background:#C9CDD4; color:#33322E; }
 
   /* ---- 4. Sản phẩm nổi bật ----
      Đã thử cả inline-block VÀ float cho lưới 2 cột — cả hai đều bị OpenHTMLtoPDF
@@ -113,50 +120,50 @@
      card cao hơn đè lên đoạn văn của chính nó (kiểm chứng bằng render PDF thật, xem
      git history). Chuyển hẳn sang XẾP DỌC 1 cột (giống Deep-Dive) — không còn phép
      tính chiều-cao-box nhiều-cột nào để engine này tính sai; an toàn tuyệt đối. */
-  .card { border:1px solid #E2E6EA; padding:22px 24px; margin-bottom:18px; font-size:15px; }
-  .card h3 { font-size:19px; font-weight:700; margin:0 0 10px; color:#0C0C0D; }
+  .card { border:1px solid #E1DDD2; padding:22px 24px; margin-bottom:18px; font-size:15px; }
+  .card h3 { font-size:19px; font-weight:700; margin:0 0 10px; color:#33322E; }
   .card p { font-size:14.5px; line-height:1.65; color:#3A3A35; margin:0 0 14px; }
   .card-cite { margin-top:2px; }
 
   /* ---- 5. Phân tích sâu — mini-article ---- */
-  .article { margin-bottom:26px; border:1px solid #E2E6EA; }
-  .article > summary { cursor:pointer; list-style:none; padding:22px 26px; background:#F7F7F4; }
+  .article { margin-bottom:26px; border:1px solid #E1DDD2; }
+  .article > summary { cursor:pointer; list-style:none; padding:22px 26px; background:#F2EFE8; }
   .article > summary::-webkit-details-marker { display:none; }
-  .article-headline { font-family:'Inter',sans-serif; font-size:25px; font-weight:800;
-    letter-spacing:-.01em; color:#0C0C0D; line-height:1.2; }
+  .article-headline { font-family:'Work Sans',sans-serif; font-size:25px; font-weight:800;
+    letter-spacing:-.01em; color:#33322E; line-height:1.2; }
   .article-body { padding:8px 26px 30px; }
   .fact-quote { margin:0 0 20px; padding:4px 0 4px 20px; border-left:3px solid #2F6B3D; }
-  .fact-quote .txt { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:18px;
-    line-height:1.6; color:#0C0C0D; }
-  .fact-quote .attrib { font-size:13px; color:#9A9A94; margin-top:10px; }
-  .fact-quote .attrib a { color:#EA1C24; font-weight:600; text-decoration:none; border-bottom:1px solid #C7C7BE; }
-  .orig-span { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:13.5px;
+  .fact-quote .txt { font-family:'Libre Caslon Text',Georgia,serif; font-style:italic; font-size:18px;
+    line-height:1.6; color:#33322E; }
+  .fact-quote .attrib { font-size:13px; color:#8A8878; margin-top:10px; }
+  .fact-quote .attrib a { color:#2647E8; font-weight:600; text-decoration:none; border-bottom:1px solid #C7C7BE; }
+  .orig-span { font-family:'Libre Caslon Text',Georgia,serif; font-style:italic; font-size:13.5px;
     color:#6B7280; margin:10px 0 0; padding-left:20px; }
   .orig-span .lang { font-family:'IBM Plex Mono',monospace; font-style:normal; font-size:10.5px;
-    color:#9A9A94; text-transform:uppercase; margin-right:6px; }
+    color:#8A8878; text-transform:uppercase; margin-right:6px; }
   .analysis p { margin:0 0 16px; font-size:15.5px; line-height:1.8; color:#26262B; }
   .analysis p:last-child { margin-bottom:0; }
-  .override-note { font-size:12.5px; color:#9A9A94; margin-top:14px; }
+  .override-note { font-size:12.5px; color:#8A8878; margin-top:14px; }
 
   /* ---- 6. Khuyến nghị cuối ---- */
-  .reco { background:#F7F7F4; padding:40px 56px 44px; border-top:1px solid #E2E6EA; margin-top:36px; }
-  .reco p { font-size:17px; line-height:1.75; color:#0C0C0D; margin:0 0 16px; }
+  .reco { background:#F2EFE8; padding:40px 56px 44px; border-top:1px solid #E1DDD2; margin-top:36px; }
+  .reco p { font-size:17px; line-height:1.75; color:#33322E; margin:0 0 16px; }
   .reco p:last-child { margin-bottom:0; }
 
   /* ---- 7. Phụ lục (mặc định thu gọn) ---- */
-  .appendix { padding:44px 56px 32px; border-top:1px solid #E2E6EA; }
-  .appendix > summary { cursor:pointer; font-family:'Inter',sans-serif; font-size:13px;
-    letter-spacing:.1em; text-transform:uppercase; color:#EA1C24; font-weight:800; padding:6px 0; list-style:none; }
+  .appendix { padding:44px 56px 32px; border-top:1px solid #E1DDD2; }
+  .appendix > summary { cursor:pointer; font-family:'Work Sans',sans-serif; font-size:13px;
+    letter-spacing:.1em; text-transform:uppercase; color:#2647E8; font-weight:800; padding:6px 0; list-style:none; }
   .appendix > summary::-webkit-details-marker { display:none; }
   .appendix-body { margin-top:22px; font-size:13.5px; color:#454C5E; }
   table.src-table { width:100%; border-collapse:collapse; font-size:13.5px; margin-bottom:22px; }
   table.src-table th { text-align:left; padding:7px 10px 7px 0; font-size:11px; text-transform:uppercase;
-    color:#6B6B64; border-bottom:2px solid #0C0C0D; }
-  table.src-table td { padding:9px 10px 9px 0; border-bottom:1px solid #E2E6EA; vertical-align:top; }
+    color:#6B6B64; border-bottom:2px solid #33322E; }
+  table.src-table td { padding:9px 10px 9px 0; border-bottom:1px solid #E1DDD2; vertical-align:top; }
   .legend-pill { display:inline-block; font-size:12px; font-weight:600; border-radius:4px;
     padding:3px 9px; margin:0 8px 8px 0; }
 
-  footer { padding:20px 56px; border-top:1px solid #E2E6EA; font-size:12px; color:#9A9A94;
+  footer { padding:20px 56px; border-top:1px solid #E1DDD2; font-size:12px; color:#8A8878;
     display:table; width:100%; }
   footer .l { display:table-cell; text-align:left; }
   footer .r { display:table-cell; text-align:right; }
@@ -179,7 +186,7 @@
     .kicker { font-size:10.5px; margin-bottom:14px; }
     .masthead h1 { font-size:34px; line-height:1.08; margin-bottom:12px; }
     .masthead .sub { font-size:16px; margin-bottom:18px; max-width:none; }
-    .meta-row { display:block; border-top:1px solid #E2E6EA; padding:14px 0; }
+    .meta-row { display:block; border-top:1px solid #E1DDD2; padding:14px 0; }
     .meta-row .cell { display:block; border-left:none; padding:3px 0; }
 
     .hero { margin:16px 20px 0; height:130px; }
@@ -191,7 +198,7 @@
     .section-insight { font-size:13.5px; margin-bottom:18px; }
 
     .exec-item { font-size:15.5px; margin-bottom:16px; }
-    .stat-band { display:block; border-bottom:1px solid #E2E6EA; margin-bottom:24px; }
+    .stat-band { display:block; border-bottom:1px solid #E1DDD2; margin-bottom:24px; }
     .stat-band .cell { display:inline-block; width:46%; padding:14px 12px 14px 0; }
     .stat-num { font-size:28px; }
 
@@ -324,19 +331,29 @@
 
     <p class="empty-note" th:if="${#lists.isEmpty(allFacts)}" th:text="#{report.keyDevelopments.empty}">No facts yet.</p>
 
-    <div class="tl-item" th:each="f : ${allFacts}">
-      <div class="tl-date-col"
-           th:text="${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM')} : ${#temporals.format(f.eventDate,'MMM d')}">Jun 30</div>
-      <div class="tl-body-col">
-        <div class="eyebrow" th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)}">Regulation · China</div>
-        <h3 th:text="${f.productName != null ? f.productName : f.company}">Development headline</h3>
-        <p th:text="${f.summary(lang)}">Event summary.</p>
-        <a class="cite-pill" th:id="${f.factCode}" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
-          <span th:text="${f.rawDoc.source.name}">Source</span>
-          <span class="tier-dot" th:classappend="'t' + ${f.rawDoc.source.tier}" th:text="${f.rawDoc.source.tier}">1</span>
-        </a>
+    <!-- Batch 9: chia VN (đối thủ trực tiếp) vs khu vực (bài học/cảm hứng) — feedback Hanh.
+         Headline = summary của extractor (đã ép chất lượng tiêu đề digest); fallback
+         product/company để KHÔNG bao giờ trống. -->
+    <th:block th:each="grp : ${ {'vn', 'regional'} }" th:with="grpFacts=${grp == 'vn'} ? ${vnFacts} : ${regionalFacts}">
+      <div th:if="${!#lists.isEmpty(grpFacts)}">
+        <div class="market-label" th:text="${grp == 'vn'} ? #{report.market.vn} : #{report.market.regional}">Vietnam — Competitor Moves</div>
+        <p class="market-note" th:if="${grp == 'regional'}" th:text="#{report.market.regionalNote}">Not direct competitors — read for inspiration.</p>
+        <div class="tl-item" th:each="f : ${grpFacts}">
+          <div class="tl-date-col"
+               th:text="${f.eventDate == null} ? '—' : (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM')} : ${#temporals.format(f.eventDate,'MMM d')})">Jun 30</div>
+          <div class="tl-body-col">
+            <div class="eyebrow" th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)}">Regulation · China</div>
+            <h3 th:text="${f.summary(lang)} ?: (${f.productName} ?: ${f.company} ?: ${f.rawDoc.source.name})">Development headline</h3>
+            <p th:if="${f.productName != null or f.company != null}"
+               th:text="(${f.company} ?: '') + (${f.productName != null and f.company != null} ? ' — ' : '') + (${f.productName} ?: '')">Company — Product</p>
+            <a class="cite-pill" th:id="${f.factCode}" th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer">
+              <span th:text="${f.rawDoc.source.name}">Source</span>
+              <span class="tier-dot" th:classappend="'t' + ${f.rawDoc.source.tier}" th:text="${f.rawDoc.source.tier}">1</span>
+            </a>
+          </div>
+        </div>
       </div>
-    </div>
+    </th:block>
   </div>
 
   <!-- 4. SẢN PHẨM NỔI BẬT -->
@@ -346,10 +363,12 @@
       Notable developments this week.
     </p>
 
+    <!-- Batch 9: chỉ fact CÓ tên sản phẩm mới là "sản phẩm nổi bật" — trước đây mọi fact
+         đều thành card, card thiếu tên hiện trống (bug feedback Hanh). -->
     <div class="card-grid">
-      <div class="card" th:each="f : ${allFacts}">
-        <div class="eyebrow" th:text="${f.company} + ' · ' + ${f.categoryLabel(lang)}">Company · Category</div>
-        <h3 th:text="${f.productName != null ? f.productName : f.company}">Product name</h3>
+      <div class="card" th:each="f : ${allFacts}" th:if="${f.productName != null}">
+        <div class="eyebrow" th:text="(${f.company} ?: ${f.rawDoc.source.name}) + ' · ' + ${f.categoryLabel(lang)}">Company · Category</div>
+        <h3 th:text="${f.productName}">Product name</h3>
         <p th:text="${f.summary(lang)}">Short description.</p>
         <!-- bọc pill trong div block riêng — đã kiểm chứng OpenHTMLtoPDF: một <a inline-block>
              nối ngay sau <p> bên trong card float đôi lúc chồng lên dòng cuối của <p>;
@@ -374,13 +393,16 @@
     <details class="article" th:each="f, st : ${allFacts}" th:id="${'deep-' + f.factCode}" th:open="${st.index < 2}">
       <summary>
         <div class="eyebrow"
-             th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)} + ' · ' +
-                      (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM/yyyy')} : ${#temporals.format(f.eventDate,'MMM d, yyyy')})">Category · Market · Date</div>
-        <div class="article-headline" th:text="${f.productName != null ? f.productName : f.company}">Headline</div>
+             th:text="${f.categoryLabel(lang)} + ' · ' + ${f.rawDoc.source.getCountryLabel(lang)} +
+                      (${f.eventDate == null} ? '' : (' · ' + (${lang == 'vi'} ? ${#temporals.format(f.eventDate,'dd/MM/yyyy')} : ${#temporals.format(f.eventDate,'MMM d, yyyy')})))">Category · Market · Date</div>
+        <!-- Batch 9: headline = summary digest của extractor (fallback product/company — không bao giờ trống) -->
+        <div class="article-headline" th:text="${f.summary(lang)} ?: (${f.productName} ?: ${f.company} ?: ${f.rawDoc.source.name})">Headline</div>
       </summary>
       <div class="article-body">
+        <!-- Batch 9: "As reported by" giờ trích SPAN NGUYÊN VĂN thật (đúng nghĩa trích dẫn),
+             không phải câu tóm tắt AI như trước. -->
         <blockquote class="fact-quote">
-          <div class="txt" th:text="'“' + ${f.summary(lang)} + '”'">“Fact quote.”</div>
+          <div class="txt" th:text="'“' + ${#strings.abbreviate(f.spanText, 420)} + '”'">“Fact quote.”</div>
           <div class="attrib">
             <span th:text="#{report.deepDive.attribution}">As reported by</span>
             <a th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer"
@@ -389,12 +411,8 @@
           </div>
         </blockquote>
 
-        <!-- Invariant bắt buộc: span nguyên văn ngôn ngữ gốc luôn hiển thị, không giấu — kể cả khi
-             thiết kế đã bỏ nhãn "TRANSLATED" to; ở đây thể hiện bằng một dòng nhỏ, lặng, không phải hộp màu. -->
-        <p class="orig-span" th:if="${f.spanLanguage != lang}">
-          <span class="lang" th:text="${f.spanLanguage}">zh</span><span th:text="${f.spanText}">Original-language span</span>
-        </p>
-
+        <!-- Invariant "luôn hiện nguyên văn gốc" giờ được thoả ngay tại fact-quote phía trên
+             (quote = spanText nguyên văn, attrib ghi "original in X") — bỏ dòng lặp. -->
         <div class="analysis" th:with="docClaims=${claimsByDoc.get(f.rawDoc.id)}">
           <p class="empty-note" th:if="${docClaims == null or #lists.isEmpty(docClaims)}" th:text="#{report.deepDive.noAnalysis}">
             No AI interpretation yet.

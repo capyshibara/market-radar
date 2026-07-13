@@ -59,9 +59,11 @@ public class MonthlyReportController {
         model.addAttribute("period", monthName + " · " + today.getYear());
         model.addAttribute("year", today.getYear());
 
-        // ---- Fact thật, không trùng (cùng rule weekly) ----
+        // ---- Fact thật, không trùng, TRONG THÁNG hiện tại (Batch 9) ----
+        LocalDate monthStart = ReportWindow.monthlyStart(today);
         List<EvidenceFact> all = facts.findAllForReport().stream()
                 .filter(f -> f.getRawDoc().getDuplicateOfId() == null)
+                .filter(f -> ReportWindow.factInWindow(f, monthStart, today))
                 .toList();
         boolean hasReal = all.stream().anyMatch(f -> !f.getRawDoc().isSampleData());
         List<EvidenceFact> visible = hasReal
@@ -74,6 +76,8 @@ public class MonthlyReportController {
                 InterpretedClaim.ReviewStatus.EDITED_APPROVED,
                 InterpretedClaim.ReviewStatus.FORCE_APPROVED)).stream()
                 .filter(c -> c.getRawDoc() == null || !hasReal || !c.getRawDoc().isSampleData())
+                .filter(c -> c.getRawDoc() == null
+                        || ReportWindow.docInWindow(c.getRawDoc(), monthStart, today))
                 .toList();
         Map<Long, List<InterpretedClaim>> claimsByDoc = passed.stream()
                 .filter(c -> c.getRawDoc() != null)
@@ -88,20 +92,27 @@ public class MonthlyReportController {
         model.addAttribute("takeaways", takeaways);
         model.addAttribute("pullQuote", takeaways.isEmpty() ? null : takeaways.get(0));
 
-        // ---- Sections theo nhóm factType (cap 6 story/section — trang cố định 816px) ----
+        // ---- Sections theo THỊ TRƯỜNG (feedback Hanh 2026-07-13): tin VN = động thái
+        // đối thủ trực tiếp; tin khu vực KHÔNG đọc như tin đối thủ mà là bài học/
+        // cảm hứng (ý tưởng sản phẩm, quy trình, mô hình vận hành). Cap 6 story/trang.
+        List<EvidenceFact> vn = visible.stream()
+                .filter(f -> "VN".equals(com.marketradar.extract.FactExtractionJob.market(f.getRawDoc()))).toList();
+        List<EvidenceFact> regional = visible.stream()
+                .filter(f -> !"VN".equals(com.marketradar.extract.FactExtractionJob.market(f.getRawDoc()))).toList();
         model.addAttribute("sections", List.of(
-                section("01", vi ? "Sản phẩm & Phí" : "Products & Fees",
-                        vi ? "Ra mắt sản phẩm và thay đổi phí/quyền lợi trong tháng"
-                           : "Product launches and fee/benefit changes this month",
-                        visible, claimsByDoc, EnumSet.of(EvidenceFact.FactType.PRODUCT_LAUNCH, EvidenceFact.FactType.FEE_CHANGE)),
-                section("02", vi ? "Quy định" : "Regulation",
-                        vi ? "Diễn biến pháp lý ảnh hưởng thiết kế và phân phối sản phẩm"
-                           : "Regulatory developments affecting product design and distribution",
-                        visible, claimsByDoc, EnumSet.of(EvidenceFact.FactType.REGULATION)),
-                section("03", vi ? "Tín hiệu thị trường" : "Market Signals",
-                        vi ? "Sự kiện đối tác, kênh phân phối và số liệu công bố"
-                           : "Partnership events, distribution moves and published metrics",
-                        visible, claimsByDoc, EnumSet.of(EvidenceFact.FactType.EVENT, EvidenceFact.FactType.METRIC))));
+                section("01", vi ? "Việt Nam — Động thái đối thủ" : "Vietnam — Competitor Moves",
+                        vi ? "Sản phẩm, phí, kênh phân phối của các công ty trên cùng thị trường"
+                           : "Products, fees and distribution moves from companies in our market",
+                        vn, claimsByDoc, EnumSet.of(EvidenceFact.FactType.PRODUCT_LAUNCH, EvidenceFact.FactType.FEE_CHANGE,
+                                EvidenceFact.FactType.EVENT, EvidenceFact.FactType.METRIC)),
+                section("02", vi ? "Quy định trong nước" : "Domestic Regulation",
+                        vi ? "Diễn biến pháp lý ảnh hưởng thiết kế và phân phối sản phẩm tại Việt Nam"
+                           : "Regulatory developments affecting product design and distribution in Vietnam",
+                        vn, claimsByDoc, EnumSet.of(EvidenceFact.FactType.REGULATION)),
+                section("03", vi ? "Khu vực — Bài học & Cảm hứng" : "Regional — Lessons & Inspiration",
+                        vi ? "Không phải đối thủ trực tiếp: đọc để lấy ý tưởng sản phẩm, quy trình và mô hình vận hành"
+                           : "Not direct competitors: read for product ideas, process and operating-model inspiration",
+                        regional, claimsByDoc, EnumSet.allOf(EvidenceFact.FactType.class))));
 
         // ---- Exhibit 01: developments by category (column chart, geometry sẵn) ----
         Map<EvidenceFact.FactType, Long> byType = visible.stream()
