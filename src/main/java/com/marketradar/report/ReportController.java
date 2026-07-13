@@ -120,6 +120,16 @@ public class ReportController {
         List<EvidenceFact> visibleFacts = facts.findAllForReport().stream()
                 .filter(f -> f.getRawDoc().getDuplicateOfId() == null)
                 .toList();
+        // Batch 8: khi ĐÃ có fact thật (extractor AI#2 chạy trên doc crawl thật) thì ẨN
+        // fact mẫu hư cấu khỏi report — fact mẫu chỉ còn là fallback lúc DB trống
+        // (giữ template render được ngay sau seed). Banner DEMO chỉ hiện khi
+        // fact mẫu THẬT SỰ đang được hiển thị.
+        boolean hasRealFacts = visibleFacts.stream().anyMatch(f -> !f.getRawDoc().isSampleData());
+        if (hasRealFacts) {
+            visibleFacts = visibleFacts.stream()
+                    .filter(f -> !f.getRawDoc().isSampleData())
+                    .toList();
+        }
         model.put("allFacts", visibleFacts);
         model.put("factsCount", visibleFacts.size());
         model.put("hasSampleData", visibleFacts.stream().anyMatch(f -> f.getRawDoc().isSampleData()));
@@ -134,11 +144,18 @@ public class ReportController {
         // 4 trạng thái *_APPROVED mới được xuất bản. FORCE_APPROVED là override có log
         // của con người (vẫn bắt buộc có citation — Invariant #1); report không dán nhãn
         // to nữa (Batch 6) nhưng vẫn lộ ra bằng một dòng ghi chú nhỏ kèm lý do/người duyệt.
-        var passed = claims.findPublishable(List.of(
+        var passedAll = claims.findPublishable(List.of(
                 InterpretedClaim.ReviewStatus.AUTO_APPROVED,
                 InterpretedClaim.ReviewStatus.APPROVED,
                 InterpretedClaim.ReviewStatus.EDITED_APPROVED,
                 InterpretedClaim.ReviewStatus.FORCE_APPROVED));
+        // Batch 8: cùng rule với facts — có dữ liệu thật thì claim từ doc mẫu cũng ẩn
+        // (claim cấp report như EXEC_SUMMARY có rawDoc=null → giữ nguyên).
+        final List<InterpretedClaim> passed = hasRealFacts
+                ? passedAll.stream()
+                        .filter(c -> c.getRawDoc() == null || !c.getRawDoc().isSampleData())
+                        .toList()
+                : passedAll;
 
         List<InterpretedClaim> execClaims = passed.stream()
                 .filter(c -> c.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY).toList();

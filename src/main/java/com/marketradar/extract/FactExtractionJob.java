@@ -202,6 +202,9 @@ public class FactExtractionJob {
 
             EvidenceFact f = new EvidenceFact(nextCode(accepted.size()), doc, type,
                     span, doc.getLanguage());
+            // Nhãn category hiển thị trên report suy từ factType (deterministic,
+            // không hỏi model) — thiếu thì report in "NULL".
+            f.category(categoryVi(type)).categoryEn(categoryEn(type));
 
             // company/product: chỉ giữ nếu nguyên văn nằm TRONG span (Gate L1 đối chiếu sau này)
             String company = text(n, "company");
@@ -224,6 +227,26 @@ public class FactExtractionJob {
     /** F-003, F-004... — tuần tự theo count hiện có (F-001/F-002 là fact mẫu seed). */
     private String nextCode(int offsetInDoc) {
         return String.format("F-%03d", facts.count() + 1 + offsetInDoc);
+    }
+
+    private static String categoryVi(EvidenceFact.FactType t) {
+        return switch (t) {
+            case EVENT -> "Sự kiện";
+            case PRODUCT_LAUNCH -> "Ra mắt sản phẩm";
+            case FEE_CHANGE -> "Thay đổi phí/quyền lợi";
+            case REGULATION -> "Quy định";
+            case METRIC -> "Số liệu";
+        };
+    }
+
+    private static String categoryEn(EvidenceFact.FactType t) {
+        return switch (t) {
+            case EVENT -> "Event";
+            case PRODUCT_LAUNCH -> "Product launch";
+            case FEE_CHANGE -> "Fee/benefit change";
+            case REGULATION -> "Regulation";
+            case METRIC -> "Metric";
+        };
     }
 
     private static String text(JsonNode n, String field) {
