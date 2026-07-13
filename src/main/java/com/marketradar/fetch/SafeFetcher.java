@@ -66,8 +66,9 @@ public class SafeFetcher {
     private static final Set<String> RSS_TYPES  = Set.of("application/rss+xml", "application/atom+xml",
                                                          "application/xml", "text/xml");
     private static final Set<String> PDF_TYPES  = Set.of("application/pdf");
+    private static final Set<String> JSON_TYPES = Set.of("application/json", "text/json");
 
-    public enum ExpectedKind { HTML, RSS, PDF }
+    public enum ExpectedKind { HTML, RSS, PDF, JSON }
 
     /**
      * Fetch một URL với đầy đủ kiểm tra. Trả về FetchResult (bytes + content type),
@@ -179,6 +180,7 @@ public class SafeFetcher {
             case HTML -> "text/html,application/xhtml+xml";
             case RSS  -> "application/rss+xml,application/atom+xml,application/xml,text/xml";
             case PDF  -> "application/pdf";
+            case JSON -> "application/json";
         };
     }
 
@@ -187,6 +189,7 @@ public class SafeFetcher {
             case HTML -> HTML_TYPES;
             case RSS  -> RSS_TYPES;
             case PDF  -> PDF_TYPES;
+            case JSON -> JSON_TYPES;
         };
     }
 

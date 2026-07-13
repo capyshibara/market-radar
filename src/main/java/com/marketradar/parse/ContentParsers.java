@@ -15,12 +15,18 @@ import org.springframework.stereotype.Component;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +55,10 @@ public class ContentParsers {
     // dùng làm fallback khi card KHÔNG có div ngày, để tin cũ vẫn có publishedAt (năm-01-01)
     // và bị bộ lọc "7 ngày" loại đúng, thay vì rơi về fetchedAt=hôm nay rồi hiện như tin mới.
     private static final java.util.regex.Pattern AIA_URL_YEAR = java.util.regex.Pattern.compile("/(20\\d{2})/");
+    private static final ObjectMapper JSON = new ObjectMapper();
+    // BIDV MetLife JSON trả ngày dạng "MAY 12, 2026" (tháng VIẾT HOA) — parse không phân biệt hoa/thường.
+    private static final DateTimeFormatter BIDV_FMT = new DateTimeFormatterBuilder()
+            .parseCaseInsensitive().appendPattern("MMM d, yyyy").toFormatter(Locale.ENGLISH);
     private static final java.util.regex.Pattern DDMMYYYY = java.util.regex.Pattern.compile("(\\d{2}/\\d{2}/\\d{4})");
 
     /** HTML → text thuần + title. */
@@ -412,6 +422,51 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse FUBON_VN: " + e.getMessage());
+        }
+    }
+
+    /**
+     * BIDV MetLife (bidvmetlife.com.vn) — trang "Tin tức" render bằng JS (nền tảng AEM),
+     * HTML tĩnh KHÔNG có bài. JS gọi endpoint JSON nội bộ
+     * ({@code /bin/MLApp/.../fetchArticleColumnGridArticleListing}) trả sẵn danh sách bài —
+     * ta gọi thẳng endpoint đó (fetchUrl của source = URL JSON này). Mỗi phần tử có
+     * {@code headlineTitle}, {@code publishedDate} ("MAY 12, 2026"), {@code path}
+     * ("/about-us/news/2026/..."). Link tuyệt đối = resolve path trên host của baseUrl.
+     * Fix 2026-07-14 (feedback Hanh: mắt thấy ngày mà crawler không thấy — vì nó ở JSON, không ở HTML).
+     */
+    public List<ListingItem> parseBidvMetlife(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode root = JSON.readTree(body);
+            JsonNode arts = root.get("articles");
+            if (arts == null || !arts.isArray() || arts.isEmpty()) {
+                throw new ParseFailedException("BIDV_METLIFE: JSON không có mảng 'articles' — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode a : arts) {
+                String title = a.path("headlineTitle").asText("").strip();
+                String path = a.path("path").asText("").strip();
+                if (title.isBlank() || path.isBlank()) continue;
+                String link = base.resolve(path).toString();
+                Instant publishedAt = null;
+                String pd = a.path("publishedDate").asText("").strip();
+                if (!pd.isBlank()) {
+                    try {
+                        publishedAt = LocalDate.parse(pd, BIDV_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("BIDV_METLIFE: không parse được ngày '{}' — publishedAt để null", pd);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("BIDV_METLIFE: 'articles' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("BIDV_METLIFE: lỗi parse JSON: " + e.getMessage());
         }
     }
 

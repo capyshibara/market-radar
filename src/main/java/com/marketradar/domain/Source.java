@@ -11,7 +11,7 @@ import jakarta.persistence.*;
 @Table(name = "source_registry")
 public class Source {
 
-    public enum SourceType { RSS, HTML, PDF }
+    public enum SourceType { RSS, HTML, PDF, JSON }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

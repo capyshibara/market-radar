@@ -86,6 +86,25 @@ public class IngestionJob {
             case HTML -> ingestHtml(source);
             case RSS -> ingestRss(source);
             case PDF -> ingestPdf(source);
+            case JSON -> ingestJson(source);
+        };
+    }
+
+    /**
+     * Fix 2026-07-14 (feedback Hanh: "crawler không thấy ngày mà mắt thì thấy"): một số
+     * site (BIDV MetLife — nền tảng AEM) render danh sách tin bằng JS, HTML tĩnh KHÔNG
+     * chứa bài. Nhưng JS chỉ gọi một endpoint JSON có sẵn (title + publishedDate + path) —
+     * ta gọi thẳng endpoint đó (fetchUrl của source giờ là URL JSON) rồi parse như listing.
+     * Cùng cơ chế ingestListing: mỗi path bài là trang HTML cùng host → fetch toàn văn.
+     */
+    private int ingestJson(Source source)
+            throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
+        var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                SafeFetcher.ExpectedKind.JSON);
+        return switch (source.getCode()) {
+            case "BIDV_METLIFE" -> ingestListing(source, parsers.parseBidvMetlife(result.body(), source.getFetchUrl()));
+            default -> throw new ContentParsers.ParseFailedException(
+                    "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };
     }
 
