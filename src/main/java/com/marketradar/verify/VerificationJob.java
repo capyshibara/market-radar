@@ -8,9 +8,12 @@ import com.marketradar.domain.ClaimVerification;
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.domain.InterpretedClaim.ReviewStatus;
+import com.marketradar.domain.PipelineItemLog;
+import com.marketradar.pipeline.PipelineRunStatusService;
 import com.marketradar.repo.ClaimVerificationRepository;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
+import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.review.ReviewRules;
 
 import java.util.*;
@@ -38,17 +41,22 @@ public class VerificationJob {
     private final EvidenceFactRepository facts;
     private final EntailmentVerifier verifier;
     private final com.marketradar.alert.HotAlertService alerts;
+    private final PipelineRunStatusService progress;
+    private final PipelineItemLogRepository itemLogs;
 
     public VerificationJob(InterpretedClaimRepository claims,
                            ClaimVerificationRepository verifications,
                            EvidenceFactRepository facts,
                            EntailmentVerifier verifier,
-                           com.marketradar.alert.HotAlertService alerts) {
+                           com.marketradar.alert.HotAlertService alerts,
+                           PipelineRunStatusService progress, PipelineItemLogRepository itemLogs) {
         this.claims = claims;
         this.verifications = verifications;
         this.facts = facts;
         this.verifier = verifier;
         this.alerts = alerts;
+        this.progress = progress;
+        this.itemLogs = itemLogs;
     }
 
     @Transactional
@@ -60,6 +68,8 @@ public class VerificationJob {
         Map<String, EvidenceFact> factByCode = facts.findAllForReport().stream()
                 .collect(Collectors.toMap(EvidenceFact::getFactCode, Function.identity()));
 
+        progress.startProgress("verify", pending.size());
+        Long runLogId = progress.currentRunLogId("verify");
         StringBuilder sb = new StringBuilder("Verifier: " + verifier.providerName() + "\n");
         int auto = 0, toReview = 0;
         for (InterpretedClaim c : pending) {
@@ -82,6 +92,13 @@ public class VerificationJob {
               .append(r.verdict()).append(" → ").append(c.getReviewStatus()).append('\n');
             log.info("Gate L2 {} [{}] → {} → {}", c.getClaimCode(), c.getRiskTier(),
                     r.verdict(), c.getReviewStatus());
+            if (runLogId != null) {
+                Long rawDocId = c.getRawDoc() == null ? null : c.getRawDoc().getId();
+                itemLogs.save(new PipelineItemLog(runLogId, PipelineItemLog.ItemType.CLAIM,
+                        c.getClaimCode(), c.getClaimCode(), rawDocId,
+                        r.verdict().name(), c.getReviewStatus().name()));
+            }
+            progress.stepProgress("verify");
         }
         sb.insert(0, "Verified " + pending.size() + " claim(s): "
                 + auto + " AUTO_APPROVED, " + toReview + " → review.\n");

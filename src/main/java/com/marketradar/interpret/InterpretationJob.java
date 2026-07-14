@@ -11,8 +11,11 @@ import com.marketradar.domain.InterpretedClaim.Origin;
 import com.marketradar.domain.InterpretedClaim.Slot;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.InterpretedClaim.ReviewStatus;
+import com.marketradar.domain.PipelineItemLog;
+import com.marketradar.pipeline.PipelineRunStatusService;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
+import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.review.RiskTierRouter;
 
 import java.util.*;
@@ -35,15 +38,20 @@ public class InterpretationJob {
     private final Interpreter interpreter;
     private final GroundingGateL1 gate;
     private final RiskTierRouter tierRouter;
+    private final PipelineRunStatusService progress;
+    private final PipelineItemLogRepository itemLogs;
 
     public InterpretationJob(EvidenceFactRepository facts, InterpretedClaimRepository claims,
                              Interpreter interpreter, GroundingGateL1 gate,
-                             RiskTierRouter tierRouter) {
+                             RiskTierRouter tierRouter, PipelineRunStatusService progress,
+                             PipelineItemLogRepository itemLogs) {
         this.facts = facts;
         this.claims = claims;
         this.interpreter = interpreter;
         this.gate = gate;
         this.tierRouter = tierRouter;
+        this.progress = progress;
+        this.itemLogs = itemLogs;
     }
 
     @Transactional
@@ -56,6 +64,14 @@ public class InterpretationJob {
         Map<RawDoc, List<EvidenceFact>> byDoc = new LinkedHashMap<>();
         for (EvidenceFact f : allFacts) byDoc.computeIfAbsent(f.getRawDoc(), d -> new ArrayList<>()).add(f);
 
+        boolean execPending = !claims.existsBySlotAndOrigin(Slot.EXEC_SUMMARY, Origin.PIPELINE);
+        long eligibleDocs = byDoc.keySet().stream()
+                .filter(d -> d.getDuplicateOfId() == null)
+                .filter(d -> !claims.existsByRawDocAndOrigin(d, Origin.PIPELINE))
+                .count();
+        progress.startProgress("interpret", (int) eligibleDocs + (execPending ? 1 : 0));
+        Long runLogId = progress.currentRunLogId("interpret");
+
         int docsDone = 0, docsSkipped = 0;
         for (var entry : byDoc.entrySet()) {
             RawDoc doc = entry.getKey();
@@ -63,15 +79,17 @@ public class InterpretationJob {
             if (claims.existsByRawDocAndOrigin(doc, Origin.PIPELINE)) { docsSkipped++; continue; }
             EvidencePack pack = new EvidencePack(doc.getId(), entry.getValue());
             Interpreter.InterpretOutput out = interpreter.interpretDoc(pack);
-            summary.append(persist(out, pack, doc));
+            summary.append(persist(out, pack, doc, runLogId));
             docsDone++;
+            progress.stepProgress("interpret");
         }
 
         // ---- Exec summary (pack toàn cục, 1 lần) ----
-        if (!claims.existsBySlotAndOrigin(Slot.EXEC_SUMMARY, Origin.PIPELINE)) {
+        if (execPending) {
             EvidencePack globalPack = new EvidencePack(null, allFacts);
             Interpreter.InterpretOutput out = interpreter.interpretExecSummary(globalPack);
-            summary.append(persist(out, globalPack, null));
+            summary.append(persist(out, globalPack, null, runLogId));
+            progress.stepProgress("interpret");
         } else {
             summary.append("Exec summary already exists — skipped.\n");
         }
@@ -82,7 +100,7 @@ public class InterpretationJob {
     }
 
     /** Chấm gate từng câu và lưu — mọi câu đều được lưu, PASS hay FAIL. */
-    private String persist(Interpreter.InterpretOutput out, EvidencePack pack, RawDoc doc) {
+    private String persist(Interpreter.InterpretOutput out, EvidencePack pack, RawDoc doc, Long runLogId) {
         StringBuilder sb = new StringBuilder();
         String docLabel = doc == null ? "EXEC" : "doc#" + doc.getId();
 
@@ -100,10 +118,12 @@ public class InterpretationJob {
             c.setReviewStatus(ReviewStatus.PENDING_REVIEW);
             claims.save(c);
             sb.append(docLabel).append(": SCHEMA_REJECTED (raw output kept in claim ").append(c.getClaimCode()).append(")\n");
+            logItem(runLogId, doc, "SCHEMA_REJECTED", "raw output kept in claim " + c.getClaimCode());
             return sb.toString();
         }
 
         Map<String, EvidenceFact> byCode = pack.byCode();
+        List<GateStatus> statuses = new ArrayList<>();
         for (Interpreter.Sentence s : out.sentences()) {
             List<EvidenceFact> cited = s.factCodes().stream()
                     .map(byCode::get).filter(Objects::nonNull).toList();
@@ -119,11 +139,27 @@ public class InterpretationJob {
             c.setReviewStatus(r.status() == GateStatus.PASS
                     ? ReviewStatus.PENDING_VERIFICATION : ReviewStatus.PENDING_REVIEW);
             claims.save(c);
+            statuses.add(r.status());
             sb.append(docLabel).append(' ').append(s.slot()).append(" → ")
               .append(r.status()).append(" (").append(c.getClaimCode()).append(")\n");
             log.info("Gate L1 {} {} → {}", docLabel, c.getClaimCode(), r.status());
         }
+        // 1 item log tổng hợp cho cả doc (nhiều câu → nhiều gate status) — status hiển thị
+        // là PASS nếu MỌI câu pass, ngược lại liệt kê các FAIL gặp phải (worst-case, dễ quét).
+        boolean allPass = !statuses.isEmpty() && statuses.stream().allMatch(s -> s == GateStatus.PASS);
+        String itemStatus = statuses.isEmpty() ? "NO_SENTENCES"
+                : allPass ? "PASS" : statuses.stream().filter(s -> s != GateStatus.PASS)
+                        .map(Enum::name).distinct().reduce((a, b) -> a + "," + b).orElse("FAIL");
+        logItem(runLogId, doc, itemStatus, statuses.size() + " sentence(s)");
         return sb.toString();
+    }
+
+    private void logItem(Long runLogId, RawDoc doc, String status, String message) {
+        if (runLogId == null) return;
+        itemLogs.save(new PipelineItemLog(runLogId, PipelineItemLog.ItemType.RAW_DOC,
+                doc == null ? "EXEC" : String.valueOf(doc.getId()),
+                doc == null ? "Executive summary" : doc.getTitle(),
+                doc == null ? null : doc.getId(), status, message));
     }
 
     /**

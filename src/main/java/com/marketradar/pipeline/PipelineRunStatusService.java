@@ -1,6 +1,8 @@
 package com.marketradar.pipeline;
 
 import org.springframework.stereotype.Service;
+import com.marketradar.domain.PipelineRunLog;
+import com.marketradar.repo.PipelineRunLogRepository;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -8,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
@@ -35,6 +38,42 @@ public class PipelineRunStatusService {
     });
 
     private final Map<String, StageStatus> statuses = new ConcurrentHashMap<>();
+    private final Map<String, Long> currentRunLogId = new ConcurrentHashMap<>();
+    private final PipelineRunLogRepository runLogRepo;
+
+    public PipelineRunStatusService(PipelineRunLogRepository runLogRepo) {
+        this.runLogRepo = runLogRepo;
+    }
+
+    /** Job dùng để gắn PipelineItemLog vào ĐÚNG lần chạy hiện tại của stage mình. */
+    public Long currentRunLogId(String stage) { return currentRunLogId.get(stage); }
+
+    /** Batch 10 (feedback Hanh — "very very helpful" progress bar): completed/total
+     * per running stage, set by the job itself (only it knows its own loop size). */
+    public record Progress(int completed, int total) {}
+
+    private static final class ProgressHolder {
+        final AtomicInteger completed = new AtomicInteger(0);
+        final int total;
+        ProgressHolder(int total) { this.total = total; }
+    }
+
+    private final Map<String, ProgressHolder> progress = new ConcurrentHashMap<>();
+
+    /** Job gọi lúc bắt đầu vòng lặp — total = số item sẽ xử lý (đã biết trước, vd list.size()). */
+    public void startProgress(String stage, int total) { progress.put(stage, new ProgressHolder(total)); }
+
+    /** Job gọi sau MỖI item xử lý xong (thành công hay lỗi đều tính — đây là tiến độ chạy qua,
+     * không phải tỷ lệ thành công). */
+    public void stepProgress(String stage) {
+        ProgressHolder p = progress.get(stage);
+        if (p != null) p.completed.incrementAndGet();
+    }
+
+    public Progress getProgress(String stage) {
+        ProgressHolder p = progress.get(stage);
+        return p == null ? null : new Progress(p.completed.get(), p.total);
+    }
 
     public StageStatus get(String stage) { return statuses.getOrDefault(stage, StageStatus.idle()); }
 
@@ -52,16 +91,34 @@ public class PipelineRunStatusService {
     public synchronized boolean trigger(String stage, Supplier<String> job) {
         if (anyRunning()) return false;
         Instant start = Instant.now();
+        progress.remove(stage); // xoá tiến độ lần chạy trước — job tự startProgress() lại nếu cần
         statuses.put(stage, new StageStatus(RunState.RUNNING, start, null, null, null));
+
+        int batchId = "ingest".equals(stage)
+                ? runLogRepo.maxBatchId().orElse(0) + 1
+                : Math.max(runLogRepo.maxBatchId().orElse(1), 1);
+        Long runLogId = runLogRepo.save(new PipelineRunLog(stage, batchId, start)).getId();
+        currentRunLogId.put(stage, runLogId);
+
         executor.submit(() -> {
             try {
                 String output = job.get();
                 statuses.put(stage, new StageStatus(RunState.SUCCESS, start, Instant.now(), output, null));
+                finishRunLog(runLogId, "SUCCESS", stage, null);
             } catch (Exception e) {
-                statuses.put(stage, new StageStatus(RunState.FAILED, start, Instant.now(), null,
-                        e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+                String err = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+                statuses.put(stage, new StageStatus(RunState.FAILED, start, Instant.now(), null, err));
+                finishRunLog(runLogId, "FAILED", stage, err);
             }
         });
         return true;
+    }
+
+    private void finishRunLog(Long runLogId, String state, String stage, String error) {
+        Progress p = getProgress(stage);
+        runLogRepo.findById(runLogId).ifPresent(log -> {
+            log.finish(state, Instant.now(), p == null ? 0 : p.completed(), p == null ? 0 : p.total(), error);
+            runLogRepo.save(log);
+        });
     }
 }

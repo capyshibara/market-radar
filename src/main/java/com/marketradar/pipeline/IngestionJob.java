@@ -6,10 +6,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import com.marketradar.domain.PipelineItemLog;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
 import com.marketradar.fetch.SafeFetcher;
 import com.marketradar.parse.ContentParsers;
+import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.repo.RawDocRepository;
 import com.marketradar.repo.SourceRepository;
 
@@ -18,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 
 /**
  * Bước 1-2 của pipeline: quét nguồn → parse/chuẩn hoá → lưu raw_docs.
@@ -37,17 +40,22 @@ public class IngestionJob {
     private final ContentParsers parsers;
     private final boolean scheduledEnabled;
     private final int maxItemsPerSource;
+    private final PipelineRunStatusService progress;
+    private final PipelineItemLogRepository itemLogs;
 
     public IngestionJob(SourceRepository sources, RawDocRepository rawDocs,
                         SafeFetcher fetcher, ContentParsers parsers,
                         @Value("${marketradar.ingest.enabled:false}") boolean scheduledEnabled,
-                        @Value("${marketradar.ingest.max-items-per-source:25}") int maxItemsPerSource) {
+                        @Value("${marketradar.ingest.max-items-per-source:25}") int maxItemsPerSource,
+                        PipelineRunStatusService progress, PipelineItemLogRepository itemLogs) {
         this.sources = sources;
         this.rawDocs = rawDocs;
         this.fetcher = fetcher;
         this.parsers = parsers;
         this.scheduledEnabled = scheduledEnabled;
         this.maxItemsPerSource = maxItemsPerSource;
+        this.progress = progress;
+        this.itemLogs = itemLogs;
     }
 
     @Scheduled(fixedDelayString = "${marketradar.ingest.fixed-delay-ms:900000}")
@@ -60,24 +68,38 @@ public class IngestionJob {
     @Transactional
     public String runOnce() {
         StringBuilder summary = new StringBuilder();
-        for (Source source : sources.findByActiveTrue()) {
+        List<Source> active = sources.findByActiveTrue();
+        progress.startProgress("ingest", active.size());
+        Long runLogId = progress.currentRunLogId("ingest");
+        for (Source source : active) {
             try {
                 int stored = ingestSource(source);
                 summary.append(source.getCode()).append(": +").append(stored).append(" doc\n");
+                logItem(runLogId, source, "OK", "+" + stored + " doc");
             } catch (SafeFetcher.FetchRejectedException e) {
                 log.warn("FETCH REJECTED [{}]: {}", source.getCode(), e.getMessage());
                 summary.append(source.getCode()).append(": REJECTED — ").append(e.getMessage()).append('\n');
+                logItem(runLogId, source, "REJECTED", e.getMessage());
             } catch (ContentParsers.ParseFailedException e) {
                 log.warn("PARSE FAILED [{}]: {}", source.getCode(), e.getMessage());
                 recordFailure(source, source.getFetchUrl(),
                         RawDoc.ParseStatus.PARSE_ERROR, e.getMessage());
                 summary.append(source.getCode()).append(": PARSE ERROR — ").append(e.getMessage()).append('\n');
+                logItem(runLogId, source, "PARSE_ERROR", e.getMessage());
             } catch (Exception e) {
                 log.error("UNEXPECTED [{}]", source.getCode(), e);
                 summary.append(source.getCode()).append(": ERROR — ").append(e.getMessage()).append('\n');
+                logItem(runLogId, source, "ERROR", e.getMessage());
             }
+            progress.stepProgress("ingest");
         }
         return summary.toString();
+    }
+
+    private void logItem(Long runLogId, Source source, String status, String message) {
+        if (runLogId == null) return; // an toàn nếu gọi runOnce() ngoài executor (vd test)
+        itemLogs.save(new PipelineItemLog(runLogId, PipelineItemLog.ItemType.SOURCE,
+                source.getCode(), source.getName(), null, status, message));
     }
 
     private int ingestSource(Source source)

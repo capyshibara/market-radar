@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title>Pipeline Run History</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .ph-section { margin-bottom: 28px; }
+  .ph-section h2 { font-size: var(--text-md); font-weight: 700; margin: 0 0 10px; }
+  .ph-batch { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 10px; }
+  .ph-batch-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ph-batch-head .n { font-weight: 700; font-size: var(--text-sm); }
+  .ph-stage-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: var(--text-xs); }
+  .ph-stage-row .stage-name { width: 90px; font-weight: 600; color: var(--text-secondary); flex: none; }
+  .ph-stage-row .meta { color: var(--text-tertiary); font-family: var(--font-mono); }
+  .ph-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px;
+    padding: 12px 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md);
+    background: var(--surface-card-sunk); }
+  .ph-filters label { font-size: var(--text-2xs); color: var(--text-tertiary); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .03em; margin-right: 4px; }
+  .ph-filters select, .ph-filters input { font-size: var(--text-xs); padding: 4px 8px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-default); background: var(--surface-card); color: var(--text-primary); }
+  .ph-filters .ph-clear { font-size: var(--text-xs); color: var(--text-link); cursor: pointer; background: none;
+    border: none; padding: 0; text-decoration: underline; }
+  .ph-filters .ph-count { font-size: var(--text-xs); color: var(--text-tertiary); margin-left: auto; }
+  tr.ph-hidden { display: none; }
+  td.ph-cell span.badge { font-family: var(--font-mono); font-size: var(--text-2xs); }
+</style>
+</head>
+<body>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('pipelinehistory', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+
+      <div id="runner-denied" class="empty-state" style="display:none;margin-top:24px">
+        <div class="title">No access</div>
+        <div class="desc">Your role cannot view pipeline config.</div>
+      </div>
+
+      <div id="runner-content">
+      <div class="page-header">
+        <div>
+          <h1>Pipeline Run History</h1>
+          <p>Every stage run, grouped into batches — and a per-document trail across all 5 stages, so you can see exactly where any article got stuck or rejected.</p>
+        </div>
+      </div>
+
+      <div class="ph-section">
+        <h2>Batches</h2>
+        <div th:if="${#lists.isEmpty(batches)}" class="empty-state">
+          <div class="title">No runs yet</div>
+          <div class="desc">Run a stage on the Pipeline Runner page first.</div>
+        </div>
+        <div class="ph-batch" th:each="b : ${batches}">
+          <div class="ph-batch-head">
+            <span class="n" th:text="'Batch ' + ${b.batchId}">Batch 1</span>
+            <span class="badge badge-neutral" th:text="${#lists.size(b.runs)} + ' stage run(s)'">3 stage run(s)</span>
+          </div>
+          <div class="ph-stage-row" th:each="r : ${b.runs}">
+            <span class="stage-name" th:text="${r.stage}">ingest</span>
+            <span class="badge" th:classappend="${r.state == 'SUCCESS'} ? 'badge-success' : (${r.state == 'FAILED'} ? 'badge-danger' : 'badge-info')"
+                  th:text="${r.state}">SUCCESS</span>
+            <span class="meta" th:text="${r.completed} + ' / ' + ${r.total} + ' items'">10 / 10 items</span>
+            <span class="meta" th:text="${#temporals.format(r.startedAt.atZone(T(java.time.ZoneId).systemDefault()), 'MMM d, HH:mm:ss')}">Jul 14, 12:00:00</span>
+            <span class="meta" th:if="${r.errorMessage != null}" th:text="'— ' + ${r.errorMessage}" style="color:var(--sev-danger-fg)">error</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ph-section">
+        <h2>Per-document trail</h2>
+
+        <div class="ph-filters" th:unless="${#lists.isEmpty(rows)}" id="ph-filters">
+          <label for="pf-source">Source</label>
+          <select id="pf-source"><option value="">All</option></select>
+          <label for="pf-ingest">Ingest</label>
+          <select id="pf-ingest"><option value="">All</option></select>
+          <label for="pf-classify">Classify</label>
+          <select id="pf-classify"><option value="">All</option></select>
+          <label for="pf-extract">Extract</label>
+          <select id="pf-extract"><option value="">All</option></select>
+          <label for="pf-interpret">Interpret</label>
+          <select id="pf-interpret"><option value="">All</option></select>
+          <label for="pf-verify">Verify</label>
+          <select id="pf-verify"><option value="">All</option></select>
+          <label for="pf-search">Title</label>
+          <input type="text" id="pf-search" placeholder="search title…"/>
+          <button type="button" class="ph-clear" id="ph-clear">Clear filters</button>
+          <span class="ph-count" id="ph-count"></span>
+        </div>
+
+        <div th:if="${#lists.isEmpty(rows)}" class="empty-state">
+          <div class="title">No documents yet</div>
+          <div class="desc">Run Ingest on the Pipeline Runner page to bring in articles — they'll show up here with their status at every stage.</div>
+        </div>
+
+        <div class="data-table-wrap" th:unless="${#lists.isEmpty(rows)}"><div class="data-table-scroll">
+          <table class="data-table" id="ph-table">
+            <thead><tr>
+              <th>Doc</th><th>Title</th><th>Source</th>
+              <th>Ingest</th><th>Classify</th><th>Extract</th><th>Interpret</th><th>Verify</th>
+            </tr></thead>
+            <tbody>
+              <tr th:each="row : ${rows}"
+                  th:attr="data-source=${row.sourceCode},data-ingest=${row.ingestStatus},data-classify=${row.classifyStatus},data-extract=${row.extractStatus},data-interpret=${row.interpretStatus},data-verify=${row.verifyStatus},data-title=${#strings.toLowerCase(row.title)}">
+                <td><span class="code-chip code-chip-sm" th:text="'#' + ${row.docId}">#1</span></td>
+                <td th:text="${#strings.abbreviate(row.title, 80)}">Title</td>
+                <td><span class="code-chip code-chip-sm" th:text="${row.sourceCode}">SRC</span></td>
+                <td class="ph-cell" th:text="${row.ingestStatus}">OK</td>
+                <td class="ph-cell" th:text="${row.classifyStatus}">CONFIRMED</td>
+                <td class="ph-cell" th:text="${row.extractStatus}">OK</td>
+                <td class="ph-cell" th:text="${row.interpretStatus}">PASS</td>
+                <td class="ph-cell" th:text="${row.verifyStatus}">ENTAILED</td>
+              </tr>
+            </tbody>
+          </table>
+        </div></div>
+      </div>
+      </div><!-- /runner-content -->
+    </div>
+  </div>
+</div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+<script src="/js/ops-pipeline-guard.js"></script>
+<script>
+/* Batch 10 (feedback Hanh): status → color, purely by keyword — avoids hardcoding
+ * every possible status string (there are dozens across 5 stages) one by one. */
+(function () {
+  function classify(text) {
+    if (!text || text === '—') return 'badge-neutral';
+    if (/ERROR|REJECTED|FAIL|CONTRADICTED/.test(text)) return 'badge-danger';
+    if (/REVIEW|NEUTRAL|UNCERTAIN|NO_LABEL/.test(text)) return 'badge-warn';
+    if (/OK|PASS|CONFIRMED|ENTAILED|AUTO_APPROVED/.test(text)) return 'badge-success';
+    return 'badge-info';
+  }
+  document.querySelectorAll('td.ph-cell').forEach(function (td) {
+    var text = td.textContent.trim();
+    var span = document.createElement('span');
+    span.className = 'badge badge-sm ' + classify(text);
+    span.textContent = text;
+    td.textContent = '';
+    td.appendChild(span);
+  });
+})();
+
+/* Filter dropdowns: auto-populate options from the DISTINCT values actually present
+ * in each column (Hanh asked for "like Excel" per-column filtering) + free-text title search. */
+(function () {
+  var table = document.getElementById('ph-table');
+  if (!table) return;
+  var rows = Array.from(table.querySelectorAll('tbody tr'));
+  var cols = ['source', 'ingest', 'classify', 'extract', 'interpret', 'verify'];
+
+  cols.forEach(function (col) {
+    var select = document.getElementById('pf-' + col);
+    if (!select) return;
+    var values = Array.from(new Set(rows.map(function (r) { return r.dataset[col]; }))).sort();
+    values.forEach(function (v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      select.appendChild(opt);
+    });
+  });
+
+  function applyFilters() {
+    var filters = {};
+    cols.forEach(function (col) { filters[col] = document.getElementById('pf-' + col).value; });
+    var search = document.getElementById('pf-search').value.trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (row) {
+      var match = cols.every(function (col) { return !filters[col] || row.dataset[col] === filters[col]; })
+          && (!search || row.dataset.title.indexOf(search) !== -1);
+      row.classList.toggle('ph-hidden', !match);
+      if (match) shown++;
+    });
+    var countEl = document.getElementById('ph-count');
+    if (countEl) countEl.textContent = shown + ' / ' + rows.length + ' shown';
+  }
+
+  cols.forEach(function (col) {
+    var el = document.getElementById('pf-' + col);
+    if (el) el.addEventListener('change', applyFilters);
+  });
+  var searchEl = document.getElementById('pf-search');
+  if (searchEl) searchEl.addEventListener('input', applyFilters);
+  var clearBtn = document.getElementById('ph-clear');
+  if (clearBtn) clearBtn.addEventListener('click', function () {
+    cols.forEach(function (col) { document.getElementById('pf-' + col).value = ''; });
+    document.getElementById('pf-search').value = '';
+    applyFilters();
+  });
+  applyFilters();
+})();
+</script>
+</body>
+</html>

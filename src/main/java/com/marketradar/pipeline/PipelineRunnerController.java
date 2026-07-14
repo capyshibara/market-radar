@@ -91,6 +91,9 @@ public class PipelineRunnerController {
             j.put("error", s.error());
             j.put("elapsedSeconds", s.startedAt() == null ? null
                     : Duration.between(s.startedAt(), s.finishedAt() != null ? s.finishedAt() : java.time.Instant.now()).getSeconds());
+            PipelineRunStatusService.Progress p = status.getProgress(entry.getKey());
+            j.put("completed", p == null ? null : p.completed());
+            j.put("total", p == null ? null : p.total());
             out.put(entry.getKey(), j);
         }
         return out;

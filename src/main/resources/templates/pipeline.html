@@ -41,6 +41,13 @@
   .pl-legend { font-size: var(--text-xs); color: var(--text-tertiary); margin: 4px 0 18px; }
   .pl-legend dt { font-weight: 600; color: var(--text-secondary); display: inline; }
   .pl-legend dd { display: inline; margin: 0 18px 0 4px; }
+  .pl-progress { display: none; margin-top: 10px; }
+  .pl-progress .bar-track { height: 6px; border-radius: 999px; background: var(--surface-card-sunk);
+    overflow: hidden; }
+  .pl-progress .bar-fill { height: 100%; background: var(--blue-400, #5B8DEF); border-radius: 999px;
+    transition: width .3s ease; width: 0%; }
+  .pl-progress .bar-label { font-size: var(--text-2xs); color: var(--text-tertiary); margin-top: 4px;
+    font-family: monospace; }
 </style>
 </head>
 <body>
@@ -80,6 +87,10 @@
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/ingest"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
+        <div class="pl-progress" data-progress>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+          <div class="bar-label" data-progress-label></div>
+        </div>
         <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
@@ -93,6 +104,10 @@
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/classify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        </div>
+        <div class="pl-progress" data-progress>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+          <div class="bar-label" data-progress-label></div>
         </div>
         <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
@@ -108,6 +123,10 @@
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/extract"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
+        <div class="pl-progress" data-progress>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+          <div class="bar-label" data-progress-label></div>
+        </div>
         <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
@@ -122,6 +141,10 @@
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/interpret"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
         </div>
+        <div class="pl-progress" data-progress>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+          <div class="bar-label" data-progress-label></div>
+        </div>
         <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
@@ -135,6 +158,10 @@
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/verify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
+        </div>
+        <div class="pl-progress" data-progress>
+          <div class="bar-track"><div class="bar-fill"></div></div>
+          <div class="bar-label" data-progress-label></div>
         </div>
         <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
@@ -185,6 +212,9 @@
         var outWrap = row.querySelector('[data-output]');
         var outPre = outWrap.querySelector('pre');
         var btn = row.querySelector('button');
+        var progWrap = row.querySelector('[data-progress]');
+        var progFill = progWrap.querySelector('.bar-fill');
+        var progLabel = row.querySelector('[data-progress-label]');
 
         row.classList.remove('is-running', 'is-failed');
         badge.className = 'badge-status';
@@ -192,15 +222,27 @@
           anyRunning = true;
           row.classList.add('is-running');
           badge.classList.add('badge-running');
-          badge.textContent = 'RUNNING' + (s.elapsedSeconds != null ? ' · ' + fmtElapsed(s.elapsedSeconds) : '');
+          var pct = (s.total != null && s.total > 0) ? Math.round((s.completed / s.total) * 100) : null;
+          badge.textContent = 'RUNNING' + (pct != null ? ' · ' + pct + '%' : '')
+              + (s.elapsedSeconds != null ? ' · ' + fmtElapsed(s.elapsedSeconds) : '');
+          if (pct != null) {
+            progWrap.style.display = 'block';
+            progFill.style.width = pct + '%';
+            progLabel.textContent = s.completed + ' / ' + s.total + ' (' + pct + '%)';
+          } else {
+            progWrap.style.display = 'none';
+          }
         } else if (s.state === 'SUCCESS') {
+          progWrap.style.display = 'none';
           badge.classList.add('badge-success');
           badge.textContent = 'DONE · ' + fmtElapsed(s.elapsedSeconds);
         } else if (s.state === 'FAILED') {
+          progWrap.style.display = 'none';
           row.classList.add('is-failed');
           badge.classList.add('badge-failed');
           badge.textContent = 'FAILED';
         } else {
+          progWrap.style.display = 'none';
           badge.classList.add('badge-idle');
           badge.textContent = 'NOT RUN YET';
         }

@@ -23,8 +23,8 @@ public class Source {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private String fetchUrl;      // URL fetch trực tiếp (RSS feed / trang danh sách / PDF)
+    @Column(nullable = false, length = 1000)
+    private String fetchUrl;      // URL fetch trực tiếp (RSS feed / trang danh sách / PDF) — 1000: một số nguồn (vd MUNICHRE) dùng query string dài (AEM/GraphQL search params)
 
     @Column(nullable = false)
     private String allowedHost;   // host whitelist, exact match

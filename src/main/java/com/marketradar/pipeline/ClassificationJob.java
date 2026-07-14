@@ -7,9 +7,13 @@ import com.marketradar.classify.Router;
 import com.marketradar.classify.TopicClassifier;
 import com.marketradar.dedup.DedupJob;
 import com.marketradar.domain.Classification;
+import com.marketradar.domain.PipelineItemLog;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.repo.ClassificationRepository;
+import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.repo.RawDocRepository;
+
+import java.util.List;
 
 /**
  * Bước 4 pipeline: phân loại (AI#1) + routing (bảng tra) cho các RawDoc
@@ -29,14 +33,19 @@ public class ClassificationJob {
     private final TopicClassifier classifier;
     private final Router router;
     private final DedupJob dedupJob;
+    private final PipelineRunStatusService progress;
+    private final PipelineItemLogRepository itemLogs;
 
     public ClassificationJob(RawDocRepository rawDocs, ClassificationRepository classifications,
-                             TopicClassifier classifier, Router router, DedupJob dedupJob) {
+                             TopicClassifier classifier, Router router, DedupJob dedupJob,
+                             PipelineRunStatusService progress, PipelineItemLogRepository itemLogs) {
         this.rawDocs = rawDocs;
         this.classifications = classifications;
         this.classifier = classifier;
         this.router = router;
         this.dedupJob = dedupJob;
+        this.progress = progress;
+        this.itemLogs = itemLogs;
     }
 
     /**
@@ -50,9 +59,18 @@ public class ClassificationJob {
     public String runOnce() {
         String dedupSummary = dedupJob.runOnce();
 
+        List<RawDoc> all = rawDocs.findAll();
+        long eligible = all.stream()
+                .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
+                .filter(d -> d.getDuplicateOfId() == null)
+                .filter(d -> !classifications.existsByRawDoc(d))
+                .count();
+        progress.startProgress("classify", (int) eligible);
+        Long runLogId = progress.currentRunLogId("classify");
+
         int done = 0, skipped = 0, skippedDuplicate = 0;
         StringBuilder summary = new StringBuilder();
-        for (RawDoc doc : rawDocs.findAll()) {
+        for (RawDoc doc : all) {
             if (doc.getParseStatus() != RawDoc.ParseStatus.OK) { skipped++; continue; }
             if (doc.getDuplicateOfId() != null) { skippedDuplicate++; continue; }
             if (classifications.existsByRawDoc(doc)) { skipped++; continue; }
@@ -65,16 +83,25 @@ public class ClassificationJob {
                        .append(c.getStatus()).append(' ').append(c.getLabels())
                        .append(" → ").append(c.getRoutingStatus())
                        .append(' ').append(c.getDepartments()).append('\n');
+                logItem(runLogId, doc, c.getStatus().name(), c.getLabels() + " → " + c.getRoutingStatus());
             } catch (Exception e) {
                 log.error("Classify lỗi doc#{}", doc.getId(), e);
                 summary.append("doc#").append(doc.getId()).append(": ERROR — ")
                        .append(e.getMessage()).append('\n');
+                logItem(runLogId, doc, "ERROR", e.getMessage());
             }
+            progress.stepProgress("classify");
         }
         summary.insert(0, "Classified " + done + " doc(s), skipped " + skipped
                 + " (already classified/parse error), skipped " + skippedDuplicate
                 + " (duplicate — filtered by dedup before costing an LLM call)\n"
                 + "--- Dedup (runs before classify) ---\n" + dedupSummary + "---\n");
         return summary.toString();
+    }
+
+    private void logItem(Long runLogId, RawDoc doc, String status, String message) {
+        if (runLogId == null) return;
+        itemLogs.save(new PipelineItemLog(runLogId, PipelineItemLog.ItemType.RAW_DOC,
+                String.valueOf(doc.getId()), doc.getTitle(), doc.getId(), status, message));
     }
 }

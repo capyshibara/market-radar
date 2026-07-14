@@ -13,9 +13,12 @@ import com.marketradar.domain.RawDoc;
 import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
+import com.marketradar.domain.PipelineItemLog;
+import com.marketradar.pipeline.PipelineRunStatusService;
 import com.marketradar.repo.ClassificationRepository;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.LlmCallLogRepository;
+import com.marketradar.repo.PipelineItemLogRepository;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -87,15 +90,20 @@ public class FactExtractionJob {
     private final LlmClient llm;   // WRITER (@Primary)
     private final ObjectMapper mapper = new ObjectMapper();
     private final boolean replayCache;
+    private final PipelineRunStatusService progress;
+    private final PipelineItemLogRepository itemLogs;
 
     public FactExtractionJob(ClassificationRepository classifications, EvidenceFactRepository facts,
                              LlmCallLogRepository callLog, LlmClient llm,
-                             @Value("${marketradar.llm.replay-cache:true}") boolean replayCache) {
+                             @Value("${marketradar.llm.replay-cache:true}") boolean replayCache,
+                             PipelineRunStatusService progress, PipelineItemLogRepository itemLogs) {
         this.classifications = classifications;
         this.facts = facts;
         this.callLog = callLog;
         this.llm = llm;
         this.replayCache = replayCache;
+        this.progress = progress;
+        this.itemLogs = itemLogs;
     }
 
     public String runOnce() {
@@ -108,6 +116,15 @@ public class FactExtractionJob {
                 .filter(c -> c.getStatus() == Classification.Status.CONFIRMED)
                 .toList();
         if (confirmed.isEmpty()) return "No CONFIRMED docs yet — run Classify first.\n";
+
+        long eligible = confirmed.stream()
+                .map(Classification::getRawDoc)
+                .filter(d -> d.getDuplicateOfId() == null)
+                .filter(d -> d.getRawText() != null && !d.getRawText().isBlank())
+                .filter(d -> !facts.existsByRawDoc(d))
+                .count();
+        progress.startProgress("extract", (int) eligible);
+        Long runLogId = progress.currentRunLogId("extract");
 
         StringBuilder sb = new StringBuilder();
         int docsDone = 0, docsSkipped = 0, factsSaved = 0, spansRejected = 0;
@@ -125,6 +142,8 @@ public class FactExtractionJob {
                 log.error("EXTRACT lỗi LLM doc#{}: {}", doc.getId(), e.getMessage());
                 sb.append("doc#").append(doc.getId()).append(": LLM_ERROR — ")
                   .append(e.getMessage()).append('\n');
+                logItem(runLogId, doc, "LLM_ERROR", e.getMessage());
+                progress.stepProgress("extract");
                 continue;
             }
 
@@ -132,6 +151,8 @@ public class FactExtractionJob {
             spansRejected += pr.rejected;
             if (pr.schemaRejected) {
                 sb.append("doc#").append(doc.getId()).append(": SCHEMA_REJECTED (output was not valid JSON)\n");
+                logItem(runLogId, doc, "SCHEMA_REJECTED", "output was not valid JSON");
+                progress.stepProgress("extract");
                 continue;
             }
             for (EvidenceFact f : pr.accepted) {
@@ -143,6 +164,9 @@ public class FactExtractionJob {
               .append(" fact").append(pr.rejected > 0 ? " (" + pr.rejected + " span rejected — not verbatim)" : "")
               .append(" — ").append(truncate(doc.getTitle(), 60)).append('\n');
             log.info("Extract doc#{} → +{} fact, {} span rejected", doc.getId(), pr.accepted.size(), pr.rejected);
+            logItem(runLogId, doc, "OK", "+" + pr.accepted.size() + " fact"
+                    + (pr.rejected > 0 ? " (" + pr.rejected + " span rejected)" : ""));
+            progress.stepProgress("extract");
         }
 
         sb.insert(0, "Extracted " + docsDone + " doc(s) (+" + factsSaved + " fact(s), "
@@ -290,6 +314,12 @@ public class FactExtractionJob {
             case REGULATION -> "Regulation";
             case METRIC -> "Metric";
         };
+    }
+
+    private void logItem(Long runLogId, RawDoc doc, String status, String message) {
+        if (runLogId == null) return;
+        itemLogs.save(new PipelineItemLog(runLogId, PipelineItemLog.ItemType.RAW_DOC,
+                String.valueOf(doc.getId()), doc.getTitle(), doc.getId(), status, message));
     }
 
     private static String text(JsonNode n, String field) {

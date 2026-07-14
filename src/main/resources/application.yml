@@ -29,7 +29,10 @@ marketradar:
     #     Gemini:  base-url=https://generativelanguage.googleapis.com/v1beta/openai  model=gemini-2.5-flash
     # KHÔNG hardcode key vào file này.
     base-url: ""
-    model: claude-sonnet-4-6      # đổi được; lưu ý model Opus 4.7+ từ chối temperature
+    model: claude-haiku-4-5-20251001  # 2026-07-14: đổi từ claude-sonnet-4-6 sang Haiku — ngân sách hạn chế,
+                                       # task Interpret/Extract có schema hẹp (điền slot theo template, không
+                                       # sáng tác tự do) nên model nhỏ hơn vẫn đủ; đổi lại Sonnet nếu chất lượng
+                                       # không đạt. Lưu ý model Opus 4.7+ từ chối temperature.
     # Fix 2026-07-13: 1024 (batch 3, tune cho 1 câu interpreter) quá thấp cho AI#2 extractor
     # (batch 8, thêm sau) — 1 doc có thể sinh tới 5 fact, mỗi fact có span+company+product+
     # date+2 summary → response bị CẮT GIỮA CHỪNG (JSON dở dang) → 100% SCHEMA_REJECTED.
