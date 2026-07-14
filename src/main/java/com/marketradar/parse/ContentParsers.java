@@ -1415,6 +1415,48 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Income Insurance / NTUC Income (income.com.sg) — trang /about-us/corporate-information/
+     * press-releases, server-rendered, không cần API. Mỗi tin là {@code <div class=
+     * "press-release-item"><div class="press-release-item-content"><p>d MMMM yyyy</p>
+     * <p>Title</p></div><a href="...">Read More</a></div>} — link là SIBLING của content div,
+     * không nằm trong đó. Ngày cùng định dạng "d MMMM yyyy" (dùng lại AIA_HK_FMT).
+     * Fix 2026-07-14 (Hanh: tiếp tục Đông Nam Á — Singapore).
+     */
+    public List<ListingItem> parseIncomeSg(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements items0 = doc.select("div.press-release-item");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element item : items0) {
+                Elements ps = item.select(".press-release-item-content > p");
+                Element a = item.selectFirst("a[href]");
+                if (ps.size() < 2 || a == null) continue;
+                String title = ps.get(1).text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                String dateText = ps.get(0).text().strip();
+                if (!dateText.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateText, AIA_HK_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("INCOME_SG: không parse được ngày '{}' — publishedAt để null", dateText);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("INCOME_SG: không tìm thấy div.press-release-item nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse INCOME_SG: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);

@@ -450,6 +450,9 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("GREAT_EASTERN", "Great Eastern",
                 "https://www.greateasternlife.com/sg/en/about-us/media-centre/media-releases.html",
                 "www.greateasternlife.com", Source.SourceType.HTML, 2, "en"));
+        // Parser added 2026-07-14 (parseIncomeSg): server-rendered, no API needed.
+        // div.press-release-item, date+title as sibling <p>, link as sibling <a>.
+        // Verified live: 10 items, real dates through June 2026.
         sources.save(new Source("INCOME_SG", "Income (NTUC)",
                 "https://www.income.com.sg/about-us/corporate-information/press-releases",
                 "www.income.com.sg", Source.SourceType.HTML, 2, "en"));
