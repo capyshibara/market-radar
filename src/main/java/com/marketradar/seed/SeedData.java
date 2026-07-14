@@ -68,9 +68,17 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.JSON, 1, "vi"));
         // Collision check 2026-07-05: registry's "root" URL is a meta-refresh redirect TO this exact
         // deep path — current seed is already the real target. No change.
+        // Fix 2026-07-14 (3 lần dò): homepage là Vue SPA rỗng. Lần 1 (itemId=914 "时政要闻") ra
+        // tin thời sự chung, link NGOÀI ra gov.cn — không dùng. Lần 2 (itemId=950 "征求意见")
+        // đúng nội dung NFRA nhưng chỉ có file .doc/.pdf, không trang HTML — không dùng. Lần 3
+        // (itemId=915 "监管动态" — Động thái giám sát): đúng nội dung THẬT của NFRA (họp báo,
+        // gặp cơ quan giám sát bảo hiểm nước ngoài, hướng dẫn AI ngân hàng/bảo hiểm), có trang
+        // HTML chi tiết đầy đủ. Endpoint GET .../SelectDocByItemIdAndChild/data_itemId=915,...
+        // bắt được từ đúng trang danh mục (không phải trang chủ — trang chủ chỉ gọi itemId=914).
+        // parseNfraCn(). Verified server-side: 18/4855 items, real dates through July 2026.
         nfra = sources.save(new Source("NFRA_CN", "国家金融监督管理总局 (NFRA)",
-                "https://www.nfra.gov.cn/cn/view/pages/index/index.html", "www.nfra.gov.cn",
-                Source.SourceType.HTML, 1, "zh"));
+                "https://www.nfra.gov.cn/cn/static/data/DocInfo/SelectDocByItemIdAndChild/data_itemId=915,pageIndex=1,pageSize=18.json",
+                "www.nfra.gov.cn", Source.SourceType.JSON, 1, "zh"));
         // Collision check 2026-07-05: registry's URL differs only by trailing slash, both live,
         // identical content. No functional difference — no change.
         sources.save(new Source("IAV_VN", "Hiệp hội Bảo hiểm Việt Nam",

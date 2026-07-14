@@ -58,6 +58,9 @@ public class ContentParsers {
     private static final DateTimeFormatter HKIA_FMT = DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH);
     // AIA Hong Kong: "9 July 2026" — d MMMM yyyy (tên tháng đầy đủ tiếng Anh).
     private static final DateTimeFormatter AIA_HK_FMT = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+    // NFRA (Trung Quốc): "2026-07-10 17:55:33" — CÁCH nhau bằng dấu cách, không phải "T" nên
+    // LocalDateTime.parse() mặc định (ISO_LOCAL_DATE_TIME) KHÔNG đọc được, cần formatter riêng.
+    private static final DateTimeFormatter NFRA_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -1271,6 +1274,57 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("NIPPON_LIFE: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /**
+     * NFRA Trung Quốc (nfra.gov.cn) — regulator ngân hàng+bảo hiểm hợp nhất. Trang chủ SPA
+     * (Vue), HTML tĩnh gần rỗng. Đã thử 2 chuyên mục KHÔNG phù hợp trước khi tìm ra đúng:
+     *  • itemId=914 "时政要闻" (tin thời sự) — link ra NGOÀI gov.cn, không phải nội dung NFRA.
+     *  • itemId=950 "征求意见" (dự thảo lấy ý kiến) — chỉ có file .doc/.pdf, không có trang HTML.
+     * ĐÚNG: itemId=915 "监管动态" (Động thái giám sát) — nội dung THẬT của NFRA (họp báo, gặp
+     * cơ quan giám sát bảo hiểm nước ngoài, hướng dẫn AI ngân hàng/bảo hiểm...), endpoint
+     * GET /cn/static/data/DocInfo/SelectDocByItemIdAndChild/data_itemId=915,pageIndex=1,
+     * pageSize=18.json — bắt được bằng cách mở ĐÚNG trang danh mục (không phải trang chủ) và
+     * xem network tab, vì trang chủ chỉ gọi itemId=914. isTitleLink="0" (không có titleLink) →
+     * URL chi tiết build bằng tay: ItemDetail.html?docId={docId}&amp;itemId=915 (mẫu bắt được
+     * từ href thật trên trang, xác nhận live 200). publishDate "yyyy-MM-dd HH:mm:ss" (dấu cách,
+     * không phải "T" — cần NFRA_FMT riêng).
+     * Fix 2026-07-14 (Hanh: tiếp tục Trung Quốc — regulator T1, lần dò thứ 3 mới ra).
+     */
+    public List<ListingItem> parseNfraCn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode rows = JSON.readTree(body).path("data").path("rows");
+            if (!rows.isArray() || rows.isEmpty()) {
+                throw new ParseFailedException("NFRA_CN: JSON không có data.rows — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : rows) {
+                long docId = n.path("docId").asLong(-1);
+                String title = n.path("docTitle").asText("").strip().replace("\n", " ");
+                if (docId < 0 || title.isBlank()) continue;
+                Instant publishedAt = null;
+                String dateStr = n.path("publishDate").asText("").strip();
+                if (!dateStr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDateTime.parse(dateStr, NFRA_FMT).atZone(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("NFRA_CN: không parse được ngày '{}' — publishedAt để null", dateStr);
+                    }
+                }
+                items.add(new ListingItem(title,
+                        origin + "/cn/view/pages/ItemDetail.html?docId=" + docId + "&itemId=915", publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("NFRA_CN: 'rows' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("NFRA_CN: lỗi parse response: " + e.getMessage());
         }
     }
 

@@ -144,6 +144,11 @@ public class IngestionJob {
                         SafeFetcher.ExpectedKind.JSON);
                 yield ingestListing(source, parsers.parseNipponLife(result.body(), source.getFetchUrl()));
             }
+            case "NFRA_CN" -> {
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON);
+                yield ingestListing(source, parsers.parseNfraCn(result.body(), source.getFetchUrl()));
+            }
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };
