@@ -49,6 +49,9 @@ public class ContentParsers {
     private static final DateTimeFormatter IAV_FMT_VI = DateTimeFormatter.ofPattern("dd/MM/yyyy h:mm:ss a", Locale.ENGLISH);
     private static final DateTimeFormatter AIA_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter PRU_FMT = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH);
+    // Chubb "vn-en" press page is the ENGLISH/US edition — dates confirmed MM/dd/yyyy
+    // (xác nhận qua item "09/22/2023": ngày 22 không thể là tháng → thứ tự phải là MM/dd).
+    private static final DateTimeFormatter CHUBB_FMT = DateTimeFormatter.ofPattern("MM/dd/yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -422,6 +425,92 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse FUBON_VN: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Chubb Life Việt Nam (chubb.com/vn-en) — trang "Press Release", server-rendered.
+     * Cấu trúc xác nhận qua fetch trực tiếp 2026-07-14: mỗi tin là
+     * {@code <li class="news-list"><span class="news-time">MM/dd/yyyy</span>
+     * <div class="news-content"><p><a href="...">Title</a></p></div></li>}.
+     * Bản tiếng Anh (vn-en) → ngày kiểu Mỹ MM/dd/yyyy (xác nhận qua item "09/22/2023" —
+     * 22 không thể là tháng). Link trỏ ra NGOÀI host (chubb.mediaroom.com) — ingestListing
+     * tự động rơi về title-only (vẫn có ngày thật để lọc), không mở rộng whitelist.
+     */
+    public List<ListingItem> parseChubbVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements items = doc.select("li.news-list");
+            List<ListingItem> result = new ArrayList<>();
+            for (Element item : items) {
+                Element a = item.selectFirst(".news-content a");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Element dateEl = item.selectFirst(".news-time");
+                Instant publishedAt = null;
+                if (dateEl != null) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateEl.text().strip(), CHUBB_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("CHUBB_VN: không parse được ngày '{}' — publishedAt để null", dateEl.text());
+                    }
+                }
+                result.add(new ListingItem(title, link, publishedAt));
+            }
+            if (result.isEmpty()) {
+                throw new ParseFailedException("CHUBB_VN: không tìm thấy li.news-list nào — cấu trúc trang có thể đã đổi");
+            }
+            return result;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse CHUBB_VN: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Thời báo Ngân hàng (thoibaonganhang.vn) — trang chủ, server-rendered, KHÔNG có
+     * chuyên mục bảo hiểm riêng nên lấy trang chủ (Classifier lọc liên quan sau).
+     * Cấu trúc xác nhận qua fetch trực tiếp 2026-07-14: mỗi tin là
+     * {@code <div id="article-NNN" class="article"><h3 class="article-title">
+     * <a class="article-link" href="...">Title</a></h3>...
+     * <span class="format_date">dd/MM/yyyy</span>...</div>}. Một số item (banner/không tin)
+     * thiếu format_date → publishedAt null, giữ nguyên chính sách nullable-date.
+     */
+    public List<ListingItem> parseTbnh(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements items = doc.select("div.article[id^=article-]");
+            List<ListingItem> result = new ArrayList<>();
+            for (Element item : items) {
+                Element a = item.selectFirst("h3.article-title a.article-link");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Element dateEl = item.selectFirst("span.format_date");
+                Instant publishedAt = null;
+                if (dateEl != null) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateEl.text().strip(), AIA_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("TBNH: không parse được ngày '{}' — publishedAt để null", dateEl.text());
+                    }
+                }
+                result.add(new ListingItem(title, link, publishedAt));
+            }
+            if (result.isEmpty()) {
+                throw new ParseFailedException("TBNH: không tìm thấy div.article[id^=article-] nào — cấu trúc trang có thể đã đổi");
+            }
+            return result;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse TBNH: " + e.getMessage());
         }
     }
 

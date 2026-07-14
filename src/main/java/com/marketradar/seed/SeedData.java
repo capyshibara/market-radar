@@ -208,6 +208,9 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "vi"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // press-release page found live: chubb.com/vn-en/media-centre/press-release.html.
+        // Parser added same day (parseChubbVn): server-rendered li.news-list, MM/dd/yyyy dates
+        // (US edition). Article hrefs point to chubb.mediaroom.com (outside allowedHost) —
+        // ingestListing falls back to title-only, still carries the real publish date.
         sources.save(new Source("CHUBB_VN", "Chubb Life Việt Nam",
                 "https://www.chubb.com/vn-en/media-centre/press-release.html", "www.chubb.com",
                 Source.SourceType.HTML, 2, "vi"));
@@ -236,6 +239,9 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("VNECONOMY", "VnEconomy",
                 "https://vneconomy.vn/", "vneconomy.vn",
                 Source.SourceType.HTML, 2, "vi"));
+        // Parser added 2026-07-14 (parseTbnh): homepage is server-rendered, div.article[id^=article-]
+        // with dd/MM/yyyy dates (49/75 items dated same-page). No insurance-only section confirmed —
+        // homepage kept as fetchUrl; Classifier (AI#1) filters relevance downstream as usual.
         sources.save(new Source("TBNH", "Thời báo Ngân hàng",
                 "https://thoibaonganhang.vn/", "thoibaonganhang.vn",
                 Source.SourceType.HTML, 2, "vi"));
