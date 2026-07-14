@@ -369,8 +369,12 @@ public class SeedData implements CommandLineRunner {
         // Fix 2026-07-14: old host redirected (english.fss.or.kr → www.fss.or.kr) — Track 2
         // 2026-07-05 flagged the host change but left it unfixed. Switched fetchUrl+allowedHost
         // directly to the redirect target, confirmed live 200 with no further redirect.
+        // Fix 2026-07-14 (Case: find-the-news-URL, second pass): homepage only embeds a 3-item
+        // preview widget; the dedicated listing page is server-rendered with 10 items in a plain
+        // HTML table (no API needed — different CMS from FSC_KR's mini-BBS JSON). parseFssKr():
+        // tr:has(td.title), date via regex over row text (no dedicated date column class).
         sources.save(new Source("FSS_KR", "Financial Supervisory Service (Korea)",
-                "https://www.fss.or.kr/eng/main/main.do?menuNo=400000", "www.fss.or.kr",
+                "https://www.fss.or.kr/eng/bbs/B0000211/list.do?menuNo=400010", "www.fss.or.kr",
                 Source.SourceType.HTML, 1, "en"));
         // Track 2 fix 2026-07-05: 302 → /static/CM_CC00001_P10000.html (same host).
         sources.save(new Source("HANWHA_GLOBAL", "Hanwha Life (global)",

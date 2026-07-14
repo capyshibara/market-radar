@@ -69,6 +69,7 @@ public class ContentParsers {
     private static final DateTimeFormatter BIDV_FMT = new DateTimeFormatterBuilder()
             .parseCaseInsensitive().appendPattern("MMM d, yyyy").toFormatter(Locale.ENGLISH);
     private static final java.util.regex.Pattern DDMMYYYY = java.util.regex.Pattern.compile("(\\d{2}/\\d{2}/\\d{4})");
+    private static final java.util.regex.Pattern ISO_YMD = java.util.regex.Pattern.compile("(20\\d{2}-\\d{2}-\\d{2})");
 
     /** HTML → text thuần + title. */
     public ParsedText parseHtml(byte[] body) throws ParseFailedException {
@@ -1183,6 +1184,49 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("FSC_KR: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Financial Supervisory Service Korea / FSS_KR (fss.or.kr) — nguồn KHÁC FSC_KR (regulator
+     * riêng, nền tảng CMS khác — bảng &lt;table&gt; egovframework thường gặp, không phải mini-BBS
+     * JSON). Trang chủ chỉ có 3 tin (widget preview) nhưng trang danh sách đầy đủ
+     * /eng/bbs/B0000211/list.do?menuNo=400010 server-rendered SẴN 10 tin trong bảng:
+     * {@code <tr><td>cate</td><td>cate2</td><td class="title"><a href="...">Title</a></td>
+     * <td>yyyy-MM-dd</td>...</tr>}. Ngày không có class riêng — lấy bằng regex trên text() cả
+     * hàng (ổn định hơn dò đúng cột thứ mấy, tránh vỡ khi số cột đổi).
+     * Fix 2026-07-14 (Hanh: tiếp tục Hong Kong/Korea/Japan — regulator T1 Korea, nguồn thứ 2).
+     */
+    public List<ListingItem> parseFssKr(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements rows = doc.select("tr:has(td.title)");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element row : rows) {
+                Element a = row.selectFirst("td.title a");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                var m = ISO_YMD.matcher(row.text());
+                if (m.find()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(m.group(1)).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("FSS_KR: không parse được ngày '{}' — publishedAt để null", m.group(1));
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("FSS_KR: không tìm thấy tr:has(td.title) nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse FSS_KR: " + e.getMessage());
         }
     }
 
