@@ -67,6 +67,8 @@ public class ContentParsers {
     private static final DateTimeFormatter NAIC_FMT = DateTimeFormatter.ofPattern("MMM'.' d, yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern NAIC_DATE_PATTERN =
             java.util.regex.Pattern.compile("(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\. \\d{1,2}, \\d{4}");
+    // Munich Re: "May 12, 2026" / "September 07, 2025" (ngày có/không số 0 đệm đều gặp).
+    private static final DateTimeFormatter MUNICHRE_FMT = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -1595,6 +1597,49 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse NAIC: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Munich Re (munichre.com) — trang /en/company/media-relations/media-information-and-
+     * corporate-news/media-information.html, AEM. Trang tự nó gần rỗng (chỉ nav), nội dung nạp
+     * qua GET .../_jcr_content.fulltextsearch.json?...&amp;sorting=publicationDateDesc&amp;
+     * pageCategoryTag=munichre-apps:page-type-press-release&amp;rows=30 — endpoint tìm thấy từ
+     * fetchUrl gốc là trang chủ (không phải trang tin), phải mở ĐÚNG trang media-information rồi
+     * xem network tab mới ra. Response {"response":[{"title","targetUrl" (đã tuyệt đối),
+     * "publicationDate":"MMMM d, yyyy"}]}.
+     * Fix 2026-07-14 (Hanh: tiếp tục cụm US/global).
+     */
+    public List<ListingItem> parseMunichRe(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode resp = JSON.readTree(body).path("response");
+            if (!resp.isArray() || resp.isEmpty()) {
+                throw new ParseFailedException("MUNICHRE: JSON không có mảng 'response' — endpoint có thể đã đổi");
+            }
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : resp) {
+                String title = n.path("title").asText("").strip();
+                String link = n.path("targetUrl").asText("").strip();
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                String dateStr = n.path("publicationDate").asText("").strip();
+                if (!dateStr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateStr, MUNICHRE_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("MUNICHRE: không parse được ngày '{}' — publishedAt để null", dateStr);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("MUNICHRE: 'response' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("MUNICHRE: lỗi parse response: " + e.getMessage());
         }
     }
 

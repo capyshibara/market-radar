@@ -529,9 +529,17 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("SWISSRE_INST", "Swiss Re Institute (Sigma)",
                 "https://www.swissre.com/institute/research/sigma-research.html", "www.swissre.com",
                 Source.SourceType.HTML, 2, "en"));
+        // Fix 2026-07-14 (Case: find-the-news-URL): old fetchUrl was the homepage (no articles).
+        // Found the real media-information page via its nav, but even THAT page's HTML is nearly
+        // empty (nav only) — content loads via GET .../_jcr_content.fulltextsearch.json (AEM
+        // search API), found by opening the actual page (not the homepage) and reading its
+        // network tab. parseMunichRe(). Verified server-side: 15 items, real dates through May 2026.
         sources.save(new Source("MUNICHRE", "Munich Re",
-                "https://www.munichre.com/en.html", "www.munichre.com",
-                Source.SourceType.HTML, 2, "en"));
+                "https://www.munichre.com/en/company/media-relations/media-information-and-corporate-news/media-information/_jcr_content.fulltextsearch.json"
+                        + "?result_type=pages&start=0&sorting=publicationDateDesc"
+                        + "&contentPaths=/content/munichre/mrwebsites/corporate/en/company/media-relations/media-information-and-corporate-news/media-information"
+                        + "&pageCategoryTag=munichre-apps:page-type-press-release&pdfviewer=false&rows=25&ispcs=true",
+                "www.munichre.com", Source.SourceType.JSON, 2, "en"));
         sources.save(new Source("LIMRA", "LIMRA",
                 "https://www.limra.com/", "www.limra.com",
                 Source.SourceType.HTML, 2, "en"));
