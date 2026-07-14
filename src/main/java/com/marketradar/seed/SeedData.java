@@ -323,6 +323,9 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("HKIA", "Insurance Authority (Hong Kong)",
                 "https://www.ia.org.hk/en/infocenter/press_releases.php", "www.ia.org.hk",
                 Source.SourceType.JSON, 1, "en"));
+        // Parser added 2026-07-14 (parseAiaHk): AEM server-rendered (cmp-promotioncard, same
+        // platform as AIA_VN), but unlike AIA_VN the date IS in the static HTML here — no year-
+        // from-URL fallback needed. Verified live: 314 items, real dates through July 2026.
         sources.save(new Source("AIA_HK", "AIA Group HK",
                 "https://www.aia.com.hk/en/about-aia/about-us/media-centre/press-releases",
                 "www.aia.com.hk", Source.SourceType.HTML, 2, "en"));

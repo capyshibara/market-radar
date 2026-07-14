@@ -56,6 +56,8 @@ public class ContentParsers {
     private static final DateTimeFormatter PHU_HUNG_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ENGLISH);
     // HKIA (Hong Kong): "8/7/2026" — d/M/yyyy KHÔNG số 0 đệm đầu (khác AIA_FMT dd/MM/yyyy).
     private static final DateTimeFormatter HKIA_FMT = DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH);
+    // AIA Hong Kong: "9 July 2026" — d MMMM yyyy (tên tháng đầy đủ tiếng Anh).
+    private static final DateTimeFormatter AIA_HK_FMT = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -1090,6 +1092,50 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("HKIA: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /**
+     * AIA Group HK (aia.com.hk) — trang /en/about-aia/about-us/media-centre/press-releases,
+     * AEM server-rendered (cùng nền tảng AIA_VN — cmp-promotioncard — nhưng ở đây HTML tĩnh CÓ
+     * đủ dữ liệu, không cần fallback năm-từ-URL như AIA_VN). Mỗi tin là
+     * {@code <div class="cmp-promotioncard cmp-promotioncard__hk-card"><a class=
+     * "cmp-promotioncard__link" href="..."><div class="cmp-promotioncard__title...">Title</div>
+     * <div class="cmp-promotioncard__date">d MMMM yyyy</div></a></div>}.
+     * Fix 2026-07-14 (Hanh: tiếp tục Hong Kong/Korea/Japan).
+     */
+    public List<ListingItem> parseAiaHk(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements cards = doc.select("div.cmp-promotioncard__hk-card");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element card : cards) {
+                Element a = card.selectFirst("a.cmp-promotioncard__link");
+                Element titleEl = card.selectFirst(".cmp-promotioncard__title");
+                if (a == null || titleEl == null) continue;
+                String title = titleEl.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                Element dateEl = card.selectFirst(".cmp-promotioncard__date");
+                if (dateEl != null) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateEl.text().strip(), AIA_HK_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("AIA_HK: không parse được ngày '{}' — publishedAt để null", dateEl.text());
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("AIA_HK: không tìm thấy cmp-promotioncard__hk-card nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse AIA_HK: " + e.getMessage());
         }
     }
 
