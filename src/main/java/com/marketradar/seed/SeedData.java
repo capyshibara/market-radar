@@ -489,11 +489,18 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 1, "en");
         icPh.setActive(false);
         sources.save(icPh);
-        sources.save(new Source("THAILIFE_TH", "Thai Life",
+        // Track 2 recheck 2026-07-14: Incapsula WAF block ("This page can't be displayed... WAF 1")
+        // with BOTH our UA and a full browser UA — genuine bot-protection, not UA-specific (unlike
+        // MAS_SG). Deactivate.
+        Source thailifeTh = new Source("THAILIFE_TH", "Thai Life",
                 "https://www.thailife.com/en/media-centre/news/", "www.thailife.com",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 2, "en");
+        thailifeTh.setActive(false);
+        sources.save(thailifeTh);
         // Fix 2026-07-14: old path 404, redirects to /en/about-us/newsroom/ (Track 2 2026-07-05
         // flagged, not yet fixed then) — used the exact redirect target directly, confirmed live 200.
+        // Same AEM Prudential platform as PRU_HK, byte-identical card structure — reuses
+        // parsePruHk() directly, no new parser needed. Verified live: 211 items, ~50 from 2025-2026.
         sources.save(new Source("PRULIFE_PH", "Pru Life UK (Philippines)",
                 "https://www.prulifeuk.com.ph/en/about-us/newsroom/", "www.prulifeuk.com.ph",
                 Source.SourceType.HTML, 2, "en"));

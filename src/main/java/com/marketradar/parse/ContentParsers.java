@@ -1021,6 +1021,9 @@ public class ContentParsers {
      * (115 bài, 2018–2026, không sắp theo thời gian) — phần lớn sẽ bị bộ lọc độ mới loại đúng,
      * chỉ ~26 bài 2025–2026 lọt qua, đúng như thiết kế (không phải bug).
      * Fix 2026-07-14 (Hanh: mở rộng sang khu vực — Hong Kong).
+     * Tái dùng nguyên vẹn cho PRULIFE_PH (prulifeuk.com.ph — cùng nền tảng AEM Prudential,
+     * cùng cấu trúc data-date/article-heading/cta-button hệt nhau, xác nhận live: 211 bài,
+     * ~50 bài 2025–2026) — không cần parser riêng.
      */
     public List<ListingItem> parsePruHk(byte[] body, String baseUrl) throws ParseFailedException {
         try {

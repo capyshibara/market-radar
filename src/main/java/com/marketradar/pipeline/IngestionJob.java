@@ -250,6 +250,7 @@ public class IngestionJob {
             case "MB_AGEAS" -> ingestListing(source, parsers.parseMbAgeasPress(result.body(), source.getFetchUrl()));
             case "HANWHA_VN" -> ingestListing(source, parsers.parseHanwhaVn(result.body(), source.getFetchUrl()));
             case "PRU_HK" -> ingestListing(source, parsers.parsePruHk(result.body(), source.getFetchUrl()));
+            case "PRULIFE_PH" -> ingestListing(source, parsers.parsePruHk(result.body(), source.getFetchUrl()));
             case "AIA_HK" -> ingestListing(source, parsers.parseAiaHk(result.body(), source.getFetchUrl()));
             case "FSS_KR" -> ingestListing(source, parsers.parseFssKr(result.body(), source.getFetchUrl()));
             case "CHINALIFE_HK" -> ingestListing(source, parsers.parseChinaLifeHk(result.body(), source.getFetchUrl()));
