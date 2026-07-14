@@ -204,9 +204,19 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("FUBON_VN", "Fubon Việt Nam",
                 "https://www.fubonlife.com.vn/tin-tuc.html?tab=5", "www.fubonlife.com.vn",
                 Source.SourceType.HTML, 2, "vi"));
+        // Fix 2026-07-14 (Case: find-the-news-URL): root "/" is just a meta-refresh stub
+        // (474 bytes) to /cathay/ (Vue SPA, same host — no allowedHost change needed). The
+        // TSPD scripts on this site are perf-monitoring, NOT a hard bot-block (confirmed: page
+        // loads fine in a real browser with no challenge). News nav -> /cathay/news, itself a
+        // Vue SPA route with no static articles; its widget calls a GraphQL API
+        // (POST /cathay/api/graphql) whose exact query was captured by patching window.fetch and
+        // clicking the real category tab in a browser (not guessed). parseCathayVn: "content"
+        // field is a nested JSON string ({"vi_VN":{"title":...}}, like MOF's articleContent),
+        // posted_at is clean "yyyy-MM-dd". Detail link = /cathay/news-detail?news_id={id} (Vue
+        // Router route name, confirmed live 200). Verified server-side with crawler UA: 15 items.
         sources.save(new Source("CATHAY_VN", "Cathay Life Việt Nam",
-                "https://www.cathaylife.com.vn/", "www.cathaylife.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                "https://www.cathaylife.com.vn/cathay/api/graphql", "www.cathaylife.com.vn",
+                Source.SourceType.JSON, 2, "vi"));
         // Track 2 recheck 2026-07-14: 403 with our UA and with a full browser UA alike — genuine
         // bot-protection WAF. Deactivate (bypassing bot detection is out of scope).
         Source sunlifeVn = new Source("SUNLIFE_VN", "Sun Life Việt Nam",

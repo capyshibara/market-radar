@@ -122,10 +122,24 @@ public class IngestionJob {
                         SafeFetcher.ExpectedKind.JSON);
                 yield ingestListing(source, parsers.parseShinhanVn(result.body(), source.getFetchUrl()));
             }
+            case "CATHAY_VN" -> {
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON, CATHAY_VN_GRAPHQL_BODY);
+                yield ingestListing(source, parsers.parseCathayVn(result.body(), source.getFetchUrl()));
+            }
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };
     }
+
+    /**
+     * Query GraphQL THẬT của Cathay Life, bắt được bằng cách vá window.fetch trên trang
+     * /cathay/news rồi bấm tab chuyên mục thật (không đoán schema). ncategory_id="1" =
+     * "Hoạt động kinh doanh" — chuyên mục tin công ty/PR, sát nghĩa insurance news nhất.
+     */
+    private static final String CATHAY_VN_GRAPHQL_BODY = """
+            {"variables":{"condition":{"ncategory_id":"1","start":1,"end":15},"ncategory_id":"1"},\
+            "query":"query news($condition: NewsParams!, $ncategory_id: Int) {\\n    news(condition: $condition) {\\n        news_id\\n        images\\n        images_name\\n        content\\n        featured\\n        ncategory_id\\n        posted_at\\n    }\\n    count(ncategory_id: $ncategory_id)\\n}"}""";
 
     /** rootCategoryId của chuyên mục "Quản lý giám sát bảo hiểm" trên portal MOF (xác nhận live 2026-07-14). */
     private static final String MOF_INSURANCE_ROOT_CATEGORY = "8dc0b2a0-38bd-427c-b6d5-c97a6f9952b4";

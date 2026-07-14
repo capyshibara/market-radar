@@ -945,6 +945,64 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Cathay Life Việt Nam (cathaylife.com.vn) — trang /cathay/news, Vue SPA. Danh sách tin nạp
+     * qua GraphQL: POST /cathay/api/graphql, body cố định (query + variables — xem query bên
+     * dưới, bắt được bằng cách vá window.fetch rồi bấm tab chuyên mục thật trên trang, KHÔNG đoán
+     * schema). ncategory_id="1" = "Hoạt động kinh doanh" (tin công ty/PR — sát nghĩa insurance
+     * news nhất trong 4 chuyên mục). Mỗi item có "content" là CHUỖI JSON LỒNG dạng
+     * {"vi_VN":{"title":...},"en_US":{"title":...}} (parse 2 lần, giống MOF articleContent).
+     * posted_at đã là "yyyy-MM-dd" sạch. Link chi tiết = "/cathay/news-detail?news_id={id}"
+     * (route Vue Router "news-detail", bắt được từ OfficialNews-*.js, xác nhận live 200).
+     * Fix 2026-07-14 (Hanh: cụm "tìm URL tin thật" — trang chủ trống, /cathay/news JS-render).
+     */
+    public List<ListingItem> parseCathayVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode root = JSON.readTree(body);
+            JsonNode newsArr = root.path("data").path("news");
+            if (!newsArr.isArray() || newsArr.isEmpty()) {
+                throw new ParseFailedException("CATHAY_VN: GraphQL response không có data.news — schema có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : newsArr) {
+                long newsId = n.path("news_id").asLong(-1);
+                if (newsId < 0) continue;
+                String contentRaw = n.path("content").asText("");
+                String title = "";
+                if (!contentRaw.isBlank()) {
+                    try {
+                        JsonNode content = JSON.readTree(contentRaw);
+                        title = content.path("vi_VN").path("title").asText("");
+                        if (title.isBlank()) title = content.path("en_US").path("title").asText("");
+                    } catch (Exception e) {
+                        log.warn("CATHAY_VN: content của news_id={} không phải JSON hợp lệ", newsId);
+                    }
+                }
+                if (title.isBlank()) continue;
+                Instant publishedAt = null;
+                String posted = n.path("posted_at").asText("").strip();
+                if (!posted.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(posted).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("CATHAY_VN: không parse được posted_at '{}'", posted);
+                    }
+                }
+                items.add(new ListingItem(title.strip(), origin + "/cathay/news-detail?news_id=" + newsId, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("CATHAY_VN: không có item hợp lệ sau khi lọc");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("CATHAY_VN: lỗi parse GraphQL response: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);
