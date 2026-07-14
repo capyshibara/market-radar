@@ -112,6 +112,16 @@ public class IngestionJob {
                         SafeFetcher.ExpectedKind.JSON, "{}");
                 yield ingestListing(source, parsers.parseDaiichiVn(result.body(), source.getFetchUrl()));
             }
+            case "GENERALI_VN" -> {
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON);
+                yield ingestListing(source, parsers.parseGeneraliVn(result.body(), source.getFetchUrl()));
+            }
+            case "SHINHAN_VN" -> {
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON);
+                yield ingestListing(source, parsers.parseShinhanVn(result.body(), source.getFetchUrl()));
+            }
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };
@@ -199,6 +209,7 @@ public class IngestionJob {
             case "CHUBB_VN" -> ingestListing(source, parsers.parseChubbVn(result.body(), source.getFetchUrl()));
             case "TBNH" -> ingestListing(source, parsers.parseTbnh(result.body(), source.getFetchUrl()));
             case "MB_AGEAS" -> ingestListing(source, parsers.parseMbAgeasPress(result.body(), source.getFetchUrl()));
+            case "HANWHA_VN" -> ingestListing(source, parsers.parseHanwhaVn(result.body(), source.getFetchUrl()));
             default -> {
                 var parsed = parsers.parseHtml(result.body());
                 yield storeIfNew(source, source.getFetchUrl(), parsed.title(), null, parsed.text()) ? 1 : 0;

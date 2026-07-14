@@ -207,9 +207,16 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "vi");
         sunlifeVn.setActive(false);
         sources.save(sunlifeVn);
+        // Fix 2026-07-14 (Case: find-the-news-URL): homepage has no articles; nav "Tin Tức" ->
+        // "Thông cáo báo chí" is JS-driven (href="#") — real page is /press-release. THAT page's
+        // static HTML is also empty; its widget calls GET /api/v1/application/getContent/
+        // press-release, which returns not a list but ONE post whose contentVn field is a hand-
+        // authored HTML blob with each "article" as a .dropshadowboxes-container block
+        // (parseShinhanVn — real link is the "Xem thêm" button, NOT the title's own href, which
+        // is a stale/duplicated slug per their CMS). Verified live: 67 items, real 2026 dates.
         sources.save(new Source("SHINHAN_VN", "Shinhan Life Việt Nam",
-                "https://www.shinhanlifevn.com.vn/", "www.shinhanlifevn.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                "https://www.shinhanlifevn.com.vn/api/v1/application/getContent/press-release",
+                "www.shinhanlifevn.com.vn", Source.SourceType.JSON, 2, "vi"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // press-release page found live: chubb.com/vn-en/media-centre/press-release.html.
         // Parser added same day (parseChubbVn): server-rendered li.news-list, MM/dd/yyyy dates
@@ -241,12 +248,24 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "vi"));
         // Fix 2026-07-05 (user decision): old www.generali.vn 301'd to this exact URL (host drops
         // www) — switched fetchUrl+allowedHost directly to the redirect target, confirmed live 200.
+        // Fix 2026-07-14 (Case: find-the-news-URL): homepage has no articles. Real page
+        // /thong-cao-bao-chi is Next.js App Router (RSC streaming, no __NEXT_DATA__) whose article
+        // list is ALSO not in the initial HTML — loaded by a client fetch to a Strapi CMS API:
+        // GET /api/cms/api/thong-cao-bao-chis?fields[...]&pagination[...]&sort[0]=published_date:desc
+        // (parseGeneraliVn). published_date is clean "yyyy-MM-dd". Verified live + server-side
+        // with crawler UA: 65 press releases available, real 2026 dates.
         sources.save(new Source("GENERALI_VN", "Generali Việt Nam",
-                "https://generali.vn/", "generali.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                "https://generali.vn/api/cms/api/thong-cao-bao-chis"
+                        + "?fields%5B0%5D=title&fields%5B1%5D=slug&fields%5B2%5D=published_date"
+                        + "&pagination%5Bpage%5D=1&pagination%5BpageSize%5D=25"
+                        + "&sort%5B0%5D=published_date%3Adesc",
+                "generali.vn", Source.SourceType.JSON, 2, "vi"));
         // Track 2 fix 2026-07-05: root 301 → /vi (same host, path only).
+        // Fix 2026-07-14 (Case: find-the-news-URL): /vi homepage has no articles — moved fetchUrl
+        // to /vi/news, server-rendered (no API needed, unlike Generali/Shinhan). parseHanwhaVn:
+        // div.thumb / p.time (dd/MM/yyyy) / h3.title a. Verified live: 6 items, dated July 2026.
         sources.save(new Source("HANWHA_VN", "Hanwha Life Việt Nam",
-                "https://hanwhalife.com.vn/vi", "hanwhalife.com.vn",
+                "https://hanwhalife.com.vn/vi/news", "hanwhalife.com.vn",
                 Source.SourceType.HTML, 2, "vi"));
 
         // Vietnam finance media (RSS unconfirmed as of registry write — seeded as HTML/Group B;

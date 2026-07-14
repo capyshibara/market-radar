@@ -744,6 +744,150 @@ public class ContentParsers {
     }
 
     /**
+     * Generali Việt Nam (generali.vn) — trang /thong-cao-bao-chi, Next.js App Router (RSC
+     * streaming — KHÁC Pages Router của MB Ageas/BIDV, không có __NEXT_DATA__ nên không đọc
+     * được kiểu cũ). Danh sách bài KHÔNG nằm trong HTML/RSC payload ban đầu — nạp bằng client
+     * fetch riêng: GET /api/cms/api/thong-cao-bao-chis?fields[...]&amp;pagination[...]&amp;
+     * sort[0]=published_date:desc — Strapi CMS chuẩn, response {data:[{attributes:{title,slug,
+     * published_date,summary}}]}. published_date đã là "yyyy-MM-dd" sạch. Link bài =
+     * "/thong-cao-bao-chi/{slug}" (xác nhận live).
+     * Fix 2026-07-14 (Hanh: cụm "tìm URL tin thật" — tin không nằm ở trang chủ).
+     */
+    public List<ListingItem> parseGeneraliVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode data = JSON.readTree(body).get("data");
+            if (data == null || !data.isArray() || data.isEmpty()) {
+                throw new ParseFailedException("GENERALI_VN: JSON không có mảng 'data' — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : data) {
+                JsonNode attr = n.path("attributes");
+                String title = attr.path("title").asText("").strip();
+                String slug = attr.path("slug").asText("").strip();
+                if (title.isBlank() || slug.isBlank()) continue;
+                Instant publishedAt = null;
+                String pd = attr.path("published_date").asText("").strip();
+                if (!pd.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(pd).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("GENERALI_VN: không parse được published_date '{}'", pd);
+                    }
+                }
+                items.add(new ListingItem(title, origin + "/thong-cao-bao-chi/" + slug, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("GENERALI_VN: 'data' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("GENERALI_VN: lỗi parse JSON: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Hanwha Life Việt Nam (hanwhalife.com.vn) — trang /vi/news, HTML server-rendered thường
+     * (KHÔNG cần API riêng). Cấu trúc xác nhận qua fetch trực tiếp 2026-07-14: mỗi tin là
+     * {@code <div class="thumb col-md-4 ..."><div class="item">...<p class="time">dd/MM/yyyy</p>
+     * <h3 class="title ..."><a href="...">Title</a></h3>...}. Dùng selector div.thumb (khớp
+     * đúng số lượng p.time trên trang, tránh vơ nhầm h3.title lặp ở khối khác).
+     * Fix 2026-07-14 (Hanh: cụm "tìm URL tin thật" — trang chủ không có tin).
+     */
+    public List<ListingItem> parseHanwhaVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements cards = doc.select("div.thumb");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element card : cards) {
+                Element a = card.selectFirst("h3.title a");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                Element dateEl = card.selectFirst("p.time");
+                if (dateEl != null) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateEl.text().strip(), AIA_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("HANWHA_VN: không parse được ngày '{}' — publishedAt để null", dateEl.text());
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("HANWHA_VN: không tìm thấy div.thumb nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse HANWHA_VN: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Shinhan Life Việt Nam (shinhanlifevn.com.vn) — trang /press-release. HTML tĩnh KHÔNG có
+     * bài (widget Angular gọi GET /api/v1/application/getContent/press-release). Response KHÁC
+     * mọi nguồn khác: KHÔNG phải danh sách bài — là MỘT "post" DUY NHẤT
+     * (data.listSitePost[0].contentVn) mà nội dung là HTML tự soạn kiểu WordPress, trong đó
+     * MỖI "tin" là một khối {@code <div class="... dropshadowboxes-container ...">} chứa tiêu đề
+     * trong {@code <strong><a>...</a></strong>}, ngày dạng dd/MM/yyyy ở đâu đó trong text khối
+     * (không cố định class — regex trên text() cả khối), và link THẬT nằm ở nút "Xem thêm"
+     * ({@code <a class="... btn-shinhan ...">}) — LƯU Ý: href trên chính thẻ tiêu đề là slug
+     * cũ/sai (xác nhận: cùng href lặp lại cho nhiều tiêu đề khác nhau — lỗi copy-paste CMS phía
+     * họ), không dùng. Đã validate cấu trúc trên dữ liệu thật (67 khối, đủ 3 trường).
+     * Fix 2026-07-14 (Hanh: cụm "tìm URL tin thật").
+     */
+    public List<ListingItem> parseShinhanVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode posts = JSON.readTree(body).path("data").path("listSitePost");
+            if (!posts.isArray() || posts.isEmpty()) {
+                throw new ParseFailedException("SHINHAN_VN: JSON không có data.listSitePost — endpoint có thể đã đổi");
+            }
+            String contentVn = posts.get(0).path("contentVn").asText("");
+            if (contentVn.isBlank()) {
+                throw new ParseFailedException("SHINHAN_VN: listSitePost[0].contentVn rỗng");
+            }
+            Document doc = Jsoup.parse(contentVn, baseUrl);
+            Elements cards = doc.select(".dropshadowboxes-container");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element card : cards) {
+                Element titleA = card.selectFirst("strong a");
+                Element linkA = card.selectFirst("a[class*=btn-shinhan]");
+                if (titleA == null || linkA == null) continue;
+                String title = titleA.text().strip();
+                String link = linkA.attr("href").strip();
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                var m = DDMMYYYY.matcher(card.text());
+                if (m.find()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(m.group(1), AIA_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("SHINHAN_VN: không parse được ngày '{}' — publishedAt để null", m.group(1));
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("SHINHAN_VN: không tìm thấy dropshadowboxes-container nào — cấu trúc có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("SHINHAN_VN: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /**
      * MOF_ISA (mof.gov.vn) — Cục QLGS Bảo hiểm. Portal là SPA (Vue), HTML tĩnh chỉ là
      * &lt;div id="app"&gt; rỗng. JS gọi REST API sạch:
      *   • DANH SÁCH: POST /api/article/reads?offset&amp;limit, body {"rootCategoryId": &lt;id BH&gt;}
