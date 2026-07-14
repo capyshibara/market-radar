@@ -323,6 +323,9 @@ public class SeedData implements CommandLineRunner {
                 "www.aia.com.hk", Source.SourceType.HTML, 2, "en"));
         // Fix 2026-07-14: old path 404 (site restructured since the 2026-07-05 trailing-slash
         // fix) — real newsroom found live at /en/about-us/newsroom/.
+        // Parser added same day (parsePruHk): AEM server-rendered, article.article-card[data-date]
+        // (dd-MM-yyyy, reuses PRU_FMT). Page is a full archive (115 items, 2018-2026, unsorted) —
+        // freshness window correctly keeps only the ~26 2025-2026 items, by design not a bug.
         sources.save(new Source("PRU_HK", "Prudential HK",
                 "https://www.prudential.com.hk/en/about-us/newsroom/", "www.prudential.com.hk",
                 Source.SourceType.HTML, 2, "en"));

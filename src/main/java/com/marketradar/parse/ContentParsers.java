@@ -1003,6 +1003,49 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Prudential Hong Kong (prudential.com.hk) — trang /en/about-us/newsroom/, AEM server-rendered
+     * (cùng nền tảng BIDV MetLife, nhưng ở đây HTML tĩnh CÓ đủ dữ liệu, không cần gọi API riêng).
+     * Mỗi tin là {@code <article class="article-card" data-date="dd-MM-yyyy">...<h3 class=
+     * "article-heading">Title</h3>...<a class="cta-button" href="...">}. Trang là ARCHIVE ĐẦY ĐỦ
+     * (115 bài, 2018–2026, không sắp theo thời gian) — phần lớn sẽ bị bộ lọc độ mới loại đúng,
+     * chỉ ~26 bài 2025–2026 lọt qua, đúng như thiết kế (không phải bug).
+     * Fix 2026-07-14 (Hanh: mở rộng sang khu vực — Hong Kong).
+     */
+    public List<ListingItem> parsePruHk(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements cards = doc.select("article.article-card");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element card : cards) {
+                Element h = card.selectFirst("h3.article-heading");
+                Element a = card.selectFirst("a.cta-button");
+                if (h == null || a == null) continue;
+                String title = h.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                String dateAttr = card.attr("data-date").strip();
+                if (!dateAttr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateAttr, PRU_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("PRU_HK: không parse được ngày '{}' — publishedAt để null", dateAttr);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("PRU_HK: không tìm thấy article.article-card nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse PRU_HK: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);
