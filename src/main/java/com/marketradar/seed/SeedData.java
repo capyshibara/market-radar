@@ -443,6 +443,10 @@ public class SeedData implements CommandLineRunner {
         // Fix 2026-07-14: old path redirected to the site's own 404 error page (Track 2 2026-07-05
         // flagged, not yet fixed then) — real media releases page found live at
         // /about-us/media-centre/media-releases.html.
+        // Parser added same day (parseGreatEastern): server-rendered, page stacks a table per
+        // year with the markup varying by era (older years wrap the date in <p>, recent years
+        // don't) — parser reads via td.text() so both work uniformly. Verified live: 42 items,
+        // real dates through June 2026.
         sources.save(new Source("GREAT_EASTERN", "Great Eastern",
                 "https://www.greateasternlife.com/sg/en/about-us/media-centre/media-releases.html",
                 "www.greateasternlife.com", Source.SourceType.HTML, 2, "en"));

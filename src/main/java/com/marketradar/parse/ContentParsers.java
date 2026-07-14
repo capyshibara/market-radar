@@ -1369,6 +1369,52 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Great Eastern (Singapore) (greateasternlife.com) — trang /sg/en/about-us/media-centre/
+     * media-releases.html, AEM server-rendered NHƯNG trang gộp NHIỀU BẢNG theo từng năm, mỗi
+     * bảng cũ hơn dùng markup hơi khác (&lt;td&gt;&lt;p&gt;date&lt;/p&gt;&lt;/td&gt; cho năm cũ vs
+     * &lt;td&gt;date&lt;/td&gt; trần cho năm gần đây — site rõ ràng đổi markup theo thời gian
+     * nhưng giữ nguyên HTML cũ). Parser lấy text() của ô đầu (đọc đúng cả 2 kiểu) làm ngày,
+     * &lt;a&gt; trong ô thứ 2 làm tiêu đề/link — không phân biệt bảng năm nào. Ngày "d MMMM yyyy"
+     * (dùng lại AIA_HK_FMT — cùng định dạng). Chỉ nhận &lt;tr&gt; có ĐÚNG 2 &lt;td&gt; con trực
+     * tiếp để tránh vơ nhầm bảng khác trên trang.
+     * Fix 2026-07-14 (Hanh: tiếp tục Đông Nam Á — Singapore).
+     */
+    public List<ListingItem> parseGreatEastern(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements rows = doc.select("tr");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element row : rows) {
+                Elements cells = row.select("> td");
+                if (cells.size() != 2) continue;
+                Element a = cells.get(1).selectFirst("a");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                String dateText = cells.get(0).text().strip();
+                if (!dateText.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateText, AIA_HK_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        continue; // hàng không phải date (vd tiêu đề bảng khác) — bỏ qua thay vì báo lỗi
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("GREAT_EASTERN: không tìm thấy hàng media-release nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse GREAT_EASTERN: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);
