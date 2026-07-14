@@ -389,9 +389,17 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "en"));
 
         // Singapore
-        sources.save(new Source("MAS_SG", "Monetary Authority of Singapore",
+        // Track 2 recheck 2026-07-14: /news is a clean, real REST API (GET /api/v1/search, Solr
+        // backend) — but the server returns a "Maintenance" HTML page specifically to our honest,
+        // self-identifying crawler UA while serving real JSON to a normal browser UA (confirmed by
+        // A/B curl with identical request otherwise). This is UA-based bot detection, not a URL or
+        // architecture problem. Consistent with this project's standing policy (see MSAD, IC_PH,
+        // BNM_MY notes below): NOT spoofing a browser UA to bypass detection. Deactivate.
+        Source masSg = new Source("MAS_SG", "Monetary Authority of Singapore",
                 "https://www.mas.gov.sg/", "www.mas.gov.sg",
-                Source.SourceType.HTML, 1, "en"));
+                Source.SourceType.HTML, 1, "en");
+        masSg.setActive(false);
+        sources.save(masSg);
         // Fix 2026-07-14: old path redirected to the site's own 404 error page (Track 2 2026-07-05
         // flagged, not yet fixed then) — real media releases page found live at
         // /about-us/media-centre/media-releases.html.
