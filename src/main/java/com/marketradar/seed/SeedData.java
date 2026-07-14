@@ -165,9 +165,16 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "vi"));
         // Fix 2026-07-05: old domain www.phuhunglife.vn timed out — wrong TLD. Real domain confirmed
         // by user + live-checked: www.phuhunglife.com (200 text/html).
+        // Fix 2026-07-14 (Case: find-the-news-URL): homepage has no articles; nav "Tin Tức - Sự
+        // Kiện" is a JS dropdown, real category page found via its submenu: /vn/tin-tuc/?...
+        // categoryId=2907 ("Thông cáo báo chí"). Page IS server-rendered but data lives in a
+        // window.globalData.newsPage.newsList = {...} JS assignment, not normal HTML tags
+        // (parsePhuHungLife — balanced-brace JSON extraction). Dates use DOTS "dd.MM.yyyy", unique
+        // among all sources. Only 3 items/fetch (site's fixed pageSize, confirmed unchangeable via
+        // query param) of 41 total — still real dated content each run.
         sources.save(new Source("PHU_HUNG_LIFE", "Phú Hưng Life",
-                "https://www.phuhunglife.com/", "www.phuhunglife.com",
-                Source.SourceType.HTML, 2, "vi"));
+                "https://www.phuhunglife.com/vn/tin-tuc/?currentPage=1&year=all&categoryId=2907",
+                "www.phuhunglife.com", Source.SourceType.HTML, 2, "vi"));
         // Added 2026-07-05, confirmed live (200 text/html) — was missing entirely from registry.
         // Batch 6b note 2026-07-05: news listing (/about-us/news/) ships an EMPTY
         // <div class="row article-list-wrapper"></div> — AJAX-populated (global MetLife platform),

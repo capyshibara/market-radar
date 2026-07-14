@@ -52,6 +52,8 @@ public class ContentParsers {
     // Chubb "vn-en" press page is the ENGLISH/US edition — dates confirmed MM/dd/yyyy
     // (xác nhận qua item "09/22/2023": ngày 22 không thể là tháng → thứ tự phải là MM/dd).
     private static final DateTimeFormatter CHUBB_FMT = DateTimeFormatter.ofPattern("MM/dd/yyyy", Locale.ENGLISH);
+    // Phú Hưng Life dùng dấu CHẤM chứ không phải gạch chéo: "16.06.2026" — khác mọi nguồn khác.
+    private static final DateTimeFormatter PHU_HUNG_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -885,6 +887,87 @@ public class ContentParsers {
         } catch (Exception e) {
             throw new ParseFailedException("SHINHAN_VN: lỗi parse response: " + e.getMessage());
         }
+    }
+
+    /**
+     * Phú Hưng Life (phuhunglife.com) — trang /vn/tin-tuc/?categoryId=2907 ("Thông cáo báo chí"),
+     * HTML server-rendered NHƯNG dữ liệu KHÔNG ở trong thẻ HTML thường — nằm trong một
+     * &lt;script&gt; dạng gán biến JS thuần (không phải &lt;script type="application/json"&gt;):
+     * {@code window.globalData.newsPage.newsList = {"items":[{"title":...,"date":"dd.MM.yyyy",
+     * "href":"/vn/tin-tuc/{slug}/"}]};} — trích bằng quét ngoặc cân bằng từ dấu "{" đầu tiên sau
+     * "newsList = " (an toàn hơn regex phi-tham-lam vì JSON có thể chứa "};" bên trong chuỗi).
+     * Ngày dạng "dd.MM.yyyy" (DẤU CHẤM — khác mọi nguồn khác, đã verify). Trang chỉ trả 3 tin/lần
+     * (pageSize cố định phía server, query param không đổi được — đã thử) trên tổng 41 tin.
+     * Fix 2026-07-14 (Hanh: cụm "tìm URL tin thật" — trang chủ không có link tin ở HTML tĩnh,
+     * nav "Tin Tức - Sự Kiện" là JS dropdown).
+     */
+    public List<ListingItem> parsePhuHungLife(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            String html = new String(body, StandardCharsets.UTF_8);
+            String marker = "newsPage.newsList = ";
+            int markerIdx = html.indexOf(marker);
+            if (markerIdx < 0) {
+                throw new ParseFailedException("PHU_HUNG_LIFE: không tìm thấy 'newsPage.newsList = ' trong HTML — cấu trúc có thể đã đổi");
+            }
+            String jsonStr = extractBalancedJsonObject(html, markerIdx + marker.length());
+            JsonNode itemsNode = JSON.readTree(jsonStr).path("items");
+            if (!itemsNode.isArray() || itemsNode.isEmpty()) {
+                throw new ParseFailedException("PHU_HUNG_LIFE: newsList.items rỗng hoặc không phải mảng");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode it : itemsNode) {
+                String title = it.path("title").asText("").strip();
+                String href = it.path("href").asText("").strip();
+                if (title.isBlank() || href.isBlank()) continue;
+                String link = href.startsWith("http") ? href : origin + href;
+                Instant publishedAt = null;
+                String dateStr = it.path("date").asText("").strip();
+                if (!dateStr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateStr, PHU_HUNG_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("PHU_HUNG_LIFE: không parse được ngày '{}' — publishedAt để null", dateStr);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("PHU_HUNG_LIFE: không có item hợp lệ sau khi lọc");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("PHU_HUNG_LIFE: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
+    private static String extractBalancedJsonObject(String s, int from) {
+        int start = s.indexOf('{', from);
+        if (start < 0) throw new IllegalStateException("không tìm thấy dấu '{' bắt đầu object");
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = start; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (inString) {
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            if (c == '"') inString = true;
+            else if (c == '{') depth++;
+            else if (c == '}') {
+                depth--;
+                if (depth == 0) return s.substring(start, i + 1);
+            }
+        }
+        throw new IllegalStateException("không tìm thấy dấu '}' đóng object cân bằng");
     }
 
     /**

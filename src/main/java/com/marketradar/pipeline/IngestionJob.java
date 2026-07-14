@@ -210,6 +210,7 @@ public class IngestionJob {
             case "TBNH" -> ingestListing(source, parsers.parseTbnh(result.body(), source.getFetchUrl()));
             case "MB_AGEAS" -> ingestListing(source, parsers.parseMbAgeasPress(result.body(), source.getFetchUrl()));
             case "HANWHA_VN" -> ingestListing(source, parsers.parseHanwhaVn(result.body(), source.getFetchUrl()));
+            case "PHU_HUNG_LIFE" -> ingestListing(source, parsers.parsePhuHungLife(result.body(), source.getFetchUrl()));
             default -> {
                 var parsed = parsers.parseHtml(result.body());
                 yield storeIfNew(source, source.getFetchUrl(), parsed.title(), null, parsed.text()) ? 1 : 0;
