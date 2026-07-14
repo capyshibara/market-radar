@@ -318,6 +318,8 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "zh"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // news center found live at /about-us/news-center.
+        // Parser added same day (parseChinaLifeHk): Drupal server-rendered (div.views-row), no API
+        // needed. Verified live: 10 items, real dates through July 2026.
         sources.save(new Source("CHINALIFE_HK", "China Life (HK/overseas)",
                 "https://www.chinalife.com.hk/about-us/news-center", "www.chinalife.com.hk",
                 Source.SourceType.HTML, 2, "en"));

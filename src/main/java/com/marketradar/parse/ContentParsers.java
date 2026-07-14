@@ -1328,6 +1328,47 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * China Life (HK/overseas) (chinalife.com.hk) — trang /about-us/news-center, Drupal server-
+     * rendered (KHÔNG cần API riêng). Mỗi tin là {@code <div class="views-row"><div class=
+     * "views-field-title">...<a href="...">Title</a></div><div class="views-field-created">
+     * <span class="field-content">yyyy-MM-dd</span></div>...</div>} — thậm chí có sẵn tag
+     * "Insurance"/khác trong views-field-field-news-tags (không dùng, Classifier tự lọc).
+     * Fix 2026-07-14 (Hanh: tiếp tục Trung Quốc).
+     */
+    public List<ListingItem> parseChinaLifeHk(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements rows = doc.select("div.views-row");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element row : rows) {
+                Element a = row.selectFirst(".views-field-title a");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                Element dateEl = row.selectFirst(".views-field-created .field-content");
+                if (dateEl != null) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateEl.text().strip()).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("CHINALIFE_HK: không parse được ngày '{}' — publishedAt để null", dateEl.text());
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("CHINALIFE_HK: không tìm thấy div.views-row nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse CHINALIFE_HK: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);
