@@ -690,6 +690,60 @@ public class ContentParsers {
     }
 
     /**
+     * Dai-ichi Life Việt Nam (dai-ichi-life.com.vn) — trang chủ là SPA-ish (Alpine.js), tin
+     * tức "widget" nạp qua POST /api/news/home (body rỗng "{}" là đủ, xác nhận thủ công).
+     * Response KHÔNG phải JSON có field sạch — là JSON BỌC MỘT CHUỖI HTML đã render sẵn:
+     * {@code {"status":"success","data":"&lt;div class=\"item-news\"&gt;...&lt;/div&gt;..."}}.
+     * Mỗi tin là {@code <div class="... item-news ...">} hoặc {@code item-news-horizontal}
+     * (2 layout khác nhau cho cùng loại thẻ) chứa {@code <h3 class="card-title-2"><a href="...">
+     * Title</a></h3>} và {@code <p class="publish_at">...&lt;span&gt;dd/MM/yyyy&lt;/span&gt;...}
+     * (bản horizontal không có &lt;span&gt; quanh ngày — lấy text() rồi regex ngày, không phụ
+     * thuộc cấu trúc con). Link trỏ sang subdomain KHÁC (kh.dai-ichi-life.com.vn — health
+     * content) → ingestListing tự rơi về title-only (vẫn có ngày thật), không mở whitelist.
+     * Fix 2026-07-14 (Hanh: ưu tiên VN competitor, Case A — hidden JSON API).
+     */
+    public List<ListingItem> parseDaiichiVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            String html = JSON.readTree(body).path("data").asText("");
+            if (html.isBlank()) {
+                throw new ParseFailedException("DAIICHI_VN: JSON envelope không có field 'data' — endpoint có thể đã đổi");
+            }
+            Document doc = Jsoup.parse(html, baseUrl);
+            Elements cards = doc.select(".item-news, .item-news-horizontal");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element card : cards) {
+                Element a = card.selectFirst("h3.card-title-2 a");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.attr("href").strip();
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                Element dateEl = card.selectFirst(".publish_at");
+                if (dateEl != null) {
+                    var m = DDMMYYYY.matcher(dateEl.text());
+                    if (m.find()) {
+                        try {
+                            publishedAt = java.time.LocalDate.parse(m.group(1), AIA_FMT)
+                                    .atStartOfDay(VN_ZONE).toInstant();
+                        } catch (DateTimeParseException e) {
+                            log.warn("DAIICHI_VN: không parse được ngày '{}' — publishedAt để null", m.group(1));
+                        }
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("DAIICHI_VN: không tìm thấy item-news nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("DAIICHI_VN: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /**
      * MOF_ISA (mof.gov.vn) — Cục QLGS Bảo hiểm. Portal là SPA (Vue), HTML tĩnh chỉ là
      * &lt;div id="app"&gt; rỗng. JS gọi REST API sạch:
      *   • DANH SÁCH: POST /api/article/reads?offset&amp;limit, body {"rootCategoryId": &lt;id BH&gt;}

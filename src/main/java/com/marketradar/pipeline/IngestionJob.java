@@ -106,6 +106,12 @@ public class IngestionJob {
                 yield ingestListing(source, parsers.parseBidvMetlife(result.body(), source.getFetchUrl()));
             }
             case "MOF_ISA" -> ingestMofIsa(source);
+            case "DAIICHI_VN" -> {
+                // POST rỗng "{}" là đủ — xác nhận thủ công response giống hệt request không body.
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON, "{}");
+                yield ingestListing(source, parsers.parseDaiichiVn(result.body(), source.getFetchUrl()));
+            }
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };

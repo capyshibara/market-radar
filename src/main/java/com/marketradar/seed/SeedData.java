@@ -218,12 +218,17 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("CHUBB_VN", "Chubb Life Việt Nam",
                 "https://www.chubb.com/vn-en/media-centre/press-release.html", "www.chubb.com",
                 Source.SourceType.HTML, 2, "vi"));
-        // Fix 2026-07-14: old fetchUrl (www, https) 301-redirects to http+non-www (blocked by
-        // https-only + host whitelist). Root cause was just the "www." — bare domain serves
-        // the same site directly on https, confirmed live 200, no redirect.
+        // Fix 2026-07-14 (first pass): old fetchUrl (www, https) 301-redirects to http+non-www
+        // (blocked by https-only + host whitelist). Root cause was just the "www." — bare domain
+        // serves the same site directly on https, confirmed live 200, no redirect.
+        // Fix 2026-07-14 (second pass, Case A): homepage itself has no static articles — news
+        // widget loads via POST /api/news/home (empty "{}" body works, confirmed live). Response
+        // is a JSON envelope wrapping pre-rendered HTML (parseDaiichiVn). Article links point to
+        // a different subdomain (kh.dai-ichi-life.com.vn) — falls back to title+real-date, same
+        // pattern as Chubb.
         sources.save(new Source("DAIICHI_VN", "Dai-ichi Life Việt Nam",
-                "https://dai-ichi-life.com.vn/", "dai-ichi-life.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                "https://dai-ichi-life.com.vn/api/news/home", "dai-ichi-life.com.vn",
+                Source.SourceType.JSON, 2, "vi"));
         // Track 2 fix 2026-07-05: root 301 → /vi/ (same host).
         // Fix 2026-07-14: root/homepage has no articles — site routes ENTIRELY client-side
         // (every path, even nonexistent ones, returns the same HTTP 200 app-shell; confirmed
