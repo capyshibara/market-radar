@@ -61,6 +61,8 @@ public class ContentParsers {
     // NFRA (Trung Quốc): "2026-07-10 17:55:33" — CÁCH nhau bằng dấu cách, không phải "T" nên
     // LocalDateTime.parse() mặc định (ISO_LOCAL_DATE_TIME) KHÔNG đọc được, cần formatter riêng.
     private static final DateTimeFormatter NFRA_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
+    // Fubon Financial Holdings (Taiwan): "2026.06.26" — dấu chấm.
+    private static final DateTimeFormatter FUBON_TW_FMT = DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -1454,6 +1456,48 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse INCOME_SG: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Fubon Financial Holdings (fubon.com) — trang /Fubon_Portal/financialholdings/en/news/
+     * list.jsp (newsroom chung cho cả tập đoàn, gồm Fubon Life — không có trang riêng cho công
+     * ty bảo hiểm, xem ghi chú trong SeedData), server-rendered, không cần API. Mỗi tin là
+     * {@code <li><a href="..." class="m-list-link">Title</a><time class="m-list-item">
+     * yyyy.MM.dd</time></li>}.
+     * Fix 2026-07-14 (Hanh: tiếp tục Đông Nam Á — Taiwan).
+     */
+    public List<ListingItem> parseFubonTw(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements items0 = doc.select("li:has(a.m-list-link)");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element item : items0) {
+                Element a = item.selectFirst("a.m-list-link");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                Element timeEl = item.selectFirst("time.m-list-item");
+                if (timeEl != null) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(timeEl.text().strip(), FUBON_TW_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("FUBON_TW: không parse được ngày '{}' — publishedAt để null", timeEl.text());
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("FUBON_TW: không tìm thấy li có a.m-list-link nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse FUBON_TW: " + e.getMessage());
         }
     }
 

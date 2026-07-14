@@ -353,6 +353,8 @@ public class SeedData implements CommandLineRunner {
         // subdomain appears retired. No standalone Fubon Life (TW) domain found; Fubon Financial
         // Holdings runs one shared newsroom for all subsidiaries incl. Fubon Life — using that
         // (confirmed live, real article links). Renamed host + entity name to reflect this.
+        // Parser added same day (parseFubonTw): server-rendered, li > a.m-list-link + time.m-list-
+        // item ("yyyy.MM.dd"). Verified live: 42 items, real dates through June 2026.
         sources.save(new Source("FUBON_TW", "Fubon Financial Holdings (incl. Fubon Life)",
                 "https://www.fubon.com/Fubon_Portal/financialholdings/en/news/list.jsp", "www.fubon.com",
                 Source.SourceType.HTML, 2, "en"));
