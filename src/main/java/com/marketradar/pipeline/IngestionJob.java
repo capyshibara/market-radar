@@ -134,6 +134,11 @@ public class IngestionJob {
                         SafeFetcher.ExpectedKind.JSON, "");
                 yield ingestListing(source, parsers.parseHkia(result.body(), HKIA_PAGE_URL));
             }
+            case "FSC_KR" -> {
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON);
+                yield ingestListing(source, parsers.parseFscKr(result.body(), source.getFetchUrl()));
+            }
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };

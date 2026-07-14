@@ -1139,6 +1139,53 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Financial Services Commission Korea / FSC_KR (fsc.go.kr) — trang /eng/pr010101 (Press
+     * Releases) tự nó gần rỗng (board-list container không có &lt;tr&gt; nào ở HTML tĩnh — nạp
+     * qua JS). Nội dung nạp qua GET /humanframe-cms/getMiniBBS.json?bbsNo=2&amp;bbsListId=1
+     * (bbsNo/bbsListId dò được bằng cách quét các giá trị nhỏ trên trang thật, KHÔNG có trong
+     * HTML tĩnh — site dùng chung 1 "mini-BBS" component cho nhiều mục, mỗi mục 1 cặp id khác
+     * nhau). Response {"title":"Press Releases","list":[{"sj":title,"sumry":full text sẵn (không
+     * cần fetch chi tiết riêng!),"creatDttm":"yyyy-MM-dd","nttNo":id}]} — chỉ trả 5 tin gần nhất
+     * (không có tham số tăng số lượng đã thử). Link chi tiết = "/eng/pr010101/{nttNo}" (bắt được
+     * từ href thật trên trang, xác nhận live 200).
+     * Fix 2026-07-14 (Hanh: tiếp tục Hong Kong/Korea/Japan — regulator T1 Korea).
+     */
+    public List<ListingItem> parseFscKr(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode list = JSON.readTree(body).path("list");
+            if (!list.isArray() || list.isEmpty()) {
+                throw new ParseFailedException("FSC_KR: JSON không có mảng 'list' — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : list) {
+                String title = n.path("sj").asText("").strip();
+                long nttNo = n.path("nttNo").asLong(-1);
+                if (title.isBlank() || nttNo < 0) continue;
+                Instant publishedAt = null;
+                String dateStr = n.path("creatDttm").asText("").strip();
+                if (!dateStr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateStr).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("FSC_KR: không parse được ngày '{}' — publishedAt để null", dateStr);
+                    }
+                }
+                items.add(new ListingItem(title, origin + "/eng/pr010101/" + nttNo, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("FSC_KR: 'list' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("FSC_KR: lỗi parse response: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);

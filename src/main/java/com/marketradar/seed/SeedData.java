@@ -357,9 +357,15 @@ public class SeedData implements CommandLineRunner {
 
         // South Korea
         // Track 2 fix 2026-07-05: 302 → /eng/index (same host).
+        // Fix 2026-07-14 (Case: find-the-news-URL, second pass): homepage/eng/index has no
+        // articles; found /eng/pr010101 (Press Releases) via nav, but that page's board-list is
+        // ALSO empty in static HTML. Site uses a shared "mini-BBS" JSON widget for many sections
+        // (bbsNo/bbsListId pair per section) — bbsNo=2&bbsListId=1 = Press Releases (found by
+        // scanning small id values against the live page, not documented anywhere). Response
+        // includes FULL article text inline (no separate detail fetch needed). parseFscKr().
         sources.save(new Source("FSC_KR", "Financial Services Commission (Korea)",
-                "https://www.fsc.go.kr/eng/index", "www.fsc.go.kr",
-                Source.SourceType.HTML, 1, "en"));
+                "https://www.fsc.go.kr/humanframe-cms/getMiniBBS.json?bbsNo=2&bbsListId=1",
+                "www.fsc.go.kr", Source.SourceType.JSON, 1, "en"));
         // Fix 2026-07-14: old host redirected (english.fss.or.kr → www.fss.or.kr) — Track 2
         // 2026-07-05 flagged the host change but left it unfixed. Switched fetchUrl+allowedHost
         // directly to the redirect target, confirmed live 200 with no further redirect.
