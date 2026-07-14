@@ -54,6 +54,8 @@ public class ContentParsers {
     private static final DateTimeFormatter CHUBB_FMT = DateTimeFormatter.ofPattern("MM/dd/yyyy", Locale.ENGLISH);
     // Phú Hưng Life dùng dấu CHẤM chứ không phải gạch chéo: "16.06.2026" — khác mọi nguồn khác.
     private static final DateTimeFormatter PHU_HUNG_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.ENGLISH);
+    // HKIA (Hong Kong): "8/7/2026" — d/M/yyyy KHÔNG số 0 đệm đầu (khác AIA_FMT dd/MM/yyyy).
+    private static final DateTimeFormatter HKIA_FMT = DateTimeFormatter.ofPattern("d/M/yyyy", Locale.ENGLISH);
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -1043,6 +1045,51 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse PRU_HK: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Insurance Authority Hong Kong / HKIA (ia.org.hk) — trang /en/infocenter/press_releases.html
+     * tự nó gần rỗng (4.4KB, không phải SPA — trang HTML cũ dùng jQuery). Nội dung nạp qua
+     * POST /en/infocenter/press_releases.php, body RỖNG là đủ (xác nhận thủ công, không cần
+     * tham số nào). Response {"press":[{"id","date":"d/M/yyyy" (KHÔNG số 0 đệm),"name","url"
+     * (đường dẫn TƯƠNG ĐỐI kiểu "../../en/infocenter/press_releases/20260708.html")}]} — 490 bài,
+     * sort mới nhất trước, ĐÃ xác nhận có bài tháng 7/2026. Link giải bằng URI.resolve() trên
+     * chính URL trang (không phải URL API .php) vì "../../" tính từ /en/infocenter/.
+     * Fix 2026-07-14 (Hanh: mở rộng khu vực — regulator T1 Hong Kong).
+     */
+    public List<ListingItem> parseHkia(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode press = JSON.readTree(body).path("press");
+            if (!press.isArray() || press.isEmpty()) {
+                throw new ParseFailedException("HKIA: JSON không có mảng 'press' — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : press) {
+                String title = n.path("name").asText("").strip();
+                String relUrl = n.path("url").asText("").strip();
+                if (title.isBlank() || relUrl.isBlank()) continue;
+                String link = base.resolve(relUrl).toString();
+                Instant publishedAt = null;
+                String dateStr = n.path("date").asText("").strip();
+                if (!dateStr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateStr, HKIA_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("HKIA: không parse được ngày '{}' — publishedAt để null", dateStr);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("HKIA: 'press' rỗng sau khi lọc — không có bài hợp lệ");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("HKIA: lỗi parse response: " + e.getMessage());
         }
     }
 

@@ -127,6 +127,13 @@ public class IngestionJob {
                         SafeFetcher.ExpectedKind.JSON, CATHAY_VN_GRAPHQL_BODY);
                 yield ingestListing(source, parsers.parseCathayVn(result.body(), source.getFetchUrl()));
             }
+            case "HKIA" -> {
+                // Body rỗng là đủ — xác nhận thủ công. baseUrl truyền cho parser là TRANG HTML
+                // (không phải endpoint .php) vì url trả về tương đối theo "../../" tính từ đó.
+                var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                        SafeFetcher.ExpectedKind.JSON, "");
+                yield ingestListing(source, parsers.parseHkia(result.body(), HKIA_PAGE_URL));
+            }
             default -> throw new ContentParsers.ParseFailedException(
                     "Nguồn JSON '" + source.getCode() + "' chưa có parser riêng");
         };
@@ -143,6 +150,9 @@ public class IngestionJob {
 
     /** rootCategoryId của chuyên mục "Quản lý giám sát bảo hiểm" trên portal MOF (xác nhận live 2026-07-14). */
     private static final String MOF_INSURANCE_ROOT_CATEGORY = "8dc0b2a0-38bd-427c-b6d5-c97a6f9952b4";
+
+    /** Trang HTML thật của HKIA (không phải endpoint .php) — url tương đối trong response resolve theo đây. */
+    private static final String HKIA_PAGE_URL = "https://www.ia.org.hk/en/infocenter/press_releases.html";
 
     /**
      * MOF_ISA: danh sách qua POST /api/article/reads (body rootCategoryId), rồi mỗi bài

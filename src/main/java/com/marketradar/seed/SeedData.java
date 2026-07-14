@@ -315,9 +315,14 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "en"));
 
         // Hong Kong
+        // Fix 2026-07-14 (Hanh: mở rộng khu vực — regulator T1): homepage has no articles; found
+        // /en/infocenter/press_releases.html via its nav ("Press Releases"). That page is a near-
+        // empty jQuery shell (4.4KB) whose content loads via POST /en/infocenter/press_releases.php
+        // with an EMPTY body (confirmed live + server-side with crawler UA). Response: 490 releases,
+        // newest-first, sorted, confirmed through July 2026. parseHkia().
         sources.save(new Source("HKIA", "Insurance Authority (Hong Kong)",
-                "https://www.ia.org.hk/", "www.ia.org.hk",
-                Source.SourceType.HTML, 1, "en"));
+                "https://www.ia.org.hk/en/infocenter/press_releases.php", "www.ia.org.hk",
+                Source.SourceType.JSON, 1, "en"));
         sources.save(new Source("AIA_HK", "AIA Group HK",
                 "https://www.aia.com.hk/en/about-aia/about-us/media-centre/press-releases",
                 "www.aia.com.hk", Source.SourceType.HTML, 2, "en"));
