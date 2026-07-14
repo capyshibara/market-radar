@@ -1504,6 +1504,54 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Swiss Re Institute (swissre.com) — trang /institute/research/sigma-research.html, AEM
+     * server-rendered, không cần API. Mỗi tin là {@code <article class="ArticleTeaser">
+     * <div class="ArticleTeaser--content"><h3 class="ArticleTeaser--title">
+     * <span class="ArticleTeaser--category">Publication</span>Title</h3>
+     * <time class="ArticleTeaser--date" datetime="yyyy-MM-dd">...</time></div>
+     * <a class="ArticleTeaser--link" href="...">}. Bỏ span category trước khi lấy text() để
+     * không dính chữ "Publication" vào đầu tiêu đề. datetime attribute đã ISO sẵn, khỏi parse
+     * chuỗi hiển thị "30 Jun 2026".
+     * Fix 2026-07-14 (Hanh: chuyển sang cụm US/global).
+     */
+    public List<ListingItem> parseSwissReInstitute(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements articles = doc.select("article.ArticleTeaser");
+            List<ListingItem> items = new ArrayList<>();
+            for (Element art : articles) {
+                Element h3 = art.selectFirst(".ArticleTeaser--title");
+                Element a = art.selectFirst("a.ArticleTeaser--link");
+                if (h3 == null || a == null) continue;
+                Element category = h3.selectFirst(".ArticleTeaser--category");
+                if (category != null) category.remove();
+                String title = h3.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank()) continue;
+                Instant publishedAt = null;
+                Element dateEl = art.selectFirst("time.ArticleTeaser--date");
+                String dateAttr = dateEl != null ? dateEl.attr("datetime").strip() : "";
+                if (!dateAttr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateAttr).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("SWISSRE_INST: không parse được ngày '{}' — publishedAt để null", dateAttr);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("SWISSRE_INST: không tìm thấy article.ArticleTeaser nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse SWISSRE_INST: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);

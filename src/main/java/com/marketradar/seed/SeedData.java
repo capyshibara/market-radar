@@ -518,6 +518,9 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 1, "en"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // sigma research hub found live at /institute/research/sigma-research.html.
+        // Parser added same day (parseSwissReInstitute): AEM server-rendered, article.ArticleTeaser
+        // with a clean ISO datetime attribute — no date-string parsing needed. Verified server-side:
+        // 54 items, real dates through July 2026 (e.g. "World insurance in 2026" sigma report).
         sources.save(new Source("SWISSRE_INST", "Swiss Re Institute (Sigma)",
                 "https://www.swissre.com/institute/research/sigma-research.html", "www.swissre.com",
                 Source.SourceType.HTML, 2, "en"));

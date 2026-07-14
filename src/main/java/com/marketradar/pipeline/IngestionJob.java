@@ -257,6 +257,7 @@ public class IngestionJob {
             case "GREAT_EASTERN" -> ingestListing(source, parsers.parseGreatEastern(result.body(), source.getFetchUrl()));
             case "INCOME_SG" -> ingestListing(source, parsers.parseIncomeSg(result.body(), source.getFetchUrl()));
             case "FUBON_TW" -> ingestListing(source, parsers.parseFubonTw(result.body(), source.getFetchUrl()));
+            case "SWISSRE_INST" -> ingestListing(source, parsers.parseSwissReInstitute(result.body(), source.getFetchUrl()));
             case "PHU_HUNG_LIFE" -> ingestListing(source, parsers.parsePhuHungLife(result.body(), source.getFetchUrl()));
             default -> {
                 var parsed = parsers.parseHtml(result.body());
