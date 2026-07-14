@@ -63,6 +63,10 @@ public class ContentParsers {
     private static final DateTimeFormatter NFRA_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
     // Fubon Financial Holdings (Taiwan): "2026.06.26" — dấu chấm.
     private static final DateTimeFormatter FUBON_TW_FMT = DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ENGLISH);
+    // NAIC: "Jun. 16, 2026" — viết tắt tháng CÓ dấu chấm.
+    private static final DateTimeFormatter NAIC_FMT = DateTimeFormatter.ofPattern("MMM'.' d, yyyy", Locale.ENGLISH);
+    private static final java.util.regex.Pattern NAIC_DATE_PATTERN =
+            java.util.regex.Pattern.compile("(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\. \\d{1,2}, \\d{4}");
     private static final java.util.regex.Pattern MANULIFE_YEAR = java.util.regex.Pattern.compile("(\\d{4})");
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     // Fix 2026-07-14: URL bài AIA có năm ngay trong path (.../su-kien-noi-bat/2024/...) —
@@ -1549,6 +1553,48 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse SWISSRE_INST: " + e.getMessage());
+        }
+    }
+
+    /**
+     * NAIC (content.naic.org) — trang /newsroom, Drupal 11 server-rendered NHƯNG theme dùng
+     * Tailwind utility class thuần (không có class ngữ nghĩa như "views-row" để bắt) — mỗi tin
+     * là {@code <a href="/article/{slug}">...<h3>Title</h3>...<p>MMM. d, yyyy</p>...</a>}.
+     * Vì không có class riêng cho ngày, quét regex ngày trên TOÀN BỘ text() của thẻ &lt;a&gt;
+     * thay vì dò đúng vị trí &lt;p&gt; thứ mấy (bền hơn khi Tailwind class đổi).
+     * Fix 2026-07-14 (Hanh: tiếp tục cụm US/global).
+     */
+    public List<ListingItem> parseNaic(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements anchors = doc.select("a[href^=/article/]");
+            List<ListingItem> items = new ArrayList<>();
+            java.util.Set<String> seenLinks = new java.util.HashSet<>();
+            for (Element a : anchors) {
+                Element h3 = a.selectFirst("h3");
+                if (h3 == null) continue;
+                String title = h3.text().strip();
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank() || !seenLinks.add(link)) continue;
+                Instant publishedAt = null;
+                var m = NAIC_DATE_PATTERN.matcher(a.text());
+                if (m.find()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(m.group(), NAIC_FMT).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("NAIC: không parse được ngày '{}' — publishedAt để null", m.group());
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("NAIC: không tìm thấy a[href^=/article/] nào — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi khi parse NAIC: " + e.getMessage());
         }
     }
 

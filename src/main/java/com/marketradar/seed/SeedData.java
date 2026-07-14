@@ -513,6 +513,11 @@ public class SeedData implements CommandLineRunner {
         sources.save(philamPh);
 
         // US & Global
+        // Parser added 2026-07-14 (parseNaic): server-rendered but the Drupal 11 theme uses only
+        // Tailwind utility classes (no semantic hooks like "views-row") — a[href^=/article/] with
+        // h3 title, date extracted by regex over the anchor's full text (not positional <p>
+        // indexing, more resilient to class churn). Verified live: 12 items, real dates through
+        // June 2026.
         sources.save(new Source("NAIC", "NAIC",
                 "https://content.naic.org/newsroom", "content.naic.org",
                 Source.SourceType.HTML, 1, "en"));
