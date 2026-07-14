@@ -167,8 +167,20 @@ public class IngestionJob {
      * chỉ lấy static HTML nên không parser nào trích được — bỏ qua, không silent-skip
      * mà ghi rõ trong handoff).
      */
+    /**
+     * FWD_VN /vi/blog/ embed ~331 bài trong __NEXT_DATA__ (~7-8MB) — vượt cap mặc định 5MB.
+     * Đã xác nhận thủ công đây là nội dung thật (không phải payload tấn công) — dùng biến thể
+     * fetch() có maxBytesOverride CHỈ cho nguồn này, xem SafeFetcher.
+     */
+    private static final long FWD_VN_MAX_BYTES = 12L * 1024 * 1024;
+
     private int ingestHtml(Source source)
             throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
+        if ("FWD_VN".equals(source.getCode())) {
+            var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                    SafeFetcher.ExpectedKind.HTML, null, FWD_VN_MAX_BYTES);
+            return ingestListing(source, parsers.parseFwdVn(result.body(), source.getFetchUrl()));
+        }
         var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
                 SafeFetcher.ExpectedKind.HTML);
         return switch (source.getCode()) {
@@ -180,6 +192,7 @@ public class IngestionJob {
             case "FUBON_VN" -> ingestListing(source, parsers.parseFubonVn(result.body(), source.getFetchUrl()));
             case "CHUBB_VN" -> ingestListing(source, parsers.parseChubbVn(result.body(), source.getFetchUrl()));
             case "TBNH" -> ingestListing(source, parsers.parseTbnh(result.body(), source.getFetchUrl()));
+            case "MB_AGEAS" -> ingestListing(source, parsers.parseMbAgeasPress(result.body(), source.getFetchUrl()));
             default -> {
                 var parsed = parsers.parseHtml(result.body());
                 yield storeIfNew(source, source.getFetchUrl(), parsed.title(), null, parsed.text()) ? 1 : 0;

@@ -88,6 +88,24 @@ public class SafeFetcher {
      */
     public FetchResult fetch(String url, String allowedHost, ExpectedKind kind, String postJsonBody)
             throws FetchRejectedException {
+        return fetch(url, allowedHost, kind, postJsonBody, maxBodyBytes);
+    }
+
+    /** Trần cứng cho maxBytesOverride — vẫn phải bảo vệ chống payload tấn công dù nguồn cần cap lớn hơn. */
+    private static final long MAX_BYTES_OVERRIDE_CEILING = 15L * 1024 * 1024;
+
+    /**
+     * Biến thể cho phép NÂNG cap #6 (readWithCap) trên MỘT lần gọi, dùng khi một nguồn cụ thể
+     * có payload hợp lệ thật sự lớn hơn cap mặc định (vd FWD_VN /vi/blog/ embed ~331 bài trong
+     * __NEXT_DATA__, ~7-8MB) — đã xác nhận thủ công là nội dung thật, không phải tấn công.
+     * KHÔNG nới cap mặc định cho MỌI nguồn (giữ nguyên triết lý "không relax gate chung vì
+     * một site" — xem ghi chú CafeF trong SeedData) — override chỉ áp dụng đúng 1 lần gọi này,
+     * và vẫn bị chặn trần MAX_BYTES_OVERRIDE_CEILING dù caller truyền gì.
+     */
+    public FetchResult fetch(String url, String allowedHost, ExpectedKind kind,
+                             String postJsonBody, long maxBytesOverride)
+            throws FetchRejectedException {
+        long effectiveCap = Math.min(Math.max(maxBytesOverride, maxBodyBytes), MAX_BYTES_OVERRIDE_CEILING);
 
         final URI uri;
         try {
@@ -167,7 +185,7 @@ public class SafeFetcher {
         }
 
         // #6 đọc body có giới hạn dung lượng
-        byte[] body = readWithCap(response.body(), maxBodyBytes, url);
+        byte[] body = readWithCap(response.body(), effectiveCap, url);
         log.info("Fetched OK: {} ({} bytes, {})", url, body.length, contentType);
         return new FetchResult(body, contentType);
     }

@@ -515,6 +515,136 @@ public class ContentParsers {
     }
 
     /**
+     * MB Ageas Life (mblife.vn) — trang "Góc báo chí" (/goc-bao-chi), Next.js + Apollo
+     * GraphQL. KHÔNG phải trang render bằng client-side fetch như BIDV — dữ liệu bài viết
+     * đã NẰM SẴN trong &lt;script id="__NEXT_DATA__"&gt; của chính trang này (props.pageProps.
+     * initialApolloState), dạng cache Apollo phẳng: object "Articles:&lt;id&gt;" giữ postedDate,
+     * object "ArticleTranslations:&lt;id&gt;" giữ title/urlSlug/metaDescription + articleId trỏ
+     * ngược về Articles. Link bài = "/goc-bao-chi/{urlSlug}" (xác nhận qua href thật trên trang).
+     * Fix 2026-07-14 (Hanh: ưu tiên VN competitor).
+     */
+    public List<ListingItem> parseMbAgeasPress(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode state = readNextDataApolloState(body);
+            java.util.Map<String, Instant> postedDateByArticleId = new java.util.HashMap<>();
+            var fields = state.fields();
+            while (fields.hasNext()) {
+                var e = fields.next();
+                JsonNode v = e.getValue();
+                if (v.path("__typename").asText("").equals("Articles")) {
+                    Instant d = parseFlexibleInstant(v.path("postedDate").asText(""));
+                    if (d != null) postedDateByArticleId.put(v.path("id").asText(""), d);
+                }
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            fields = state.fields();
+            while (fields.hasNext()) {
+                var e = fields.next();
+                JsonNode v = e.getValue();
+                if (!v.path("__typename").asText("").equals("ArticleTranslations")) continue;
+                String title = v.path("title").asText("").strip();
+                String slug = v.path("urlSlug").asText("").strip();
+                if (title.isBlank() || slug.isBlank()) continue;
+                Instant publishedAt = postedDateByArticleId.get(v.path("articleId").asText(""));
+                items.add(new ListingItem(title, origin + "/goc-bao-chi/" + slug, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("MB_AGEAS: không tìm thấy ArticleTranslations nào trong __NEXT_DATA__ — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("MB_AGEAS: lỗi parse __NEXT_DATA__: " + e.getMessage());
+        }
+    }
+
+    /**
+     * FWD Việt Nam (fwd.com.vn) — trang /vi/blog/, Next.js + Contentstack CMS. Route ngoài
+     * /vi/blog/ đều trả CÙNG MỘT app-shell HTTP 200 (routing hoàn toàn client-side — kể cả
+     * URL không tồn tại), nên phải fetch ĐÚNG /vi/blog/. Toàn bộ ~331 bài (cho lọc phía
+     * client) nằm sẵn trong &lt;script id="__NEXT_DATA__"&gt;, RẢI RÁC lồng nhau trong cây
+     * layout (không phải 1 mảng phẳng) — quét đệ quy tìm mọi object có
+     * "_content_type_uid":"article" kèm "post_date". Field tên "title" của các object này
+     * THỰC RA là ĐƯỜNG DẪN bài ("/blog/.../slug/", không phải tiêu đề — đặc thù Contentstack
+     * content-type "article") — tiêu đề thật nằm ở "display_title". Trang nặng (~7-8MB, vượt
+     * cap 5MB mặc định của SafeFetcher) — IngestionJob gọi fetch() với maxBytesOverride cho
+     * riêng nguồn này (xác nhận thủ công đây là nội dung thật, không phải payload tấn công).
+     * Fix 2026-07-14 (Hanh: ưu tiên VN competitor).
+     */
+    public List<ListingItem> parseFwdVn(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode root = readNextData(body);
+            List<JsonNode> found = new ArrayList<>();
+            collectArticleNodes(root, found, 0);
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            java.util.Set<String> seenUrls = new java.util.HashSet<>();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode a : found) {
+                String urlPath = a.path("title").asText("").strip(); // tên field gây nhầm — xem javadoc
+                String displayTitle = a.path("display_title").asText("").strip();
+                String postDate = a.path("post_date").asText("").strip();
+                if (urlPath.isBlank() || displayTitle.isBlank() || !seenUrls.add(urlPath)) continue;
+                // post_date đa số dạng "yyyy-MM-dd" thuần, nhưng vài bài (created_at kiểu cũ?)
+                // lại là ISO datetime đầy đủ "...T...Z" — thử cả hai, không bỏ bài chỉ vì khác format.
+                Instant publishedAt = null;
+                if (!postDate.isBlank()) {
+                    try {
+                        publishedAt = LocalDate.parse(postDate).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        publishedAt = parseFlexibleInstant(postDate);
+                        if (publishedAt == null) log.warn("FWD_VN: không parse được post_date '{}'", postDate);
+                    }
+                }
+                items.add(new ListingItem(displayTitle, origin + urlPath, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("FWD_VN: không tìm thấy article node nào trong __NEXT_DATA__ — cấu trúc trang có thể đã đổi");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("FWD_VN: lỗi parse __NEXT_DATA__: " + e.getMessage());
+        }
+    }
+
+    /** Quét đệ quy cây JSON tìm object {"_content_type_uid":"article", "post_date":...}. */
+    private void collectArticleNodes(JsonNode node, List<JsonNode> out, int depth) {
+        if (node == null || depth > 80) return; // chặn đệ quy quá sâu (an toàn, không phải giới hạn thật)
+        if (node.isObject()) {
+            if ("article".equals(node.path("_content_type_uid").asText(""))
+                    && node.has("post_date")) {
+                out.add(node);
+            }
+            var it = node.fields();
+            while (it.hasNext()) collectArticleNodes(it.next().getValue(), out, depth + 1);
+        } else if (node.isArray()) {
+            for (JsonNode child : node) collectArticleNodes(child, out, depth + 1);
+        }
+    }
+
+    /** Đọc &lt;script id="__NEXT_DATA__"&gt; của trang Next.js thành JsonNode (nội dung script raw). */
+    private JsonNode readNextData(byte[] body) throws Exception {
+        Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8));
+        Element script = doc.selectFirst("script#__NEXT_DATA__");
+        if (script == null) throw new IllegalStateException("không tìm thấy script#__NEXT_DATA__");
+        return JSON.readTree(script.data());
+    }
+
+    /** Như readNextData nhưng đi thẳng vào props.pageProps.initialApolloState (pattern Apollo). */
+    private JsonNode readNextDataApolloState(byte[] body) throws Exception {
+        JsonNode state = readNextData(body).path("props").path("pageProps").path("initialApolloState");
+        if (state.isMissingNode() || !state.isObject()) {
+            throw new IllegalStateException("không tìm thấy props.pageProps.initialApolloState");
+        }
+        return state;
+    }
+
+    /**
      * BIDV MetLife (bidvmetlife.com.vn) — trang "Tin tức" render bằng JS (nền tảng AEM),
      * HTML tĩnh KHÔNG có bài. JS gọi endpoint JSON nội bộ
      * ({@code /bin/MLApp/.../fetchArticleColumnGridArticleListing}) trả sẵn danh sách bài —
@@ -615,6 +745,7 @@ public class ContentParsers {
     }
 
     /** ISO có Z/millis (Instant.parse) hoặc không zone ("2025-04-10T08:31:01") → coi giờ VN. */
+    /** Dùng chung cho mọi nguồn có ISO datetime lẫn lộn có/không zone (MOF_ISA, MB_AGEAS, FWD_VN). */
     private static Instant parseFlexibleInstant(String raw) {
         if (raw == null || raw.isBlank()) return null;
         try {
@@ -623,7 +754,7 @@ public class ContentParsers {
             try {
                 return LocalDateTime.parse(raw.strip()).atZone(VN_ZONE).toInstant();
             } catch (DateTimeParseException e2) {
-                log.warn("MOF_ISA: không parse được publicationTime '{}'", raw);
+                log.warn("parseFlexibleInstant: không parse được '{}'", raw);
                 return null;
             }
         }

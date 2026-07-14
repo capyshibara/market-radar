@@ -156,8 +156,12 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 2, "vi"));
         // Fix 2026-07-05: old domain www.mbalife.com.vn was DNS NXDOMAIN — wrong domain entirely.
         // Real domain confirmed by user + live-checked: mblife.vn (200 text/html).
+        // Fix 2026-07-14: root "/" homepage has no articles — moved fetchUrl to the actual press
+        // page (/goc-bao-chi, "press corner", found via its own nav). Parser added (parseMbAgeasPress):
+        // Next.js + Apollo GraphQL, article data already embedded in __NEXT_DATA__ (no separate API
+        // call needed — unlike BIDV). Verified live: 20 dated items, current 2026 press releases.
         sources.save(new Source("MB_AGEAS", "MB Ageas Life",
-                "https://mblife.vn/", "mblife.vn",
+                "https://mblife.vn/goc-bao-chi", "mblife.vn",
                 Source.SourceType.HTML, 2, "vi"));
         // Fix 2026-07-05: old domain www.phuhunglife.vn timed out — wrong TLD. Real domain confirmed
         // by user + live-checked: www.phuhunglife.com (200 text/html).
@@ -221,8 +225,14 @@ public class SeedData implements CommandLineRunner {
                 "https://dai-ichi-life.com.vn/", "dai-ichi-life.com.vn",
                 Source.SourceType.HTML, 2, "vi"));
         // Track 2 fix 2026-07-05: root 301 → /vi/ (same host).
+        // Fix 2026-07-14: root/homepage has no articles — site routes ENTIRELY client-side
+        // (every path, even nonexistent ones, returns the same HTTP 200 app-shell; confirmed
+        // by curl). Real news route found by loading the site in a browser and clicking nav
+        // ("Tin tức - Kiến thức" -> /vi/blog/). Parser added (parseFwdVn): Contentstack CMS
+        // embeds ~331 articles in __NEXT_DATA__, page is ~7-8MB (needs SafeFetcher's
+        // maxBytesOverride — see IngestionJob.FWD_VN_MAX_BYTES). Verified live, real 2026 dates.
         sources.save(new Source("FWD_VN", "FWD Việt Nam",
-                "https://www.fwd.com.vn/vi/", "www.fwd.com.vn",
+                "https://www.fwd.com.vn/vi/blog/", "www.fwd.com.vn",
                 Source.SourceType.HTML, 2, "vi"));
         // Fix 2026-07-05 (user decision): old www.generali.vn 301'd to this exact URL (host drops
         // www) — switched fetchUrl+allowedHost directly to the redirect target, confirmed live 200.
