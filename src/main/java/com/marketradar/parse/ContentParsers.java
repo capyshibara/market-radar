@@ -1230,6 +1230,50 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Nippon Life (nissay.co.jp) — trang /global/news/, article list JS-rendered từ một file
+     * JSON TĨNH (không phải API động, không cần POST/tham số gì): GET /global/news/json/
+     * index.json → mảng phẳng {@code [{"date":"yyyy-MM-dd","title":...,"link":"/..."}]}. Nhiều
+     * link trỏ thẳng tới PDF (báo cáo tài chính) — vẫn hợp lệ, ingestListing tự fetch full-text
+     * nếu link cùng host, hoặc title-only nếu SafeFetcher từ chối content-type PDF qua nhánh HTML.
+     * Fix 2026-07-14 (Hanh: tiếp tục Hong Kong/Korea/Japan — Japan).
+     */
+    public List<ListingItem> parseNipponLife(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            JsonNode arr = JSON.readTree(body);
+            if (!arr.isArray() || arr.isEmpty()) {
+                throw new ParseFailedException("NIPPON_LIFE: JSON không phải mảng hoặc rỗng — endpoint có thể đã đổi");
+            }
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            List<ListingItem> items = new ArrayList<>();
+            for (JsonNode n : arr) {
+                String title = n.path("title").asText("").strip();
+                String relLink = n.path("link").asText("").strip();
+                if (title.isBlank() || relLink.isBlank()) continue;
+                String link = relLink.startsWith("http") ? relLink : origin + relLink;
+                Instant publishedAt = null;
+                String dateStr = n.path("date").asText("").strip();
+                if (!dateStr.isBlank()) {
+                    try {
+                        publishedAt = java.time.LocalDate.parse(dateStr).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException e) {
+                        log.warn("NIPPON_LIFE: không parse được ngày '{}' — publishedAt để null", dateStr);
+                    }
+                }
+                items.add(new ListingItem(title, link, publishedAt));
+            }
+            if (items.isEmpty()) {
+                throw new ParseFailedException("NIPPON_LIFE: không có item hợp lệ sau khi lọc");
+            }
+            return items;
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("NIPPON_LIFE: lỗi parse response: " + e.getMessage());
+        }
+    }
+
     /** Quét ngoặc {} cân bằng từ vị trí "from" (phải trỏ tới hoặc trước dấu "{" đầu tiên) — trả chuỗi JSON object đầy đủ. */
     private static String extractBalancedJsonObject(String s, int from) {
         int start = s.indexOf('{', from);

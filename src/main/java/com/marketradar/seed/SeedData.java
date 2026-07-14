@@ -377,16 +377,28 @@ public class SeedData implements CommandLineRunner {
                 "https://www.fss.or.kr/eng/bbs/B0000211/list.do?menuNo=400010", "www.fss.or.kr",
                 Source.SourceType.HTML, 1, "en"));
         // Track 2 fix 2026-07-05: 302 → /static/CM_CC00001_P10000.html (same host).
-        sources.save(new Source("HANWHA_GLOBAL", "Hanwha Life (global)",
+        // Track 2 recheck 2026-07-14: TLS handshake fails — "unsafe legacy renegotiation
+        // disabled" (server requires legacy TLS renegotiation, which modern clients correctly
+        // refuse by default; same class of issue as MAP_LIFE's broken cert chain). Genuine
+        // server-side misconfiguration on Hanwha's end — not weakening our own TLS settings to
+        // accommodate it. Deactivate.
+        Source hanwhaGlobal = new Source("HANWHA_GLOBAL", "Hanwha Life (global)",
                 "https://www.hanwhalife.com/static/CM_CC00001_P10000.html", "www.hanwhalife.com",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 2, "en");
+        hanwhaGlobal.setActive(false);
+        sources.save(hanwhaGlobal);
 
         // Japan
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // newsroom found live at /en/newsroom/release/.
+        // Fix 2026-07-14 (second pass): that page's article list is JS-rendered (near-empty static
+        // HTML), but it links its own RSS feed (icon-rss.svg in the page chrome) — found it and
+        // switched straight to that, no custom parser needed at all. Standard RSS 2.0, 10 items,
+        // real dates through June 2026 (article links point to PDF releases -- fine, RSS ingestion
+        // stores title+description from the feed entry itself, no full-text fetch).
         sources.save(new Source("TOKIO_MARINE", "Tokio Marine Holdings",
-                "https://www.tokiomarinehd.com/en/newsroom/release/", "www.tokiomarinehd.com",
-                Source.SourceType.HTML, 2, "en"));
+                "https://www.tokiomarinehd.com/en/feed/release.xml", "www.tokiomarinehd.com",
+                Source.SourceType.RSS, 2, "en"));
         // Track 2 recheck 2026-07-14: still 403 with both our UA and a full browser UA — genuine
         // bot-protection WAF, not a UA-string issue. Deactivate (bypassing bot detection is out of
         // scope — see market-radar's own safety policy).
@@ -397,9 +409,14 @@ public class SeedData implements CommandLineRunner {
         sources.save(msad);
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // newsroom found live at /global/news/.
+        // Fix 2026-07-14 (second pass): that page's list is JS-rendered from a plain STATIC JSON
+        // file (no API, no auth) — GET /global/news/json/index.json, flat array {date,title,link}.
+        // Many links point to PDF financial reports (fine — ingestListing's HTML-only full-text
+        // fetch correctly falls back to title-only for those, same as any off-host link).
+        // parseNipponLife(). Verified server-side: 264 items, dates through June 2026.
         sources.save(new Source("NIPPON_LIFE", "Nippon Life",
-                "https://www.nissay.co.jp/global/news/", "www.nissay.co.jp",
-                Source.SourceType.HTML, 2, "en"));
+                "https://www.nissay.co.jp/global/news/json/index.json", "www.nissay.co.jp",
+                Source.SourceType.JSON, 2, "en"));
 
         // Singapore
         // Track 2 recheck 2026-07-14: /news is a clean, real REST API (GET /api/v1/search, Solr
