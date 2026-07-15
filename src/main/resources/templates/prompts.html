@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title>AI Prompts</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .prompt-card { border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card); margin-bottom:18px; overflow:hidden; }
+  .prompt-head { display:flex; gap:10px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border-subtle); flex-wrap:wrap; }
+  .prompt-head h3 { margin:0; font-size:var(--text-md); }
+  .prompt-desc { font-size:var(--text-xs); color:var(--text-secondary); padding:8px 16px 0; }
+  .prompt-body { padding:12px 16px; }
+  .prompt-body textarea { width:100%; min-height:230px; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.5;
+    padding:12px; border:1px solid var(--border-default); border-radius:var(--radius-sm); resize:vertical; box-sizing:border-box; color:var(--text-primary); background:var(--surface-card-sunk); }
+  .prompt-actions { display:flex; gap:8px; align-items:center; margin-top:10px; }
+  .badge-override { background:var(--amber-50, #FDEBD3); color:var(--amber-700, #8A4B08); }
+  .flash { padding:10px 14px; border-radius:var(--radius-md); background:var(--blue-50,#E8EEFF); color:var(--ink-blue,#2647E8); margin-bottom:16px; font-size:var(--text-sm); }
+</style>
+</head>
+<body>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('prompts', ${queueCount})}"></th:block>
+  <div class="ops-main">
+    <div class="ops-content">
+      <div class="page-header">
+        <div>
+          <h1>AI Prompts</h1>
+          <p>Xem và chỉnh sửa hướng dẫn (prompt) cho từng bước AI. Lưu là áp dụng ngay ở lần chạy kế tiếp — không cần khởi động lại.</p>
+        </div>
+      </div>
+
+      <div class="flash" th:if="${msg}" th:text="${msg}">saved</div>
+
+      <div class="prompt-card" th:each="r : ${rows}">
+        <div class="prompt-head">
+          <h3 th:text="${r.key.label}">Label</h3>
+          <span class="badge badge-sm" style="background:var(--surface-card-sunk);color:var(--text-tertiary)" th:text="${r.key.name()}">KEY</span>
+          <span class="badge badge-sm badge-override" th:if="${r.overridden}">đã chỉnh sửa</span>
+          <span class="badge badge-sm" th:unless="${r.overridden}" style="background:var(--surface-card-sunk);color:var(--text-tertiary)">mặc định</span>
+        </div>
+        <div class="prompt-desc" th:text="${r.key.description}">description</div>
+        <form class="prompt-body" method="post" action="/prompts/save">
+          <input type="hidden" name="key" th:value="${r.key.name()}"/>
+          <textarea name="body" th:text="${r.effectiveBody}">prompt</textarea>
+          <div class="prompt-actions">
+            <button class="btn btn-primary btn-sm" type="submit">Lưu &amp; áp dụng</button>
+            <button class="btn btn-sm" type="submit" formaction="/prompts/reset" th:if="${r.overridden}"
+                    title="Xoá bản chỉnh sửa, quay về prompt mặc định trong code">Khôi phục mặc định</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/js/ops-session.js"></script>
+<script src="/js/ops-sidebar.js"></script>
+</body>
+</html>

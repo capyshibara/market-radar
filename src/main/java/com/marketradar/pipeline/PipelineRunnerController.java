@@ -32,6 +32,8 @@ import java.util.function.Supplier;
 @Controller
 public class PipelineRunnerController {
 
+    // Broad refetch was deliberately retired. Recovery now requires the read-only plan and
+    // explicit IDs (max 25) with confirm=true via TargetedRefetchController.
     private static final String[] STAGES = {"ingest", "classify", "extract", "interpret", "verify"};
 
     private final IngestionJob ingest;
@@ -99,14 +101,29 @@ public class PipelineRunnerController {
         return out;
     }
 
+    /** Read-only classification version plan; no dedup writes and no LLM calls. */
+    @GetMapping(value = "/pipeline/classification/plan", produces = "text/plain;charset=UTF-8")
+    @ResponseBody
+    public String classificationPlan() {
+        return classify.dryRunPlan();
+    }
+
     private Supplier<String> jobFor(String stage) {
         return switch (stage) {
             case "ingest" -> ingest::runOnce;
-            case "classify" -> classify::runOnce;
-            case "extract" -> extract::runOnce;
-            case "interpret" -> interpret::runOnce;
-            case "verify" -> verify::runOnce;
+            case "classify" -> guarded(stage, classify::runOnce, classifierClient, writerClient);
+            case "extract" -> guarded(stage, extract::runOnce, writerClient);
+            case "interpret" -> guarded(stage, interpret::runOnce, writerClient);
+            case "verify" -> guarded(stage, verify::runOnce, verifierClient);
             default -> null;
+        };
+    }
+
+    private static Supplier<String> guarded(String stage, Supplier<String> job,
+                                             SwitchableLlmClient... clients) {
+        return () -> {
+            PipelineExecutionRules.requireConfigured(stage, clients);
+            return job.get();
         };
     }
 

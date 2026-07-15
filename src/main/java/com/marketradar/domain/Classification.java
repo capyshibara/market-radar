@@ -30,6 +30,11 @@ public class Classification {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Prevent two reruns from silently overwriting the same active one-to-one row. */
+    @Version
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long rowVersion;
+
     @OneToOne(optional = false, fetch = FetchType.LAZY)
     private RawDoc rawDoc;
 
@@ -56,8 +61,22 @@ public class Classification {
     @Column(length = 512)
     private String note;
 
-    @Column(nullable = false, length = 32)
+    @Column(nullable = false, length = 128)
     private String llmProvider;   // ANTHROPIC / STUB — minh bạch chế độ chạy
+
+    /**
+     * Version material for the active result. Nullable so Hibernate can add the
+     * columns to databases that already contain legacy classifications. A null
+     * value deliberately means "legacy/stale", never "current by assumption".
+     */
+    @Column(length = 64)
+    private String classifierPromptSha256;
+
+    @Column(length = 64)
+    private String classifierContentSha256;
+
+    @Column(length = 64)
+    private String classifierVersionSignature;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
@@ -75,6 +94,7 @@ public class Classification {
     }
 
     public Long getId() { return id; }
+    public long getRowVersion() { return rowVersion; }
     public RawDoc getRawDoc() { return rawDoc; }
     public Set<Category> getLabels() { return labels; }
     public Set<Department> getDepartments() { return departments; }
@@ -83,6 +103,9 @@ public class Classification {
     public String getVotesJson() { return votesJson; }
     public String getNote() { return note; }
     public String getLlmProvider() { return llmProvider; }
+    public String getClassifierPromptSha256() { return classifierPromptSha256; }
+    public String getClassifierContentSha256() { return classifierContentSha256; }
+    public String getClassifierVersionSignature() { return classifierVersionSignature; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void applyRouting(Set<Department> depts, RoutingStatus status, String note) {
@@ -90,5 +113,35 @@ public class Classification {
         this.departments.addAll(depts);
         this.routingStatus = status;
         this.note = note;
+    }
+
+    public void applyClassifierVersion(String promptSha256, String contentSha256,
+                                       String versionSignature) {
+        this.classifierPromptSha256 = promptSha256;
+        this.classifierContentSha256 = contentSha256;
+        this.classifierVersionSignature = versionSignature;
+    }
+
+    /**
+     * Promote a rerun into the existing one-to-one row. The persistence service
+     * snapshots this row to the append-only attempt ledger before calling here.
+     */
+    public void replaceActiveResult(Classification replacement) {
+        if (!rawDoc.getId().equals(replacement.rawDoc.getId())) {
+            throw new IllegalArgumentException("replacement belongs to another RawDoc");
+        }
+        this.labels.clear();
+        this.labels.addAll(replacement.labels);
+        this.departments.clear();
+        this.departments.addAll(replacement.departments);
+        this.status = replacement.status;
+        this.routingStatus = replacement.routingStatus;
+        this.votesJson = replacement.votesJson;
+        this.note = replacement.note;
+        this.llmProvider = replacement.llmProvider;
+        this.classifierPromptSha256 = replacement.classifierPromptSha256;
+        this.classifierContentSha256 = replacement.classifierContentSha256;
+        this.classifierVersionSignature = replacement.classifierVersionSignature;
+        this.createdAt = Instant.now();
     }
 }

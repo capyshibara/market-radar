@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${lang}">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title th:text="${vi ? 'Market Radar · Product' : 'Market Radar · Product'}">Market Radar · Product</title>
+  <link rel="stylesheet" href="/css/fonts.css"/>
+  <link rel="stylesheet" href="/css/base.css"/>
+  <style>
+    body{max-width:960px;margin:0 auto;padding:40px 28px;color:#17233d;font-family:Arial,sans-serif}.operator{display:flex;gap:12px;align-items:center;padding:14px;background:#eef2f8;border-radius:8px}.report-header{border-bottom:4px solid #ba122b;padding-bottom:20px}.eyebrow,.meta,.kiq,.caveat{color:#596273}.cadence-nav{display:flex;gap:18px;margin:18px 0}.status,.insight,.watch,.references{padding:22px;margin:18px 0;border:1px solid #ddd;border-radius:10px}.insufficient{border-color:#b97600;background:#fff8e8}.insight{border-left:5px solid #ba122b}.watch{border-left:5px solid #b97600}h4{margin-bottom:4px}p{line-height:1.55}code{font-size:.82em}
+  </style>
+</head>
+<body>
+  <form class="operator" method="post" action="/report/product/regenerate">
+    <label for="cadence" th:text="${vi ? 'Tạo lại kỳ:' : 'Regenerate cadence:'}">Regenerate cadence:</label>
+    <select id="cadence" name="cadence">
+      <option value="weekly" th:selected="${cadence.name() == 'WEEKLY'}">7 days</option>
+      <option value="monthly" th:selected="${cadence.name() == 'MONTHLY'}">30 days</option>
+      <option value="quarterly" th:selected="${cadence.name() == 'QUARTERLY'}">90 days</option>
+    </select>
+    <button type="submit" th:text="${vi ? 'Tạo lại' : 'Regenerate'}">Regenerate</button>
+  </form>
+  <th:block th:replace="~{fragments/product-report :: body}"></th:block>
+</body>
+</html>

@@ -50,13 +50,17 @@ public class EntailmentVerifier {
     private final LlmCallLogRepository callLog;
     private final ObjectMapper mapper = new ObjectMapper();
     private final boolean replayCache;
+    private final com.marketradar.prompt.PromptService promptService;
 
     public EntailmentVerifier(@Qualifier("verifierLlmClient") LlmClient verifier,
                               LlmCallLogRepository callLog,
-                              @Value("${marketradar.llm.replay-cache:true}") boolean replayCache) {
+                              @Value("${marketradar.llm.replay-cache:true}") boolean replayCache,
+                              com.marketradar.prompt.PromptService promptService) {
         this.verifier = verifier;
         this.callLog = callLog;
         this.replayCache = replayCache;
+        this.promptService = promptService;
+        promptService.registerDefault(com.marketradar.prompt.PromptKey.VERIFY, SYSTEM);
     }
 
     public record VerifyResult(Verdict verdict, String rationale, String rawResponse) {}
@@ -103,9 +107,14 @@ public class EntailmentVerifier {
 
     public String providerName() { return verifier.providerName(); }
 
-    /** Cùng cơ chế replay-cache với Interpreter/TopicClassifier. */
+    /** Cùng cơ chế replay-cache với Interpreter/TopicClassifier. Hash gồm
+     * verifier.providerName() — fix bug 2026-07-15: đổi verifier STUB → provider thật
+     * vẫn cache-hit trúng response STUB cũ (prompt text giống hệt, hash cũ không phân
+     * biệt provider) → ClaimVerification ghi nhầm verdict/rationale của STUB dưới tên
+     * provider thật. */
     private String call(String user) {
-        String hash = sha256(SYSTEM + "\n---\n" + user);
+        String system = promptService.body(com.marketradar.prompt.PromptKey.VERIFY);
+        String hash = sha256(verifier.providerName() + "\n===\n" + system + "\n---\n" + user);
         if (replayCache) {
             var cached = callLog.findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(hash, 0);
             if (cached.isPresent()) {
@@ -116,7 +125,7 @@ public class EntailmentVerifier {
         long t0 = System.currentTimeMillis();
         try {
             // temperature=null: entailment cần deterministic nhất có thể, không cần đa dạng
-            String response = verifier.complete(SYSTEM, user, null);
+            String response = verifier.complete(system, user, null);
             callLog.save(new LlmCallLog("VERIFY", verifier.providerName(), hash, 0,
                     response, null, System.currentTimeMillis() - t0));
             return response;

@@ -91,8 +91,11 @@ public class AnthropicLlmClient implements LlmClient {
         }
     }
 
+    // Bao gồm model (không chỉ "ANTHROPIC" trần) — cần thiết để replay-cache phân biệt
+    // được model khác nhau CÙNG họ Anthropic (vd Haiku ↔ Sonnet), xem callWithCache() ở
+    // Interpreter/TopicClassifier/EntailmentVerifier: hash cache giờ gồm providerName().
     @Override
-    public String providerName() { return "ANTHROPIC"; }
+    public String providerName() { return "ANTHROPIC(" + model + ")"; }
 
     private static String truncate(String s, int max) {
         return s == null ? "" : (s.length() <= max ? s : s.substring(0, max) + "…");

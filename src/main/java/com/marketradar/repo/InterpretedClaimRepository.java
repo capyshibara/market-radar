@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.marketradar.domain.InterpretedClaim;
+import com.marketradar.domain.ClaimVerification;
 import com.marketradar.domain.RawDoc;
 
 import java.util.List;
@@ -19,12 +20,16 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
            "where c.gateStatus = :status order by c.id asc")
     List<InterpretedClaim> findByGateStatusFetched(@Param("status") InterpretedClaim.GateStatus status);
 
-    boolean existsByRawDocAndOrigin(RawDoc rawDoc, InterpretedClaim.Origin origin);
+    boolean existsByRawDocAndOriginAndInterpretationSignatureAndInterpretationInputHashAndSupersededFalse(
+            RawDoc rawDoc, InterpretedClaim.Origin origin, String interpretationSignature,
+            String interpretationInputHash);
 
     /** Batch 8: live queue-count badge on the ops sidebar (see OpsSidebarAdvice). */
-    long countByReviewStatus(InterpretedClaim.ReviewStatus status);
+    long countByReviewStatusAndSupersededFalse(InterpretedClaim.ReviewStatus status);
 
-    boolean existsBySlotAndOrigin(InterpretedClaim.Slot slot, InterpretedClaim.Origin origin);
+    default long countByReviewStatus(InterpretedClaim.ReviewStatus status) {
+        return countByReviewStatusAndSupersededFalse(status);
+    }
 
     // ---- Batch 4 ----
 
@@ -35,15 +40,36 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
      * "T0".."T4" trùng với thứ tự mong muốn).
      */
     @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
-           "where c.reviewStatus = :status order by c.riskTier desc, c.id asc")
+           "where c.reviewStatus = :status and c.superseded = false " +
+           "order by c.riskTier desc, c.id asc")
     List<InterpretedClaim> findByReviewStatusFetched(
             @Param("status") InterpretedClaim.ReviewStatus status);
 
-    /** Claim được phép vào report (4 trạng thái *_APPROVED). */
+    /**
+     * Claim được phép vào report: L1 PASS + trạng thái *_APPROVED + verdict MỚI NHẤT
+     * ENTAILED. Human/force approval không được biến NEUTRAL/CONTRADICTED hoặc claim
+     * chưa verify thành evidence-backed content. Subquery dùng createdAt rồi id làm
+     * tie-break, đúng cùng định nghĩa "latest" của ClaimVerificationRepository.
+     */
     @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
-           "where c.reviewStatus in :statuses order by c.id asc")
-    List<InterpretedClaim> findPublishable(
-            @Param("statuses") List<InterpretedClaim.ReviewStatus> statuses);
+           "where c.reviewStatus in :statuses and c.gateStatus = :gateStatus " +
+           "and c.superseded = false " +
+           "and exists (select v.id from ClaimVerification v where v.claim = c " +
+           "  and v.verdict = :verdict " +
+           "  and not exists (select newer.id from ClaimVerification newer " +
+           "    where newer.claim = c and (newer.createdAt > v.createdAt " +
+           "      or (newer.createdAt = v.createdAt and newer.id > v.id)))) " +
+           "order by c.id asc")
+    List<InterpretedClaim> findPublishableVerified(
+            @Param("statuses") List<InterpretedClaim.ReviewStatus> statuses,
+            @Param("gateStatus") InterpretedClaim.GateStatus gateStatus,
+            @Param("verdict") ClaimVerification.Verdict verdict);
+
+    /** Keeps legacy callers on one fail-closed path without duplicating enum lists in JPQL. */
+    default List<InterpretedClaim> findPublishable(List<InterpretedClaim.ReviewStatus> statuses) {
+        return findPublishableVerified(statuses, InterpretedClaim.GateStatus.PASS,
+                ClaimVerification.Verdict.ENTAILED);
+    }
 
     @Query("select c from InterpretedClaim c left join fetch c.rawDoc where c.id = :id")
     java.util.Optional<InterpretedClaim> findByIdFetched(@Param("id") Long id);
@@ -58,25 +84,52 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
     @Query("select c.claimCode from InterpretedClaim c")
     List<String> findAllClaimCodes();
 
-    /**
-     * Batch 9 ("Force Retry"): xoá claim cũ của MỘT doc (thường là bản SCHEMA_REJECTED
-     * duy nhất) để InterpretationJob coi doc đó là CHƯA interpret — existsByRawDocAndOrigin
-     * sẽ trả false, doc được xử lý lại ở lần chạy /interpret/run tiếp theo.
-     */
-    @org.springframework.data.jpa.repository.Modifying
-    @Query("delete from InterpretedClaim c where c.rawDoc.id = :rawDocId and c.origin = :origin")
-    void deleteByRawDocIdAndOrigin(@Param("rawDocId") Long rawDocId,
-                                   @Param("origin") InterpretedClaim.Origin origin);
+    // ---- Append-only interpretation edition lifecycle ----
 
-    /**
-     * Force Retry cho claim CẤP REPORT (EXEC_SUMMARY, rawDoc null) — deleteByRawDocIdAndOrigin
-     * ở trên không áp dụng được (không có rawDocId). InterpretationJob chỉ thử sinh
-     * EXEC_SUMMARY MỘT LẦN DUY NHẤT (existsBySlotAndOrigin guard) — nếu lần đó
-     * SCHEMA_REJECTED, xoá row này là cách duy nhất để lần /interpret/run tiếp theo
-     * thử lại.
-     */
+    /** Activate a newly persisted edition by superseding every prior active PIPELINE edition. */
     @org.springframework.data.jpa.repository.Modifying
-    @Query("delete from InterpretedClaim c where c.slot = :slot and c.origin = :origin")
-    void deleteBySlotAndOrigin(@Param("slot") InterpretedClaim.Slot slot,
-                               @Param("origin") InterpretedClaim.Origin origin);
+    @Query("update InterpretedClaim c set c.superseded = true " +
+           "where c.rawDoc.id = :rawDocId and c.origin = :origin and c.superseded = false " +
+           "and (c.interpretationEditionId is null or c.interpretationEditionId <> :keepEditionId)")
+    int supersedePriorByRawDocIdAndOrigin(@Param("rawDocId") Long rawDocId,
+                                          @Param("origin") InterpretedClaim.Origin origin,
+                                          @Param("keepEditionId") String keepEditionId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update InterpretedClaim c set c.superseded = true " +
+           "where c.slot = :slot and c.origin = :origin and c.superseded = false " +
+           "and (c.interpretationEditionId is null or c.interpretationEditionId <> :keepEditionId)")
+    int supersedePriorBySlotAndOrigin(@Param("slot") InterpretedClaim.Slot slot,
+                                      @Param("origin") InterpretedClaim.Origin origin,
+                                      @Param("keepEditionId") String keepEditionId);
+
+    // ---- Batch 10 (chapter narrative) ----
+
+    boolean existsBySlotAndChapterCodeAndOriginAndInterpretationSignatureAndInterpretationInputHashAndSupersededFalse(
+            InterpretedClaim.Slot slot, String chapterCode, InterpretedClaim.Origin origin,
+            String interpretationSignature, String interpretationInputHash);
+
+    boolean existsBySlotAndOriginAndInterpretationSignatureAndInterpretationInputHashAndSupersededFalse(
+            InterpretedClaim.Slot slot, InterpretedClaim.Origin origin,
+            String interpretationSignature, String interpretationInputHash);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update InterpretedClaim c set c.superseded = true " +
+           "where c.slot = :slot and c.chapterCode = :chapterCode " +
+           "and c.origin = :origin and c.superseded = false " +
+           "and (c.interpretationEditionId is null or c.interpretationEditionId <> :keepEditionId)")
+    int supersedePriorBySlotAndChapterCodeAndOrigin(
+            @Param("slot") InterpretedClaim.Slot slot,
+            @Param("chapterCode") String chapterCode,
+            @Param("origin") InterpretedClaim.Origin origin,
+            @Param("keepEditionId") String keepEditionId);
+
+    /** No fresh inputs means an old chapter must disappear rather than masquerade as current. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update InterpretedClaim c set c.superseded = true " +
+           "where c.slot = :slot and c.chapterCode = :chapterCode " +
+           "and c.origin = :origin and c.superseded = false")
+    int supersedeStaleChapter(@Param("slot") InterpretedClaim.Slot slot,
+                              @Param("chapterCode") String chapterCode,
+                              @Param("origin") InterpretedClaim.Origin origin);
 }

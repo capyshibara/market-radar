@@ -33,6 +33,7 @@ public class TopicClassifier {
 
     private static final Logger log = LoggerFactory.getLogger(TopicClassifier.class);
     private static final int MAX_INPUT_CHARS = 4000; // cắt input, không cắt giữa multi-byte vì substring theo char
+    private static final String USER_PROMPT_TEMPLATE_VERSION = "title-plus-stripped-raw-text-v2";
 
     private final LlmClient llm;
     private final LlmCallLogRepository callLog;
@@ -41,24 +42,65 @@ public class TopicClassifier {
     private final int minVotes;
     private final Double temperature;
     private final boolean replayCache;
+    private final com.marketradar.prompt.PromptService promptService;
 
     public TopicClassifier(@Qualifier("classifierLlmClient") LlmClient llm, LlmCallLogRepository callLog,
                            @Value("${marketradar.llm.samples:3}") int samples,
                            @Value("${marketradar.llm.min-votes:2}") int minVotes,
                            @Value("${marketradar.llm.temperature:1.0}") Double temperature,
-                           @Value("${marketradar.llm.replay-cache:true}") boolean replayCache) {
+                           @Value("${marketradar.llm.replay-cache:true}") boolean replayCache,
+                           com.marketradar.prompt.PromptService promptService) {
         this.llm = llm;
         this.callLog = callLog;
         this.samples = samples;
         this.minVotes = minVotes;
         this.temperature = temperature;
         this.replayCache = replayCache;
+        this.promptService = promptService;
+        promptService.registerDefault(com.marketradar.prompt.PromptKey.CLASSIFY, SYSTEM_PROMPT);
     }
 
     /** Kết quả trung gian, chưa gắn routing. */
     public Classification classify(RawDoc doc) {
+        return classifyVersioned(doc).classification();
+    }
+
+    /** Fail closed for every caller, including endpoints outside /pipeline. */
+    public void requireConfiguredProvider() {
+        String provider = llm.providerName();
+        if (provider == null || provider.isBlank() || provider.startsWith("STUB")) {
+            throw new IllegalStateException(
+                    "CLASSIFY cannot run while classifier is in STUB mode. "
+                            + "Configure a real classifier provider in LLM Settings first.");
+        }
+    }
+
+    /** Resolve the version without calling the LLM; used by classification dry-run. */
+    public ClassificationVersioning.CurrentVersion currentVersion(RawDoc doc) {
+        String system = promptService.body(com.marketradar.prompt.PromptKey.CLASSIFY);
+        return versionFor(system, doc);
+    }
+
+    /** Classification plus the exact provider/prompt/content version used for it. */
+    public VersionedClassification classifyVersioned(RawDoc doc) {
+        return classifyVersioned(doc, false);
+    }
+
+    /** Explicit operator retry: preserve call history but bypass replay reads. */
+    public VersionedClassification retryVersioned(RawDoc doc) {
+        return classifyVersioned(doc, true);
+    }
+
+    private VersionedClassification classifyVersioned(RawDoc doc, boolean bypassReplayCache) {
+        requireConfiguredProvider();
+        String system = promptService.body(com.marketradar.prompt.PromptKey.CLASSIFY);
         String userPrompt = buildUserPrompt(doc);
-        String promptHash = sha256(SYSTEM_PROMPT + "\n---\n" + userPrompt);
+        ClassificationVersioning.CurrentVersion version = versionFor(system, doc);
+        // Bao gồm llm.providerName() trong hash: fix bug replay-cache trả nhầm response
+        // của provider CŨ khi đổi model/provider (cùng prompt text nhưng khác provider →
+        // trước đây cùng 1 hash, cache-hit sai; phát hiện 2026-07-15 khi đổi verifier
+        // STUB → DeepSeek, callLog vẫn trả lại response STUB cũ).
+        String promptHash = sha256(version.signature() + "\n---USER---\n" + userPrompt);
 
         Map<Category, Integer> votes = new EnumMap<>(Category.class);
         int validRuns = 0;
@@ -68,7 +110,7 @@ public class TopicClassifier {
         for (int i = 0; i < samples; i++) {
             String raw;
             try {
-                raw = callWithCache(promptHash, i, userPrompt, doc.getId());
+                raw = callWithCache(system, promptHash, i, userPrompt, doc.getId(), bypassReplayCache);
             } catch (LlmException e) {
                 runNotes.add("run" + i + ": LLM_ERROR " + e.getMessage());
                 continue;
@@ -100,14 +142,22 @@ public class TopicClassifier {
 
         String votesJson = buildVotesJson(votes, validRuns, emptyRuns, runNotes);
         log.info("Classify doc#{} → {} {} (validRuns={})", doc.getId(), status, accepted, validRuns);
-        return new Classification(doc, accepted, status, votesJson, llm.providerName());
+        Classification classification = new Classification(
+                doc, accepted, status, votesJson, version.providerModel());
+        classification.applyClassifierVersion(version.promptSha256(),
+                version.contentSha256(), version.signature());
+        return new VersionedClassification(classification, version);
     }
+
+    public record VersionedClassification(Classification classification,
+                                          ClassificationVersioning.CurrentVersion version) {}
 
     // ---------- LLM call + replay cache ----------
 
-    private String callWithCache(String promptHash, int sampleIndex, String userPrompt, Long docId)
+    private String callWithCache(String system, String promptHash, int sampleIndex,
+                                 String userPrompt, Long docId, boolean bypassReplayCache)
             throws LlmException {
-        if (replayCache) {
+        if (replayCache && !bypassReplayCache) {
             var cached = callLog.findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(
                     promptHash, sampleIndex);
             if (cached.isPresent()) {
@@ -116,7 +166,7 @@ public class TopicClassifier {
             }
         }
         long t0 = System.currentTimeMillis();
-        String response = llm.complete(SYSTEM_PROMPT, userPrompt, temperature);
+        String response = llm.complete(system, userPrompt, temperature);
         callLog.save(new LlmCallLog("CLASSIFY", llm.providerName(), promptHash,
                 sampleIndex, response, docId, System.currentTimeMillis() - t0));
         return response;
@@ -127,11 +177,29 @@ public class TopicClassifier {
     private static final String SYSTEM_PROMPT = """
         Bạn là bộ phân loại tin tức ngành bảo hiểm nhân thọ (thị trường Việt Nam và Trung Quốc).
         Nhiệm vụ: gán 0, 1 hoặc nhiều nhãn category cho văn bản, CHỈ từ danh sách sau:
-        - PRODUCT_LAUNCH: ra mắt, phê duyệt, hoặc nộp hồ sơ sản phẩm bảo hiểm mới
-        - FEE_BENEFIT_COMMISSION_CHANGE: thay đổi phí, quyền lợi, hoặc hoa hồng của sản phẩm
-        - PRODUCT_REGULATION: quy định pháp lý ảnh hưởng đến thiết kế/bán sản phẩm
+        - PRODUCT_LAUNCH: ra mắt, phê duyệt, hoặc nộp hồ sơ sản phẩm BẢO HIỂM NHÂN THỌ mới
+        - FEE_BENEFIT_COMMISSION_CHANGE: thay đổi phí, quyền lợi, hoặc hoa hồng của sản phẩm BẢO HIỂM
+        - PRODUCT_REGULATION: quy định pháp lý ảnh hưởng trực tiếp đến thiết kế/bán sản phẩm
+          BẢO HIỂM (không tính quy định ngân hàng/tín dụng/ngoại hối/chứng khoán nói chung,
+          trừ khi văn bản nêu rõ áp dụng cho bancassurance hoặc doanh nghiệp bảo hiểm)
         - SALES_DATA: số liệu doanh số, phí bảo hiểm khai thác được công bố chính thức
-        - DISTRIBUTION_CHANNEL: kênh phân phối (đại lý, bancassurance, digital)
+        - DISTRIBUTION_CHANNEL: kênh phân phối BẢO HIỂM (đại lý, bancassurance, digital)
+
+        QUAN TRỌNG — kiểm tra liên quan trước khi gán nhãn: chỉ gán nhãn nếu văn bản nói RÕ
+        về sản phẩm, công ty, hoặc quy định của ngành BẢO HIỂM NHÂN THỌ (hoặc bancassurance).
+        Tin ngân hàng/tín dụng/ngoại hối/chứng khoán nói chung — kể cả khi xuất bản bởi một
+        nguồn tài chính uy tín, hoặc khi nội dung nghe có vẻ là "quy định tài chính" — KHÔNG
+        được gán bất kỳ nhãn nào nếu không có liên hệ rõ ràng, cụ thể đến bảo hiểm nhân thọ.
+        Ví dụ: một thông tư về tài sản đảm bảo khoản vay, phòng chống rửa tiền, hoặc cấm giao
+        dịch ngoại hối KHÔNG được gán PRODUCT_REGULATION chỉ vì nó là "quy định tài chính" —
+        phải nêu rõ áp dụng cho bảo hiểm/bancassurance mới được gán. Khi không chắc chắn về
+        mức độ liên quan, trả về labels rỗng thay vì đoán.
+
+        NGƯỢC LẠI, ĐỪNG loại nhầm tin THỰC SỰ liên quan bảo hiểm: quy định về biên khả năng
+        thanh toán/dự phòng nghiệp vụ của doanh nghiệp bảo hiểm, về đại lý/tư vấn viên bảo hiểm,
+        về hợp đồng/quyền lợi bảo hiểm, về bán bảo hiểm qua ngân hàng (bancassurance), hay về
+        đầu tư của quỹ bảo hiểm — ĐỀU được gán nhãn phù hợp. Tiêu chí: chủ thể hoặc đối tượng
+        điều chỉnh có phải doanh nghiệp/sản phẩm/kênh BẢO HIỂM hay không.
 
         Trả về DUY NHẤT một JSON object đúng dạng: {"labels": ["NHAN_1", "NHAN_2"]}
         Nếu văn bản không thuộc nhãn nào: {"labels": []}
@@ -140,9 +208,26 @@ public class TopicClassifier {
 
     private String buildUserPrompt(RawDoc doc) {
         String title = doc.getTitle() == null ? "" : doc.getTitle();
-        String text = doc.getRawText() == null ? "" : doc.getRawText();
+        String text = doc.getRawText() == null ? "" : doc.getRawText().strip();
         if (text.length() > MAX_INPUT_CHARS) text = text.substring(0, MAX_INPUT_CHARS);
         return "TIÊU ĐỀ: " + title + "\n\nNỘI DUNG:\n" + text;
+    }
+
+    /**
+     * Hash the complete effective classification contract, not only the editable
+     * system prompt. Changes to sampling, acceptance threshold, temperature, or
+     * input truncation/template must also make existing results stale.
+     */
+    private ClassificationVersioning.CurrentVersion versionFor(String system, RawDoc doc) {
+        String effectivePromptContract = system
+                + "\n---CLASSIFIER_RUNTIME---\n"
+                + "userPromptTemplate=" + USER_PROMPT_TEMPLATE_VERSION + "\n"
+                + "maxInputChars=" + MAX_INPUT_CHARS + "\n"
+                + "samples=" + samples + "\n"
+                + "minVotes=" + minVotes + "\n"
+                + "temperature=" + temperature;
+        return ClassificationVersioning.current(
+                llm.providerName(), effectivePromptContract, doc.getContentHash());
     }
 
     // ---------- Parse + schema validate (enum đóng) ----------
@@ -156,11 +241,14 @@ public class TopicClassifier {
             JsonNode root = mapper.readTree(cleaned);
             JsonNode labels = root.get("labels");
             if (labels == null || !labels.isArray()) return Optional.empty();
+            List<String> rawLabels = new ArrayList<>();
+            for (JsonNode n : labels) rawLabels.add(n.isTextual() ? n.textValue() : null);
+            Set<String> allowed = Arrays.stream(Category.values()).map(Enum::name)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            Optional<Set<String>> validated = ClassificationSchemaRules.validateLabels(rawLabels, allowed);
+            if (validated.isEmpty()) return Optional.empty();
             Set<Category> result = EnumSet.noneOf(Category.class);
-            for (JsonNode n : labels) {
-                // Nhãn ngoài enum → schema reject TOÀN BỘ run (không lọc im lặng)
-                result.add(Category.valueOf(n.asText()));
-            }
+            validated.get().forEach(name -> result.add(Category.valueOf(name)));
             return Optional.of(result);
         } catch (Exception e) {
             return Optional.empty();

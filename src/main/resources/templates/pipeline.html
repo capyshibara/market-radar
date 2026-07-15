@@ -166,6 +166,20 @@
         <div class="pl-output" data-output style="display:none"><pre></pre></div>
       </div>
 
+      <div class="stage-row">
+        <div class="st-top">
+          <div class="st-num">P</div>
+          <div class="st-meta">
+            <div class="st-name">Regenerate unified Product editions</div>
+            <div class="st-desc">Explicitly build exact 7/30/90-day editions using event clusters → Product writer → independent verification → publication gate. This does not use legacy narrative.</div>
+            <div class="st-llm">May call the configured Product writer and independent verifier. No automatic run.</div>
+          </div>
+          <form method="post" action="/report/product/regenerate-all">
+            <button class="btn btn-primary" type="submit">Run Product 7/30/90</button>
+          </form>
+        </div>
+      </div>
+
       <p style="margin-top:14px"><a href="/llm-settings" th:text="#{ops.pipeline.changeLlm}">Change LLM provider/model per stage →</a></p>
       </div><!-- /runner-content -->
     </div>

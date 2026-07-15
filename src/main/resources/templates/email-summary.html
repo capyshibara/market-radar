@@ -1,109 +1,13 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${lang}">
 <head>
-<meta charset="UTF-8"/>
-<title th:text="#{email.h1}">Market Radar — Email Summary</title>
-<style>
-  /* Fixed-width, table-layout-only markup (same OpenHTMLtoPDF constraint as
-     weekly-report.html) — this template is only ever rendered to PDF then
-     rasterized to PNG for email embedding, never served as live HTML. */
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#FFFFFF; color:#0E1116; font-family:'Inter',"Segoe UI",Arial,sans-serif;
-         font-size:14px; line-height:1.5; }
-  .card { width:640px; border:1px solid #E2E6EA; }
-
-  .sample-banner { background:#8A4B08; color:#FDEBD3; font-family:'IBM Plex Mono',monospace;
-    font-size:10.5px; letter-spacing:.02em; padding:6px 36px; text-align:center; }
-
-  .masthead { padding:22px 40px 16px; border-bottom:3px solid #EA1C24; }
-  .kicker { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em;
-    text-transform:uppercase; color:#EA1C24; font-weight:600; margin-bottom:9px; }
-  .masthead h1 { font-size:27px; font-weight:800; letter-spacing:-.015em; margin:0 0 6px; line-height:1.1; color:#0C0C0D; }
-  .masthead .sub { font-family:'Source Serif 4',Georgia,serif; font-style:italic; font-size:14px;
-    color:#4B4B45; margin:0 0 10px; line-height:1.4; }
-  .masthead .meta { font-size:11.5px; color:#6E7885; }
-
-  .body-pad { padding:18px 40px 16px; }
-  .section-label { font-size:11.5px; letter-spacing:.09em; text-transform:uppercase;
-    color:#EA1C24; font-weight:800; margin-bottom:11px; }
-  .exec-item { font-size:14px; line-height:1.5; padding-bottom:8px; }
-  .exec-item .src { font-size:11px; color:#9A9A94; }
-
-  .stat-band { width:100%; table-layout:fixed; border-top:1px solid #E2E6EA;
-    border-bottom:1px solid #E2E6EA; margin-top:6px; }
-  .stat-band .cell { padding:14px 0; }
-  .stat-num { font-size:25px; font-weight:800; color:#EA1C24; line-height:1; }
-  .stat-label { font-size:10.5px; color:#6E7885; margin-top:4px; }
-
-  .cta { padding:14px 40px; border-top:1px solid #E2E6EA; background:#F7F7F4; text-align:center; }
-  .cta .headline { font-size:13px; font-weight:700; color:#0C0C0D; }
-  .cta .sub { font-size:11px; color:#6E7885; margin-top:3px; }
-
-  .legal { padding:9px 40px; border-top:1px solid #E2E6EA; font-size:9.5px; color:#9A9A94; text-align:center; }
-</style>
+  <meta charset="UTF-8"/>
+  <title>Market Radar · Product</title>
+  <style>
+    body{width:760px;margin:0;padding:28px;background:#f4f1ea;color:#17233d;font-family:Arial,sans-serif}.report-header{border-bottom:4px solid #ba122b}.cadence-nav,details{display:none}.status,.insight,.watch,.references{background:#fff;padding:18px;margin:14px 0;border-radius:8px}.insufficient{border:2px solid #b97600}.insight{border-left:5px solid #ba122b}.watch{border-left:5px solid #b97600}.eyebrow,.meta,.kiq,.caveat{color:#596273}p{line-height:1.45}
+  </style>
 </head>
 <body>
-
-<div class="card" th:with="lang=${#locale.language}">
-
-  <div class="sample-banner" th:if="${hasSampleData}" th:text="#{email.sampleBanner}">SAMPLE DATA — illustrative facts for the build-out phase.</div>
-
-  <div class="masthead">
-    <div class="kicker" th:text="#{report.kicker}">Market Radar · Market Intelligence</div>
-    <h1 th:text="#{email.h1}">Life Insurance Market Radar</h1>
-    <div class="sub" th:text="#{email.sub(${reportPeriod})}">Vietnam &amp; China — week</div>
-    <div class="meta">
-      <span th:text="${reportPeriod}">Week 27 · 2026</span> &nbsp;·&nbsp;
-      <span th:text="#{report.meta.generatedAt}">Generated</span> <span th:text="${generatedAt}">05/07/2026 08:00</span> &nbsp;·&nbsp;
-      <span th:text="${#lists.size(sources)}">18</span> <span th:text="#{report.meta.sourcesTracked}">sources tracked</span> &nbsp;·&nbsp;
-      <span th:text="${docCount}">42</span> <span th:text="#{report.meta.docsProcessed}">documents processed</span>
-    </div>
-  </div>
-
-  <div class="body-pad">
-    <div class="section-label" th:text="#{report.section.execSummary}">Executive Summary</div>
-
-    <p class="exec-item" th:if="${#lists.isEmpty(execClaims)}" style="color:#5A6172;font-style:italic;" th:text="#{email.noExecSummary}">
-      No executive summary claims have cleared review for this period yet.
-    </p>
-
-    <div class="exec-item" th:each="c, st : ${execClaims}" th:if="${st.index < 3}"
-         th:with="ctext=${c.text(lang)},
-                  lead=${#strings.substringBefore(ctext,' — ')},
-                  rest=${#strings.substringAfter(ctext,' — ')},
-                  hasDash=${!#strings.isEmpty(rest)},
-                  firstCode=${#strings.trim(#strings.arraySplit(c.factCodesCsv,',')[0])},
-                  citedFact=${factByCode.get(firstCode)}">
-      <strong th:if="${hasDash}" th:text="${lead}">Headline</strong><span
-         th:text="${hasDash} ? (' — ' + ${rest}) : ${ctext}"> — detail</span>
-      <span class="src" th:if="${citedFact != null}" th:text="' ' + ${citedFact.rawDoc.source.name}"> Source</span>
-    </div>
-
-    <table class="stat-band">
-      <tr>
-        <td class="cell">
-          <div class="stat-num" th:text="${factsCount}">3</div>
-          <div class="stat-label" th:text="#{email.statVerified}">Verified developments</div>
-        </td>
-        <td class="cell">
-          <div class="stat-num" th:text="${#lists.size(sources)}">18</div>
-          <div class="stat-label" th:text="#{email.statSources}">Sources tracked</div>
-        </td>
-        <td class="cell">
-          <div class="stat-num" th:text="${docCount}">42</div>
-          <div class="stat-label" th:text="#{email.statDocuments}">Documents processed</div>
-        </td>
-      </tr>
-    </table>
-  </div>
-
-  <div class="cta">
-    <div class="headline" th:text="#{email.ctaHeadline}">Full Deep-Dive Analysis &amp; Final Recommendation &rarr;</div>
-    <div class="sub" th:text="#{email.ctaSub}">Open the full report on the intranet for sourcing and analysis.</div>
-  </div>
-
-  <div class="legal" th:text="#{email.legal}">Internal — Market Radar. Not for external distribution.</div>
-</div>
-
+  <th:block th:replace="~{fragments/product-report :: body}"></th:block>
 </body>
 </html>

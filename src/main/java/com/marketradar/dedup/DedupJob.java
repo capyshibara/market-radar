@@ -183,7 +183,9 @@ public class DedupJob {
                 + "\nTrích đoạn: " + excerpt(a.getRawText())
                 + "\n\nTÀI LIỆU B:\nTiêu đề: " + nvl(b.getTitle())
                 + "\nTrích đoạn: " + excerpt(b.getRawText());
-        String hash = sha256(SYSTEM + "\n---\n" + user);
+        // Hash gồm providerName (fix 2026-07-15, đồng bộ Interpreter/Extractor/Verifier):
+        // đổi model xong không replay nhầm response của model cũ.
+        String hash = sha256(llm.providerName() + "\n===\n" + SYSTEM + "\n---\n" + user);
         String raw;
         if (replayCache) {
             var cached = callLog.findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(hash, 0);

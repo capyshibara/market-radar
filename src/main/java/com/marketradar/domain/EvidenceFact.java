@@ -40,6 +40,11 @@ public class EvidenceFact {
 
     // ---- các trường hiển thị cho report (batch 1: đặt tay; sau này do extractor điền) ----
     private LocalDate eventDate;
+    /** Explicit semantic dates from extractor v3; null means source did not state them. */
+    private LocalDate occurredDate;
+    private LocalDate effectiveDate;
+    private LocalDate expiryDate;
+    private LocalDate forecastHorizon;
     @Column(length = 256) private String company;
     @Column(length = 512) private String productName;
     @Column(length = 256) private String category;
@@ -49,6 +54,21 @@ public class EvidenceFact {
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+
+    /** Null for legacy/manual seed facts created before versioned extraction runs. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "extraction_run_id")
+    private FactExtractionRun extractionRun;
+
+    /**
+     * Old editions are retained for audit and claim traceability. Only the latest
+     * successful edition is active for synthesis/report reads.
+     */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean active = true;
+
+    private Instant supersededAt;
+    private Long supersededByRunId;
 
     protected EvidenceFact() {}
 
@@ -68,6 +88,10 @@ public class EvidenceFact {
     public String getSpanText() { return spanText; }
     public String getSpanLanguage() { return spanLanguage; }
     public LocalDate getEventDate() { return eventDate; }
+    public LocalDate getOccurredDate() { return occurredDate; }
+    public LocalDate getEffectiveDate() { return effectiveDate; }
+    public LocalDate getExpiryDate() { return expiryDate; }
+    public LocalDate getForecastHorizon() { return forecastHorizon; }
     public String getCompany() { return company; }
     public String getProductName() { return productName; }
     public String getCategory() { return category; }
@@ -75,6 +99,10 @@ public class EvidenceFact {
     public String getSummaryVi() { return summaryVi; }
     public String getSummaryEn() { return summaryEn; }
     public Instant getCreatedAt() { return createdAt; }
+    public FactExtractionRun getExtractionRun() { return extractionRun; }
+    public boolean isActive() { return active; }
+    public Instant getSupersededAt() { return supersededAt; }
+    public Long getSupersededByRunId() { return supersededByRunId; }
 
     /** Batch 7 (i18n): chọn theo ngôn ngữ hiển thị hiện tại — dùng trong template.
      * Tên khác "category"/"summary" (không phải overload) vì đã trùng chữ ký với
@@ -121,10 +149,15 @@ public class EvidenceFact {
     }
 
     public EvidenceFact eventDate(LocalDate d) { this.eventDate = d; return this; }
+    public EvidenceFact occurredDate(LocalDate d) { this.occurredDate = d; return this; }
+    public EvidenceFact effectiveDate(LocalDate d) { this.effectiveDate = d; return this; }
+    public EvidenceFact expiryDate(LocalDate d) { this.expiryDate = d; return this; }
+    public EvidenceFact forecastHorizon(LocalDate d) { this.forecastHorizon = d; return this; }
     public EvidenceFact company(String c) { this.company = c; return this; }
     public EvidenceFact productName(String p) { this.productName = p; return this; }
     public EvidenceFact category(String c) { this.category = c; return this; }
     public EvidenceFact categoryEn(String c) { this.categoryEn = c; return this; }
     public EvidenceFact summaryVi(String s) { this.summaryVi = s; return this; }
     public EvidenceFact summaryEn(String s) { this.summaryEn = s; return this; }
+    public EvidenceFact extractionRun(FactExtractionRun run) { this.extractionRun = run; return this; }
 }

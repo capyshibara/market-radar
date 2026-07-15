@@ -136,13 +136,14 @@ public class ReviewController {
         c.setTextVi(newText.strip());
         c.setGateStatus(r.status());
         c.setGateDetailJson(r.detailJson());
-        c.setReviewStatus(ReviewStatus.EDITED_APPROVED);
+        // Verdict cũ được tạo cho TEXT CŨ, nên không còn chứng minh text vừa sửa.
+        // Fail closed: đưa claim qua Gate L2 lại; tier T2+ sau đó vẫn quay về review.
+        c.setReviewStatus(ReviewStatus.PENDING_VERIFICATION);
         claims.save(c);
         labels.save(logOf(c, LabelLog.Action.EDIT_APPROVE, oldText, newText.strip(),
                 null, reviewerName));
-        alerts.maybeAlert(c, cited, "REVIEW:EDIT_APPROVE");        // Batch 5: hot alert T3+
         redirect.addFlashAttribute("msg", c.getClaimCode()
-                + " → EDITED_APPROVED (text mới đã qua lại Gate L1).");
+                + " → PENDING_VERIFICATION (text mới đã qua Gate L1; phải chạy lại Gate L2).");
         return "redirect:/review";
     }
 

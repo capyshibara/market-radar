@@ -9,6 +9,10 @@ public interface LlmCallLogRepository extends JpaRepository<LlmCallLog, Long> {
     Optional<LlmCallLog> findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(
             String promptSha256, int sampleIndex);
 
+    /** Provenance lookup used when an EvidenceFact becomes a normalized MarketEvent. */
+    Optional<LlmCallLog> findFirstByPurposeAndRawDocIdOrderByCreatedAtDesc(
+            String purpose, Long rawDocId);
+
     /**
      * Batch 9 ("Force Retry"): xoá cache của MỘT doc cho MỘT purpose cụ thể — nếu không
      * xoá, replay-cache sẽ trả lại đúng response HỎNG cũ thay vì gọi LLM lại thật sự

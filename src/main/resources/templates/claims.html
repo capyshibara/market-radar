@@ -41,6 +41,21 @@
         <div class="count-pill" style="background:var(--rose-50);color:var(--rose-600)" th:text="#{ops.claims.failed(${failCount})}">0 failed</div>
       </div>
 
+      <!-- Batch 10: force-retry cho 3 chương narrative của Monthly Highlight — không gated
+           theo SCHEMA_REJECTED (khác forceRetry/forceRetryExecSummary ở trên), bấm khi cần
+           làm mới nội dung "tháng này" trước khi chạy lại Interpret + Verify. -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+        <form method="post" action="/claims/force-retry-narrative/VN_COMPETITOR">
+          <button class="btn btn-sm" type="submit" title="Delete the VN_COMPETITOR chapter narrative so the next Interpret run regenerates it">Force Retry: VN Competitor</button>
+        </form>
+        <form method="post" action="/claims/force-retry-narrative/VN_REGULATION">
+          <button class="btn btn-sm" type="submit" title="Delete the VN_REGULATION chapter narrative so the next Interpret run regenerates it">Force Retry: VN Regulation</button>
+        </form>
+        <form method="post" action="/claims/force-retry-narrative/REGIONAL_LESSONS">
+          <button class="btn btn-sm" type="submit" title="Delete the REGIONAL_LESSONS chapter narrative so the next Interpret run regenerates it">Force Retry: Regional Lessons</button>
+        </form>
+      </div>
+
       <div th:if="${#lists.isEmpty(views)}" class="empty-state">
         <div class="title">No claims yet</div>
         <div class="desc">Run POST /interpret/run first.</div>
@@ -55,6 +70,7 @@
           <span class="provider-tag provider-sm" th:classappend="${v.claim.llmProvider == 'STUB' or v.claim.llmProvider == 'DEMO'} ? 'provider-stub' : 'provider-ai'"
                 th:text="${v.claim.llmProvider == 'STUB' or v.claim.llmProvider == 'DEMO'} ? 'STUB' : 'AI'">AI</span>
           <span th:if="${v.claim.rawDoc != null}" th:text="'doc#' + ${v.claim.rawDoc.id}">doc#1</span>
+          <span class="badge badge-sm" th:if="${v.claim.chapterCode != null}" th:text="${v.claim.chapterCode}">VN_COMPETITOR</span>
           <form th:if="${v.claim.gateStatus.name() == 'SCHEMA_REJECTED' and v.claim.rawDoc != null}"
                 method="post" th:action="'/claims/force-retry/' + ${v.claim.rawDoc.id}" style="margin-left:auto">
             <button class="btn btn-sm" type="submit" title="Delete this failed attempt and its cached response so the next Interpret run retries this document">Force Retry</button>

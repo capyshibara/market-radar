@@ -13,8 +13,10 @@ import java.time.Instant;
 @Table(name = "interpreted_claims")
 public class InterpretedClaim {
 
-    /** Slot template mà câu này điền vào (template-first — AI chỉ điền slot). */
-    public enum Slot { WHY_MATTERS, IMPLICATION, EXEC_SUMMARY }
+    /** Slot template mà câu này điền vào (template-first — AI chỉ điền slot).
+     * NARRATIVE (batch 10): câu tổng hợp xuyên-tài-liệu cho 1 chương Monthly Highlight —
+     * cùng họ với EXEC_SUMMARY (rawDoc null, report-level), khác ở chỗ gắn 1 chapterCode. */
+    public enum Slot { WHY_MATTERS, IMPLICATION, EXEC_SUMMARY, NARRATIVE }
 
     public enum Origin { PIPELINE, DEMO_INJECT }
 
@@ -97,6 +99,30 @@ public class InterpretedClaim {
     @Enumerated(EnumType.STRING) @Column(nullable = false)
     private ReviewStatus reviewStatus = ReviewStatus.PENDING_REVIEW;
 
+    /** Batch 10: null trừ khi slot=NARRATIVE — tên hằng số com.marketradar.interpret.Chapter
+     * (VN_COMPETITOR/VN_REGULATION/REGIONAL_LESSONS) mà câu này thuộc về. rawDoc luôn null
+     * cho NARRATIVE (giống EXEC_SUMMARY) nên không suy được chương từ rawDoc — cần cột riêng. */
+    @Column(length = 32)
+    private String chapterCode;
+
+    /**
+     * Append-only edition metadata for PIPELINE claims. Signature identifies the
+     * interpreter contract + provider/model + effective prompt; inputHash identifies
+     * the exact rendered evidence pack. All sentences from one call share editionId.
+     * DEMO/manual legacy rows may keep these nullable and are never auto-superseded.
+     */
+    @Column(length = 64)
+    private String interpretationSignature;
+
+    @Column(length = 64)
+    private String interpretationInputHash;
+
+    @Column(length = 36)
+    private String interpretationEditionId;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean superseded = false;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -133,6 +159,11 @@ public class InterpretedClaim {
     public Instant getCreatedAt() { return createdAt; }
     public String getRiskTier() { return riskTier; }
     public ReviewStatus getReviewStatus() { return reviewStatus; }
+    public String getChapterCode() { return chapterCode; }
+    public String getInterpretationSignature() { return interpretationSignature; }
+    public String getInterpretationInputHash() { return interpretationInputHash; }
+    public String getInterpretationEditionId() { return interpretationEditionId; }
+    public boolean isSuperseded() { return superseded; }
 
     // ---- Setters CHỈ cho luồng review (Batch 4) ----
     // Text gốc trước mọi lần sửa được giữ verbatim trong LabelLog — đó là audit trail.
@@ -141,4 +172,13 @@ public class InterpretedClaim {
     public void setTextVi(String textVi) { this.textVi = textVi; }
     public void setGateStatus(GateStatus gateStatus) { this.gateStatus = gateStatus; }
     public void setGateDetailJson(String gateDetailJson) { this.gateDetailJson = gateDetailJson; }
+    public void setChapterCode(String chapterCode) { this.chapterCode = chapterCode; }
+
+    public void setInterpretationEdition(String signature, String inputHash, String editionId) {
+        this.interpretationSignature = signature;
+        this.interpretationInputHash = inputHash;
+        this.interpretationEditionId = editionId;
+    }
+
+    public void markSuperseded() { this.superseded = true; }
 }

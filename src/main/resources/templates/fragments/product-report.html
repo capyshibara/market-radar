@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<main th:fragment="body" class="product-report">
+  <header class="report-header">
+    <p class="eyebrow" th:text="${vi ? 'Market Radar · Bộ phận Sản phẩm' : 'Market Radar · Product Department'}">Market Radar · Product Department</p>
+    <h1 th:text="${vi ? 'Bản tin tình báo thị trường' : 'Market intelligence brief'}">Market intelligence brief</h1>
+    <p><strong th:text="${cadenceLabel}">Weekly</strong> · <span th:text="${period}">Period</span></p>
+    <p class="meta" th:text="${vi ? 'Tạo lúc ' + generatedAt : 'Generated ' + generatedAt}">Generated</p>
+  </header>
+
+  <nav class="cadence-nav">
+    <a href="/report/weekly" th:text="${vi ? '7 ngày' : '7 days'}">7 days</a>
+    <a href="/report/monthly" th:text="${vi ? '30 ngày' : '30 days'}">30 days</a>
+    <a href="/report/quarterly" th:text="${vi ? '90 ngày' : '90 days'}">90 days</a>
+  </nav>
+
+  <section class="status insufficient" th:if="${!decisionReady}">
+    <h2>INSUFFICIENT_EVIDENCE</h2>
+    <p th:text="${vi ? 'Chưa có ít nhất 3 insight đã vượt qua kiểm tra bằng chứng, xác minh độc lập và cổng xuất bản. Báo cáo không dùng bản cũ hoặc nội dung dự phòng.' : 'Fewer than three insights passed evidence grounding, independent verification, and the publication gate. No older edition or fallback copy is substituted.'}">Insufficient evidence.</p>
+    <p><strong th:text="${vi ? 'Lý do: ' : 'Reason: '}">Reason:</strong><span th:text="${insufficientReason}">reason</span></p>
+    <p th:if="${productEdition != null}">
+      <span th:text="${vi ? 'Lần tạo hiện tại: ' : 'Current attempt: '}">Current attempt:</span>
+      <code th:text="${productEdition.editionCode}">edition</code> ·
+      <strong th:text="${productEdition.status}">status</strong>
+    </p>
+    <p th:if="${productEdition != null and productEdition.failureMessage != null}" th:text="${productEdition.failureMessage}">Generation failed</p>
+  </section>
+
+  <section th:if="${decisionReady}">
+    <h2 th:text="${vi ? 'Insight sẵn sàng cho quyết định' : 'Decision-ready insights'}">Decision-ready insights</h2>
+    <article class="insight" th:each="i : ${productExecutiveInsights}">
+      <p class="kiq"><span th:text="${i.kiqCode}">P-KIQ</span> · <span th:text="${i.confidence}">confidence</span></p>
+      <h3 th:text="${vi ? i.headlineVi : i.headlineEn}">Headline</h3>
+      <h4 th:text="${vi ? 'Điều gì đã xảy ra' : 'What'}">What</h4>
+      <p th:text="${vi ? i.whatVi : i.whatEn}">What</p>
+      <h4 th:text="${vi ? 'So sánh / mẫu hình' : 'Comparison / pattern'}">Pattern</h4>
+      <p th:text="${vi ? i.patternVi : i.patternEn}">Pattern</p>
+      <h4 th:text="${vi ? 'Ý nghĩa đối với Product' : 'So what for Product'}">So what</h4>
+      <p th:text="${vi ? i.soWhatVi : i.soWhatEn}">So what</p>
+      <h4 th:text="${vi ? 'Hành động tiếp theo' : 'Now what'}">Now what</h4>
+      <p th:text="${vi ? i.nowWhatVi : i.nowWhatEn}">Now what</p>
+      <p class="caveat"><strong th:text="${vi ? 'Giới hạn: ' : 'Caveat: '}">Caveat:</strong><span th:text="${vi ? i.caveatVi : i.caveatEn}">Caveat</span></p>
+      <details>
+        <summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary>
+        <ul>
+          <li th:each="f : ${productEvidenceByInsight.get(i.id)}">
+            <a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a>
+            <code th:text="${f.factCode}">fact</code>
+          </li>
+        </ul>
+      </details>
+    </article>
+  </section>
+
+  <section th:if="${!#lists.isEmpty(productWatchSignals)}">
+    <h2 th:text="${vi ? 'Tín hiệu cần theo dõi' : 'Watch signals'}">Watch signals</h2>
+    <p th:text="${vi ? 'Các mục này chưa đủ sự kiện hoặc nguồn độc lập để tạo insight quyết định.' : 'These items lack enough independent events or sources for a decision-ready insight.'}">Watch only.</p>
+    <article class="watch" th:each="i : ${productWatchSignals}">
+      <p class="kiq"><span th:text="${i.kiqCode}">P-KIQ</span> · WATCH · <span th:text="${i.confidence}">LOW</span></p>
+      <h3 th:text="${vi ? i.headlineVi : i.headlineEn}">Headline</h3>
+      <p th:text="${vi ? i.whatVi : i.whatEn}">What</p>
+      <p class="caveat"><strong th:text="${vi ? 'Giới hạn: ' : 'Caveat: '}">Caveat:</strong><span th:text="${vi ? i.caveatVi : i.caveatEn}">Caveat</span></p>
+    </article>
+  </section>
+
+  <section class="references">
+    <h2 th:text="${vi ? 'Nguồn tham chiếu đã sử dụng' : 'References actually used'}">References</h2>
+    <p th:if="${#lists.isEmpty(references)}" th:text="${vi ? 'Không có nguồn nào được dùng trong nội dung đã xuất bản.' : 'No source was used by rendered content.'}">No references.</p>
+    <ol>
+      <li th:each="f : ${references}">
+        <a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Title</a>
+        <span th:text="${' · ' + f.rawDoc.source.name}">Source</span>
+        <code th:text="${f.factCode}">fact</code>
+      </li>
+    </ol>
+  </section>
+</main>
+</body>
+</html>

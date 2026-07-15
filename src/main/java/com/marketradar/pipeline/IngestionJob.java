@@ -327,11 +327,17 @@ public class IngestionJob {
             if (existing.isPresent() && existing.get().isFullTextFetched()) continue; // đã có toàn văn — khỏi fetch lại
 
             String linkHost = safeHost(link);
+            String fetchHost = articleFetchHost(source, linkHost);
             String fullText = null, note = null;
-            if (linkHost != null && linkHost.equalsIgnoreCase(source.getAllowedHost())) {
+            if (fetchHost != null) {
                 try {
-                    var art = fetcher.fetch(link, source.getAllowedHost(), SafeFetcher.ExpectedKind.HTML);
-                    fullText = parsers.parseHtml(art.body()).text();
+                    var art = fetcher.fetch(link, fetchHost, SafeFetcher.ExpectedKind.HTML);
+                    // Fix 2026-07-15 (audit): parseArticleHtml thay parseHtml — trước đây rawText
+                    // là Document.text() NGUYÊN TRANG (menu/footer chiếm ~2.5k ký tự đầu), extractor
+                    // đọc 6k ký tự đầu → toàn boilerplate. Giờ chỉ giữ khối nội dung chính.
+                    var parsed = parsers.parseArticleHtml(art.body());
+                    fullText = parsed.text();
+                    note = parsed.note();
                 } catch (Exception e) {
                     note = "Full-text fetch failed (" + truncateNote(e.getMessage()) + ") — kept title-only";
                     log.warn("Full-article fetch lỗi [{}] {}: {}", source.getCode(), link, e.getMessage());
@@ -365,6 +371,33 @@ public class IngestionJob {
         return s == null ? "?" : (s.length() <= 120 ? s : s.substring(0, 120) + "…");
     }
 
+    /**
+     * Fix 2026-07-15 (audit — backfill nguồn title-only): một số nguồn đăng listing trên host chính
+     * nhưng BÀI VIẾT nằm ở host thứ cấp cố định (Chubb → chubb.mediaroom.com; Dai-ichi →
+     * kh.dai-ichi-life.com.vn). Whitelist host thứ cấp đó TƯỜNG MINH theo từng nguồn — vẫn
+     * one-hop, vẫn qua SafeFetcher với expected-host, KHÔNG phải mở whitelist chung chung.
+     */
+    /** Host được phép fetch bài chi tiết cho link này, hoặc null nếu link ngoài whitelist. */
+    static String articleFetchHost(Source source, String linkHost) {
+        return TargetedRefetchPolicy.articleFetchHost(
+                source.getCode(), source.getAllowedHost(), linkHost);
+    }
+
+    /**
+     * Fix 2026-07-15 (audit — backfill kho hiện có): mọi doc ĐÃ fullTextFetched trước fix
+     * parseArticleHtml đang giữ rawText NGUYÊN TRANG (menu/footer lẫn bài). Chạy tay một lần:
+     * re-fetch từng URL bài (vẫn SafeFetcher + đúng host whitelist/override), re-parse bằng
+     * parseArticleHtml, cập nhật TẠI CHỖ. Doc có fact rồi vẫn an toàn — EvidenceFact giữ
+     * spanText riêng, không đọc lại rawText; doc CHƯA extract sẽ được extractor đọc bản sạch.
+     * Fail loud từng doc (log + note), không dừng cả vòng vì một bài lỗi.
+     */
+    @Deprecated(forRemoval = true)
+    public String refetchFullTextOnce() {
+        throw new UnsupportedOperationException(
+                "Broad refetch is retired; use GET /pipeline/refetch/plan.json then "
+                        + "POST /pipeline/refetch/execute.json with explicit rawDocIds (max 25) and confirm=true");
+    }
+
     private int ingestPdf(Source source)
             throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
         var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
@@ -375,8 +408,10 @@ public class IngestionJob {
 
     /**
      * RSS batch 1: lưu title + description của entry làm rawText.
-     * Fetch full bài viết theo link là bước sau — và khi làm, link đó CŨNG phải
-     * qua SafeFetcher với allowedHost của source (không mở rộng whitelist ngầm).
+     * Fix 2026-07-15 (audit — nguồn RSS toàn doc 46-300 ký tự): giờ fetch TOÀN VĂN bài theo
+     * link entry, cùng cơ chế/ràng buộc với ingestListing (chỉ link cùng allowedHost hoặc
+     * override tường minh; qua SafeFetcher; bài lỗi → fallback title+description như cũ,
+     * fail loud vào note). Doc cũ title+desc được backfill TẠI CHỖ (upgradeToFullText).
      */
     private int ingestRss(Source source)
             throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
@@ -385,14 +420,43 @@ public class IngestionJob {
         int stored = 0;
         for (var item : capItems(source, parsers.parseRss(result.body()))) {
             String link = item.link() == null ? source.getFetchUrl() : item.link();
-            // Ghi chú host lạ ngay từ ingest — audit trail cho bước fetch full-text sau này
-            String note = null;
+            var existing = rawDocs.findFirstByUrlOrderByIdAsc(link);
+            if (existing.isPresent() && existing.get().isFullTextFetched()) continue;
+
             String linkHost = safeHost(link);
-            if (linkHost != null && !linkHost.equalsIgnoreCase(source.getAllowedHost())) {
+            String fetchHost = articleFetchHost(source, linkHost);
+            String fullText = null, note = null;
+            if (fetchHost != null) {
+                try {
+                    var parsed = parsers.parseArticleHtml(
+                            fetcher.fetch(link, fetchHost, SafeFetcher.ExpectedKind.HTML).body());
+                    fullText = parsed.text();
+                    note = parsed.note();
+                } catch (Exception e) {
+                    note = "Full-text fetch failed (" + truncateNote(e.getMessage()) + ") — kept title+description";
+                    log.warn("Full-article fetch lỗi (RSS) [{}] {}: {}", source.getCode(), link, e.getMessage());
+                }
+            } else {
                 note = "Link entry trỏ host ngoài whitelist (" + linkHost + ") — chỉ lưu metadata feed";
             }
-            String text = item.title() + "\n\n" + item.descriptionText();
-            if (storeIfNew(source, link, item.title(), item.publishedAt(), text, note)) stored++;
+
+            if (fullText == null || fullText.isBlank()) {
+                String text = item.title() + "\n\n" + item.descriptionText();
+                if (existing.isEmpty() && storeIfNew(source, link, item.title(), item.publishedAt(), text, note)) stored++;
+                continue;
+            }
+            String hash = sha256(normalizeForHash(fullText));
+            if (existing.isPresent()) {
+                existing.get().upgradeToFullText(hash, fullText, note);
+                rawDocs.save(existing.get());
+                stored++;
+            } else if (!rawDocs.existsByContentHash(hash)) {
+                RawDoc doc = new RawDoc(source, link, item.title(), item.publishedAt(), Instant.now(),
+                        hash, fullText, source.getLanguage(), RawDoc.ParseStatus.OK, note);
+                doc.upgradeToFullText(hash, fullText, note);
+                rawDocs.save(doc);
+                stored++;
+            }
         }
         return stored;
     }

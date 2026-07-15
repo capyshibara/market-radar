@@ -28,17 +28,20 @@ marketradar:
     #   base-url ĐƯỢC SET → endpoint OpenAI-compat, key từ env WRITER_API_KEY
     #     Gemini:  base-url=https://generativelanguage.googleapis.com/v1beta/openai  model=gemini-2.5-flash
     # KHÔNG hardcode key vào file này.
-    base-url: ""
-    model: claude-haiku-4-5-20251001  # 2026-07-14: đổi từ claude-sonnet-4-6 sang Haiku — ngân sách hạn chế,
-                                       # task Interpret/Extract có schema hẹp (điền slot theo template, không
-                                       # sáng tác tự do) nên model nhỏ hơn vẫn đủ; đổi lại Sonnet nếu chất lượng
-                                       # không đạt. Lưu ý model Opus 4.7+ từ chối temperature.
+    # 2026-07-15 (audit chất lượng — quyết định Hanh): writer chạy họ ChatGPT, KHÔNG Claude
+    # (ngân sách). Nâng gpt-4o-mini → gpt-5-mini: thông minh hơn hẳn mà vẫn rẻ
+    # ($0.25/$2 mỗi 1M token). Cần env WRITER_API_KEY (OpenAI key). Client tự chuyển
+    # max_completion_tokens/reasoning_effort cho họ gpt-5 (xem OpenAiCompatibleLlmClient).
+    base-url: https://api.openai.com/v1
+    model: gpt-5-mini
     # Fix 2026-07-13: 1024 (batch 3, tune cho 1 câu interpreter) quá thấp cho AI#2 extractor
     # (batch 8, thêm sau) — 1 doc có thể sinh tới 5 fact, mỗi fact có span+company+product+
     # date+2 summary → response bị CẮT GIỮA CHỪNG (JSON dở dang) → 100% SCHEMA_REJECTED.
     # Nâng lên mức đủ dư — max_tokens chỉ là TRẦN, không ép model sinh hết mức, không tốn
     # thêm tiền nếu model không cần dùng tới (giá tính theo token THỰC SINH ra).
-    max-tokens: 4096
+    # 2026-07-15: 4096 → 8192 — với họ gpt-5, max_completion_tokens bao gồm CẢ reasoning
+    # token ẩn; extract 8 fact (span dài) + reasoning cần trần dư dả hơn. Vẫn chỉ là TRẦN.
+    max-tokens: 8192
     temperature: 1.0              # cần đa dạng cho self-consistency; để trống nếu model từ chối
     samples: 3                    # N lần gọi độc lập
     min-votes: 2                  # nhãn nhận khi đạt >= 2/3 vote (ngưỡng bảo thủ cố định)

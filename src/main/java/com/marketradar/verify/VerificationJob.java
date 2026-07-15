@@ -15,6 +15,7 @@ import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
 import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.review.ReviewRules;
+import com.marketradar.llm.ProviderSafetyRules;
 
 import java.util.*;
 import java.util.function.Function;
@@ -61,6 +62,10 @@ public class VerificationJob {
 
     @Transactional
     public String runOnce() {
+        if (ProviderSafetyRules.isStub(verifier.providerName())) {
+            return "Verification refused: verifier provider is STUB/missing. "
+                    + "No verdict was appended; configure an independent verifier.\n";
+        }
         List<InterpretedClaim> pending =
                 claims.findByReviewStatusFetched(ReviewStatus.PENDING_VERIFICATION);
         if (pending.isEmpty()) return "No claims awaiting verification (PENDING_VERIFICATION).\n";

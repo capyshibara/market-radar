@@ -99,6 +99,71 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * Selector các khối "chính" thường gặp — thứ tự KHÔNG quan trọng (chọn theo độ dài text),
+     * gộp cả pattern AEM (AIA/Manulife/BIDV), WordPress, và các class phổ biến VN news CMS.
+     */
+    private static final String MAIN_CONTENT_SELECTOR =
+            "article, main, [role=main], .article-content, .article-body, .article-detail, "
+            + ".post-content, .entry-content, .news-detail, .news-content, .detail-content, "
+            + "#main-content, .cmp-text, .content-detail, .contentdetail";
+
+    /** Boilerplate cần loại TRƯỚC khi chọn khối chính — nav/menu/footer/form chiếm hàng nghìn
+     *  ký tự đầu trang (đo thật 2026-07-15: doc AIA_VN mở đầu bằng ~2.500 ký tự menu). */
+    private static final String BOILERPLATE_SELECTOR =
+            "nav, header, footer, aside, form, script, style, noscript, iframe, svg, button, "
+            + "[role=navigation], [role=banner], [role=contentinfo], [role=search], [aria-hidden=true], "
+            + ".breadcrumb, .breadcrumbs, .menu, .nav, .navbar, .sidebar, .cookie, .cookie-banner, "
+            + ".share, .social, .related, .related-news, .comment, .comments, .subscribe, .newsletter";
+
+    /**
+     * Fix 2026-07-15 (audit chất lượng nội dung): HTML TRANG BÀI VIẾT → text phần NỘI DUNG CHÍNH,
+     * thay cho parseHtml (dump Document.text() = cả menu/footer). Nguyên nhân trực tiếp làm fact
+     * mỏng: extractor chỉ đọc N ký tự đầu — mà N ký tự đầu là boilerplate điều hướng, không phải bài.
+     *
+     * Cách chọn (deterministic, không LLM):
+     *  1. Xoá các phần tử boilerplate rõ nghĩa (nav/header/footer/aside/form + role/class phổ biến).
+     *  2. Trong các ứng viên khối-nội-dung (article/main/role=main + class content phổ biến),
+     *     lấy khối có text DÀI NHẤT — nếu đủ dài (>= MIN_MAIN_CHARS) thì đó là bài viết.
+     *  3. Không ứng viên nào đủ dài → fallback body đã strip boilerplate (vẫn sạch hơn hẳn cũ).
+     * Vẫn fail loud khi text rỗng — cùng policy parseHtml.
+     */
+    public ParsedText parseArticleHtml(byte[] body) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8));
+            String title = doc.title();
+            doc.select(BOILERPLATE_SELECTOR).remove();
+
+            Element best = null;
+            int bestLen = 0;
+            for (Element cand : doc.select(MAIN_CONTENT_SELECTOR)) {
+                int len = cand.text().length();
+                if (len > bestLen) { best = cand; bestLen = len; }
+            }
+            String fallback = doc.body() != null ? doc.body().text() : doc.text();
+            String text;
+            String note;
+            if (best != null && bestLen >= MIN_MAIN_CHARS) {
+                text = best.text();
+                note = null;
+            } else {
+                text = fallback;
+                note = "main-content selector không khớp — dùng body đã strip boilerplate";
+            }
+            if (text == null || text.isBlank()) {
+                throw new ParseFailedException("Article HTML parse ra text rỗng");
+            }
+            return new ParsedText(title, text, note);
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi (article): " + e.getMessage());
+        }
+    }
+
+    /** Khối chính phải >= ngưỡng này mới được tin là bài viết (tránh vớ nhầm div content rỗng). */
+    private static final int MIN_MAIN_CHARS = 400;
+
     /** RSS/Atom → danh sách entry (title, link, mô tả text-hoá, publishedAt). */
     public List<RssItem> parseRss(byte[] body) throws ParseFailedException {
         try {

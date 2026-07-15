@@ -22,4 +22,9 @@ public interface RawDocRepository extends JpaRepository<RawDoc, Long> {
      * nếu không fetch sẵn (cùng lý do ClassificationRepository.findAllForDisplay() có). */
     @Query("select d from RawDoc d join fetch d.source")
     List<RawDoc> findAllWithSource();
+
+    @Query("select d from RawDoc d join fetch d.source where d.id = :id")
+    Optional<RawDoc> findByIdWithSource(Long id);
+
+    boolean existsByContentHashAndIdNot(String contentHash, Long id);
 }

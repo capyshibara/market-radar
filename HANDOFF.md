@@ -1,135 +1,77 @@
-# Market Radar — Engineering Handoff (updated 2026-07-14 afternoon/evening session)
+# Market Radar — Engineering Handoff (updated 2026-07-16 quality-remediation session)
 
-This is a **technical/operational** handoff for continuing engineering work on
-market-radar. For the business pitch / demo script / product framing, see
-`../handoff-hackathon-presentation.md` (one directory up) — that doc is now
-partially stale on a few points this session fixed (see "What changed
-tonight" below); this file is the up-to-date technical picture.
+## 2026-07-16 completion status
 
-## ⏭️ START HERE — what Hanh wants next (2026-07-14 evening ask)
+The code remediation is complete and the live corpus has **not** been reprocessed. The final
+offline release harness passed: Maven build, 31/31 standalone Java regressions, the 20/20 Product
+golden set and all release thresholds, the required failing legacy negative control, and 15/15
+publication-quality fixtures. A schema/render smoke test against an isolated copy of the database
+returned HTTP 200 for Product, Weekly, Monthly, Quarterly, preflight, targeted-refetch plan and
+extraction plan. All four report surfaces correctly showed `INSUFFICIENT_EVIDENCE` for the old
+unverified editions, with no legacy fallback content or unused references.
 
-Hanh asked for a fresh session to pick up exactly these four items, in her
-own words (lightly trimmed), each with what I already know that'll save you
-investigation time:
+Verified stopped-app backup:
 
-**1. Failed/blocked data sources — need a fix, manual or automatic.**
-18 sources are `active=false` in `source_registry` (confirmed blocked/dead
-after real investigation, not guesses — see `SeedData.java` per-source dated
-comments for exactly what was tried): `AIA_SG, AIR, BNM_MY, BVNT, CATHAY_TW,
-HANWHA_GLOBAL, IC_PH, INS_BIZ_ASIA, MANULIFE_VN, MAP_LIFE, MAS_SG,
-MCKINSEY_INS, MSAD, OJK_ID, PHILAM_PH, SUNLIFE_VN, THAILIFE_TH, TNCK_VN`.
-Separately, 4 more sources are `active=true` but were investigated-and-parked
-as *weak*, not blocked: `PINGAN_MEDIA` (domain blocked by the Claude Browser
-tool's own policy, never actually tested against a plain curl/headless
-fetch — worth retrying with a different tool), `CBIRC_NEWS` (no dateless-safe
-parse path found), `LIMRA` (real search API found but needs a session
-cookie/CSRF the stateless crawler can't establish), `INS_ASIA_NEWS` (listing
-has no date field, would need per-article detail fetches). **Policy from
-earlier this project: never spoof a browser User-Agent or weaken TLS/security
-settings to force a blocked source through — verify the block is real
-(A/B test UA if unsure) and if so, deactivate with a documented reason
-instead of working around it.** A `/pipeline/history` page now exists
-(see below) — its per-document trail will show you exactly which docs from
-which source are failing at which stage, which should make prioritizing this
-easier than guessing.
+- `data/backups/marketradar-before-reprocess-20260716-001315.mv.db`
+- SHA-256 `983573bcb3a23420624478152f9d444a7db684ad8cd77c9a7a7316f4049a5f74`
 
-**2. Ops UI — sidebar/menus are hard to understand, needs a UI pass.**
-No specific investigation done yet this session; go in cold. The ops console
-has 4 role personas (Checker/Maker/Compliance Admin/Auditor, switchable via
-the account picker at `/ops/login` or the footer switcher) with different
-sidebar visibility per role (`ops-pipeline-guard.js` hides Pipeline
-Config entirely for Checker/Maker). Sidebar structure lives in
-`fragments/ops-sidebar.html`; groups are "Needs action", "Audit trail",
-"Pipeline config", "Reference". Worth asking Hanh specifically *what* is
-confusing (nav labels? too many pages? unclear what each page is for?
-role-switching UX?) before redesigning — this is a vague ask and deserves
-clarifying questions, not assumptions.
+The remaining operation is one controlled live-provider reprocess. It was not run because the
+Codex process had no `WRITER_API_KEY`, `CLASSIFIER_API_KEY` or `VERIFIER_API_KEY`. Follow
+`docs/reprocessing-runbook.md`; never run the retired broad refetch or the unused legacy
+Interpret/Verify/Human Review stages just to populate the unified Product reports.
 
-**3. Weekly report** (`weekly-report.html`, `ReportController`):
-   - **Fonts**: body/headline font is `'Libre Caslon Text', Georgia, serif`,
-     used **italic** throughout (`.masthead .sub`, `.section-insight`,
-     `.market-note`, `.pull-quote .txt`, `.fact-quote .txt`, `.orig-span` —
-     grep `font-family` in the file, ~10 hits). Libre Caslon Text is a
-     Latin-only display serif with poor/no Vietnamese diacritic coverage —
-     this is almost certainly why it reads badly for Vietnamese text. Needs
-     a serif (or non-serif, ask Hanh) with proper Vietnamese glyph support
-     (e.g. a Google Fonts serif with Vietnamese subset — check availability
-     before picking one) and probably **drop most of the italic** (or keep
-     it only for genuinely short accent text, not body paragraphs).
-   - **Off-topic "insurance" news that's actually just banking news**: not
-     yet root-caused this session. Hypothesis to check first: `FactExtractionJob`
-     tags every doc's market as `VN` vs `REGIONAL` (see `market()` static
-     method) purely by host/language, with **no topic relevance filter** —
-     so a bank-only source like Thời báo Ngân hàng (which *is* in the
-     registry, tier 2, general banking news, not insurance-specific) will
-     surface anything it publishes, including pure-banking stories with no
-     insurance angle. Confirmed today's pipeline run: several
-     `Thời báo Ngân hàng` claims in the live report are about loan
-     collateral rules / AML circulars / FX transaction bans — banking
-     regulation with no explicit life-insurance connection, riding along
-     because the *source* is whitelisted, not because the *classifier*
-     judged the specific article insurance-relevant. Check whether AI#1
-     (classifier, `TopicClassifier`) is actually scoring topic relevance per
-     doc or just confirming "is this from a whitelisted source" — if it's
-     the latter, that's the bug, and the fix is a real relevance check in
-     the classify prompt/labels, not a source-level fix (the source *does*
-     publish real insurance-adjacent news sometimes, so deactivating it
-     isn't right either).
+After the first live refetch review, classification received an additional fail-closed cost gate:
+sample, blank, title-only/unverified and sub-600-character documents are excluded before any model
+call. On the current copied corpus the plan is 503 stale documents, 185 content skips and 9 duplicate
+skips, reducing the maximum three-sample classifier workload from 2,064 to 1,509 calls. Product
+materiality and targeted-refetch length semantics now use the same stripped 600-character floor.
 
-**4. Monthly report** (`monthly-report.html`, `MonthlyReportController`,
-   design system "Meridian Review" per the file's own header comment —
-   handed off from an earlier separate Claude Code session, template
-   reference lives only as images/PDF Hanh shared in **that** chat, not
-   as a file in this repo — **you don't have it; ask Hanh to re-share it
-   if you need the visual reference**):
-   - **Fonts**: same Libre Caslon Text Vietnamese-readability problem as
-     the weekly report — grep `font-family`/`.caslon` in the file (~8 hits,
-     including inline SVG `<text>` labels which use Work Sans already —
-     just the display/serif type needs replacing).
-   - **Layout doesn't use the template's full visual system** — no specifics
-     gathered this session; ask Hanh what elements from the original
-     template are missing (probably needs the reference images re-shared
-     to compare against).
-   - **Content cut short / 13 pages / section 3 has titles but no stories
-     under them — root cause found, not yet fixed**: two compounding bugs
-     in `MonthlyReportController.monthly()`:
-     1. `ReportWindow.monthlyStart(today)` = **first day of the current
-        calendar month** (`today.withDayOfMonth(1)`) — run on 2026-07-14,
-        that's a 14-day window (Jul 1–14). Most real articles' actual
-        publish dates don't fall inside a random 2-week slice, so most
-        otherwise-good content gets filtered out before it even reaches the
-        `.limit(6)` cap per section.
-     2. Every section (`section()` helper, called 3×) hard-caps to
-        `.limit(6)` stories with **no fallback UI when a section gets 0-2
-        stories** — the template likely assumes ~6 and lays out fixed
-        slots, so a section with fewer stories either overflows blank space
-        or (per Hanh's report) shows the title/header with nothing
-        underneath. Fix needs both: (a) reconsider whether "monthly" should
-        mean *docs ingested this run* / *rolling 30 days* / *calendar
-        month-to-date* — calendar month-to-date is almost certainly wrong
-        for a demo run that ingested a backlog in one shot — and (b) make
-        the template gracefully handle 0/1/2/3-story sections instead of
-        assuming a fixed 6.
-   - **Missing a "References" page before the Exhibit/chart pages** — add one.
-   - **Last page should read as a "Thank you" page, not a compliance
-     slogan** — the back-cover page already exists (`monthly-report.html`
-     lines ~285-300, `data-content-type="back-cover"`), it just currently
-     shows the tagline *"Không nhận định nào thiếu nguồn." / "No statement
-     without a source."* as its headline (line 294) — that's a methodology
-     slogan, not a closing/thank-you message, and Hanh specifically doesn't
-     want that phrasing there. Swap the headline text (and probably the
-     sub-line below it) for an actual thank-you message; keep the page
-     structure/background/pattern as-is unless the re-shared template
-     reference suggests otherwise.
+The safety and release notes in this section supersede older statements later in this document.
+The historical sections remain for context, but their destructive rerun and bulk-approval
+instructions must not be repeated.
+
+## ⏭️ START HERE — what's pending / what to check first
+
+1. **The build gates now pass; the live corpus still requires controlled reprocessing.** The
+   application remains intentionally stopped. Start it against `data/marketradar.mv.db` only with
+   all three real provider keys, confirm provider families in the boot log, then inspect the
+   read-only preflight and bounded refetch/extraction plans before any mutation.
+
+2. **Never wipe generated tables to force a rerun.** Classification, extraction and
+   interpretation now use version/current-edition semantics and preserve prior output. Old
+   facts and claims remain auditable; reports select only active/current, verified editions.
+   Failed or empty replacements must leave the previous good edition active.
+
+3. **Publication is fail-closed.** A claim must pass L1, have an approved review status, and
+   have latest L2 verdict `ENTAILED`. `NEUTRAL`, `CONTRADICTED`, stale-verdict edited claims,
+   superseded claims, title-only documents and insufficient text never publish. Do not use the
+   historical bulk-approve recipe later in this file; in particular, never approve `NEUTRAL`
+   claims merely to make a report fuller.
+
+4. **All report surfaces now use one fail-closed Product path.** Product, Weekly, Monthly,
+   Quarterly and email use the exact 7/30/90-day Product snapshot. Only persisted
+   `DECISION_READY` and `WATCH` dispositions render; `REJECT`, null/legacy dispositions and old
+   fallback narratives never render. Fewer than three decision-ready insights is explicitly
+   `INSUFFICIENT_EVIDENCE`.
+
+5. **Safe reprocessing controls:** read `docs/reprocessing-runbook.md`; create a stopped-app
+   backup with `scripts/backup_before_reprocess.sh`; inspect
+   `/pipeline/reprocess/preflight.json?backupConfirmed=true`; inspect extraction depth/staleness
+   with `/extract/backfill/plan`; use targeted dry-runs before any confirmed mutation. AI stages
+   are blocked server-side while their provider is STUB.
+
+6. **Quality is measured, not inferred from HTTP 200.** Run `./scripts/validate_release.sh`.
+   Automated and copied-database gates passed on 2026-07-16; a fresh real-provider edition still
+   requires the Product-SME checklist and direct citation review before publication.
 
 ## How to run it right now
 
 ```bash
 cd /Users/hanh/Downloads/workspace/hackathon/market-radar
 
-export ANTHROPIC_API_KEY=<Hanh's Claude key>
+export WRITER_API_KEY=<Hanh's OpenAI key>
 export CLASSIFIER_API_KEY=<Hanh's DeepSeek key>
-export VERIFIER_API_KEY=<Hanh's DeepSeek key>
+export VERIFIER_API_KEY=<Hanh's DeepSeek key — same value as CLASSIFIER_API_KEY, one DeepSeek account>
 
 java -jar target/market-radar-0.1.0-MVP.jar \
   --server.port=8081 \
@@ -137,251 +79,291 @@ java -jar target/market-radar-0.1.0-MVP.jar \
   --marketradar.classifier.model=deepseek-chat
 ```
 
-**This is the settled, cost-optimal config**: Writer (Extract AI#2 + Interpret
-AI#3) = Claude, via the `ANTHROPIC_API_KEY` fallback (no
-`--marketradar.llm.base-url` flag = falls through to native Anthropic).
-Classifier (AI#1, highest call volume) = DeepSeek. Verifier (Gate L2) =
-DeepSeek (already the default in `application.yml`, no flag needed). Confirm
-the boot log shows all three lines:
+**⚠️ 2026-07-15 update (content-quality audit session, after this handoff was written):**
+writer moved from `gpt-4o-mini` to **`gpt-5-mini`** — `gpt-4o-mini`'s output was part of
+what read as shallow/fragmented (see `tmr-content-quality-audit.md`). `--marketradar.llm.*`
+flags were **removed from the launch command above** on purpose: the model/base-url now live
+in `application.yml` (`base-url: https://api.openai.com/v1`, `model: gpt-5-mini`) so this
+doc can't drift out of sync with the code default again — don't re-add `--marketradar.llm.model`
+overrides here unless you're intentionally testing a different writer model.
+
+**Provider stack (current):** Writer (Extract AI#2 + Interpret AI#3) = **OpenAI `gpt-5-mini`**
+(ChatGPT family per Hanh's cost call, not Claude). Classifier (AI#1) = DeepSeek. Verifier
+(Gate L2) = DeepSeek (config already defaults to DeepSeek in `application.yml`, only needs
+the env var). Confirm boot log shows:
 ```
-LLM MODE (WRITER): ANTHROPIC (model=claude-haiku-4-5-20251001)
+LLM MODE (WRITER): OPENAI_COMPAT (base-url=https://api.openai.com/v1, model=gpt-5-mini)
 CLASSIFIER MODE: OPENAI_COMPAT (base-url=https://api.deepseek.com, model=deepseek-chat)
-VERIFIER MODE: OPENAI_COMPAT (base-url=https://api.deepseek.com, model=deepseek-chat) — khác họ với writer ANTHROPIC
+VERIFIER MODE: OPENAI_COMPAT (base-url=https://api.deepseek.com, model=deepseek-chat) — khác họ với writer
 ```
-**Writer model changed from `claude-sonnet-4-6` to `claude-haiku-4-5-20251001`
-on 2026-07-14** (`application.yml` line ~32) — Hanh's Anthropic account ran
-out of credit mid-session (real error: `HTTP 400 "Your credit balance is too
-low"`, not a code bug), and given tight budget, Haiku was chosen over Sonnet
-for the retry since Extract/Interpret are narrow template-filling tasks with
-strict JSON schemas, not creative writing — quality held up fine (199/200
-docs interpreted cleanly, only 3 genuine schema rejects). If quality becomes
-an issue, swap back to a Sonnet model id in that one config line + restart;
-no other code changes needed. Minimum Anthropic top-up recommended: $5.
 
-Data lives in `./data/marketradar.mv.db` (file-backed H2, persists across
-restarts — **not** committed to git, see `.gitignore`). Ops console:
-`http://localhost:8081/ops/login` → pick a role → sidebar has everything
-(Pipeline Runner, LLM Settings, Source Registry, Review Queue, reports).
+**⚠️ The one rule that caused confusion before, still true:** never `mvn package` while the
+app is running without restarting afterward — the running process silently corrupts (static
+assets hang, H2 `AUTO_SERVER` connections throw `NoClassDefFoundError`). Every code change in
+this session was followed by rebuild-then-ask-Hanh-to-restart, never a live reload.
 
-## ⚠️ The one rule that caused most of tonight's confusion
+**DB inspection**: `application.yml`'s datasource URL already has `AUTO_SERVER=TRUE`, so you
+can query the LIVE db directly and safely (no need to copy first, unlike the old handoff's
+caution — that caution was for a different, non-`AUTO_SERVER` setup):
+```bash
+java -cp ~/.m2/repository/com/h2database/h2/2.2.224/h2-2.2.224.jar org.h2.tools.Shell \
+  -url "jdbc:h2:file:./data/marketradar;AUTO_SERVER=TRUE" -user sa -password "" -sql "SELECT ..."
+```
+A pre-re-run backup exists at `data/backups/marketradar-pre-rerun-20260715-082750.mv.db` (from
+before this session's destructive wipe-and-regenerate — see below) in case anything needs
+rolling back to the Claude-era content.
 
-**Never rebuild the jar (`mvn package`) while the app is running, without
-restarting it afterward.** A long-lived process whose underlying jar file
-gets overwritten on disk develops silent corruption — symptoms observed
-tonight: static CSS files hang forever with no response, H2 `AUTO_SERVER`
-connections throw `NoClassDefFoundError`, while normal dynamic pages keep
-working fine (which makes it confusing — it *looks* like only one small
-thing is broken, but the whole process is quietly rotting). **The fix is
-always: stop it (Ctrl+C in Hanh's terminal) and start it again** with the
-command above. This is not something I can do for Hanh — it's her terminal.
+## What changed this session (chronological, root-causes traceable)
 
-Rule of thumb for future-me: any time I say "I rebuilt/fixed X," the next
-sentence must be "please restart before testing."
+### 1. Narrative synthesis feature (batch 10) — monthly went from story-cards to prose
+Added a whole new AI capability: chapter-level narrative synthesis, sitting **after** Gate L2
+in trust terms but architecturally a new Interpret sub-stage. New files:
+- `interpret/Chapter.java` — enum `VN_COMPETITOR` / `VN_REGULATION` / `REGIONAL_LESSONS`,
+  each carrying number/titles/subtitles/market/factTypes AND (added later) a
+  `narrativeFocusVi()` per-chapter angle naming which business functions (product/actuary/
+  distribution/marketing/legal) that chapter should speak to.
+- `interpret/NarrativePack.java` — sibling to `EvidencePack`; built from already-Gate-L1-PASS
+  per-doc claims (not raw facts) + their cited evidence, so synthesis reuses vetted analysis
+  rather than re-deriving from scratch.
+- `InterpretedClaim.Slot.NARRATIVE` + new `chapterCode` column.
+- `InterpretationJob.runChapterNarrative()` — runs once per chapter, capped input (`selectNarrativeClaims`,
+  ≤24 claims, ≤2/doc, named-company docs prioritized) so the model doesn't drown in 100+ claims
+  and default to generic prose.
+- `MonthlyReportController` rewritten around `Chapter`/`ChapterArticle` records instead of the
+  old `Section`/`Story` (deleted, was per-fact story cards).
+- `ClaimController.forceRetryNarrative()` + `ClaimVerificationRepository.deleteByClaimSlotAndChapterCodeAndOrigin`
+  (needed because narrative claims, once verified, hit an FK constraint on naive delete —
+  verifications must be deleted first).
 
-**New failure mode found 2026-07-14 (different from the `NoClassDefFoundError`
-above, easy to confuse the two):** if a boot fails with
-`org.h2.jdbc.JdbcSQLNonTransientConnectionException: Connection is broken:
-"java.net.ConnectException: Connection refused: localhost:XXXXX"` followed by
-`Unable to determine Dialect without JDBC metadata` — that's a **stale H2
-lock file**, not data loss and not the jar-corruption bug. It happens if an
-`AUTO_SERVER=TRUE` H2 shell (see "inspect the live DB" section below) was
-used to query the live DB and that shell process exited without cleanly
-releasing the lock — `data/marketradar.lock.db` is left pointing at a
-now-dead port. **Fix: `rm data/marketradar.lock.db` (never delete
-`.mv.db`!), then start the app normally.** The lock file only tracks a port
-registration; the actual data lives entirely in `.mv.db` and is untouched.
+**Bugs found and fixed along the way** (worth knowing if you see similar symptoms again):
+- A Hibernate-6-generated CHECK constraint (`CONSTRAINT_2650`) restricted `SLOT` to the 3
+  original enum values; adding `NARRATIVE` in code didn't retroactively widen it (`ddl-auto:
+  update` doesn't touch existing check constraints). Fixed via direct `ALTER TABLE ... DROP/ADD
+  CONSTRAINT` against the live AUTO_SERVER db. If you add new enum values to any `@Enumerated`
+  field again, expect the same issue.
+- **Replay-cache didn't key on provider identity** — switching Writer/Verifier provider (e.g.
+  STUB → real DeepSeek) still hit old cached responses under the new provider's label, because
+  the cache hash was `sha256(system+user)` only. Fixed by including `providerName()` in the hash
+  across `Interpreter`, `TopicClassifier`, `EntailmentVerifier` (`AnthropicLlmClient.providerName()`
+  also now includes the model, not just "ANTHROPIC" bare, so Claude model switches are covered
+  too). **This means every prompt change also naturally busts old cache** — a nice side effect,
+  no manual cache purge needed after editing prompts.
+- `LazyInitializationException` on `claim.getRawDoc().getSource()` outside a transaction (open-in-view
+  is off) when ranking logic tried to check VN-vs-regional market from a claim. Fixed by deriving
+  a `Set<Long> vnDocIds` from `EvidenceFact` (which DOES have `source` join-fetched via
+  `findAllForReport()`) instead of touching the claim's lazy proxy. **If you add new ranking/
+  filtering logic on claims, always route market/source lookups through facts, never
+  `claim.getRawDoc().getSource()` directly.**
 
-## Pipeline stages, providers, and "is it really done" semantics
+### 2. Report cadence: weekly / monthly (30d) / quarterly (90d)
+`ReportWindow.java` now has `weeklyStart` (7d), `monthlyStart` (30d), `quarterlyStart` (90d),
+and a separate `narrativeStart` (365d) — narrative synthesis intentionally uses a much wider
+window than the display window, because this is a backfilled demo corpus (crawled once, not
+incrementally), so the *substantive* competitor moves (product launches, partnerships) are
+often 6-12 months old relative to "today," while only minor/administrative news is genuinely
+recent. Display windows (monthly/quarterly) stay tight for "current" framing; the analytical
+narrative pulls from the wide window so chapters aren't thin. `MonthlyReportController` now has
+one shared `render(...)` method serving both `/report/monthly` and `/report/quarterly` (new
+endpoint) — same template, different window + `cadenceLabel`.
 
-| Stage | Provider (current) | Skip-if-already-done check | Retries a technical failure automatically? |
-|---|---|---|---|
-| 1. Ingest | none (deterministic fetch + SHA-256 hash dedup) | URL exists + `fullTextFetched=true` | N/A — designed to re-run repeatedly for new content |
-| 2. Dedup + Classify (AI#1) | DeepSeek | `Classification` row exists for the doc | ❌ No — a bad/uncertain result is permanent unless the row is manually deleted |
-| 3. Extract evidence (AI#2) | Claude (Writer) | `EvidenceFact` rows actually exist for the doc | ✅ Yes — if zero facts were saved, it naturally retries next run |
-| 4. Interpret + Gate L1 (AI#3) | Claude (Writer) | *any* `InterpretedClaim` exists for the doc, **including a failed one** | ❌ No — this is the gap "Force Retry" (see below) now closes |
-| 5. Verify — Gate L2 | DeepSeek | claim's `reviewStatus` has left `PENDING_VERIFICATION` | Intentionally permanent — verification is a one-time audit decision |
+**Ranking** (exec summary + competitor scan): sort order is (1) VN market first, (2) impact type
+— PRODUCT_LAUNCH/FEE_CHANGE/REGULATION ranked above minor EVENT/METRIC (`impactRank()`, added
+because a provincial claims-payout was leading the report over a real product launch), (3) named
+company present, (4) recency, (5) risk tier, (6) id. Helpers `hasNamedCompany`/`recencyOf`/
+`impactRank` are in `MonthlyReportController`.
 
-**Force Retry** (new tonight, `/claims` page): a button next to any
-`SCHEMA_REJECTED` claim that deletes that claim row + its cached LLM
-response, so the next Interpret run genuinely retries the doc instead of
-being silently skipped forever. Endpoint: `POST /claims/force-retry/{rawDocId}`.
-**Classification now has the equivalent too** (added after this handoff was
-first written): a doc stuck in `UNCERTAIN_REVIEW`/`NO_LABEL_REVIEW` gets a
-Force Retry button on `/classifications`, endpoint
-`POST /classify/force-retry/{rawDocId}`, same delete-row-plus-cache pattern.
+### 3. Content quality overhaul — the big one, in two rounds
+**Round 1** (tone + specificity): banned praise/PR adjectives ("leading", "prestigious",
+"affirming leadership") across all Interpret + Extract prompts; forced narrative sentences to
+cite a specific company/number/date instead of generic filler ("shows strength and
+sustainability"); added per-chapter "function focus" so narrative ties findings to
+product/actuary/distribution/marketing/legal.
 
-## What changed tonight (chronological, so root causes are traceable)
+**Round 2** (story-first — the critical fix, prompted directly by Hanh's feedback): the exec
+summary and narrative were STILL bad after round 1, because they only ever displayed the
+`IMPLICATION` claim (the bare conclusion — "this could create growth opportunities") while
+silently discarding the `WHY_MATTERS` claim that actually contained the story (who/what/when/
+number). Fixed at two levels:
+  - **Prompt level**: all 3 Interpreter prompts (`SYSTEM_DOC`, `SYSTEM_EXEC`, `SYSTEM_NARRATIVE`)
+    now explicitly require "kể chuyện trước, kết luận sau" (story before conclusion) — WHY must
+    open with subject+action+date+number, IMPLICATION must stay tightly tied to that specific
+    WHY. Narrative must also read as connected prose with transitions ("Đáng chú ý,", "Trong khi
+    đó,"), grouped by theme, not a list of 6-8 independent verdict sentences.
+  - **Report layer**: `MonthlyReportController.ExecItem` record now pairs `why` (WHY_MATTERS
+    claim for that doc) + `impl` (the IMPLICATION), rendered together in the exec summary
+    template (bold story sentence, then the implication). `ChapterArticle.paragraphs()` groups
+    narrative sentences into ~3-sentence paragraphs instead of one sentence per line.
 
-1. **Full-article fetch fix** (`dd6a9ee`) — the backfill logic that upgrades
-   headline-only docs to full article text was checking "does this URL
-   already exist" instead of "do we already have full text for it" — meant
-   it could never actually backfill anything. Fixed with a new
-   `fullTextFetched` flag on `RawDoc`.
-2. **11 dead source URLs repaired, 11 permanently retired** (`d97d31a`) — see
-   `SeedData.java` comments dated 2026-07-14 for exactly which and why
-   (bot-blocked WAFs, broken TLS certs, genuinely dead pages — all
-   documented per-source, not silently dropped).
-3. **Gemini abandoned as Writer** — Google now requires a ~$12 minimum
-   prepayment even for light use; switched back to Claude, which is
-   actually cheap here since Writer is low-volume (~35-45 calls/run) —
-   Classifier was always the expensive stage and that's on DeepSeek.
-4. **Pipeline Runner UX overhaul** (`28e837a`) — jobs run on a background
-   executor now (`PipelineRunStatusService`), so clicking Run returns
-   instantly instead of blocking the page for minutes; live
-   RUNNING/SUCCESS/FAILED polling; per-stage LLM provider labels.
-5. **`/llm-settings` page + boot-time symmetry** (`28e837a`, `34789e9`) — any
-   of Classifier/Writer/Verifier can be set to Anthropic or any
-   OpenAI-compatible endpoint, at runtime (no restart) via the page, or at
-   boot via env vars (`CLASSIFIER_API_KEY`/`marketradar.classifier.anthropic-model`,
-   same pattern for verifier). Only rule enforced: Writer's model family ≠
-   Verifier's model family (`Invariant2.assertDifferentFamily`) — tested to
-   correctly refuse booting when violated.
-6. **`max-tokens` bug** (`945271c`) — was 1024, tuned for the old
-   single-sentence interpreter task; the newer Extract stage (up to 5
-   structured facts/doc) routinely got cut off mid-JSON. Raised to 4096.
-7. **JSON quote-escaping bug** (`0157b46`, `4ce1521`) — source documents
-   (Vietnamese insurance/legal text) often wrap terms in "quotation marks",
-   and the model — despite explicit prompt instructions — inconsistently
-   forgot to escape them as `\"` in JSON output (confirmed: escaped
-   correctly in `text_en` but not `text_vi` for the identical term, same
-   response). Prompt fix alone wasn't reliable enough, so added
-   `JsonRepair.repairUnescapedQuotes()` as a code-level fallback (only
-   triggers when strict parsing fails first). The tricky part: Vietnamese
-   sentences often have a quoted phrase immediately followed by a comma
-   (`"PNJ", cho thấy...`), which looks identical to real JSON structure
-   (`"value", "nextKey"`) — resolved by checking one token further (a comma
-   only counts as a real string-closer if a quote follows it).
-8. **Claim/fact code generation bug** (`505eab7`) — `nextCode()` used
-   `count()+1`, which breaks the moment any row is deleted (exactly what
-   manual cache-clearing does) — the next insert collides with an
-   already-used code. Fixed to compute from the actual max code in use.
-9. **Force Retry** (`1006114`) — see above.
+A **historical full pipeline re-run** was used in the earlier session (this destructive method
+is now retired and must not be repeated): backed up DB → wiped `classifications`/`evidence_facts`/
+`interpreted_claims`/`claim_verifications`/`llm_call_log` (kept `raw_docs`/sources/routing) →
+re-ran Classify (627 docs, DeepSeek self-consistency) → Extract (154 CONFIRMED docs survived
+classification, up from including 25 pure-banking docs before — see below) → Interpret → Verify
+→ bulk-approved ENTAILED+NEUTRAL via `/review/{id}/approve` curl loop (skipped CONTRADICTED).
+**This is also when the classifier's earlier "bancassurance clarifier" prompt fix got proven
+out**: all 25 `Thời báo Ngân hàng` (pure banking) docs went `OUT_OF_SCOPE` and dropped out of
+the report entirely, while named insurers (Prudential, Generali, AIA, BIDV MetLife, Chubb Life)
+stayed `CONFIRMED` — i.e. the topic-relevance fix works at scale, not just on the 4-doc sample
+tested earlier.
 
-## What changed 2026-07-14 afternoon/evening (full reseed + observability session)
+**Extraction was also widened**: `FactExtractionJob.MAX_FACTS_PER_DOC` 5→8, plus an instruction
+to prefer information-dense spans (numbers + mechanism), addressing Hanh's "we extracted too
+little to write sharp insights" hypothesis.
 
-1. **Full reseed executed** — DB wiped (`data/*.db` deleted) and reseeded
-   clean to pick up all the source-resolution work from the marathon session
-   earlier that day (60 sources, 42 active). Uncovered a real bug during
-   reseed: `Source.fetchUrl` had no `@Column(length=...)`, defaulting to
-   Hibernate's 255-char cap — `MUNICHRE`'s AEM search URL (416 chars) blew
-   past it and crashed the seed insert. Fixed by widening to `length = 1000`
-   (`Source.java`) — a general fix, not MUNICHRE-specific, since other
-   long-query-string sources could hit the same wall later.
-2. **Ran the full 5-stage pipeline end-to-end on the fresh DB** — Ingest
-   (627 docs, 0 rejected across all 42 active sources) → Classify → Extract
-   → Interpret → Verify. Hit the Anthropic credit exhaustion mid-run (see
-   "How to run it right now" above) — Extract/Interpret both 100%
-   `LLM_ERROR`'d the first time; diagnosed via the literal `(LLM_ERROR)`
-   placeholder text stored in the claim rows (proof it's an infra failure,
-   not a JSON/schema bug), fixed by topping up + switching Writer to Haiku,
-   re-ran Extract (183 docs, 424 facts) and Interpret (199/200 docs clean)
-   successfully. Verify then processed 475 claims → 315 auto-approved.
-   **Force Retry was used at scale for the first time**: 42 doc-level +
-   1 exec-summary claim stuck at `SCHEMA_REJECTED` from the failed run were
-   cleared via `POST /claims/force-retry/{rawDocId}` +
-   `POST /claims/force-retry-exec-summary` before the successful re-run
-   (otherwise Interpret's `existsByRawDocAndOrigin` guard would have
-   silently skipped them forever — same class of bug the Force Retry
-   feature was built to close).
-3. **Pipeline progress bars** (Hanh: "very very helpful") —
-   `PipelineRunStatusService` now tracks live `completed`/`total` per
-   running stage (`startProgress`/`stepProgress`, called from inside each
-   Job's loop in `IngestionJob`/`ClassificationJob`/`FactExtractionJob`/
-   `InterpretationJob`/`VerificationJob`), exposed via `/pipeline/status.json`
-   and rendered as a real percentage + fill bar on `/pipeline`
-   (`pipeline.html`'s poll() JS).
-4. **Durable pipeline observability — new tables + new page** (closes the
-   actual root cause of "hard to see what's blocked where," which used to
-   only live in an ephemeral in-memory `StringBuilder` per run, gone on the
-   next run or a restart):
-   - `PipelineRunLog` (new entity/table `pipeline_run_log`) — one row per
-     stage-click, with a `batchId`: every Ingest click opens a new batch,
-     every other stage-run gets folded into the batch of the most recent
-     Ingest. `PipelineRunStatusService.trigger()` now creates/finishes these
-     rows around the existing in-memory tracking.
-   - `PipelineItemLog` (new entity/table `pipeline_item_log`) — one row per
-     item outcome (source for Ingest, doc for Classify/Extract/Interpret,
-     claim for Verify) per run, with status + message, durable. Wired into
-     all 5 Job classes.
-   - New page **`/pipeline/history`** (`PipelineHistoryController` +
-     `pipeline-history.html`, linked from the sidebar under Pipeline
-     Config): batch list up top, per-document trail table below (one row
-     per doc, one column per stage, Excel-style dropdown filters
-     auto-populated from whatever values are actually present, plus a title
-     search box). Ran into and fixed a `LazyInitializationException` here
-     (this app has `spring.jpa.open-in-view: false` — an explicit existing
-     setting — so lazy `doc.getSource()` access outside a transaction 500s;
-     fixed with a `join fetch` query, `RawDocRepository.findAllWithSource()`,
-     matching the pattern already used elsewhere in this codebase like
-     `ClassificationRepository.findAllForDisplay()`).
-5. **Reviewer Queue filter bar** (`review-queue.html`) — client-side dropdown
-   filters (Gate status / Verdict / Risk tier / Type) with a live "shown X/Y"
-   count, since 221 unfiltered claims was "overwhelming" per Hanh. Pure
-   `data-*` attribute + JS show/hide, no backend change.
+### 4. Editable AI Prompts — new ops page (batch 12)
+Hanh asked for prompts to be visible/editable by ops, not buried in code. New package
+`com.marketradar.prompt`:
+- `PromptKey` enum — one entry per AI stage (CLASSIFY, EXTRACT, INTERPRET_DOC, INTERPRET_EXEC,
+  INTERPRET_NARRATIVE, VERIFY), each with a Vietnamese label + description for the ops UI.
+- `PromptOverride` (JPA entity, table `prompt_overrides`) + `PromptOverrideRepository`.
+- `PromptService` — stages call `registerDefault(key, hardcodedPromptString)` once at
+  construction (so the "factory default" is always the code's own constant, never lost); all
+  runtime prompt reads go through `promptService.body(key)`, which returns the DB override if
+  present, else the registered default.
+- `PromptController` + `templates/prompts.html` — new `/prompts` ops page, one card per stage,
+  textarea + "Lưu & áp dụng" (saves override, applies on next AI call — replay-cache
+  automatically busts since the hash includes prompt text) + "Khôi phục mặc định" (deletes the
+  override row). Linked from the ops sidebar under Pipeline Config.
+- **All 4 stage classes** (`Interpreter`, `FactExtractionJob`, `TopicClassifier`,
+  `EntailmentVerifier`) now take `PromptService` as a constructor dependency and call
+  `promptService.body(PromptKey.X)` instead of referencing their `SYSTEM_*` constants directly
+  at call time (the constants still exist, just as the registered defaults).
 
-**All of the above is on top of the existing DB, not a fresh reseed** — do
-**not** reseed again to pick up these code changes; they're additive schema
-updates (`ddl-auto: update`) that apply cleanly to the live `.mv.db`.
+**Not yet tested by a human**: nobody has actually used the `/prompts` page to edit-and-verify a
+live prompt change end-to-end this session (built and wired, confirmed `/prompts` returns 200,
+but the save→regenerate→see-the-difference loop hasn't been exercised). Worth a smoke test.
 
-## Known remaining gaps (roughly priority order)
+### 5. Visual: Meridian design system forms adopted on monthly/quarterly
+Per Hanh's ask to "learn the template by heart" — read the layout-decision guidance in the
+package's `readme.md` + component `.prompt.md` files (column-count-by-density rules,
+content-type-by-purpose catalog) before choosing forms, rather than guessing:
+- **`quote` page** — full-navy Meridian pull-quote ("Market Radar analysis" attribution, no
+  fabricated speaker), between exec summary and chapters.
+- **`key-columns` "Competitor Scan"** — the literal answer to "x-column template for x
+  competitors": top ~5 VN insurers side by side, each showing dev count + latest move +
+  source, built from `MonthlyReportController.CompetitorColumn` (grouped/ranked from
+  `EvidenceFact.company`, using the wide `narrativeStart` window same as chapters, since 90d
+  alone was too thin — same root cause as the chapter-thinness issue above).
+- **Proper `back-cover`** — replaced the old centered "Thank you" with the template's actual
+  layout: top-left headline + editorial sub-line + issue/methodology meta, lens-cascade SVG
+  pattern band at the bottom, matching `ReportMagazine.dc.html`'s real back-cover recipe.
+- Font stays **Lora**, not Libre Caslon Text, throughout — that substitution (made much earlier
+  this project, for Vietnamese diacritic support) is a deliberate, permanent deviation from the
+  template; don't revert it even when copying more Meridian page forms later.
 
-*(Hanh's 4 explicit next-session priorities are in "START HERE" at the top of
-this file, not repeated here — this list is longer-tail/lower-priority items.)*
+**Design system source**: the original zip Hanh shared is at
+`/Users/hanh/Downloads/Meridian Review Design System.zip` (201KB, dated Jul 13). It was unzipped
+into this session's scratchpad at a path under `/private/tmp/claude-501/...` which **will NOT
+exist in a new session** — if you need to re-read `ReportMagazine.dc.html` or the guideline
+files, re-unzip the Downloads copy first (`unzip -o "path.zip" -d <somewhere>`).
 
-- ~~**Classification has no Force Retry equivalent**~~ — closed 2026-07-13: mirrors
-  `ClaimController#forceRetry` exactly. `POST /classify/force-retry/{rawDocId}`
-  (`ClassificationController`), guarded on `UNCERTAIN_REVIEW`/`NO_LABEL_REVIEW`, deletes
-  the `Classification` row (`ClassificationRepository.deleteByRawDocId`, new) + its
-  `CLASSIFY`-purpose `LlmCallLog` entries (reused the existing generic
-  `deleteByPurposeAndRawDocId`). Button added to `/classifications` next to the status
-  badge, same visibility rule as the claims page.
-- **No mobile pass on the ops console** (by design — desk-bound tool).
-- **Maker→Checker handoff isn't real** — Maker's edit still self-approves
-  server-side.
-- **No real authentication** — role picker is client-side only. Hanh asked
-  about Firebase Auth + Firestore-for-users-only (keep the existing
-  relational data layer as-is) as the plan when this gets tackled — see
-  conversation history for the cost reasoning (Cloud SQL has no free tier;
-  Firestore genuinely does, no card required).
-- **`deepseek-chat` alias deprecation** — DeepSeek flagged this alias for
-  retirement around 2026-07-24; re-check the current model name before
-  relying on it much past that date.
-- Only 2 of the "known gaps" from the original business handoff remain
-  meaningfully true after tonight — worth re-reading that doc's §4 and
-  pruning what's now fixed (seed URLs, verifier placeholder, and the
-  "only 2 evidence facts" gap are all closed).
+## Known remaining gaps / next candidates (roughly priority order)
+
+- **Weekly report restyle** — not started (see START HERE #2).
+- **Ops console nav cleanup** — not started (see START HERE #4); Hanh's original ask, deferred
+  the whole session in favor of report content work.
+- **Exec-summary/quote tuning** — the two rough edges in START HERE #3, both addressable via
+  `/prompts` without code changes — good first real-world test of the new page.
+- **No real authentication** — unchanged from before, still a known gap (Firebase Auth +
+  Firestore-for-users plan was discussed in an earlier session, not acted on).
+- **`deepseek-chat` alias deprecation** — DeepSeek flagged this alias for retirement around
+  2026-07-24 (from the previous handoff) — re-check the current model name if relying on it
+  past that date; unrelated to anything changed this session.
 
 ## Useful facts for whoever (human or Claude) picks this up
 
-- Repo: `capyshibara/market-radar`, all work pushed to `main` through
-  commit `1006114` as of this handoff.
-- To inspect the live DB without risking corruption: **copy the `.mv.db`
-  file to `/tmp` first**, then run a plain (non-`AUTO_SERVER`) H2 shell
-  against the copy. Only use `AUTO_SERVER=TRUE` against the *live* file
-  when you need to, and expect it to occasionally fail with
-  `NoClassDefFoundError` if the process has survived a jar rebuild since
-  it booted (see the ⚠️ rule above) — if that happens, it's not a data
-  problem, it just means the app needs a restart.
-- `docs/run-archive/` has the archived Claude-vs-DeepSeek classifier A/B
-  test (91% agreement, ~100x cheaper) — the reasoning behind the current
-  provider split is fully documented there, not just asserted.
-- Cost reality check per full pipeline run at current settings: Classifier
-  (DeepSeek) ~$0.02-0.05, Writer (Claude, Extract+Interpret combined,
-  ~35-45 docs) ~$0.50-1.00, Verifier (DeepSeek) ~$0.02-0.05. Total under
-  $1.50 for a full run over the current ~200-document corpus. **Updated
-  2026-07-14**: real corpus is now 627 docs (Extract touched 183 of them,
-  Interpret 200) on Haiku, not Sonnet — expect meaningfully less than the
-  Sonnet-based $0.50-1.00 estimate for the same doc count now, but this
-  hasn't been precisely re-measured; ask Hanh for the actual Anthropic
-  console spend if you need a hard number.
-- **Habit worth keeping**: after using an `AUTO_SERVER=TRUE` H2 shell to
-  inspect the live DB, remember it leaves `data/marketradar.lock.db`
-  registered to that shell's port — if the app won't boot afterward with a
-  `Connection refused` error, that's why (see the ⚠️ section above), not
-  data corruption.
-- A persistent memory file exists for this project at
-  `~/.claude/projects/-Users-hanh-Downloads-workspace/memory/project_market_radar.md`
-  (auto-loaded every session, not something you need to seek out) — it
-  duplicates some of this file's key points (the jar-rebuild-while-running
-  rule, the reseed-is-destructive rule) as a faster-loading summary; this
-  HANDOFF.md remains the source of truth for anything more detailed.
+- This workspace is a **git repository with a deliberately dirty worktree**. Treat every
+  pre-existing edit as user-owned; do not reset or discard unrelated changes.
+- Plan file at `~/.claude/plans/sequential-noodling-harbor.md` covers the "major revision"
+  scope (Phases 1-4) but is now **partially stale** — it doesn't mention the story-first
+  round-2 fix or the editable-prompts page, both of which came from mid-session follow-up
+  feedback after Phase 1-3 were already executed. Trust this HANDOFF.md over the plan file for
+  "what's actually been done"; the plan file is still fine for the original Phase 3/4 intent
+  (weekly restyle specifics, ops-nav-hide candidates).
+- **The historical bulk-approval workflow is retired.** Never script approvals to increase
+  report volume. `NEUTRAL` and `CONTRADICTED` are non-publishable; an edited claim returns to
+  verification because its previous verdict is stale. Human approval must be evidence-viewed,
+  attributable and limited to the current edition.
+- **Provider A/B validation**: when GPT-4o-mini was first proposed as Writer, a real controlled
+  comparison was run (save Claude-authored baseline text for a handful of docs, force-retry them
+  under the new provider, compare) before committing — worth repeating this discipline for any
+  future provider swap rather than assuming quality transfers.
+- Cost reality: OpenAI `gpt-4o-mini` + DeepSeek is meaningfully cheaper than the earlier
+  Claude+DeepSeek stack; no hard number re-measured this session, but no budget concerns arose
+  despite a full 627-doc re-classification + 154-doc re-extraction + full re-interpretation.
+
+## Codex follow-up — Product intelligence vertical slice (2026-07-15)
+
+The quality audit concluded that the legacy report path is a verified-snippet pipeline, not yet
+a decision-intelligence pipeline. The first Product-specific vertical slice is now implemented
+alongside (not inside) the legacy monthly narrative:
+
+- Product KIQ/editorial contract and a 20-case corpus-derived golden set:
+  `docs/product-intelligence-contract.md` and `docs/evaluation/product-golden-set.json`.
+- Versioned `MarketEvent` normalization (`market-event-v1`) with exact fact provenance,
+  publication/source-event/occurred/effective/forecast dates kept separately, plus the extractor
+  model version used for each fact.
+- Versioned Product materiality rules (`product-materiality-v4`) that hard-gate full text,
+  evidence-span depth, confirmed classification, duplicates and source credibility; source tier
+  is intentionally not added to materiality. Award/CSR/promotion/generic banking/research-index
+  and unsupported classifier-label false positives are suppressed.
+- Immutable Product editions and structured insights (`product-brief-v7`), with explicit
+  What / Pattern / So what / Now what / Confidence / Caveat / cited facts. Broad fallback events
+  are not allowed to manufacture a trend; topically related facts may form one decision story.
+- New UI and endpoints: `GET /report/product` and
+  `POST /report/product/regenerate?windowDays=7|30|90|365`. Weekly/monthly reports link to it.
+
+Validation used `/tmp/marketradar-product-test.mv.db`, copied from the real local DB; the real DB
+was not mutated. The final 90-day smoke edition `PROD-20260715-871F361656` returned HTTP 200 and
+reduced the initial loose run from 50 eligible facts / 4 partly incoherent clusters to 9 eligible
+facts / 3 coherent, caveated insights. `market-event-v1` materialized 684 normalized events.
+Standalone regression results: materiality 29 checks, event normalization all pass, synthesis all
+pass; `mvn -q -DskipTests package` passes.
+
+Important remaining work: calibrate the golden set with a Product SME and add scored precision /
+recall evaluation; improve weak legacy fact summaries (the new layer can reject them but cannot
+recover detail absent from extraction); then add an evidence-grounded AI synthesis pass that is
+schema-constrained and evaluated against the deterministic brief. Do not route the new Product
+brief through legacy `IMPLICATION` claims or bulk-approved NEUTRAL verdicts.
+
+## Codex follow-up — remediation complete, live rerun still blocked (2026-07-15)
+
+The implementation work for the next controlled run is complete and acceptance-tested on
+`/tmp/marketradar-acceptance.mv.db`, never by running the live pipeline:
+
+- Classification currentness is provider/model + effective prompt contract + content hash.
+  The one-to-one row remains the active projection; an append-only `classification_attempts`
+  ledger preserves prior/candidate snapshots. Uncertain/error reruns preserve the prior result.
+- Extraction is `extract-facts-v2`, reads up to 24,000 characters and emits up to eight rich
+  spans. Successful versions atomically activate new facts; error/schema/empty results preserve
+  the prior edition. Reports and MarketEvent reads exclude superseded facts.
+- Interpretation is `interpretation-v2`, keyed by provider/prompt signature and exact evidence-
+  pack hash. New UUID editions activate atomically. Failed/empty/schema editions remain inactive
+  audit rows. Stale chapter fallback is removed.
+- Publication requires active claim + L1 PASS + approved human status + latest L2 ENTAILED.
+  Edited claims return to verification. STUB classifier/writer/verifier calls are refused inside
+  the services and by the pipeline runner.
+- Product taxonomy is `product-event-taxonomy-v2`; brief synthesis is `product-brief-v8`.
+  Weekly/Monthly/Quarterly use Product-edition evidence for Product-facing timelines, chapters,
+  scans and exhibits, so legacy awards/CSR/noise do not leak back below the new executive page.
+- Destructive force-retry paths are retired. Classification retry is single-document,
+  append-only and bypasses replay reads without deleting call history. Claim retries supersede
+  only after a valid replacement exists.
+
+Validation: `mvn -q clean package` passed; every standalone `*Test.java` suite passed; current-
+rules Product golden enforcement passed 20/20 and the legacy negative control failed as expected.
+Copied-DB HTML returned 200 for Product, Weekly, Monthly and Quarterly; Weekly PDF returned 200
+(71,000 bytes). The copied edition `PROD-20260715-2973EA3182` rendered one MEDIUM executive signal
+and kept two LOW signals in the explicit “single-source watch · not a trend” block. Award/ranking
+copy observed in the old competitor scan was absent after final Product-evidence filtering.
+
+The read-only preflight is correctly **NO-GO** in the current shell: all three AI slots are STUB;
+186 unique documents need refetch/exclusion (155 title-only, 31 short); full-text median is 4,585
+characters, p90 11,319, and six documents exceed the 24,000-character input cap. Classification
+plan: 688 legacy results are stale, 9 duplicate documents skipped. Extraction plan before that
+reclassification: 133 READY_STALE, 369 NOT_CONFIRMED, 155 NEEDS_FULL_TEXT, 31 SHORT_TEXT, 9
+DUPLICATE. The app is stopped. Next operator must configure three real providers, assess the
+688-document classification cost, verify backup
+`data/backups/marketradar-before-reprocess-20260715-234750.mv.db` (SHA-256
+`f58dcc4c458ce1cda0ee9106685765a88615d7325360cd3e865db65271175d59`), obtain `ready=true`, and follow
+`docs/reprocessing-runbook.md`; do not improvise a partial or destructive rerun.

@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "1.0",
+  "sourceBaseline": "docs/run-archive/2026-07-16-current-report-baseline.md",
+  "asOfDate": "2026-07-16",
+  "defaults": {
+    "department": "PRODUCT",
+    "audience": "INTERNAL_PRODUCT",
+    "actionOwner": "OUR_PRODUCT_TEAM",
+    "externalEntityNames": ["Competitor Life"],
+    "kiqCodes": ["P-KIQ-01", "P-KIQ-06", "P-KIQ-07"],
+    "themeCode": "VN_PRODUCT_OFFER",
+    "eventType": "PRODUCT_CHANGE",
+    "citedEvidenceIds": ["F-101", "F-102"],
+    "resolvedEvidenceIds": ["F-101", "F-102"],
+    "eventIds": ["EV-101", "EV-102"],
+    "sourceIds": ["SOURCE-A", "SOURCE-B"],
+    "patternText": "Two independent events support a testable Product pattern.",
+    "nowWhat": "Our Product team should compare benefit gaps and prototype two options for a go/no-go decision.",
+    "claimsTrend": false,
+    "futureAction": false,
+    "actionDeadline": "2026-08-15",
+    "effectiveDate": "2026-09-01",
+    "windowStart": "2026-04-17",
+    "windowEnd": "2026-07-16",
+    "publishedDates": ["2026-07-08", "2026-07-14"],
+    "modelVersions": ["gpt-5-mini-2026-06"],
+    "pipelineVersions": ["market-event-v2"]
+  },
+  "cases": [
+    {
+      "caseId": "BASE-MONTHLY-MARKETING-AUDIENCE",
+      "baselineDefect": "Monthly executive summary mixed Product, HR and Marketing recommendations.",
+      "department": "MARKETING",
+      "audience": "MARKETING",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["WRONG_DEPARTMENT_AUDIENCE"]
+    },
+    {
+      "caseId": "BASE-MONTHLY-HR-AUDIENCE",
+      "baselineDefect": "Monthly executive summary mixed Product, HR and Marketing recommendations.",
+      "department": "HR",
+      "audience": "HR",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["WRONG_DEPARTMENT_AUDIENCE"]
+    },
+    {
+      "caseId": "BASE-COMPETITOR-ACTION-OWNER",
+      "baselineDefect": "Recommendations were sometimes addressed to competitor departments rather than our Product team.",
+      "externalEntityNames": ["Fubon Life"],
+      "actionOwner": "Fubon Life",
+      "nowWhat": "Phòng Marketing của Fubon Life nên theo dõi phản hồi khách hàng.",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["EXTERNAL_ENTITY_AS_ACTION_OWNER", "GENERIC_MONITOR_ACTION"]
+    },
+    {
+      "caseId": "BASE-PROMOTION-IN-REGULATION",
+      "baselineDefect": "Monthly regulation included promotions with no direct product-regulatory consequence.",
+      "themeCode": "VN_REGULATORY_CHANGE",
+      "eventType": "MARKETING_PROMOTION",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["CHAPTER_CATEGORY_CONTAMINATION"]
+    },
+    {
+      "caseId": "BASE-CASA-IN-REGULATION",
+      "baselineDefect": "Monthly regulation included CASA eligibility and application-period changes with no direct product-regulatory consequence.",
+      "themeCode": "VN_REGULATORY_CHANGE",
+      "eventType": "CORPORATE_NEWS",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["CHAPTER_CATEGORY_CONTAMINATION"]
+    },
+    {
+      "caseId": "BASE-STALE-LEGACY-PERIOD",
+      "baselineDefect": "July output included 2025 and early-2026 items without a continuing-relevance test.",
+      "publishedDates": ["2025-11-15", "2026-01-04"],
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["STALE_INPUT"]
+    },
+    {
+      "caseId": "BASE-CERTIFICATE-CONVERSION-EXPIRED",
+      "baselineDefect": "The certificate-conversion insight recommended a future action after its deadline and effective date.",
+      "futureAction": true,
+      "actionDeadline": "2025-12-31",
+      "effectiveDate": "2026-01-01",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["ACTION_DEADLINE_PASSED", "EFFECTIVE_DATE_PASSED"]
+    },
+    {
+      "caseId": "BASE-SINGLE-SOURCE-SIGNAL",
+      "baselineDefect": "All three Product insights were single-source.",
+      "eventIds": ["EV-201"],
+      "sourceIds": ["SOURCE-A"],
+      "patternText": "One documented signal; this is not a trend.",
+      "expectedDisposition": "WATCH",
+      "expectedFailureCodes": ["SINGLE_SOURCE_WATCH"]
+    },
+    {
+      "caseId": "BASE-SINGLE-SOURCE-FALSE-TREND",
+      "baselineDefect": "Unrelated or single-source facts must not be promoted to a market trend.",
+      "eventIds": ["EV-201"],
+      "sourceIds": ["SOURCE-A"],
+      "claimsTrend": true,
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["TREND_INSUFFICIENT_EVENTS", "TREND_INSUFFICIENT_SOURCES"]
+    },
+    {
+      "caseId": "BASE-LEGACY-MODEL-MIX",
+      "baselineDefect": "Two Product insights disclosed legacy pipeline/model evidence.",
+      "modelVersions": ["gpt-4o-mini", "gpt-5-mini-2026-06"],
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["LEGACY_VERSION_MIX"]
+    },
+    {
+      "caseId": "CONTRACT-GENERIC-MONITOR",
+      "baselineDefect": "Recommendations lacked a concrete Product decision and relationship to the evidence.",
+      "nowWhat": "Our Product team should monitor the market.",
+      "expectedDisposition": "REJECT",
+      "expectedFailureCodes": ["GENERIC_MONITOR_ACTION"]
+    },
+    {
+      "caseId": "CONTRACT-UNRESOLVED-CITATION",
+      "baselineDefect": "Publication requires every cited evidence ID to resolve to an eligible evidence span.",
+      "citedEvidenceIds": ["F-101", "F-999"],
+      "resolvedEvidenceIds": ["F-101"],
+      "expectedDisposition": "REJECT",
+      "expectedResolvedEvidenceRatio": 0.5,
+      "expectedFailureCodes": ["UNRESOLVED_EVIDENCE"]
+    },
+    {
+      "caseId": "CONTROL-DECISION-READY",
+      "baselineDefect": "Positive control for the complete Product publication contract.",
+      "expectedDisposition": "DECISION_READY",
+      "expectedResolvedEvidenceRatio": 1.0,
+      "expectedFailureCodes": []
+    },
+    {
+      "caseId": "CONTROL-DECISION-READY-2",
+      "baselineDefect": "Second positive control for the magazine minimum.",
+      "expectedDisposition": "DECISION_READY",
+      "expectedResolvedEvidenceRatio": 1.0,
+      "expectedFailureCodes": []
+    },
+    {
+      "caseId": "CONTROL-DECISION-READY-3",
+      "baselineDefect": "Third positive control for the magazine minimum.",
+      "expectedDisposition": "DECISION_READY",
+      "expectedResolvedEvidenceRatio": 1.0,
+      "expectedFailureCodes": []
+    }
+  ],
+  "editions": [
+    {
+      "editionId": "BASELINE-SPARSE-EDITION",
+      "candidateCaseIds": ["BASE-SINGLE-SOURCE-SIGNAL", "BASE-LEGACY-MODEL-MIX", "BASE-COMPETITOR-ACTION-OWNER"],
+      "expectedStatus": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+      "editionId": "CONTROL-READY-EDITION",
+      "candidateCaseIds": ["CONTROL-DECISION-READY", "CONTROL-DECISION-READY-2", "CONTROL-DECISION-READY-3"],
+      "expectedStatus": "READY"
+    }
+  ]
+}

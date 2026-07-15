@@ -1,0 +1,448 @@
+{
+  "schemaVersion": "1.0",
+  "contractVersion": "product-v1.0",
+  "department": "PRODUCT",
+  "snapshotDate": "2026-07-15",
+  "description": "Golden evaluation cases sampled from the current Market Radar corpus. Titles and content-depth flags are corpus observations; expected fields express the Product intelligence contract, not the legacy classifier output.",
+  "testKey": "caseId",
+  "allowedValues": {
+    "relevanceMode": ["DIRECT", "CONDITIONAL", "NO"],
+    "evidenceGate": ["PASS", "FAIL_TITLE_ONLY", "FAIL_INCOMPLETE", "FAIL_CONFLICT"],
+    "qualityDecision": ["LEAD_SIGNAL", "SUPPORTING_SIGNAL", "APPENDIX", "EXCLUDE", "NEEDS_EVIDENCE"],
+    "eventType": [
+      "PRODUCT_LAUNCH",
+      "PRODUCT_CHANGE",
+      "BENEFIT_CHANGE",
+      "PRICING_CHANGE",
+      "PRODUCT_WITHDRAWAL",
+      "REGULATORY_CHANGE",
+      "CUSTOMER_NEED_SIGNAL",
+      "COMPETITIVE_PERFORMANCE",
+      "DISTRIBUTION_CHANGE",
+      "SERVICE_EXPERIENCE_CHANGE",
+      "MARKETING_PROMOTION",
+      "CORPORATE_NEWS",
+      "OTHER"
+    ]
+  },
+  "materiality": {
+    "factorRange": [0, 4],
+    "weights": {
+      "decisionRelevance": 7.5,
+      "decisionImpact": 6.25,
+      "novelty": 3.75,
+      "marketProximity": 3.75,
+      "timeliness": 2.5,
+      "patternStrength": 1.25
+    },
+    "thresholds": {
+      "LEAD_SIGNAL": 75,
+      "SUPPORTING_SIGNAL": 55,
+      "APPENDIX": 35,
+      "EXCLUDE": 0
+    },
+    "rule": "Hard exclusions override score. Any failed evidence gate overrides score with NEEDS_EVIDENCE when the case is otherwise department-relevant."
+  },
+  "cases": [
+    {
+      "caseId": "PROD-GOLD-001",
+      "observedRawDocId": 311,
+      "sourceCode": "GENERALI_VN",
+      "title": "GENERALI RA MẮT LOẠT SẢN PHẨM BẢO HIỂM THẾ HỆ MỚI",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "DIRECT",
+        "kiqIds": ["P-KIQ-01", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_LAUNCH",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 4, "novelty": 3, "marketProximity": 4, "timeliness": 4, "patternStrength": 2},
+        "materialityScore": 93.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "LEAD_SIGNAL",
+        "rationale": "A current Vietnam competitor launch directly affects product benchmarking; the report must extract the distinct products rather than repeat launch language."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-002",
+      "observedRawDocId": 267,
+      "sourceCode": "CHUBB_VN",
+      "title": "Chubb Life Vietnam launches two new Universal Life insurance products with Critical Illness Benefits",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "DIRECT",
+        "kiqIds": ["P-KIQ-01", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_LAUNCH",
+        "secondaryEventTypes": ["BENEFIT_CHANGE"],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 4, "novelty": 3, "marketProximity": 4, "timeliness": 4, "patternStrength": 3},
+        "materialityScore": 95.0,
+        "evidenceGate": "PASS",
+        "qualityDecision": "LEAD_SIGNAL",
+        "rationale": "The event identifies a Vietnam life product structure and attached critical-illness proposition suitable for direct feature comparison."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-003",
+      "observedRawDocId": 220,
+      "sourceCode": "BIDV_METLIFE",
+      "title": "Thông báo tạm ngừng triển khai Danh mục sản phẩm Bảo hiểm&nbsp;",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_REGULATION"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "DIRECT",
+        "kiqIds": ["P-KIQ-01", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_WITHDRAWAL",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 4, "novelty": 4, "marketProximity": 4, "timeliness": 4, "patternStrength": 2},
+        "materialityScore": 97.5,
+        "evidenceGate": "PASS",
+        "qualityDecision": "LEAD_SIGNAL",
+        "rationale": "A Vietnam competitor product-list suspension is a portfolio event, not automatically regulation; affected products, cause, and effective dates must be extracted."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-004",
+      "observedRawDocId": 658,
+      "sourceCode": "CATHAY_VN",
+      "title": "CATHAY LIFE RA MẮT SẢN PHẨM BẢO VỆ VÀ TÍCH LUỸ BỀN VỮNG",
+      "contentDepth": "TITLE_ONLY",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "DIRECT",
+        "kiqIds": ["P-KIQ-01", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_LAUNCH",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 4, "novelty": 3, "marketProximity": 4, "timeliness": 4, "patternStrength": 1},
+        "materialityScore": 92.5,
+        "evidenceGate": "FAIL_TITLE_ONLY",
+        "qualityDecision": "NEEDS_EVIDENCE",
+        "rationale": "Likely high-value launch, but a title cannot establish benefits, segment, availability, or differentiation and must never enter synthesis."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-005",
+      "observedRawDocId": 237,
+      "sourceCode": "SHINHAN_VN",
+      "title": "MỞ RỘNG QUYỀN LỢI BẢO HIỂM CÙNG BỘ TỨ SẢN PHẨM BẢO HIỂM BÁN KÈM TỪ SHINHAN LIFE VIỆT NAM",
+      "contentDepth": "TITLE_ONLY",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH", "FEE_BENEFIT_COMMISSION_CHANGE"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "DIRECT",
+        "kiqIds": ["P-KIQ-01", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "BENEFIT_CHANGE",
+        "secondaryEventTypes": ["PRODUCT_CHANGE"],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 4, "novelty": 3, "marketProximity": 4, "timeliness": 4, "patternStrength": 1},
+        "materialityScore": 92.5,
+        "evidenceGate": "FAIL_TITLE_ONLY",
+        "qualityDecision": "NEEDS_EVIDENCE",
+        "rationale": "The title identifies a material benefit change, but the four products and precise benefit deltas require full evidence."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-006",
+      "observedRawDocId": 526,
+      "sourceCode": "GREAT_EASTERN",
+      "title": "Great Eastern Pioneers New Integrated Shield Plan Offering Quality Private Healthcare at More Affordable Premiums",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH", "FEE_BENEFIT_COMMISSION_CHANGE"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-04", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_LAUNCH",
+        "secondaryEventTypes": ["BENEFIT_CHANGE", "PRICING_CHANGE"],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 4, "novelty": 4, "marketProximity": 3, "timeliness": 3, "patternStrength": 3},
+        "materialityScore": 92.5,
+        "evidenceGate": "PASS",
+        "qualityDecision": "LEAD_SIGNAL",
+        "rationale": "A nearby-market health product combining access and affordability is a strong transferability candidate, but Singapore-specific healthcare mechanics must be caveated."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-007",
+      "observedRawDocId": 523,
+      "sourceCode": "GREAT_EASTERN",
+      "title": "Great Eastern Launches Singapore’s First Physical Gold Investment-Linked Policy Fund",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-04", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_LAUNCH",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 4, "decisionImpact": 3, "novelty": 4, "marketProximity": 3, "timeliness": 3, "patternStrength": 1},
+        "materialityScore": 83.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "LEAD_SIGNAL",
+        "rationale": "Novel investment-linked fund architecture merits Product investigation; regulation, liquidity, suitability, and Vietnam appetite remain transfer constraints."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-008",
+      "observedRawDocId": 567,
+      "sourceCode": "PRULIFE_PH",
+      "title": "Pru Life UK introduces PRUTerm Lindungi, its first Shari’ah compliant life protection in the Philippines",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-04", "P-KIQ-05", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "PRODUCT_LAUNCH",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 3, "decisionImpact": 3, "novelty": 4, "marketProximity": 2, "timeliness": 3, "patternStrength": 2},
+        "materialityScore": 73.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "SUPPORTING_SIGNAL",
+        "rationale": "The proposition demonstrates underserved-segment design, but religious, regulatory, and demand context limits direct Vietnam transferability."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-009",
+      "observedRawDocId": 430,
+      "sourceCode": "PRU_HK",
+      "title": "Prudential expands hospital coverage in Chinese mainland, doubling the selected hospitals YoY to lead the market",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH", "FEE_BENEFIT_COMMISSION_CHANGE"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-04", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "BENEFIT_CHANGE",
+        "secondaryEventTypes": ["PRODUCT_CHANGE"],
+        "factors": {"decisionRelevance": 3, "decisionImpact": 4, "novelty": 2, "marketProximity": 2, "timeliness": 3, "patternStrength": 1},
+        "materialityScore": 71.25,
+        "evidenceGate": "PASS",
+        "qualityDecision": "SUPPORTING_SIGNAL",
+        "rationale": "Network-access expansion changes customer value; Product should compare the mechanism while treating cross-border provider networks as market-specific."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-010",
+      "observedRawDocId": 527,
+      "sourceCode": "GREAT_EASTERN",
+      "title": "Great Eastern’s Latest App Feature ‘My Protection Explorer’ Puts Financial Preparedness in Customers' Hands",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_LAUNCH"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-04", "P-KIQ-05", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "SERVICE_EXPERIENCE_CHANGE",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 3, "decisionImpact": 3, "novelty": 3, "marketProximity": 3, "timeliness": 3, "patternStrength": 2},
+        "materialityScore": 73.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "SUPPORTING_SIGNAL",
+        "rationale": "A protection-needs feature can affect discovery and product use, but must not be mislabeled as a product launch."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-011",
+      "observedRawDocId": 604,
+      "sourceCode": "SWISSRE_INST",
+      "title": "sigma insights 08/2026: Global mortality protection gap: at a record high",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": [],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-05", "P-KIQ-04", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "CUSTOMER_NEED_SIGNAL",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 3, "decisionImpact": 3, "novelty": 3, "marketProximity": 2, "timeliness": 3, "patternStrength": 3},
+        "materialityScore": 71.25,
+        "evidenceGate": "PASS",
+        "qualityDecision": "SUPPORTING_SIGNAL",
+        "rationale": "Credible need research can contextualize protection propositions, but global findings require Vietnam-specific validation before action."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-012",
+      "observedRawDocId": 591,
+      "sourceCode": "SWISSRE_INST",
+      "title": "sigma 04/2025: Life (span) insurance: accumulation, decumulation and longevity solutions",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": [],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-04", "P-KIQ-05", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "CUSTOMER_NEED_SIGNAL",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 3, "decisionImpact": 3, "novelty": 3, "marketProximity": 2, "timeliness": 2, "patternStrength": 3},
+        "materialityScore": 68.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "SUPPORTING_SIGNAL",
+        "rationale": "Longevity and decumulation are Product themes, but older global research is context rather than fresh proof of local demand."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-013",
+      "observedRawDocId": 140,
+      "sourceCode": "PRUDENTIAL_VN",
+      "title": "Prudential và ngân hàng HSBC Việt Nam ký kết hợp tác chiến lược",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["DISTRIBUTION_CHANNEL"],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "DISTRIBUTION_CHANGE",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 1, "decisionImpact": 2, "novelty": 1, "marketProximity": 4, "timeliness": 2, "patternStrength": 2},
+        "materialityScore": 46.25,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "A partnership alone belongs to Distribution; dual-route only if evidence identifies a product, segment, benefit, or proposition consequence."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-014",
+      "observedRawDocId": 671,
+      "sourceCode": "GENERALI_VN",
+      "title": "GENERALI NHẬN CÚ ĐÚP GIẢI THƯỞNG VỀ CÔNG NGHỆ VÀ DỊCH VỤ KHÁCH HÀNG TẠI INSURANCE ASIA AWARDS 2026",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": [],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "CORPORATE_NEWS",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 0, "decisionImpact": 0, "novelty": 0, "marketProximity": 4, "timeliness": 4, "patternStrength": 0},
+        "materialityScore": 25.0,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "An award is not evidence of a product change or customer outcome and cannot enter the Product report."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-015",
+      "observedRawDocId": 153,
+      "sourceCode": "PRUDENTIAL_VN",
+      "title": "Prudential Việt Nam chung tay khắc phục hậu quả sau mưa lũ",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": [],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "CORPORATE_NEWS",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 0, "decisionImpact": 0, "novelty": 1, "marketProximity": 4, "timeliness": 4, "patternStrength": 0},
+        "materialityScore": 28.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "CSR and relief activity may serve Corporate Affairs but provides no Product decision object."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-016",
+      "observedRawDocId": 696,
+      "sourceCode": "NAIC",
+      "title": "New Jersey and Tennessee Achieve Reaccreditation During NAIC 2026 Spring National Meeting ",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["PRODUCT_REGULATION"],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "CORPORATE_NEWS",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 0, "decisionImpact": 0, "novelty": 1, "marketProximity": 0, "timeliness": 4, "patternStrength": 0},
+        "materialityScore": 13.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "Regulator accreditation is not a product regulation and has no stated design, pricing, wording, approval, or disclosure consequence."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-017",
+      "observedRawDocId": 613,
+      "sourceCode": "MUNICHRE",
+      "title": "Quarterly statement 1/2026",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["SALES_DATA"],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "COMPETITIVE_PERFORMANCE",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 1, "decisionImpact": 1, "novelty": 1, "marketProximity": 1, "timeliness": 3, "patternStrength": 1},
+        "materialityScore": 30.0,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "Generic reinsurer results do not answer a Product KIQ; retain only product-, segment-, or demand-specific performance evidence."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-018",
+      "observedRawDocId": 212,
+      "sourceCode": "BIDV_METLIFE",
+      "title": "BIDV METLIFE THÔNG BÁO ĐIỀU CHỈNH THỜI GIAN GỬI NHẮC PHÍ BẢO HIỂM. Áp dụng từ ngày 12/12/2025",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["FEE_BENEFIT_COMMISSION_CHANGE"],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "SERVICE_EXPERIENCE_CHANGE",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 1, "decisionImpact": 1, "novelty": 1, "marketProximity": 4, "timeliness": 3, "patternStrength": 1},
+        "materialityScore": 41.25,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "Changing reminder timing is not a fee or benefit change; route to Operations unless evidence demonstrates a material persistency or product-use effect."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-019",
+      "observedRawDocId": 285,
+      "sourceCode": "FWD_VN",
+      "title": "Chương trình khuyến mại \"Vững bước bảo vệ - Hoàn phí 20%\"",
+      "contentDepth": "TITLE_ONLY",
+      "observedLegacyLabels": ["FEE_BENEFIT_COMMISSION_CHANGE"],
+      "expected": {
+        "departmentRelevant": true,
+        "relevanceMode": "CONDITIONAL",
+        "kiqIds": ["P-KIQ-01", "P-KIQ-02", "P-KIQ-06", "P-KIQ-07"],
+        "primaryEventType": "MARKETING_PROMOTION",
+        "secondaryEventTypes": ["PRICING_CHANGE"],
+        "factors": {"decisionRelevance": 2, "decisionImpact": 2, "novelty": 2, "marketProximity": 4, "timeliness": 4, "patternStrength": 2},
+        "materialityScore": 62.5,
+        "evidenceGate": "FAIL_TITLE_ONLY",
+        "qualityDecision": "NEEDS_EVIDENCE",
+        "rationale": "A temporary refund campaign can support a repeated pricing-incentive pattern, but it is not a permanent premium change and title-only data cannot establish its terms."
+      }
+    },
+    {
+      "caseId": "PROD-GOLD-020",
+      "observedRawDocId": 522,
+      "sourceCode": "GREAT_EASTERN",
+      "title": "Great Eastern Reports Record Full-Year Profit and Strong Growth in New Business Value",
+      "contentDepth": "FULL_TEXT",
+      "observedLegacyLabels": ["SALES_DATA"],
+      "expected": {
+        "departmentRelevant": false,
+        "relevanceMode": "NO",
+        "kiqIds": [],
+        "primaryEventType": "COMPETITIVE_PERFORMANCE",
+        "secondaryEventTypes": [],
+        "factors": {"decisionRelevance": 1, "decisionImpact": 1, "novelty": 1, "marketProximity": 2, "timeliness": 3, "patternStrength": 1},
+        "materialityScore": 33.75,
+        "evidenceGate": "PASS",
+        "qualityDecision": "EXCLUDE",
+        "rationale": "Company-level profit and new-business value alone do not reveal which product or segment is driving demand and belong outside the Product main report."
+      }
+    }
+  ]
+}

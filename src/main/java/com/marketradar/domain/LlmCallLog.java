@@ -33,4 +33,5 @@ public class LlmCallLog {
     }
     public String getResponseText() { return responseText; }
     public int getSampleIndex() { return sampleIndex; }
+    public String getModel() { return model; }
 }

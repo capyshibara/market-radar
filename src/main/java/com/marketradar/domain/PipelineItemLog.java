@@ -42,7 +42,11 @@ public class PipelineItemLog {
 
     private Long rawDocId;             // null cho SOURCE hoặc EXEC_SUMMARY claim
 
-    @Column(nullable = false, length = 40)
+    // Fix 2026-07-15: 40 → 200. InterpretationJob nối NHIỀU GateStatus FAIL_* (comma-joined)
+    // thành 1 status khi 1 doc có nhiều câu fail các lý do khác nhau — 40 ký tự chỉ đủ cho
+    // 1-2 tên enum, không đủ khi extraction giàu fact hơn sinh nhiều câu/doc hơn (batch audit
+    // 2026-07-15: bug tiềm ẩn từ trước, lộ ra khi tăng MAX_FACTS_PER_DOC + input dài hơn).
+    @Column(nullable = false, length = 200)
     private String status;
 
     @Column(length = 500)
@@ -60,7 +64,9 @@ public class PipelineItemLog {
         this.itemRef = itemRef;
         this.itemLabel = truncate(itemLabel, 300);
         this.rawDocId = rawDocId;
-        this.status = status;
+        // truncate phòng thủ (cùng pattern itemLabel/message) — status vẫn ưu tiên đủ dài
+        // (length=200 ở trên) để không mất thông tin trong ca thường gặp.
+        this.status = truncate(status, 200);
         this.message = truncate(message, 500);
     }
 

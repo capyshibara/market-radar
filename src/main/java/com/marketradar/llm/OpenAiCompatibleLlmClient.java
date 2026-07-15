@@ -53,8 +53,19 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             throws LlmException {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
-        body.put("max_tokens", maxTokens);
-        if (temperature != null) body.put("temperature", temperature);
+        // 2026-07-15 (writer → gpt-5-mini): họ reasoning của OpenAI (gpt-5*, o*) TỪ CHỐI
+        // "max_tokens" (đòi "max_completion_tokens") và từ chối luôn "temperature" khác mặc
+        // định. Các provider compat khác (DeepSeek, Qwen, Gemini-compat) vẫn theo chuẩn cũ —
+        // switch theo model, không đổi hành vi nguồn nào đang chạy.
+        if (isOpenAiReasoningModel()) {
+            body.put("max_completion_tokens", maxTokens);
+            // reasoning "low": đủ cho task schema hẹp (extract/interpret slot), không đốt
+            // phần lớn budget token vào reasoning ẩn.
+            body.put("reasoning_effort", "low");
+        } else {
+            body.put("max_tokens", maxTokens);
+            if (temperature != null) body.put("temperature", temperature);
+        }
         ArrayNode messages = body.putArray("messages");
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             ObjectNode sys = messages.addObject();
@@ -107,6 +118,13 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             }
         }
         throw new LlmException(last.getMessage() + " (sau " + MAX_ATTEMPTS + " lần thử)", last);
+    }
+
+    /** gpt-5* / o1-o4* của CHÍNH OpenAI — các model đổi param theo kiểu reasoning API. */
+    private boolean isOpenAiReasoningModel() {
+        String m = model.toLowerCase(java.util.Locale.ROOT);
+        return (m.startsWith("gpt-5") || m.matches("^o[1-9].*"))
+                && baseUrl.contains("api.openai.com");
     }
 
     @Override

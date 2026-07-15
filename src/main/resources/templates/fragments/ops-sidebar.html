@@ -36,6 +36,7 @@
         <a href="/pipeline" class="ops-nav-item" th:classappend="${active == 'pipelinerun'} ? 'is-active'" th:text="#{ops.sidebar.navPipelineRun}">Pipeline Runner</a>
         <a href="/pipeline/history" class="ops-nav-item" th:classappend="${active == 'pipelinehistory'} ? 'is-active'">Run History</a>
         <a href="/llm-settings" class="ops-nav-item" th:classappend="${active == 'llmsettings'} ? 'is-active'">LLM Settings</a>
+        <a href="/prompts" class="ops-nav-item" th:classappend="${active == 'prompts'} ? 'is-active'">AI Prompts</a>
         <a href="/sources" class="ops-nav-item" th:classappend="${active == 'sources'} ? 'is-active'" th:text="#{ops.sidebar.navSources}">Source Registry</a>
         <a href="/classifications" class="ops-nav-item" th:classappend="${active == 'classifications'} ? 'is-active'" th:text="#{ops.sidebar.navClassifications}">Classifier + Routing</a>
         <a href="/dedup" class="ops-nav-item" th:classappend="${active == 'dedup'} ? 'is-active'" th:text="#{ops.sidebar.navDedup}">Dedup / Conflict</a>

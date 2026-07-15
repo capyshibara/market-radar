@@ -72,8 +72,8 @@ public class ClaimController {
     }
 
     /**
-     * Batch 9 ("Force Retry"): xoá claim SCHEMA_REJECTED (và cache LLM tương ứng) của
-     * MỘT doc để lần chạy /interpret/run tiếp theo xử lý lại — thay cho việc phải nhờ
+     * Force Retry append-only: đánh dấu edition SCHEMA_REJECTED hiện tại là superseded
+     * (không xoá claim/verification) và xoá replay cache để lần chạy tiếp theo gọi lại.
      * can thiệp SQL tay (đúng thứ đêm nay phải làm thủ công cho doc#135/136).
      * CHỈ xoá khi claim đang là SCHEMA_REJECTED — không cho xoá claim PASS/FAIL đã có
      * nội dung thật (tránh bấm nhầm làm mất audit trail của kết quả hợp lệ).
@@ -88,31 +88,46 @@ public class ClaimController {
         if (!hasSchemaRejected) {
             return "Không tìm thấy claim SCHEMA_REJECTED cho doc#" + rawDocId + " — không có gì để retry.";
         }
-        claims.deleteByRawDocIdAndOrigin(rawDocId, Origin.PIPELINE);
         callLog.deleteByPurposeAndRawDocId("INTERPRET_DOC", rawDocId);
-        return "Đã xoá claim SCHEMA_REJECTED + cache của doc#" + rawDocId
-                + " — chạy lại POST /interpret/run (hoặc bấm Interpret ở /pipeline) để thử lại.";
+        return "Đã giữ nguyên mọi claim edition và xoá replay cache của doc#" + rawDocId
+                + " — lần chạy POST /interpret/run tiếp theo sẽ thử lại nếu chưa có edition hiện hành.";
     }
 
     /**
-     * Force Retry cho claim CẤP REPORT (EXEC_SUMMARY, rawDoc null) — forceRetry() ở trên
-     * cần rawDocId nên không xử lý được case này. Phát hiện 2026-07-13: EXEC_SUMMARY chỉ
-     * được InterpretationJob thử sinh MỘT LẦN DUY NHẤT (existsBySlotAndOrigin guard); nếu
-     * lần đó SCHEMA_REJECTED, claim kẹt vĩnh viễn — không nút nào xoá được, report không
-     * bao giờ có Executive Summary cho tới khi ai đó SQL tay hoặc bấm nút này.
+     * Force Retry cho EXEC_SUMMARY: supersede edition lỗi nhưng giữ claim cũ để audit.
      */
     @PostMapping("/claims/force-retry-exec-summary")
     @ResponseBody
     @Transactional
     public String forceRetryExecSummary() {
         boolean stuck = claims.findAllForAudit().stream()
-                .anyMatch(c -> c.getSlot() == Slot.EXEC_SUMMARY && c.getGateStatus() == GateStatus.SCHEMA_REJECTED);
+                .anyMatch(c -> c.getSlot() == Slot.EXEC_SUMMARY
+                        && c.getGateStatus() == GateStatus.SCHEMA_REJECTED);
         if (!stuck) {
             return "Không tìm thấy EXEC_SUMMARY claim SCHEMA_REJECTED — không có gì để retry.";
         }
-        claims.deleteBySlotAndOrigin(Slot.EXEC_SUMMARY, Origin.PIPELINE);
         callLog.deleteByPurposeAndRawDocIdIsNull("INTERPRET_EXEC");
-        return "Đã xoá EXEC_SUMMARY claim + cache — chạy lại POST /interpret/run để thử lại.";
+        return "Đã giữ nguyên EXEC_SUMMARY audit trail và xoá replay cache"
+                + " — lần chạy tiếp theo sẽ thử lại nếu chưa có edition hiện hành.";
+    }
+
+    /**
+     * Force Retry cho một NARRATIVE edition. Bình thường signature + input hash tự tạo
+     * edition mới khi prompt/model/evidence đổi; endpoint này chỉ dùng để yêu cầu thử lại
+     * cùng input. Cache narrative dùng rawDocId null nên thao tác xoá áp dụng cả chương.
+     */
+    @PostMapping("/claims/force-retry-narrative/{chapterCode}")
+    @ResponseBody
+    @Transactional
+    public String forceRetryNarrative(@PathVariable String chapterCode) {
+        try {
+            com.marketradar.interpret.Chapter.valueOf(chapterCode);
+        } catch (IllegalArgumentException e) {
+            return "Không nhận diện được chương '" + chapterCode + "'.";
+        }
+        callLog.deleteByPurposeAndRawDocIdIsNull("INTERPRET_NARRATIVE");
+        return "Đã giữ nguyên narrative editions của chương " + chapterCode
+                + " và xoá cache — input/prompt/model mới sẽ tạo edition mới ở lần chạy tiếp theo.";
     }
 
     /** View model để template không phải tự resolve fact từ CSV. */
