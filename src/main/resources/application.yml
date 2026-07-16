@@ -3,7 +3,10 @@ spring:
     # File-backed (đổi từ in-mem 2026-07-12): restart KHÔNG mất dữ liệu nữa — raw docs,
     # classification, LlmCallLog (replay-cache) đều giữ lại. Demo chạy lại pipeline
     # = replay từ cache, KHÔNG tốn API call, không cần mạng. Backup = copy thư mục ./data.
-    url: jdbc:h2:file:./data/marketradar;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
+    # One Market Radar process owns the file. AUTO_SERVER is deliberately disabled:
+    # in an executable Spring Boot jar H2 can leave a stale remote-server lock after
+    # shutdown, making the next launch connect to a dead IP/port instead of the file.
+    url: jdbc:h2:file:./data/marketradar;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password: ""

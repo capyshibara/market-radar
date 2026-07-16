@@ -144,16 +144,17 @@ VERIFIER MODE: OPENAI_COMPAT (base-url=https://api.deepseek.com, model=deepseek-
 ```
 
 **⚠️ The one rule that caused confusion before, still true:** never `mvn package` while the
-app is running without restarting afterward — the running process silently corrupts (static
-assets hang, H2 `AUTO_SERVER` connections throw `NoClassDefFoundError`). Every code change in
-this session was followed by rebuild-then-ask-Hanh-to-restart, never a live reload.
+app is running without restarting afterward. Every code change in this session was followed
+by rebuild-then-ask-Hanh-to-restart, never a live reload.
 
-**DB inspection**: `application.yml`'s datasource URL already has `AUTO_SERVER=TRUE`, so you
-can query the LIVE db directly and safely (no need to copy first, unlike the old handoff's
-caution — that caution was for a different, non-`AUTO_SERVER` setup):
+**DB inspection**: the datasource intentionally uses single-process file mode. `AUTO_SERVER`
+was removed after a fat-jar shutdown left a stale remote-server lock and prevented the next
+app launch. Do not open the live database from a second Java process. Stop Market Radar and
+query a copy of `data/marketradar.mv.db` instead:
 ```bash
+cp data/marketradar.mv.db /tmp/marketradar-inspect.mv.db
 java -cp ~/.m2/repository/com/h2database/h2/2.2.224/h2-2.2.224.jar org.h2.tools.Shell \
-  -url "jdbc:h2:file:./data/marketradar;AUTO_SERVER=TRUE" -user sa -password "" -sql "SELECT ..."
+  -url "jdbc:h2:file:/tmp/marketradar-inspect" -user sa -password "" -sql "SELECT ..."
 ```
 A pre-re-run backup exists at `data/backups/marketradar-pre-rerun-20260715-082750.mv.db` (from
 before this session's destructive wipe-and-regenerate — see below) in case anything needs
@@ -185,7 +186,7 @@ in trust terms but architecturally a new Interpret sub-stage. New files:
 - A Hibernate-6-generated CHECK constraint (`CONSTRAINT_2650`) restricted `SLOT` to the 3
   original enum values; adding `NARRATIVE` in code didn't retroactively widen it (`ddl-auto:
   update` doesn't touch existing check constraints). Fixed via direct `ALTER TABLE ... DROP/ADD
-  CONSTRAINT` against the live AUTO_SERVER db. If you add new enum values to any `@Enumerated`
+  CONSTRAINT` against the stopped database. If you add new enum values to any `@Enumerated`
   field again, expect the same issue.
 - **Replay-cache didn't key on provider identity** — switching Writer/Verifier provider (e.g.
   STUB → real DeepSeek) still hit old cached responses under the new provider's label, because
