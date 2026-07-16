@@ -1,5 +1,22 @@
 # Market Radar — Engineering Handoff (updated 2026-07-16 quality-remediation session)
 
+## Product Special Issues / Product Academy — 2026-07-16
+
+- A new Product Intelligence surface is available at `/product/special-issues`. It is deliberately
+  separate from the rolling 7/30/90-day Radar: a Special Issue is a curated, long-form learning
+  product rather than an automatic aggregation of current news.
+- The **Topic Lab** ranks seeded concepts by Product score, evidence-document count, independent
+  publisher count and primary-source count. A candidate that does not meet its research-pack
+  requirement cannot be commissioned. This MVP includes one ready, fully cited Wellness-linked
+  Life Insurance Product Academy issue and three explicitly incomplete research candidates.
+- `/product/special-issues/wellness-linked-life` is the editorial reader; its `.pdf` companion
+  renders the same source-backed teaching content through the existing local HTML-to-PDF renderer.
+  The PDF uses a separate original editorial visual system with local CSS/embedded fonts, so it
+  remains reliable offline and never fetches external cover assets or fonts.
+- The initial issue is a seeded public-evidence demonstration. Future production issues must freeze
+  their selected manual-intake/registry evidence pack, pass editorial review, and persist a
+  commissioned edition before publication; do not treat Topic Lab scores as automatic publication.
+
 ## Latest report-language and evidence-traceability update — 2026-07-16
 
 This update fixes two user-visible defects that were discovered while reviewing the live Product

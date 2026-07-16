@@ -86,8 +86,16 @@ public class PdfExportService {
      *  @param locale Batch 7 (i18n): cùng locale đã dùng để build model, để #{...} và
      *                #temporals trong template resolve đúng ngôn ngữ trong PDF */
     public byte[] renderWeeklyReportPdf(Map<String, Object> model, Locale locale) {
+        return render("weekly-report", model, locale, PDF_OVERRIDE_CSS);
+    }
+
+    /**
+     * Shared renderer for editorial exports. Callers supply a Thymeleaf template and any
+     * print-only CSS; network resources are still stripped and Vietnamese-capable fonts embedded.
+     */
+    public byte[] render(String template, Map<String, Object> model, Locale locale, String printCss) {
         Context ctx = new Context(locale, model);
-        String html = templateEngine.process("weekly-report", ctx);
+        String html = templateEngine.process(template, ctx);
 
         // HTML5 → XHTML well-formed + chèn CSS override cho PDF
         Document jdoc = Jsoup.parse(html);
@@ -95,7 +103,7 @@ public class PdfExportService {
         // qua override dưới đây nên không cần font ngoài; giữ lại link sẽ khiến
         // OpenHTMLtoPDF cố fetch mạng ngoài không cần thiết (rủi ro treo/lỗi khi offline).
         jdoc.select("head link").remove();
-        jdoc.head().appendElement("style").text(PDF_OVERRIDE_CSS);
+        jdoc.head().appendElement("style").text(PDF_OVERRIDE_CSS + "\n" + (printCss == null ? "" : printCss));
         jdoc.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
         org.w3c.dom.Document w3c = new W3CDom().fromJsoup(jdoc);
 

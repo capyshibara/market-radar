@@ -15,6 +15,7 @@
       <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupIntelligence}">Intelligence</div>
       <div class="ops-nav-group">
         <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
+        <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'">Special Issues</a>
         <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'">The Newsroom ↗</a>
       </div>
     </div>
