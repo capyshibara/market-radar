@@ -119,7 +119,7 @@
           <div class="insight-block"><h4 th:text="${vi ? 'Ý nghĩa với Bộ phận Sản phẩm' : 'So what for Product'}">So what</h4><p th:text="${vi ? i.soWhatVi : i.soWhatEn}">So what</p></div>
           <div class="insight-block"><h4 th:text="${vi ? 'Hành động tiếp theo' : 'Now what'}">Now what</h4><p th:text="${vi ? i.nowWhatVi : i.nowWhatEn}">Now what</p></div>
           <p class="caveat"><strong th:text="${vi ? 'Giới hạn: ' : 'Caveat: '}">Caveat: </strong><span th:text="${vi ? i.caveatVi : i.caveatEn}">Caveat</span></p>
-          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a> <code th:text="${f.factCode}">fact</code></li></ul></details>
+          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span> <code th:text="${f.factCode}">fact</code></li></ul></details>
         </article>
       </div>
 
@@ -143,7 +143,7 @@
           <div class="insight-block"><h4 th:text="${vi ? 'Ý nghĩa cần kiểm tra' : 'Why Product should investigate'}">Why investigate</h4><p th:text="${vi ? i.soWhatVi : i.soWhatEn}">So what</p></div>
           <div class="insight-block"><h4 th:text="${vi ? 'Bước xác minh' : 'Next validation step'}">Next step</h4><p th:text="${vi ? i.nowWhatVi : i.nowWhatEn}">Now what</p></div>
           <p class="caveat"><strong th:text="${vi ? 'Giới hạn: ' : 'Caveat: '}">Caveat: </strong><span th:text="${vi ? i.caveatVi : i.caveatEn}">Caveat</span></p>
-          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a> <code th:text="${f.factCode}">fact</code></li></ul></details>
+          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span> <code th:text="${f.factCode}">fact</code></li></ul></details>
         </article>
       </div>
     </section>
@@ -171,7 +171,7 @@
             <div class="news-main">
               <div class="news-meta"><span class="meta-chip" th:text="${vi ? (n.factType == 'EVENT' ? 'SỰ KIỆN' : (n.factType == 'PRODUCT_LAUNCH' ? 'RA MẮT SẢN PHẨM' : (n.factType == 'FEE_CHANGE' ? 'THAY ĐỔI PHÍ' : (n.factType == 'REGULATION' ? 'QUY ĐỊNH' : 'CHỈ SỐ')))) : (n.factType == 'EVENT' ? 'EVENT' : (n.factType == 'PRODUCT_LAUNCH' ? 'PRODUCT LAUNCH' : (n.factType == 'FEE_CHANGE' ? 'FEE CHANGE' : (n.factType == 'REGULATION' ? 'REGULATION' : 'METRIC'))))}">EVENT</span><span class="meta-chip neutral" th:text="${vi ? n.freshnessLabelVi : n.freshnessLabelEn}">Published 2 days ago</span></div>
               <p class="original-language-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Tiêu đề gốc · tiếng Việt' : (n.evidenceLanguage == 'en' ? 'Tiêu đề gốc · tiếng Anh' : 'Tiêu đề gốc từ nguồn')) : (n.evidenceLanguage == 'vi' ? 'Original source title · Vietnamese' : (n.evidenceLanguage == 'en' ? 'Original source title · English' : 'Original source title'))}">Original source title</p>
-              <h3><a th:href="${n.sourceUrl}" th:text="${n.originalTitle}">Source title</a></h3>
+              <h3><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.originalTitle}">Source title</a><span th:unless="${n.externalSourceLink}" th:text="${n.originalTitle}">Uploaded document</span></h3>
               <p class="display-summary" th:if="${!#strings.isEmpty(n.displaySummary(vi))}"><strong th:text="${vi ? 'Tóm tắt theo ngôn ngữ báo cáo: ' : 'Report-language summary: '}">Report-language summary: </strong><span th:text="${n.displaySummary(vi)}">Display summary.</span></p>
               <p class="display-summary unavailable" th:unless="${!#strings.isEmpty(n.displaySummary(vi))}" th:text="${vi ? 'Chỉ có bằng chứng nguyên văn; chưa có bản tóm tắt an toàn bằng ngôn ngữ báo cáo.' : 'Only verbatim source evidence is available; no safe report-language summary is available.'}">Only verbatim source evidence is available.</p>
               <p class="evidence-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Bằng chứng gốc · tiếng Việt · trích nguyên văn' : (n.evidenceLanguage == 'en' ? 'Bằng chứng gốc · tiếng Anh · trích nguyên văn' : 'Bằng chứng gốc từ nguồn · trích nguyên văn')) : (n.evidenceLanguage == 'vi' ? 'Original evidence · Vietnamese · verbatim' : (n.evidenceLanguage == 'en' ? 'Original evidence · English · verbatim' : 'Original-language source evidence · verbatim'))}">Original-language source evidence · verbatim</p>
@@ -179,7 +179,7 @@
             </div>
             <aside class="news-side">
               <dl>
-                <dt th:text="${vi ? 'Nguồn' : 'Publisher'}">Publisher</dt><dd><a class="source-link" th:href="${n.sourceUrl}" th:text="${n.sourceName}">Source</a></dd>
+                <dt th:text="${vi ? 'Nguồn' : 'Publisher'}">Publisher</dt><dd><a class="source-link" th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.sourceName}">Source</a><span th:unless="${n.externalSourceLink}" th:text="${n.sourceName}">Uploaded source</span></dd>
                 <dt th:text="${vi ? 'Ngày công bố' : 'Published'}">Published</dt><dd th:text="${n.publishedDate}">2026-07-16</dd>
                 <dt th:text="${vi ? 'Cấp nguồn' : 'Source quality'}">Source quality</dt><dd th:text="${vi ? n.sourceTierLabelVi : n.sourceTierLabelEn}">Tier 1 source</dd>
               </dl>
@@ -200,8 +200,8 @@
     <section class="report-section references" th:if="${hasCurrentProductNews or !#lists.isEmpty(references)}">
       <div class="section-head"><div><div class="section-kicker" th:text="${vi ? 'NGUỒN & TRUY XUẤT' : 'SOURCES & TRACEABILITY'}">Sources &amp; traceability</div><h2 th:text="${vi ? 'Danh mục nguồn đã dùng' : 'Source register'}">Source register</h2></div></div>
       <div class="reference-register">
-        <div class="reference-row" th:each="n : ${currentProductNews}"><span class="reference-code" th:text="${n.factCode}">F-001</span><span class="reference-source"><a th:href="${n.sourceUrl}" th:text="${n.title}">Title</a></span><span class="reference-publisher" th:text="${n.sourceName}">Source</span></div>
-        <div class="reference-row" th:each="f : ${references}"><span class="reference-code" th:text="${f.factCode}">F-001</span><span class="reference-source"><a th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Title</a></span><span class="reference-publisher" th:text="${f.rawDoc.source.name}">Source</span></div>
+        <div class="reference-row" th:each="n : ${currentProductNews}"><span class="reference-code" th:text="${n.factCode}">F-001</span><span class="reference-source"><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.title}">Title</a><span th:unless="${n.externalSourceLink}" th:text="${n.title}">Uploaded document</span></span><span class="reference-publisher" th:text="${n.sourceName}">Source</span></div>
+        <div class="reference-row" th:each="f : ${references}"><span class="reference-code" th:text="${f.factCode}">F-001</span><span class="reference-source"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Title</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span></span><span class="reference-publisher" th:text="${f.rawDoc.source.name}">Source</span></div>
       </div>
     </section>
 

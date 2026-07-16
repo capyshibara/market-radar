@@ -38,23 +38,35 @@ apply the language-purity gate. Do not rerun Ingest/Classify/Extract merely to c
 
 ## Manual evidence intake — 2026-07-16
 
-- `/documents/intake` adds two traceable ways to enrich the corpus: paste original article/post
-  text, or upload a PDF/TXT file. Each submission requires title, publisher, original HTTPS URL,
-  publication date and language. The saved `RawDoc` is marked `MANUAL_TEXT` or `FILE_UPLOAD`,
-  retains the exact full text and content hash, and is visibly labelled as manually supplied if it
-  reaches Current Product News.
-- Manual intake is **not** a publication shortcut. It remains a tier-3 source and must pass the
-  ordinary Classify → Extract → review/verification/publication path. The source is inactive for
-  the crawler, so a scheduled ingest never tries to fetch the synthetic manual source.
+- `/documents/intake` deliberately has only two inputs: paste one official article/PDF URL, or
+  choose one PDF/TXT file. The system deterministically detects content type, extracts main text,
+  and derives title, publisher, publication date and language from HTML metadata/JSON-LD,
+  registered host identity, PDF metadata, filename and document text. Unknown publication dates
+  remain null and therefore cannot masquerade as current evidence.
+- URL import reuses `SafeFetcher`: exact HTTPS host, public-DNS/SSRF guard, no redirects,
+  expected HTML/PDF content type, timeouts and a bounded body. LinkedIn/lnkd.in URLs are refused;
+  the operator imports the original publisher destination instead.
+- A file upload stores an internal non-clickable URN, extracted-text hash and original artifact
+  SHA-256. Reports and reviewer screens do not render a fake external link. PDF CreationDate is
+  not treated as publication date because it is only a file-production timestamp.
+- Imported documents reuse an existing registered publisher when the host matches (for example,
+  `AIA_VN`). Otherwise they receive a stable inactive tier-3 publisher source, so BCG, AIA and
+  Swiss Re count as separate independent sources while BCG article/PDF variants share one source.
+- The original reason the linked AIA article was not discovered automatically is coverage, not
+  parsing: `AIA_VN` scanned the `su-kien-noi-bat` listing, while this document lives under the
+  separate `/truyen-thong/thong-bao/` section. BCG had no recurring source/parser registered.
+- Manual intake is **not** a publication shortcut. A new unregistered publisher defaults to an
+  inactive tier-3 source and every imported document must pass the ordinary Classify → Extract →
+  review/verification/publication path.
 - PDF extraction uses the existing PDFBox safeguards: encrypted and image-only PDFs fail loudly;
   files are limited to 10 MB, PDFs to 100 pages, and input text to 250,000 characters. Long text
   is then processed by the existing overlapping chunker—24,000 characters per chunk with overlap—
   rather than silently truncated to one LLM request.
 - Do **not** crawl LinkedIn Showcase pages or public posts. LinkedIn’s terms prohibit scraping
   and its official Posts API is limited to organizations for which the authenticated user has the
-  necessary role. Treat a LinkedIn post as a manual-paste discovery record; ingest the linked
-  original publisher page/PDF separately after confirming internal rights. A direct public BCG PDF
-  is suitable for the upload route, with its BCG URL kept as the provenance link.
+  necessary role. Treat a LinkedIn post as discovery only; import the linked original publisher
+  page/PDF separately after confirming internal rights. A direct public BCG PDF is suitable for
+  the URL-import route, which keeps its BCG URL as the provenance link.
 
 
 ## Latest live update — 2026-07-16 (supersedes the completion statement below)

@@ -8,32 +8,39 @@
   <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
   <style>
     .intake-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
-    .intake-card { padding:22px; border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--surface-card); }
-    .intake-card h2 { margin:0 0 8px; font-size:var(--text-lg); }.intake-card p { color:var(--text-secondary); }
-    .intake-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }.wide { grid-column:1/-1; }
-    textarea.ops-input { min-height:260px; resize:vertical; }.notice { padding:14px 16px; border-radius:var(--radius-md); margin:0 0 18px; }
+    .intake-card { padding:26px; border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--surface-card); }
+    .intake-card h2 { margin:0 0 8px; font-size:var(--text-xl); }.intake-card p { color:var(--text-secondary); line-height:1.55; }
+    .intake-control { margin:22px 0 14px; }.intake-control .ops-input { min-height:52px; }
+    .notice { padding:14px 16px; border-radius:var(--radius-md); margin:0 0 18px; }
     .notice.ok { background:var(--green-50); color:var(--green-700); }.notice.err { background:var(--rose-50); color:var(--rose-700); }
-    .guardrail { margin:18px 0; padding:14px 16px; background:var(--slate-50); border-left:3px solid var(--brand-red-500); color:var(--text-secondary); }
-    @media(max-width:850px){.intake-grid,.intake-fields{grid-template-columns:1fr}.wide{grid-column:auto}}
+    .auto-strip { margin:18px 0; padding:14px 16px; background:var(--slate-50); border-left:3px solid var(--brand-red-500); color:var(--text-secondary); }
+    .auto-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }.auto-list span { padding:5px 9px; border-radius:999px; background:white; border:1px solid var(--border-default); font-size:var(--text-xs); }
+    @media(max-width:850px){.intake-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body><div class="ops-shell">
   <th:block th:replace="~{fragments/ops-sidebar :: sidebar('manualintake', ${null})}"></th:block>
   <div class="ops-main"><div class="ops-content">
-    <div class="page-header"><div><h1>Add a research document</h1><p>Add long, traceable evidence without waiting for a crawler. <span th:text="${documentCount}">0</span> documents are already stored.</p></div></div>
+    <div class="page-header"><div><h1>Add a research document</h1><p>Paste one official link or choose one file. Market Radar fills in the rest. <span th:text="${documentCount}">0</span> documents are already stored.</p></div></div>
     <p class="notice ok" th:if="${intakeSuccess}" th:text="${intakeSuccess}">Saved.</p>
     <p class="notice err" th:if="${intakeError}" th:text="${intakeError}">Error.</p>
-    <div class="guardrail"><strong>How it works:</strong> this saves full text with the original URL, publisher, date and intake method. It does not bypass any gate: run <strong>Classify</strong>, then <strong>Extract</strong>; only confirmed, evidence-grounded facts can reach a report. LinkedIn posts must be pasted manually—this app does not scrape LinkedIn.</div>
+    <div class="auto-strip"><strong>Extracted automatically</strong><div class="auto-list"><span>Title</span><span>Publisher</span><span>Publication date</span><span>Language</span><span>HTML / PDF</span><span>Full text</span><span>Content hash</span></div></div>
     <div class="intake-grid">
-      <section class="intake-card"><h2>Paste article or post text</h2><p>For a LinkedIn post, paste the visible post text and use its permalink as the original URL. Add the linked original report separately as a PDF/TXT upload.</p>
-        <form method="post" action="/documents/intake/paste"><div th:replace="~{fragments/manual-intake-fields :: metadata}"></div>
-          <div class="wide"><label class="lbl" for="rawText">Full text</label><textarea id="rawText" class="ops-input" name="rawText" minlength="600" maxlength="250000" required placeholder="Paste at least 600 characters of original text…"></textarea></div>
-          <p><button class="btn btn-primary" type="submit">Add pasted text</button></p></form>
+      <section class="intake-card">
+        <h2>Import from link</h2>
+        <p>Use the original AIA, BCG, Swiss Re, Ministry of Finance or other publisher article/PDF URL. LinkedIn links are discovery links; use the original destination instead.</p>
+        <form method="post" action="/documents/intake/url">
+          <div class="intake-control"><label class="lbl" for="sourceUrl">Article or PDF link</label><input id="sourceUrl" class="ops-input" name="sourceUrl" type="url" required autofocus placeholder="https://www.bcg.com/publications/…"/></div>
+          <button class="btn btn-primary" type="submit">Import link</button>
+        </form>
       </section>
-      <section class="intake-card"><h2>Upload PDF or TXT</h2><p>PDF text is extracted locally. Encrypted or scanned-image PDFs are rejected rather than guessed. Files are limited to 10 MB and 100 PDF pages.</p>
-        <form method="post" action="/documents/intake/upload" enctype="multipart/form-data"><div th:replace="~{fragments/manual-intake-fields :: metadata}"></div>
-          <div class="wide"><label class="lbl" for="file">File</label><input id="file" class="ops-input" name="file" type="file" accept="application/pdf,.pdf,text/plain,.txt" required/></div>
-          <p><button class="btn btn-primary" type="submit">Add file</button></p></form>
+      <section class="intake-card">
+        <h2>Upload a document</h2>
+        <p>Choose a PDF or TXT file. Text is extracted locally; encrypted and image-only PDFs fail clearly instead of being guessed.</p>
+        <form method="post" action="/documents/intake/upload" enctype="multipart/form-data">
+          <div class="intake-control"><label class="lbl" for="file">PDF or TXT file</label><input id="file" class="ops-input" name="file" type="file" accept="application/pdf,.pdf,text/plain,.txt" required/></div>
+          <button class="btn btn-primary" type="submit">Upload document</button>
+        </form>
       </section>
     </div>
   </div></div>

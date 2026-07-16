@@ -85,6 +85,38 @@ public class SafeFetcher {
     public enum ExpectedKind { HTML, RSS, PDF, JSON }
 
     /**
+     * One-shot operator import for a specific public article or PDF. The URL's
+     * own host becomes the exact one-request allowlist; every other SSRF,
+     * redirect, content-type, timeout and body-size guard remains unchanged.
+     */
+    public FetchResult fetchDocument(String url) throws FetchRejectedException {
+        final URI uri;
+        try {
+            uri = URI.create(url);
+        } catch (IllegalArgumentException invalid) {
+            throw new FetchRejectedException("Invalid URL: " + url);
+        }
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new FetchRejectedException("Document URL has no public host");
+        }
+        String path = uri.getPath() == null ? "" : uri.getPath().toLowerCase(Locale.ROOT);
+        ExpectedKind expected = path.endsWith(".pdf") ? ExpectedKind.PDF : ExpectedKind.HTML;
+        try {
+            return fetch(url, host, expected, null, MAX_BYTES_OVERRIDE_CEILING);
+        } catch (FetchRejectedException first) {
+            // Some download endpoints do not end in .pdf. Retry only when the
+            // server proved that the content type—not URL safety—was the mismatch.
+            if (expected == ExpectedKind.HTML
+                    && first.getMessage() != null
+                    && first.getMessage().contains("does not match source type HTML")) {
+                return fetch(url, host, ExpectedKind.PDF, null, MAX_BYTES_OVERRIDE_CEILING);
+            }
+            throw first;
+        }
+    }
+
+    /**
      * Fetch một URL với đầy đủ kiểm tra. Trả về FetchResult (bytes + content type),
      * hoặc ném FetchRejectedException với LÝ DO RÕ RÀNG (fail loud, phục vụ audit log).
      */

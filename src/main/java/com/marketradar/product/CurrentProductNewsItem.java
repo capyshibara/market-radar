@@ -18,7 +18,19 @@ public record CurrentProductNewsItem(
         long ageDays,
         String displaySummaryVi,
         String displaySummaryEn,
-        String evidenceLanguage) {
+        String evidenceLanguage,
+        boolean manuallySupplied) {
+
+    public CurrentProductNewsItem(String factCode, long rawDocId, String title,
+                                  String sourceCode, String sourceName, int sourceTier,
+                                  String sourceUrl, LocalDate publishedDate, String factType,
+                                  String verbatimEvidenceSpan, CurrentProductNewsTopic topic,
+                                  long ageDays, String displaySummaryVi, String displaySummaryEn,
+                                  String evidenceLanguage) {
+        this(factCode, rawDocId, title, sourceCode, sourceName, sourceTier, sourceUrl,
+                publishedDate, factType, verbatimEvidenceSpan, topic, ageDays,
+                displaySummaryVi, displaySummaryEn, evidenceLanguage, false);
+    }
 
     /**
      * Compatibility constructor for callers that only have the immutable source
@@ -31,7 +43,7 @@ public record CurrentProductNewsItem(
                                   String verbatimEvidenceSpan, CurrentProductNewsTopic topic,
                                   long ageDays) {
         this(factCode, rawDocId, title, sourceCode, sourceName, sourceTier, sourceUrl,
-                publishedDate, factType, verbatimEvidenceSpan, topic, ageDays, null, null, null);
+                publishedDate, factType, verbatimEvidenceSpan, topic, ageDays, null, null, null, false);
     }
 
     public String getTopicLabelEn() { return topic.getLabelEn(); }
@@ -58,7 +70,10 @@ public record CurrentProductNewsItem(
     }
 
     public String getEvidenceLanguage() { return evidenceLanguage == null || evidenceLanguage.isBlank() ? "unknown" : evidenceLanguage; }
-    public boolean isManuallySupplied() { return "MANUAL_RESEARCH".equals(sourceCode); }
+    public boolean isManuallySupplied() { return manuallySupplied; }
+    public boolean hasExternalSourceLink() {
+        return sourceUrl != null && (sourceUrl.startsWith("https://") || sourceUrl.startsWith("http://"));
+    }
 
     public String getSourceTierLabelEn() { return "Tier " + sourceTier + " source"; }
     public String getSourceTierLabelVi() { return "Nguồn cấp " + sourceTier; }

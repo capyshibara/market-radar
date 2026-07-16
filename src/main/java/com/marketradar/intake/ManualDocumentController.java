@@ -9,8 +9,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.time.LocalDate;
-
 /** Operator-only intake route.  It creates a raw document; it never auto-publishes it. */
 @Controller
 public class ManualDocumentController {
@@ -25,17 +23,13 @@ public class ManualDocumentController {
     @GetMapping("/documents/intake")
     public String page(Model model) {
         model.addAttribute("documentCount", rawDocs.count());
-        model.addAttribute("today", LocalDate.now());
         return "manual-intake";
     }
 
-    @PostMapping("/documents/intake/paste")
-    public String paste(@RequestParam String title, @RequestParam String publisher,
-                        @RequestParam String sourceUrl, @RequestParam LocalDate publishedDate,
-                        @RequestParam String language, @RequestParam String rawText,
-                        RedirectAttributes redirect) {
+    @PostMapping("/documents/intake/url")
+    public String importUrl(@RequestParam String sourceUrl, RedirectAttributes redirect) {
         try {
-            addResult(intake.submitText(title, publisher, sourceUrl, publishedDate, language, rawText), redirect);
+            addResult(intake.importUrl(sourceUrl), redirect);
         } catch (ManualDocumentRules.ValidationException invalid) {
             redirect.addFlashAttribute("intakeError", invalid.getMessage());
         }
@@ -43,12 +37,10 @@ public class ManualDocumentController {
     }
 
     @PostMapping("/documents/intake/upload")
-    public String upload(@RequestParam String title, @RequestParam String publisher,
-                         @RequestParam String sourceUrl, @RequestParam LocalDate publishedDate,
-                         @RequestParam String language, @RequestParam("file") MultipartFile file,
+    public String upload(@RequestParam("file") MultipartFile file,
                          RedirectAttributes redirect) {
         try {
-            addResult(intake.submitFile(title, publisher, sourceUrl, publishedDate, language, file), redirect);
+            addResult(intake.submitFile(file), redirect);
         } catch (ManualDocumentRules.ValidationException invalid) {
             redirect.addFlashAttribute("intakeError", invalid.getMessage());
         }

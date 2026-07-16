@@ -15,11 +15,19 @@ public final class ManualDocumentRules {
 
     public static Submission validate(String title, String publisher, String sourceUrl,
                                       LocalDate publishedDate, String language, String text) {
+        if (publishedDate == null) throw new ValidationException("Publication date is required.");
+        return validateDetected(title, publisher, sourceUrl, publishedDate, language, text);
+    }
+
+    /** Metadata may be absent on an uploaded file; unknown date stays null and
+     * therefore cannot masquerade as current report evidence. */
+    public static Submission validateDetected(String title, String publisher, String sourceUrl,
+                                              LocalDate publishedDate, String language, String text) {
         String cleanTitle = required(title, "Title", 300);
         String cleanPublisher = required(publisher, "Publisher", 180);
-        String cleanUrl = httpsUrl(sourceUrl);
-        if (publishedDate == null) throw new ValidationException("Publication date is required.");
-        if (publishedDate.isAfter(LocalDate.now().plusDays(1))) {
+        String cleanUrl = sourceUrl != null && sourceUrl.startsWith("urn:manual-upload:")
+                ? sourceUrl : httpsUrl(sourceUrl);
+        if (publishedDate != null && publishedDate.isAfter(LocalDate.now().plusDays(1))) {
             throw new ValidationException("Publication date cannot be in the future.");
         }
         String cleanLanguage = language == null ? "" : language.strip().toLowerCase(Locale.ROOT);
@@ -35,6 +43,16 @@ public final class ManualDocumentRules {
             throw new ValidationException("Content exceeds the " + MAX_TEXT_CHARS + " character safety limit.");
         }
         return new Submission(cleanTitle, cleanPublisher, cleanUrl, publishedDate, cleanLanguage, cleanText);
+    }
+
+    public static String directImportUrl(String value) {
+        String clean = httpsUrl(value);
+        String host = URI.create(clean).getHost().toLowerCase(Locale.ROOT);
+        if (host.equals("linkedin.com") || host.endsWith(".linkedin.com")
+                || host.equals("lnkd.in") || host.endsWith(".lnkd.in")) {
+            throw new ValidationException("Import the original publisher article or PDF, not the LinkedIn page.");
+        }
+        return clean;
     }
 
     public static String httpsUrl(String value) {

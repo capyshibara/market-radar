@@ -115,7 +115,7 @@ public class CurrentProductNewsService {
                 doc.getSource().getCode(), sourceName, doc.getSource().getTier(),
                 doc.getUrl(), published, fact.getFactType().name(), fact.getSpanText(), topic,
                 ChronoUnit.DAYS.between(published, asOf), fact.getSummaryVi(), fact.getSummaryEn(),
-                fact.getSpanLanguage());
+                fact.getSpanLanguage(), doc.getIntakeMethod() != RawDoc.IntakeMethod.CRAWLED);
     }
 
     /**
