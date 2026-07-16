@@ -47,6 +47,7 @@
       <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupReference}">Reference</div>
       <div class="ops-nav-group">
         <a href="/ops/role-matrix" class="ops-nav-item" th:classappend="${active == 'rolematrix'} ? 'is-active'" th:text="#{ops.sidebar.navRoleMatrix}">Roles &amp; Permissions</a>
+        <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'">The Newsroom ↗</a>
         <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navReport}">Weekly report ↗</a>
       </div>
     </div>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Agent marks — hand-ported from the Claude Design "Market Radar Design System" bundle
+  (components/core/AgentMark.jsx). Shape encodes TRUST TIER, not just color:
+    square + corner brackets = deterministic code (no model)
+    radar rings + sweep      = AI model (reuses the brand mark's own geometry)
+    hexagon seal + check     = human sign-off
+  Color encodes desk/semantic (established tokens only): ink/slate = Gather,
+  provenance blue #2E5AAC = Understand, verified green #2F6B3D = Guard,
+  brand red #EA1C24 = human authority.
+  gid: unique gradient id per usage — SVG defs are global on a page, so two AI marks
+  with different colors need different ids (same fix as the bundle's JSX).
+-->
+
+<!-- ⚙️ code tier -->
+<svg th:fragment="code(color, size)" th:width="${size}" th:height="${size}" viewBox="0 0 48 48" fill="none" role="img">
+  <rect x="9" y="9" width="30" height="30" th:stroke="${color}" stroke-width="1.6" opacity="0.35"/>
+  <path d="M16,7 L7,7 L7,16"    th:stroke="${color}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <path d="M32,7 L41,7 L41,16"  th:stroke="${color}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <path d="M7,32 L7,41 L16,41"  th:stroke="${color}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <path d="M41,32 L41,41 L32,41" th:stroke="${color}" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+  <rect x="21" y="21" width="6" height="6" th:fill="${color}"/>
+</svg>
+
+<!-- ✳️ AI tier -->
+<svg th:fragment="ai(color, size, gid)" th:width="${size}" th:height="${size}" viewBox="0 0 48 48" fill="none" role="img">
+  <circle cx="24" cy="24" r="19" th:stroke="${color}" stroke-width="1.4" opacity="0.3"/>
+  <circle cx="24" cy="24" r="11" th:stroke="${color}" stroke-width="1.4" opacity="0.3"/>
+  <defs>
+    <linearGradient th:id="${gid}" x1="37" y1="8.5" x2="14" y2="6.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" th:stop-color="${color}" stop-opacity="0.8"/>
+      <stop offset="100%" th:stop-color="${color}" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M24,24 L37.4,8.5 A19,19 0 0,0 14,6.5 Z" th:fill="'url(#' + ${gid} + ')'"/>
+  <circle cx="24" cy="24" r="3" th:fill="${color}"/>
+</svg>
+
+<!-- 👤 human tier -->
+<svg th:fragment="human(color, size)" th:width="${size}" th:height="${size}" viewBox="0 0 48 48" fill="none" role="img">
+  <polygon points="24,5 40,14.5 40,33.5 24,43 8,33.5 8,14.5" th:stroke="${color}" stroke-width="1.8" fill="none" opacity="0.55"/>
+  <polygon points="24,7.7 37.8,15.9 37.8,32.1 24,40.3 10.2,32.1 10.2,15.9" th:stroke="${color}" stroke-width="1" fill="none" opacity="0.2"/>
+  <path d="M16 24.5 L21.5 30 L33 17.5" th:stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
+
+</body>
+</html>

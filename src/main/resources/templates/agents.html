@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Market Radar · The Newsroom</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/agents.css"/>
+<style>
+  /* Editorial page shell — bundle report tokens, self-contained like the report templates */
+  body { margin: 0; background: var(--ag-paper); color: var(--ag-body); font-family: var(--ag-ui); }
+  .page { max-width: 1080px; margin: 0 auto; padding: 40px 28px 72px; }
+  .masthead { border-bottom: 4px solid var(--ag-red); padding-bottom: 18px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+  .masthead .kicker { font-size: 11px; font-weight: 800; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ag-secondary); }
+  h1 { font-family: var(--ag-serif); font-size: 42px; font-weight: 600; color: var(--ag-ink);
+    margin: 26px 0 0; line-height: 1.1; }
+  .standfirst { font-family: var(--ag-serif); font-style: italic; font-size: 19px;
+    color: var(--ag-body); margin: 14px 0 0; max-width: 640px; line-height: 1.5; }
+  .standfirst-vi { font-size: 14px; color: var(--ag-secondary); margin-top: 6px; max-width: 640px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="masthead">
+    <span class="kicker">Market <span style="color:var(--ag-red)">Radar</span> · How it's made</span>
+    <a href="/pipeline" style="font-size:12px;color:var(--ag-blue)">Pipeline Runner →</a>
+  </div>
+
+  <h1>The Newsroom</h1>
+  <p class="standfirst">Nine AI agents do the work. One human owns the signature.</p>
+  <p class="standfirst-vi">Chín AI agent làm việc. Một con người giữ chữ ký cuối cùng.</p>
+
+  <!-- Trust-tier legend: shape encodes tier, so it survives grayscale/projectors -->
+  <div class="ag-legend">
+    <div class="ag-legend-item">
+      <th:block th:replace="~{fragments/agent-marks :: code('#17233D', 26)}"/>
+      <span><strong>Code</strong> — deterministic, exact, no model · <em>mã tất định</em></span>
+    </div>
+    <div class="ag-legend-item">
+      <th:block th:replace="~{fragments/agent-marks :: ai('#2E5AAC', 26, 'lg-ai')}"/>
+      <span><strong>AI</strong> — powerful, never trusted alone · <em>AI, không bao giờ được tin một mình</em></span>
+    </div>
+    <div class="ag-legend-item">
+      <th:block th:replace="~{fragments/agent-marks :: human('#EA1C24', 26)}"/>
+      <span><strong>Human</strong> — the final signature · <em>chữ ký cuối cùng</em></span>
+    </div>
+  </div>
+
+  <!-- ============ DESK 1 — GATHER ============ -->
+  <section class="ag-desk">
+    <div class="ag-desk-kicker" style="color:var(--ag-navy)">Desk 1 — Gather · Thu thập</div>
+    <div class="ag-desk-sub">Bring the market in — safely, once, and without waste.</div>
+    <div class="ag-grid">
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#EEF1F6">
+          <span class="ag-card-desk" style="color:var(--ag-navy)">Gather</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: code('#17233D', 44)}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Scout</div>
+          <div class="ag-card-name-vi">Trinh sát</div>
+          <div class="ag-card-handle">@scout</div>
+          <div class="ag-card-tagline">“I never leave the allowlist.”</div>
+          <div class="ag-card-role">Crawls 40+ whitelisted sources — HTTPS-only, SSRF-blocked, size-capped; reads JS-rendered sites through their own JSON APIs.</div>
+          <div class="ag-chips"><span class="ag-chip">NO MODEL</span><span class="ag-chip">TOOL: SafeFetcher</span></div>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#EEF1F6">
+          <span class="ag-card-desk" style="color:var(--ag-navy)">Gather</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: code('#17233D', 44)}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Librarian</div>
+          <div class="ag-card-name-vi">Thủ thư</div>
+          <div class="ag-card-handle">@librarian</div>
+          <div class="ag-card-tagline">“A duplicate never costs a model call.”</div>
+          <div class="ag-card-role">Spots duplicates before they cost money — normalized hash first, similarity second, AI only for genuine gray zones.</div>
+          <div class="ag-chips"><span class="ag-chip">NO MODEL*</span><span class="ag-chip">TOOL: SHA-256 + Jaccard</span></div>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#EEF1F6">
+          <span class="ag-card-desk" style="color:var(--ag-navy)">Gather</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: ai('#17233D', 44, 'ai-router')}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Router</div>
+          <div class="ag-card-name-vi">Điều phối</div>
+          <div class="ag-card-handle">@router</div>
+          <div class="ag-card-tagline">“I read every story three times, then vote.”</div>
+          <div class="ag-card-role">3-vote self-consistency topic classification; routes each story to the departments it concerns. Disagreement goes to a human, never a guess.</div>
+          <div class="ag-chips"><span class="ag-chip" th:text="${routerModel}">MODEL</span><span class="ag-chip">GUARD: 2/3 vote</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ DESK 2 — UNDERSTAND ============ -->
+  <section class="ag-desk">
+    <div class="ag-desk-kicker" style="color:var(--ag-blue)">Desk 2 — Understand · Phân tích</div>
+    <div class="ag-desk-sub">Turn articles into evidence, evidence into decisions.</div>
+    <div class="ag-grid">
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#EFF3FB">
+          <span class="ag-card-desk" style="color:var(--ag-blue)">Understand</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: ai('#2E5AAC', 44, 'ai-researcher')}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Researcher</div>
+          <div class="ag-card-name-vi">Nghiên cứu viên</div>
+          <div class="ag-card-handle">@researcher</div>
+          <div class="ag-card-tagline">“I may only quote — never write.”</div>
+          <div class="ag-card-role">Extracts verbatim evidence spans; long documents are chunked with overlap so every character is read. Five kinds of dates, each grounded in its span.</div>
+          <div class="ag-chips"><span class="ag-chip" th:text="${writerModel}">MODEL</span><span class="ag-chip">GUARD: verbatim gate</span></div>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#EFF3FB">
+          <span class="ag-card-desk" style="color:var(--ag-blue)">Understand</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: code('#2E5AAC', 44)}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Connector</div>
+          <div class="ag-card-name-vi">Người kết nối</div>
+          <div class="ag-card-handle">@connector</div>
+          <div class="ag-card-tagline">“One article is never a trend.”</div>
+          <div class="ag-card-role">Clusters evidence across documents and months by company, product, event type and geography — corroboration counted in independent sources, structurally.</div>
+          <div class="ag-chips"><span class="ag-chip">NO MODEL</span><span class="ag-chip">TOOL: MarketEvent clusters</span></div>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#EFF3FB">
+          <span class="ag-card-desk" style="color:var(--ag-blue)">Understand</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: ai('#2E5AAC', 44, 'ai-analyst')}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Analyst</div>
+          <div class="ag-card-name-vi">Chuyên viên phân tích</div>
+          <div class="ag-card-handle">@analyst</div>
+          <div class="ag-card-tagline">“What, pattern, so-what, now-what — with citations.”</div>
+          <div class="ag-card-role">Writes bilingual decision briefs from gated evidence only; every recommendation is owned by our Product team with a 30–90-day horizon and a stop criterion.</div>
+          <div class="ag-chips"><span class="ag-chip" th:text="${writerModel}">MODEL</span><span class="ag-chip">GUARD: Desk 3</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ DESK 3 — GUARD ============ -->
+  <section class="ag-desk">
+    <div class="ag-desk-kicker" style="color:var(--ag-green)">Desk 3 — Guard · Kiểm chứng</div>
+    <div class="ag-desk-sub">Nothing publishes because a model said so.</div>
+    <div class="ag-grid">
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#E7EFE6">
+          <span class="ag-card-desk" style="color:var(--ag-green)">Guard</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 44)}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Editor</div>
+          <div class="ag-card-name-vi">Biên tập viên</div>
+          <div class="ag-card-handle">@editor</div>
+          <div class="ag-card-tagline">“Awards and PR fluff never make my report.”</div>
+          <div class="ag-card-role">Scores materiality against 7 Product intelligence questions; assigns DECISION_READY / WATCH / REJECT. The rubric is code — versioned and testable.</div>
+          <div class="ag-chips"><span class="ag-chip">NO MODEL</span><span class="ag-chip">TOOL: 7 KIQs rubric</span></div>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#E7EFE6">
+          <span class="ag-card-desk" style="color:var(--ag-green)">Guard</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 44)}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Fact-checker</div>
+          <div class="ag-card-name-vi">Kiểm chứng dữ kiện — Gate L1</div>
+          <div class="ag-card-handle">@gate-L1</div>
+          <div class="ag-card-tagline">“Letter-for-letter, or it doesn't pass.”</div>
+          <div class="ag-card-role">Rejects any name, date or number not found verbatim in the cited evidence — checked independently in Vietnamese and English. Free, instant, reproducible.</div>
+          <div class="ag-chips"><span class="ag-chip">NO MODEL</span><span class="ag-chip">GATE: exact match</span></div>
+        </div>
+      </div>
+
+      <div class="ag-card">
+        <div class="ag-card-banner" style="background:#E7EFE6">
+          <span class="ag-card-desk" style="color:var(--ag-green)">Guard</span>
+        </div>
+        <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-marks :: ai('#2F6B3D', 44, 'ai-verifier')}"/></div>
+        <div class="ag-card-body">
+          <div class="ag-card-name">Independent Verifier</div>
+          <div class="ag-card-name-vi">Kiểm chứng độc lập — Gate L2</div>
+          <div class="ag-card-handle">@gate-L2</div>
+          <div class="ag-card-tagline">“Nobody grades their own homework.”</div>
+          <div class="ag-card-role">A second, unrelated AI re-checks entailment of every insight — the app refuses to boot if writer and verifier share a model family.</div>
+          <div class="ag-chips"><span class="ag-chip" th:text="${verifierModel}">MODEL</span><span class="ag-chip">INVARIANT: ≠ writer family</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ + 1 HUMAN ============ -->
+  <div class="ag-signature">
+    <th:block th:replace="~{fragments/agent-marks :: human('#EA1C24', 52)}"/>
+    <div>
+      <div class="ag-signature-title">+ 1 Human — the signature · Chữ ký con người</div>
+      <div class="ag-signature-desc">
+        A Product SME reviews every edition against a written checklist, with direct citation
+        spot-checks, before anything publishes. And when the evidence is too thin, the report says
+        <span style="font-family:var(--ag-mono);color:var(--ag-amber)">INSUFFICIENT_EVIDENCE</span>
+        instead of filling the page.
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

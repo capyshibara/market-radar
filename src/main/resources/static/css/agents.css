@@ -1,0 +1,81 @@
+/* Agent identity layer — hand-ported from the Claude Design "Market Radar Design System"
+   bundle (AgentCard/ChainOfCustody components + desk semantics). Editorial palette from
+   the bundle's tokens/colors.css; namespaced ag-* so it can't collide with ops styles. */
+
+:root {
+  --ag-red: #EA1C24;         /* human authority / brand */
+  --ag-ink: #0C0C0D;
+  --ag-navy: #17233D;        /* Gather desk (ink/neutral semantic) */
+  --ag-blue: #2E5AAC;        /* Understand desk (AI-interpretation semantic) */
+  --ag-green: #2F6B3D;       /* Guard desk (verified semantic) */
+  --ag-amber: #B97600;       /* gates / watch */
+  --ag-paper: #F7F7F4;
+  --ag-hairline: #E2E6EA;
+  --ag-body: #3A3A35;
+  --ag-secondary: #6B6B64;
+  --ag-tertiary: #9A9A94;
+  --ag-serif: 'Source Serif 4', Georgia, serif;
+  --ag-ui: 'Inter', sans-serif;
+  --ag-mono: 'IBM Plex Mono', monospace;
+}
+
+/* ---- desk section ---- */
+.ag-desk { margin: 40px 0 0; }
+.ag-desk-kicker { font-family: var(--ag-ui); font-size: 11px; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.ag-desk-kicker::after { content: ""; flex: 1; height: 1px; background: var(--ag-hairline); }
+.ag-desk-sub { font-family: var(--ag-serif); font-style: italic; font-size: 14px;
+  color: var(--ag-secondary); margin-top: 4px; }
+.ag-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+@media (max-width: 860px) { .ag-grid { grid-template-columns: 1fr; } }
+
+/* ---- agent card (bundle AgentCard, JSX inline-styles → classes) ---- */
+.ag-card { border: 1px solid var(--ag-hairline); background: #fff; text-align: center;
+  font-family: var(--ag-ui); }
+.ag-card-banner { height: 44px; position: relative; }
+.ag-card-desk { position: absolute; top: 9px; left: 12px; font-size: 10px; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; }
+.ag-card-avatar { width: 72px; height: 72px; border-radius: 999px; background: #fff;
+  border: 1px solid var(--ag-hairline); margin: -36px auto 0; display: flex;
+  align-items: center; justify-content: center; position: relative; }
+.ag-card-body { padding: 10px 16px 18px; }
+.ag-card-name { font-size: 16px; font-weight: 700; color: var(--ag-ink); line-height: 1.25; }
+.ag-card-name-vi { font-size: 12.5px; color: var(--ag-secondary); margin-top: 1px; }
+.ag-card-handle { font-family: var(--ag-mono); font-size: 11px; color: var(--ag-tertiary); margin-top: 4px; }
+.ag-card-tagline { font-family: var(--ag-serif); font-style: italic; font-size: 14px;
+  line-height: 1.5; color: var(--ag-ink); margin-top: 10px; }
+.ag-card-role { font-size: 12px; color: var(--ag-secondary); margin-top: 9px; line-height: 1.5; }
+.ag-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 12px; }
+.ag-chip { font-family: var(--ag-mono); font-size: 10.5px; background: var(--ag-paper);
+  border: 1px solid var(--ag-hairline); padding: 2px 8px; color: var(--ag-secondary); }
+
+/* ---- trust-tier legend ---- */
+.ag-legend { display: flex; gap: 28px; flex-wrap: wrap; align-items: center;
+  border: 1px solid var(--ag-hairline); background: #fff; padding: 14px 18px; margin-top: 22px; }
+.ag-legend-item { display: flex; align-items: center; gap: 10px; font-family: var(--ag-ui);
+  font-size: 12.5px; color: var(--ag-body); }
+.ag-legend-item strong { color: var(--ag-ink); }
+
+/* ---- human signature block ---- */
+.ag-signature { border: 1px solid var(--ag-hairline); border-left: 4px solid var(--ag-red);
+  background: #fff; padding: 20px 24px; margin-top: 40px; display: flex; gap: 18px;
+  align-items: center; font-family: var(--ag-ui); }
+.ag-signature-title { font-size: 15px; font-weight: 700; color: var(--ag-ink); }
+.ag-signature-desc { font-size: 13px; color: var(--ag-secondary); margin-top: 3px; line-height: 1.55; }
+
+/* ---- chain of custody strip (report footer — reusable, not yet wired) ---- */
+.ag-custody { border-top: 1px solid var(--ag-hairline); padding-top: 16px; font-family: var(--ag-ui); }
+.ag-custody-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ag-custody-link { width: 14px; height: 1px; background: var(--ag-hairline); }
+.ag-custody-approved { display: flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--ag-secondary); }
+.ag-custody-approved strong { color: var(--ag-ink); }
+.ag-custody-ledger { font-family: var(--ag-mono); font-size: 10.5px; color: var(--ag-tertiary);
+  margin-top: 10px; }
+
+/* ---- pipeline ops page: agent credit strip on stage rows ---- */
+.st-agents { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.st-agent { display: inline-flex; align-items: center; gap: 6px; font-size: 11px;
+  font-weight: 600; color: var(--ag-secondary); font-family: var(--ag-ui); }
+.st-agent .ag-desk-tag { font-size: 9px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ag-tertiary); }

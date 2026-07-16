@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/css/patterns.css"/>
 <link rel="stylesheet" href="/css/ops-components.css"/>
 <link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<link rel="stylesheet" href="/css/agents.css"/>
 <style>
   .stage-row { border: 1px solid var(--border-default);
     border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px; }
@@ -83,6 +84,9 @@
             <div class="st-name" th:text="#{ops.pipeline.stageIngest}">Ingest</div>
             <div class="st-desc" th:text="#{ops.pipeline.stageIngestDesc}">Fetch whitelisted sources → raw docs (hash dedup, no LLM)</div>
             <div class="st-llm" th:text="${ingestLlmLabel}">No LLM</div>
+            <div class="st-agents">
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: code('#17233D', 18)}"/> Scout <span class="ag-desk-tag">Gather</span></span>
+            </div>
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/ingest"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
@@ -101,6 +105,10 @@
             <div class="st-name" th:text="#{ops.pipeline.stageClassify}">Dedup + Classify (AI#1)</div>
             <div class="st-desc" th:text="#{ops.pipeline.stageClassifyDesc}">Near-duplicate filter first, then 3-vote topic classification + routing</div>
             <div class="st-llm" th:text="${classifyLlmLabel}">Model</div>
+            <div class="st-agents">
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: code('#17233D', 18)}"/> Librarian <span class="ag-desk-tag">Gather</span></span>
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: ai('#17233D', 18, 'pl-router')}"/> Router <span class="ag-desk-tag">Gather</span></span>
+            </div>
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/classify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
@@ -119,6 +127,10 @@
             <div class="st-name" th:text="#{ops.pipeline.stageExtract}">Extract evidence (AI#2)</div>
             <div class="st-desc" th:text="#{ops.pipeline.stageExtractDesc}">Verbatim spans from CONFIRMED docs — exact-substring gate, rejects any modified span</div>
             <div class="st-llm" th:text="${extractLlmLabel}">Model</div>
+            <div class="st-agents">
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: ai('#2E5AAC', 18, 'pl-researcher')}"/> Researcher <span class="ag-desk-tag">Understand</span></span>
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: code('#2E5AAC', 18)}"/> Connector <span class="ag-desk-tag">Understand</span></span>
+            </div>
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/extract"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
@@ -137,6 +149,10 @@
             <div class="st-name" th:text="#{ops.pipeline.stageInterpret}">Interpret + Gate L1 (AI#3)</div>
             <div class="st-desc" th:text="#{ops.pipeline.stageInterpretDesc}">Bilingual claim sentences from evidence packs; deterministic grounding gate on both languages</div>
             <div class="st-llm" th:text="${interpretLlmLabel}">Model</div>
+            <div class="st-agents">
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: ai('#2E5AAC', 18, 'pl-analyst')}"/> Analyst <span class="ag-desk-tag">Understand</span></span>
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 18)}"/> Fact-checker <span class="ag-desk-tag">Guard · L1</span></span>
+            </div>
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/interpret"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
@@ -155,6 +171,10 @@
             <div class="st-name" th:text="#{ops.pipeline.stageVerify}">Verify — Gate L2</div>
             <div class="st-desc" th:text="#{ops.pipeline.stageVerifyDesc}">Independent entailment check by a different model family; routes to auto-approve or review</div>
             <div class="st-llm" th:text="${verifyLlmLabel}">Model</div>
+            <div class="st-agents">
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: ai('#2F6B3D', 18, 'pl-verifier')}"/> Independent Verifier <span class="ag-desk-tag">Guard · L2</span></span>
+              <span class="st-agent"><th:block th:replace="~{fragments/agent-marks :: human('#EA1C24', 18)}"/> Product SME <span class="ag-desk-tag">Signature</span></span>
+            </div>
           </div>
           <span class="badge-status badge-idle" data-badge>IDLE</span>
           <form method="post" action="/pipeline/run/verify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
