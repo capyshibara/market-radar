@@ -69,6 +69,21 @@ apply the language-purity gate. Do not rerun Ingest/Classify/Extract merely to c
   the URL-import route, which keeps its BCG URL as the provenance link.
 
 
+## Read-only batch source audit — 2026-07-16
+
+- The Source Registry now has **Batch-audit research candidates**. Operators can paste up to 100
+  HTTPS URLs, or rows copied from a Markdown research table. It extracts one URL per row,
+  deduplicates candidates and safely tests each through `SafeFetcher`—the same HTTPS, exact-host,
+  DNS/SSRF, no-redirect, timeout, body-size and content-type controls used by ingestion.
+- It is intentionally **read-only**: auditing never creates, activates or edits a source. It also
+  identifies an exact existing URL or an existing host so operators do not create duplicates.
+- The recommendation is purpose-specific: a reachable RSS/Atom feed is a recurring-source
+  candidate; reachable HTML/JSON requires a dedicated listing parser; and a reachable direct PDF
+  is routed to **Add document**, because it is a point-in-time research artifact rather than a
+  recurring crawler configuration. Rejected URLs expose the safe fetch reason for correction.
+- The tool is a research triage aid, not a claim-quality or publisher-trust decision. Review the
+  source scope, terms, tier and parser before using the existing **Add source** workflow.
+
 ## Latest live update — 2026-07-16 (supersedes the completion statement below)
 
 The controlled live reprocess has since completed for **Classify** and **Extract**. A Product

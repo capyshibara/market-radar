@@ -6,6 +6,8 @@ import com.marketradar.source.SourceRegistryService;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /** Standalone regression for server-side re-test, activation, and duplicate policies. */
@@ -16,6 +18,7 @@ public class SourceRegistryServiceTest {
         holdsJsonInactiveAfterSuccessfulConnectivityTest();
         rejectsDuplicatesBeforeFetch();
         reportsFetcherFailureClearly();
+        auditsWithoutChangingRegistryAndRoutesPdfToIntake();
         System.out.println("SourceRegistryServiceTest: ALL PASS");
     }
 
@@ -76,6 +79,20 @@ public class SourceRegistryServiceTest {
         check(result.bytes() == 0, "failed test reports no downloaded bytes");
     }
 
+    private static void auditsWithoutChangingRegistryAndRoutesPdfToIntake() {
+        FakeRepository repository = new FakeRepository();
+        StubFetcher fetcher = new StubFetcher(false);
+        SourceRegistryService service = new SourceRegistryService(repository.proxy(), fetcher);
+        var result = service.auditBatch("| Swiss Re report | https://example.com/sigma.pdf |\n"
+                + "https://example.com/feed.xml\nhttps://example.com/latest");
+
+        check(result.total() == 3, "Markdown rows and raw URLs are parsed");
+        check("IMPORT_AS_DOCUMENT".equals(result.results().get(0).status()), "PDF routes to manual intake");
+        check("REVIEW_FOR_RECURRING_SOURCE".equals(result.results().get(1).status()), "RSS is reviewed as a recurring source");
+        check("NEEDS_DEDICATED_PARSER".equals(result.results().get(2).status()), "HTML is held for a dedicated parser");
+        check(repository.lastSaved == null, "audit never persists a source");
+    }
+
     private static SourceRegistryService.SaveCommand command(
             String code, String url, String type, boolean active, boolean testPassed) {
         return new SourceRegistryService.SaveCommand(code, "Demo source", url, type,
@@ -114,6 +131,8 @@ public class SourceRegistryServiceTest {
                         case "existsByCodeIgnoreCase" -> codes.stream()
                                 .anyMatch(code -> code.equalsIgnoreCase((String) args[0]));
                         case "existsByFetchUrl" -> urls.contains((String) args[0]);
+                        case "findAll" -> List.of();
+                        case "findFirstByAllowedHostIgnoreCase" -> Optional.empty();
                         case "saveAndFlush" -> {
                             lastSaved = (Source) args[0];
                             codes.add(lastSaved.getCode());

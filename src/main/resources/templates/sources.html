@@ -45,6 +45,22 @@
   .source-form-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
   .source-form-actions > div { display: flex; gap: 8px; }
   .source-save-feedback { margin-top: 12px; }
+  .batch-audit { margin: 24px 0; padding: 20px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--surface-card); }
+  .batch-audit h2 { margin: 0; font-size: var(--text-lg); }
+  .batch-audit > p { margin: 6px 0 0; color: var(--text-secondary); }
+  .batch-audit-hint { margin: 14px 0; padding: 10px 12px; border-left: 3px solid var(--brand-red-500); background: var(--slate-50); color: var(--text-secondary); font-size: var(--text-sm); }
+  .batch-audit textarea { width: 100%; min-height: 152px; resize: vertical; font-family: var(--font-mono); font-size: var(--text-xs); }
+  .batch-audit-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .batch-audit-feedback { color: var(--text-secondary); font-size: var(--text-sm); }
+  .batch-audit-results { margin-top: 18px; }
+  .batch-audit-results[hidden] { display: none; }
+  .batch-audit-url { display: block; max-width: 330px; overflow-wrap: anywhere; color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--text-2xs); }
+  .audit-status { display: inline-block; border-radius: 999px; padding: 3px 8px; font-size: var(--text-2xs); font-weight: var(--weight-bold); white-space: nowrap; }
+  .audit-status-REVIEW_FOR_RECURRING_SOURCE { background: var(--green-50); color: var(--green-700); }
+  .audit-status-IMPORT_AS_DOCUMENT { background: var(--blue-50); color: var(--blue-700); }
+  .audit-status-NEEDS_DEDICATED_PARSER { background: var(--amber-50); color: var(--amber-700); }
+  .audit-status-ALREADY_REGISTERED { background: var(--slate-100); color: var(--slate-700); }
+  .audit-status-FETCH_REJECTED, .audit-status-INVALID_URL { background: var(--rose-50); color: var(--rose-700); }
   @media (max-width: 680px) {
     .source-modal { padding: 10px; }
     .source-modal-card { max-height: calc(100vh - 20px); }
@@ -78,6 +94,31 @@
             </button>
           </div>
         </div>
+
+        <section class="batch-audit" data-role-show="admin" aria-labelledby="batch-audit-title">
+          <h2 id="batch-audit-title" th:text="#{ops.sources.batchTitle}">Batch-audit research candidates</h2>
+          <p th:text="#{ops.sources.batchDescription}">Paste URLs without changing the source registry.</p>
+          <div class="batch-audit-hint" th:text="#{ops.sources.batchHint}">Use recurring listing URLs for a crawler candidate; direct PDFs are documents.</div>
+          <label class="lbl" for="batch-audit-input" th:text="#{ops.sources.batchCandidate}">Candidates</label>
+          <textarea id="batch-audit-input" class="ops-input" th:placeholder="#{ops.sources.batchPlaceholder}"></textarea>
+          <div class="batch-audit-actions">
+            <button id="batch-audit-run" class="btn btn-secondary" type="button" th:text="#{ops.sources.batchAction}">Audit candidates</button>
+            <span id="batch-audit-feedback" class="batch-audit-feedback" aria-live="polite"></span>
+          </div>
+          <div id="batch-audit-results" class="batch-audit-results" hidden>
+            <h3 th:text="#{ops.sources.batchResult}">Audit result</h3>
+            <div class="data-table-wrap"><div class="data-table-scroll">
+              <table class="data-table">
+                <thead><tr>
+                  <th th:text="#{ops.sources.batchCandidate}">Candidate</th><th th:text="#{ops.sources.batchType}">Detected type</th>
+                  <th th:text="#{ops.sources.batchStatus}">Recommendation</th><th th:text="#{ops.sources.batchAdvice}">What to do next</th>
+                  <th th:text="#{ops.sources.batchExisting}">Existing source</th>
+                </tr></thead>
+                <tbody id="batch-audit-body"></tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
 
         <div class="data-table-wrap"><div class="data-table-scroll">
           <table class="data-table">
@@ -209,7 +250,20 @@
      th:data-connected="#{ops.sources.connected}" th:data-not-connected="#{ops.sources.notConnected}"
      th:data-supported="#{ops.sources.supported}" th:data-parser-needed="#{ops.sources.parserNeeded}"
      th:data-request-error="#{ops.sources.requestError}" th:data-saved="#{ops.sources.saved}"
-     th:data-test-action="#{ops.sources.testAction}" th:data-save-action="#{ops.sources.saveAction}"></div>
+     th:data-test-action="#{ops.sources.testAction}" th:data-save-action="#{ops.sources.saveAction}"
+     th:data-batch-running="#{ops.sources.batchRunning}" th:data-batch-action="#{ops.sources.batchAction}"
+     th:data-batch-empty="#{ops.sources.batchEmpty}" th:data-batch-no-existing="#{ops.sources.batchNoExisting}"
+     th:data-batch-complete="#{ops.sources.batchComplete}"
+     th:data-audit-status-already-registered="#{ops.sources.auditStatus.ALREADY_REGISTERED}"
+     th:data-audit-status-import-as-document="#{ops.sources.auditStatus.IMPORT_AS_DOCUMENT}"
+     th:data-audit-status-review-for-recurring-source="#{ops.sources.auditStatus.REVIEW_FOR_RECURRING_SOURCE}"
+     th:data-audit-status-needs-dedicated-parser="#{ops.sources.auditStatus.NEEDS_DEDICATED_PARSER}"
+     th:data-audit-status-fetch-rejected="#{ops.sources.auditStatus.FETCH_REJECTED}"
+     th:data-audit-status-invalid-url="#{ops.sources.auditStatus.INVALID_URL}"
+     th:data-audit-advice-already-registered="#{ops.sources.auditAdvice.ALREADY_REGISTERED}"
+     th:data-audit-advice-import-as-document="#{ops.sources.auditAdvice.IMPORT_AS_DOCUMENT}"
+     th:data-audit-advice-review-for-recurring-source="#{ops.sources.auditAdvice.REVIEW_FOR_RECURRING_SOURCE}"
+     th:data-audit-advice-needs-dedicated-parser="#{ops.sources.auditAdvice.NEEDS_DEDICATED_PARSER}"></div>
 <script src="/js/ops-session.js"></script>
 <script src="/js/ops-sidebar.js"></script>
 <script src="/js/ops-pipeline-guard.js"></script>
@@ -305,6 +359,37 @@
       feedback.className = 'source-save-feedback flash flash-error'; feedback.textContent = words.requestError; feedback.hidden = false;
     }
     saveButton.disabled = false; saveButton.textContent = words.saveAction;
+  });
+
+  var batchInput = document.getElementById('batch-audit-input');
+  var batchButton = document.getElementById('batch-audit-run');
+  var batchFeedback = document.getElementById('batch-audit-feedback');
+  var batchResults = document.getElementById('batch-audit-results');
+  var batchBody = document.getElementById('batch-audit-body');
+  function cell(text) { var td = document.createElement('td'); td.textContent = text || '—'; return td; }
+  function wordForStatus(status) { return words['auditStatus' + status.split('_').map(function (word) { return word.charAt(0) + word.slice(1).toLowerCase(); }).join('')] || status.replaceAll('_', ' '); }
+  function adviceFor(result) { return words['auditAdvice' + result.advice.split('_').map(function (word) { return word.charAt(0) + word.slice(1).toLowerCase(); }).join('')] || result.advice; }
+  if (batchButton) batchButton.addEventListener('click', async function () {
+    if (!batchInput.value.trim()) { batchFeedback.textContent = words.batchEmpty; return; }
+    batchButton.disabled = true; batchButton.textContent = words.batchRunning; batchFeedback.textContent = ''; batchResults.hidden = true;
+    try {
+      var response = await fetch('/sources/audit-batch', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidatesText: batchInput.value }) });
+      var payload = await jsonResponse(response);
+      if (!response.ok) { batchFeedback.textContent = payload.message || words.requestError; return; }
+      batchBody.replaceChildren();
+      payload.results.forEach(function (result) {
+        var row = document.createElement('tr');
+        var candidate = document.createElement('td'); candidate.textContent = result.label || '—';
+        var url = document.createElement('span'); url.className = 'batch-audit-url'; url.textContent = result.fetchUrl || ''; candidate.appendChild(url);
+        row.appendChild(candidate); row.appendChild(cell(result.inferredType));
+        var status = document.createElement('td'); var badge = document.createElement('span'); badge.className = 'audit-status audit-status-' + result.status; badge.textContent = wordForStatus(result.status); status.appendChild(badge); row.appendChild(status);
+        row.appendChild(cell(adviceFor(result))); row.appendChild(cell(result.existingSourceCode || words.batchNoExisting)); batchBody.appendChild(row);
+      });
+      batchFeedback.textContent = words.batchComplete.replace('{0}', payload.total);
+      batchResults.hidden = false;
+    } catch (error) { batchFeedback.textContent = words.requestError; }
+    finally { batchButton.disabled = false; batchButton.textContent = words.batchAction; }
   });
 })();
 </script>

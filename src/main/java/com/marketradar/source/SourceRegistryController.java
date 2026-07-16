@@ -26,6 +26,16 @@ public class SourceRegistryController {
         return service.test(request.fetchUrl(), request.type());
     }
 
+    /** Read-only candidate audit: it never creates or updates registry records. */
+    @PostMapping(path = "/audit-batch", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> auditBatch(@RequestBody BatchAuditRequest request) {
+        try {
+            return ResponseEntity.ok(service.auditBatch(request.candidatesText()));
+        } catch (SourceRegistryRules.ValidationException invalid) {
+            return ResponseEntity.badRequest().body(error(invalid.getMessage()));
+        }
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> save(@RequestBody SaveRequest request) {
         try {
@@ -45,6 +55,8 @@ public class SourceRegistryController {
     }
 
     public record TestRequest(String fetchUrl, String type) {}
+
+    public record BatchAuditRequest(String candidatesText) {}
 
     public record SaveRequest(String code, String name, String fetchUrl, String type,
                               int tier, String language, boolean active, boolean testPassed) {}
