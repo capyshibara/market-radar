@@ -16,6 +16,14 @@ public class GroundedProductInsightWriterTest {
         check(fake.temperature == null, "model-compatible null temperature");
         check(out.citedFactCodes().equals(List.of("FACT-1")), "citation preserved");
         check(out.nowWhatEn().startsWith("Owner: Product"), "Product owns action");
+        var repaired = writer.writeCorrected(draft(), "L1 rejected an unsupported product name");
+        check(fake.calls == 2, "bounded correction makes one fresh writer call");
+        check(fake.system.contains("never say a feature was launched, announced, withdrawn"),
+                "repair explicitly prevents title/metadata-derived lifecycle claims");
+        check(fake.system.contains("Every Vietnamese and English factual sentence must be independently entailed"),
+                "repair requires bilingual factual entailment");
+        check(repaired.nowWhatVi().equals(draft().nowWhatVi()),
+                "deterministic Product action survives model wording variation");
 
         expectFailure(new GroundedProductInsightWriter(
                 new FakeClient("FAKE_WRITER(test)", validJson().replace("FACT-1", "MISSING")), "p"),
@@ -62,9 +70,10 @@ public class GroundedProductInsightWriterTest {
         private final String response;
         int calls;
         Double temperature;
+        String system;
         FakeClient(String provider, String response) { this.provider = provider; this.response = response; }
         public String complete(String system, String user, Double temperature) {
-            calls++; this.temperature = temperature; return response;
+            calls++; this.system = system; this.temperature = temperature; return response;
         }
         public String providerName() { return provider; }
     }

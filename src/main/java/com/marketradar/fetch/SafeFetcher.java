@@ -7,16 +7,21 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.InetAddress;
+import java.net.ProtocolException;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Set;
+import javax.net.ssl.SSLException;
 
 /**
  * Lớp fetch AN TOÀN duy nhất của hệ thống — mọi request ra ngoài PHẢI đi qua đây.
@@ -47,12 +52,16 @@ public class SafeFetcher {
     private final long maxBodyBytes;
     private final Duration requestTimeout;
     private final boolean httpsOnly;
+    private final int maxTransientRetries;
+    private final long retryBackoffMillis;
 
     public SafeFetcher(
-            @Value("${marketradar.fetch.connect-timeout-seconds:5}") long connectTimeoutSec,
-            @Value("${marketradar.fetch.request-timeout-seconds:15}") long requestTimeoutSec,
+            @Value("${marketradar.fetch.connect-timeout-seconds:10}") long connectTimeoutSec,
+            @Value("${marketradar.fetch.request-timeout-seconds:30}") long requestTimeoutSec,
             @Value("${marketradar.fetch.max-body-bytes:5242880}") long maxBodyBytes,
-            @Value("${marketradar.fetch.https-only:true}") boolean httpsOnly) {
+            @Value("${marketradar.fetch.https-only:true}") boolean httpsOnly,
+            @Value("${marketradar.fetch.max-transient-retries:1}") int maxTransientRetries,
+            @Value("${marketradar.fetch.retry-backoff-millis:400}") long retryBackoffMillis) {
         this.client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(connectTimeoutSec))
                 .followRedirects(HttpClient.Redirect.NEVER)   // phòng thủ #4
@@ -60,6 +69,10 @@ public class SafeFetcher {
         this.requestTimeout = Duration.ofSeconds(requestTimeoutSec);
         this.maxBodyBytes = maxBodyBytes;
         this.httpsOnly = httpsOnly;
+        // Keep a failing source bounded: at most three total attempts, even if a bad
+        // deployment value is supplied. Retries are only for transient transport errors.
+        this.maxTransientRetries = Math.max(0, Math.min(maxTransientRetries, 2));
+        this.retryBackoffMillis = Math.max(0, Math.min(retryBackoffMillis, 2_000));
     }
 
     /** Content-Type hợp lệ theo loại nguồn */
@@ -156,13 +169,10 @@ public class SafeFetcher {
         }
         HttpRequest request = builder.build();
 
-        HttpResponse<InputStream> response;
-        try {
-            response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            throw new FetchRejectedException("Network error fetching " + url + ": " + e.getMessage());
-        }
+        // A network failure can leave the remote side uncertain about whether a POST
+        // was received. GET is safe to retry; POST remains single-attempt even though
+        // current registry POST endpoints are read APIs.
+        HttpResponse<InputStream> response = sendWithTransientRetry(request, url, postJsonBody == null);
 
         int status = response.statusCode();
         // #4 redirect = fail loud
@@ -188,6 +198,63 @@ public class SafeFetcher {
         byte[] body = readWithCap(response.body(), effectiveCap, url);
         log.info("Fetched OK: {} ({} bytes, {})", url, body.length, contentType);
         return new FetchResult(body, contentType);
+    }
+
+    /**
+     * Retries are deliberately narrow: only GET requests with a temporary transport
+     * failure receive another attempt. We never retry POST, a rejected URL, redirect,
+     * HTTP response, content-type failure, body-cap failure, DNS/SSL/protocol failure,
+     * or an interrupted operator shutdown.
+     */
+    private HttpResponse<InputStream> sendWithTransientRetry(HttpRequest request, String url, boolean retryable)
+            throws FetchRejectedException {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new FetchRejectedException("Fetch interrupted for " + url);
+            } catch (IOException error) {
+                if (!retryable || !isTransientNetworkFailure(error) || attempt >= maxTransientRetries) {
+                    throw new FetchRejectedException("Network error fetching " + url + ": " + error.getMessage());
+                }
+                log.info("Transient network failure fetching {} (attempt {}/{}): {}; retrying once after {} ms",
+                        url, attempt + 1, maxTransientRetries + 1, error.getClass().getSimpleName(), retryBackoffMillis);
+                if (!pauseBeforeRetry(url)) {
+                    throw new FetchRejectedException("Fetch interrupted while waiting to retry " + url);
+                }
+            }
+        }
+    }
+
+    private boolean pauseBeforeRetry(String url) {
+        if (retryBackoffMillis == 0) return true;
+        try {
+            Thread.sleep(retryBackoffMillis);
+            return true;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            log.info("Interrupted while waiting to retry {}", url);
+            return false;
+        }
+    }
+
+    static boolean isTransientNetworkFailure(IOException error) {
+        Throwable cause = error;
+        while (cause != null) {
+            if (cause instanceof UnknownHostException || cause instanceof SSLException
+                    || cause instanceof ProtocolException) {
+                return false;
+            }
+            if (cause instanceof HttpConnectTimeoutException || cause instanceof HttpTimeoutException
+                    || cause instanceof ConnectException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        // Java's HttpClient may surface a temporary connection reset/EOF as a plain
+        // IOException. The fixed low retry cap keeps that recovery attempt safe.
+        return true;
     }
 
     private byte[] readWithCap(InputStream in, long cap, String url) throws FetchRejectedException {

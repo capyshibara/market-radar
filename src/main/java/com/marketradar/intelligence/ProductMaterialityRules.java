@@ -21,7 +21,7 @@ public final class ProductMaterialityRules {
 
     private ProductMaterialityRules() {}
 
-    public static final String RULES_VERSION = "product-materiality-v5-content-floor";
+    public static final String RULES_VERSION = "product-materiality-v6-life-scope";
     public static final int PUBLISH_THRESHOLD = 60;
     // Kept dependency-free for the standalone golden evaluator; regression tests
     // assert equality with ExtractionContentDiagnostics.MIN_ARTICLE_CHARS.
@@ -161,6 +161,15 @@ public final class ProductMaterialityRules {
             "however", "but", "decline", "risk", "uncertain", "caveat", "contradict",
             "tuy nhiên", "nhưng", "suy giảm", "rủi ro", "không chắc chắn", "mâu thuẫn"
     };
+    // Product's first demo lens is life insurance. A general insurer's non-life story
+    // should not reach this brief merely because it contains generic policy or product words.
+    private static final String[] NON_LIFE_TERMS = {
+            "non-life", "property and casualty", "p&c", "bảo hiểm phi nhân thọ", "phi nhân thọ"
+    };
+    private static final String[] CLAIMS_PAYMENT_TERMS = {
+            "claim payment", "claims payment", "claim payout", "payout", "paid a claim",
+            "chi trả bồi thường", "bồi thường bảo hiểm", "chi trả quyền lợi bảo hiểm"
+    };
 
     public static Score score(Input input) {
         List<String> reasons = new ArrayList<>();
@@ -279,6 +288,18 @@ public final class ProductMaterialityRules {
             penalty -= 40;
             hardSuppressed = true;
             reasons.add("Suppressed: generic banking story with no insurance/product connection.");
+        }
+        if (containsAny(text, NON_LIFE_TERMS)) {
+            penalty -= 40;
+            hardSuppressed = true;
+            reasons.add("Suppressed: non-life insurance is outside the life Product brief scope.");
+        }
+        boolean explicitProductDesignConsequence = launch || feeBenefit
+                || (regulation && containsAny(text, OFFER_TERMS) && containsAny(text, OFFER_CHANGE_TERMS));
+        if (containsAny(text, CLAIMS_PAYMENT_TERMS) && !explicitProductDesignConsequence) {
+            penalty -= 35;
+            hardSuppressed = true;
+            reasons.add("Suppressed: claims-payment story has no evidenced product-design consequence.");
         }
         boolean sufficientFullText = input.fullTextFetched() && rawLength >= MIN_FULL_TEXT_CHARS;
         if (!sufficientFullText) {

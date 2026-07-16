@@ -1,5 +1,44 @@
 # Market Radar — Engineering Handoff (updated 2026-07-16 quality-remediation session)
 
+## Latest live update — 2026-07-16 (supersedes the completion statement below)
+
+The controlled live reprocess has since completed for **Classify** and **Extract**. A Product
+regeneration was also run successfully: it did **not** crash, but all 7/30/90-day editions were
+correctly stored as `INSUFFICIENT_EVIDENCE` rather than publishing unsupported prose. The result
+is a corpus/freshness finding, not permission to lower the publication threshold:
+
+- 7 days: only two eligible facts; no decision-ready life-Product signal.
+- 30 days: insufficient safe candidates after the Product contract and publication minimum.
+- 90 days: unsafe candidates were excluded by L1/L2 (one quoted demonstrative was misread as a
+  name; another candidate asserted a launch/withdrawal that its evidence span did not state).
+
+Follow-up source changes are built locally and require one application restart before the next
+run. They are not yet a substitute for fresh source content:
+
+1. L1 now ignores only a closed, auditable list of generic quoted references such as
+   `"thủ tục này"`; actual company, product and regulation names remain verbatim-gated.
+2. The Product writer may use `evidenceSpan` only for factual assertions and its one repair
+   attempt explicitly forbids invented launch, withdrawal, availability or similar lifecycle
+   claims. The bilingual verifier remains fail-closed on `NEUTRAL`.
+3. Product materiality now excludes non-life stories and claims-payment stories without an
+   evidenced product-design consequence.
+4. An additive startup migration backfills any missing MOF and Vietnam life-insurer sources that
+   already have dedicated ingestion parsers. It never overwrites or activates an existing source.
+5. The crawler now allows a 10-second connection and 30-second request window, with one 400 ms
+   retry for a transient **GET** transport failure only. It never retries POSTs, blocked hosts,
+   redirects, HTTP/content failures, DNS/SSL/protocol errors, or oversized payloads. If broadly
+   distributed timeouts persist after restart, treat them as an operator-network/proxy issue—not
+   as an extraction or LLM failure.
+6. The Product report now has a distinct **Current Watch Brief** tier. One or two current signals
+   that pass exact grounding, independent verification and the publication gate may render with
+   citations, a Product validation action and a stated limitation. It is never labelled a
+   market-wide trend or Decision Brief; the full Decision Brief still requires three
+   `DECISION_READY` insights. Zero safe signals remains `INSUFFICIENT_EVIDENCE`.
+
+After restarting the built JAR, inspect `/sources`, then run **Ingest → Classify → Extract →
+Product regenerate** once (never the legacy Interpret/Verify stages). Do not rerun the current
+Product regeneration against unchanged evidence; it will truthfully remain insufficient.
+
 ## 2026-07-16 completion status
 
 The code remediation is complete and the live corpus has **not** been reprocessed. The final

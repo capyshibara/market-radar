@@ -81,8 +81,12 @@ marketradar:
     jaccard-same: 0.90             # >= ngưỡng này → trùng deterministic (không cần LLM)
     jaccard-gray: 0.50             # vùng xám [gray, same) → hỏi LLM pairwise; STUB → chờ người
   fetch:
-    connect-timeout-seconds: 5
-    request-timeout-seconds: 15
+    # One bounded retry improves resilience to temporary connect resets/timeouts;
+    # redirects, non-200 responses, unsafe hosts, and body/content gates never retry.
+    connect-timeout-seconds: 10
+    request-timeout-seconds: 30
+    max-transient-retries: 1
+    retry-backoff-millis: 400
     max-body-bytes: 5242880   # 5 MB — chống tải payload quá cỡ
     https-only: true          # nguồn http thuần sẽ bị từ chối (fail loud, log rõ)
 

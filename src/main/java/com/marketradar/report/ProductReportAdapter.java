@@ -31,7 +31,12 @@ public class ProductReportAdapter {
     static final int MIN_DECISION_READY_INSIGHTS = 3;
 
     public enum Placement { EXECUTIVE, WATCH }
-    public enum Availability { READY, INSUFFICIENT_EVIDENCE }
+    /**
+     * READY is the corroborated Decision Brief. WATCH_BRIEF is a different
+     * publication: it contains one or two safe, grounded current signals but
+     * deliberately makes no market-wide or decision-ready conclusion.
+     */
+    public enum Availability { READY, WATCH_BRIEF, INSUFFICIENT_EVIDENCE }
     public enum InsufficientReason {
         NONE,
         NO_CURRENT_EDITION,
@@ -87,10 +92,20 @@ public class ProductReportAdapter {
                 cited.put(insight.getId(), List.copyOf(
                         view.evidenceByInsight().getOrDefault(insight.getId(), List.of())));
             }
-            Availability availability = executive.size() < MIN_DECISION_READY_INSIGHTS
-                    || view.edition().getStatus() != ProductBriefEdition.Status.READY
-                    ? Availability.INSUFFICIENT_EVIDENCE : Availability.READY;
+            int safeSignalCount = executive.size() + watch.size();
+            Availability availability;
+            if (view.edition().getStatus() == ProductBriefEdition.Status.READY
+                    && executive.size() >= MIN_DECISION_READY_INSIGHTS) {
+                availability = Availability.READY;
+            } else if (view.edition().getStatus() == ProductBriefEdition.Status.WATCH_BRIEF
+                    && safeSignalCount >= 1) {
+                availability = Availability.WATCH_BRIEF;
+            } else {
+                availability = Availability.INSUFFICIENT_EVIDENCE;
+            }
             InsufficientReason reason = availability == Availability.READY
+                    ? InsufficientReason.NONE
+                    : availability == Availability.WATCH_BRIEF
                     ? InsufficientReason.NONE : InsufficientReason.NO_CORROBORATED_INSIGHT;
             return new Snapshot(view.edition(), availability, reason, windowStart, windowEnd,
                     executive, watch, Map.copyOf(cited));
@@ -136,6 +151,17 @@ public class ProductReportAdapter {
         }
 
         public boolean decisionReady() { return availability == Availability.READY; }
+
+        /** A valid current report, but explicitly not a Decision Brief. */
+        public boolean watchBrief() { return availability == Availability.WATCH_BRIEF; }
+
+        /** Safe signals only: persisted REJECT/null dispositions never enter this list. */
+        public List<ProductBriefInsight> watchBriefInsights() {
+            if (!watchBrief()) return List.of();
+            java.util.ArrayList<ProductBriefInsight> safe = new java.util.ArrayList<>(executiveInsights);
+            safe.addAll(watchSignals);
+            return List.copyOf(safe);
+        }
 
         public ProductBriefInsight leadInsight() {
             return executiveInsights.isEmpty() ? null : executiveInsights.get(0);

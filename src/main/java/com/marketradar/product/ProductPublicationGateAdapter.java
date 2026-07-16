@@ -12,7 +12,7 @@ import java.security.MessageDigest;
 /** Maps structured Product clusters into the shared last-mile publication gate. */
 public final class ProductPublicationGateAdapter {
 
-    public static final String VERSION = "product-publication-adapter-v1";
+    public static final String VERSION = "product-publication-adapter-v2-watch-brief";
     private static final Pattern HORIZON = Pattern.compile("(?i)within\\s+(30|45|60|90)\\s+days");
 
     private ProductPublicationGateAdapter() {}

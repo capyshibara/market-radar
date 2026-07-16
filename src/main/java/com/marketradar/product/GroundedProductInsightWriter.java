@@ -33,6 +33,11 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
             factCodes must be a JSON array and may contain only supplied fact codes.
 
             what: verified actor/action/object only.
+            `evidenceSpan` is the only source for a factual assertion. Treat article metadata,
+            editorial context and routing fields as non-evidence: do not derive a launch,
+            withdrawal, announcement, availability, partnership, expansion, date, number or
+            named actor from them. If a span describes a feature but does not say it launched
+            or was withdrawn, describe only the feature; do not supply the missing event.
             Put every company and product proper name in quotation marks, copied verbatim
             from evidence, so the deterministic grounding gate can verify it.
             pattern: comparison with the supplied peer/history evidence. With one independent
@@ -73,10 +78,27 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
 
     @Override
     public WrittenInsight write(ProductBriefSynthesisRules.Draft draft) {
+        return write(draft, null, "PRODUCT_INSIGHT", 0);
+    }
+
+    @Override
+    public WrittenInsight writeCorrected(ProductBriefSynthesisRules.Draft draft, String rejection) {
+        String correction = "The previous candidate was rejected by a deterministic quality gate: "
+                + compact(rejection) + "\nReturn a fresh replacement. Omit any unsupported proper name, "
+                + "number, date, actor, action or causal claim; use only evidenceSpan text in the evidence pack. "
+                + "Do not rely on a title, summary, source metadata or routing field. In particular, never say "
+                + "a feature was launched, announced, withdrawn, available, expanded or partnered unless that "
+                + "event is stated in the cited evidenceSpan. If the span only describes a feature, state only "
+                + "that description. Every Vietnamese and English factual sentence must be independently entailed.";
+        return write(draft, correction, "PRODUCT_INSIGHT_REPAIR", 1);
+    }
+
+    private WrittenInsight write(ProductBriefSynthesisRules.Draft draft, String correction,
+                                 String purpose, int sampleIndex) {
         requireRealWriter();
-        String system = prompt.get();
+        String system = prompt.get() + (correction == null ? "" : "\n\n" + correction);
         String user = renderEvidencePack(draft);
-        String callHash = sha256(llm.providerName() + "\n" + system + "\n" + user
+        String callHash = sha256(purpose + "\n" + llm.providerName() + "\n" + system + "\n" + user
                 + "\n" + ProductInsightContract.SCHEMA_VERSION);
         String raw;
         long started = System.currentTimeMillis();
@@ -88,8 +110,8 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
             throw new ProductInsightWritingException("Product insight writer failed", e);
         }
         if (callLogs != null) {
-            callLogs.save(new LlmCallLog("PRODUCT_INSIGHT", llm.providerName(), callHash,
-                    0, raw, null, System.currentTimeMillis() - started));
+            callLogs.save(new LlmCallLog(purpose, llm.providerName(), callHash,
+                    sampleIndex, raw, null, System.currentTimeMillis() - started));
         }
         return parseAndValidate(raw, draft);
     }
@@ -127,7 +149,11 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
                     text(root, "whatVi"), text(root, "whatEn"),
                     text(root, "patternVi"), text(root, "patternEn"),
                     text(root, "soWhatVi"), text(root, "soWhatEn"),
-                    text(root, "nowWhatVi"), text(root, "nowWhatEn"),
+                    // Product-owned actions are deterministic contract copy. Keeping them out of
+                    // creative model variation prevents a cosmetic wording slip from discarding
+                    // otherwise sound, grounded evidence.
+                    requiredText(root, "nowWhatVi", draft.nowWhatVi()),
+                    requiredText(root, "nowWhatEn", draft.nowWhatEn()),
                     text(root, "caveatVi"), text(root, "caveatEn"), List.copyOf(codes));
             ProductInsightContract.Shape shape = new ProductInsightContract.Shape(
                     draft.kiqCode(), out.headlineVi(), out.headlineEn(), out.whatVi(), out.whatEn(),
@@ -151,8 +177,6 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
         root.put("theme", draft.theme().name());
         root.put("deterministicConfidence", draft.confidence().name());
         root.put("editorialGuidance", Map.of(
-                "headlineVi", draft.headlineVi(), "headlineEn", draft.headlineEn(),
-                "soWhatVi", draft.soWhatVi(), "soWhatEn", draft.soWhatEn(),
                 "nowWhatVi", draft.nowWhatVi(), "nowWhatEn", draft.nowWhatEn()));
         List<Map<String, Object>> evidence = new ArrayList<>();
         for (ProductBriefSynthesisRules.Signal s : draft.signals()) {
@@ -176,10 +200,7 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
             item.put("expiryDate", s.expiryDate() == null ? null : s.expiryDate().toString());
             item.put("temporalStatus", s.temporalStatus());
             item.put("futureActionEligible", s.futureActionEligible());
-            item.put("title", s.title());
             item.put("evidenceSpan", s.evidenceSpan());
-            item.put("summaryVi", s.summaryVi());
-            item.put("summaryEn", s.summaryEn());
             evidence.add(item);
         }
         root.put("evidence", evidence);
@@ -202,6 +223,14 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
         JsonNode n = root.get(field);
         if (n == null || !n.isTextual() || n.textValue().isBlank()) reject(field + " is required");
         return n.textValue().strip();
+    }
+
+    private static String requiredText(JsonNode root, String field, String deterministicValue) {
+        text(root, field); // closed schema still requires the model to acknowledge the field
+        if (deterministicValue == null || deterministicValue.isBlank()) {
+            reject("missing deterministic " + field + " contract");
+        }
+        return deterministicValue.strip();
     }
 
     private static void validateSingleSourceLanguage(ProductBriefSynthesisRules.Draft draft,
@@ -233,6 +262,11 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
     }
 
     private static String nullToEmpty(String value) { return value == null ? "" : value; }
+    private static String compact(String value) {
+        if (value == null || value.isBlank()) return "unspecified rejection";
+        String normalized = value.replaceAll("\\s+", " ").strip();
+        return normalized.length() <= 900 ? normalized : normalized.substring(0, 900) + "…";
+    }
     private static void reject(String message) { throw new ProductInsightWritingException(message); }
 
     private static String sha256(String value) {

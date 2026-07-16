@@ -39,7 +39,12 @@ public final class ProductPublicationQualityGate {
 
     public enum Severity { WATCH, REJECT }
     public enum Disposition { DECISION_READY, WATCH, REJECT }
-    public enum MagazineStatus { READY, INSUFFICIENT_EVIDENCE }
+    /**
+     * READY is the full decision brief threshold. WATCH_BRIEF is intentionally a
+     * different editorial product: it may surface one or two safe, grounded
+     * signals but must not be represented as a corroborated market conclusion.
+     */
+    public enum MagazineStatus { READY, WATCH_BRIEF, INSUFFICIENT_EVIDENCE }
 
     public record Finding(FailureCode code, Severity severity, String field, String detail) {
         public Finding {
@@ -177,10 +182,19 @@ public final class ProductPublicationQualityGate {
         int ready = count(results, Disposition.DECISION_READY);
         int watch = count(results, Disposition.WATCH);
         int rejected = count(results, Disposition.REJECT);
-        List<Finding> findings = ready >= 3 ? List.of() : List.of(new Finding(
-                FailureCode.INSUFFICIENT_DECISION_READY_INSIGHTS, Severity.REJECT, "magazine.insights",
-                "requires at least 3 DECISION_READY insights; found " + ready));
-        return new MagazineResult(ready >= 3 ? MagazineStatus.READY : MagazineStatus.INSUFFICIENT_EVIDENCE,
+        int safe = ready + watch;
+        MagazineStatus status = ready >= 3 ? MagazineStatus.READY
+                : safe >= 1 ? MagazineStatus.WATCH_BRIEF
+                : MagazineStatus.INSUFFICIENT_EVIDENCE;
+        List<Finding> findings = status == MagazineStatus.READY ? List.of() : List.of(new Finding(
+                FailureCode.INSUFFICIENT_DECISION_READY_INSIGHTS,
+                status == MagazineStatus.WATCH_BRIEF ? Severity.WATCH : Severity.REJECT,
+                "magazine.insights",
+                status == MagazineStatus.WATCH_BRIEF
+                        ? "publishes as a Current Watch Brief: " + safe
+                        + " safe grounded insight(s), " + ready + " decision-ready; requires 3 decision-ready insights for a Decision Brief"
+                        : "requires at least 1 safe grounded WATCH or DECISION_READY insight; found 0"));
+        return new MagazineResult(status,
                 results.size(), ready, watch, rejected, findings, results);
     }
 

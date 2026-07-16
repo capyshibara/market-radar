@@ -3,7 +3,8 @@ package com.marketradar.product;
 /** Fail-closed rules for promoting a Product insight into decision-ready report copy. */
 public final class ProductInsightContract {
 
-    public static final String SCHEMA_VERSION = "product-insight-v2";
+    /** v3: only L1-visible evidence reaches the writer; actions are deterministic contract copy. */
+    public static final String SCHEMA_VERSION = "product-insight-v3";
 
     private ProductInsightContract() {}
 

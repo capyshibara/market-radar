@@ -21,6 +21,8 @@ public class ProductBriefEdition {
 
     public enum Status {
         READY,
+        /** Current, evidence-backed signals that have not met the full 3-insight decision threshold. */
+        WATCH_BRIEF,
         INSUFFICIENT_EVIDENCE,
         GENERATION_FAILED,
         /** Kept only so legacy database rows remain readable. */

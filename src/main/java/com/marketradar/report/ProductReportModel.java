@@ -43,10 +43,12 @@ public class ProductReportModel {
         model.put("availability", snapshot.availability());
         model.put("insufficientReason", snapshot.insufficientReason());
         model.put("decisionReady", snapshot.decisionReady());
+        model.put("watchBrief", snapshot.watchBrief());
         model.put("hasProductEdition", snapshot.edition() != null);
         model.put("productEdition", snapshot.edition());
         model.put("productExecutiveInsights", snapshot.executiveInsights());
         model.put("productWatchSignals", snapshot.watchSignals());
+        model.put("productWatchBriefInsights", snapshot.watchBriefInsights());
         model.put("productEvidenceByInsight", snapshot.evidenceByInsight());
         model.put("productLeadInsight", snapshot.leadInsight());
         model.put("references", snapshot.references());

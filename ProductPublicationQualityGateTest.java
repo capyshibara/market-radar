@@ -30,7 +30,8 @@ public class ProductPublicationQualityGateTest {
         rejectsEvidenceOutsideEditionWindow();
         requiresEventAndSourceProvenance();
         acceptsDecisionReadyInsight();
-        refusesSparseMagazine();
+        publishesSparseSafeMagazineAsWatchBrief();
+        refusesMagazineWithoutSafeInsights();
         publishesThreeDecisionReadyInsights();
         exposesMachineReadableReasons();
         System.out.println("ProductPublicationQualityGateTest: " + checks + " checks passed");
@@ -119,15 +120,29 @@ public class ProductPublicationQualityGateTest {
         check(result.findings().isEmpty(), "decision-ready insight has no failures");
     }
 
-    private static void refusesSparseMagazine() {
+    private static void publishesSparseSafeMagazineAsWatchBrief() {
         var magazine = ProductPublicationQualityGate.evaluateMagazine(List.of(
                 new Candidate().id("I-1").build(), new Candidate().id("I-2").build()));
-        check(magazine.status() == ProductPublicationQualityGate.MagazineStatus.INSUFFICIENT_EVIDENCE,
-                "fewer than 3 decision-ready insights must not publish");
+        check(magazine.status() == ProductPublicationQualityGate.MagazineStatus.WATCH_BRIEF,
+                "one or two safe grounded insights must publish as a Current Watch Brief");
         check(magazine.decisionReadyInsights() == 2, "ready count remains auditable");
         check(magazine.findings().get(0).code()
                         == ProductPublicationQualityGate.FailureCode.INSUFFICIENT_DECISION_READY_INSIGHTS,
-                "magazine exposes machine-readable sparse-edition reason");
+                "watch brief exposes machine-readable decision-brief threshold reason");
+        check(magazine.findings().get(0).severity() == ProductPublicationQualityGate.Severity.WATCH,
+                "a safe Watch Brief must be a warning, not a rejection");
+    }
+
+    private static void refusesMagazineWithoutSafeInsights() {
+        var magazine = ProductPublicationQualityGate.evaluateMagazine(List.of(
+                new Candidate().id("I-1").cited().build(),
+                new Candidate().id("I-2").action("").build()));
+        check(magazine.status() == ProductPublicationQualityGate.MagazineStatus.INSUFFICIENT_EVIDENCE,
+                "rejected candidates cannot become a Watch Brief");
+        check(magazine.decisionReadyInsights() == 0 && magazine.watchInsights() == 0,
+                "no safe candidate must remain visible in the audit counts");
+        check(magazine.findings().get(0).severity() == ProductPublicationQualityGate.Severity.REJECT,
+                "no-safe-signal result remains a publication rejection");
     }
 
     private static void publishesThreeDecisionReadyInsights() {

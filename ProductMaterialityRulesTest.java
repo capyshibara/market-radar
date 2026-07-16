@@ -33,6 +33,8 @@ public class ProductMaterialityRulesTest {
         rejectsUnconfirmedClassification();
         rejectsUnsupportedRegulationLabel();
         rejectsGenericAgentCampaign();
+        suppressesNonLifeInsurance();
+        suppressesClaimsPaymentWithoutProductDesignChange();
         keepsCredibilitySeparate();
         mapsCounterEvidenceKiq();
         System.out.println("ProductMaterialityRulesTest: " + checks + " checks passed");
@@ -164,6 +166,23 @@ public class ProductMaterialityRulesTest {
                 "Campaign develops a professional advisor team",
                 article("The campaign promotes recruitment and training for a professional consulting team."), 2, true);
         check(!score.publishEligible(), "generic agent campaign is not distribution innovation");
+    }
+
+    private static void suppressesNonLifeInsurance() {
+        var score = score("FEE_CHANGE", Set.of("FEE_BENEFIT_COMMISSION_CHANGE"),
+                "Non-life insurer changes property coverage terms",
+                article("A non-life insurer changed property and casualty coverage terms and premium rates."), 1, true);
+        check(!score.publishEligible(), "non-life insurance must not enter the life Product brief");
+        check(score.reasons().stream().anyMatch(r -> r.contains("non-life insurance")),
+                "non-life suppression is auditable");
+    }
+
+    private static void suppressesClaimsPaymentWithoutProductDesignChange() {
+        var score = score("EVENT", Set.of(), "Insurer completes a claims payout",
+                article("The insurer completed a claims payment and claim payout for a policyholder."), 1, true);
+        check(!score.publishEligible(), "claims payment without a product-design consequence must not publish");
+        check(score.reasons().stream().anyMatch(r -> r.contains("claims-payment")),
+                "claims-payment suppression is auditable");
     }
 
     private static void keepsCredibilitySeparate() {

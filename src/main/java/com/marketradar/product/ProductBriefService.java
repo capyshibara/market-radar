@@ -104,7 +104,8 @@ public class ProductBriefService {
                 .findTopByDepartmentAndAlgorithmVersionAndSourceFingerprintOrderByCreatedAtDesc(
                         Department.PRODUCT, ProductBriefSynthesisRules.ALGORITHM_VERSION, fingerprint);
         if (existing.isPresent()
-                && existing.get().getStatus() != ProductBriefEdition.Status.GENERATION_FAILED) {
+                && existing.get().getStatus() != ProductBriefEdition.Status.GENERATION_FAILED
+                && !hasCandidateRejections(existing.get())) {
             return existing.get();
         }
 
@@ -112,40 +113,24 @@ public class ProductBriefService {
                 + "-" + fingerprint.substring(0, 10).toUpperCase(Locale.ROOT);
 
         List<PreparedInsight> prepared = new ArrayList<>();
+        List<CandidateRejection> rejectedCandidates = new ArrayList<>();
         if (!drafts.isEmpty()) {
-            try {
-                for (ProductBriefSynthesisRules.Draft draft : drafts) {
-                    ProductInsightWriter.WrittenInsight written = writer.write(draft);
-                    List<EvidenceFact> cited = facts.findAllByFactCodeInForAudit(
-                            written.citedFactCodes());
-                    if (cited.size() != new LinkedHashSet<>(written.citedFactCodes()).size()) {
-                        throw new ProductInsightWritingException(
-                                "Product writer cited evidence that is not available for audit");
+            for (ProductBriefSynthesisRules.Draft draft : drafts) {
+                try {
+                    prepared.add(prepare(draft, writer.write(draft)));
+                } catch (ProductInsightWritingException firstFailure) {
+                    try {
+                        prepared.add(prepare(draft, writer.writeCorrected(draft, firstFailure.getMessage())));
+                    } catch (ProductInsightWritingException repairFailure) {
+                        rejectedCandidates.add(new CandidateRejection(draft, repairFailure.getMessage()));
+                    } catch (RuntimeException infrastructureFailure) {
+                        return saveFailedEdition(baseEditionCode, start, end, fingerprint,
+                                writerVersion, publicationQualitySignature, eligible.size(), infrastructureFailure);
                     }
-                    ProductInsightQualityGate.Result quality = qualityGate.evaluate(
-                            written, cited, new LinkedHashSet<>(draft.factCodes()));
-                    if (!quality.publishable()) {
-                        throw new ProductInsightWritingException(
-                                "Product candidate blocked: " + quality.status() + " — " + quality.detail());
-                    }
-                    ProductInsightContract.Shape shape = new ProductInsightContract.Shape(
-                            draft.kiqCode(), written.headlineVi(), written.headlineEn(),
-                            written.whatVi(), written.whatEn(), written.patternVi(), written.patternEn(),
-                            written.soWhatVi(), written.soWhatEn(), written.nowWhatVi(), written.nowWhatEn(),
-                            written.caveatVi(), written.caveatEn());
-                    Set<String> citedCodes = new LinkedHashSet<>(written.citedFactCodes());
-                    long docs = draft.signals().stream().filter(s -> citedCodes.contains(s.factCode()))
-                            .map(ProductBriefSynthesisRules.Signal::rawDocId).distinct().count();
-                    long sources = draft.signals().stream().filter(s -> citedCodes.contains(s.factCode()))
-                            .map(ProductBriefSynthesisRules.Signal::sourceCode)
-                            .filter(Objects::nonNull).distinct().count();
-                    prepared.add(new PreparedInsight(draft, written,
-                            cited.stream().map(EvidenceFact::getFactCode)
-                                    .collect(Collectors.toCollection(LinkedHashSet::new))));
+                } catch (RuntimeException infrastructureFailure) {
+                    return saveFailedEdition(baseEditionCode, start, end, fingerprint,
+                            writerVersion, publicationQualitySignature, eligible.size(), infrastructureFailure);
                 }
-            } catch (RuntimeException writingFailure) {
-                return saveFailedEdition(baseEditionCode, start, end, fingerprint,
-                        writerVersion, publicationQualitySignature, eligible.size(), writingFailure);
             }
         }
 
@@ -166,11 +151,8 @@ public class ProductBriefService {
                 ProductBriefSynthesisRules.ALGORITHM_VERSION, fingerprint,
                 writerVersion.providerModel(), writerVersion.promptSha256(),
                 writerVersion.schemaVersion(), publicationQualitySignature,
-                publication.magazine().status()
-                        == ProductPublicationQualityGate.MagazineStatus.READY
-                        ? ProductBriefEdition.Status.READY
-                        : ProductBriefEdition.Status.INSUFFICIENT_EVIDENCE,
-                eligible.size(), prepared.size(), null));
+                editionStatus(publication.magazine().status()),
+                eligible.size(), prepared.size(), candidateRejectionSummary(rejectedCandidates)));
 
         int rank = 1;
         for (int index = 0; index < prepared.size(); index++) {
@@ -210,6 +192,51 @@ public class ProductBriefService {
                 writerVersion.schemaVersion(), qualitySignature,
                 ProductBriefEdition.Status.GENERATION_FAILED, eligibleCount, 0,
                 failure.getMessage()));
+    }
+
+    private static ProductBriefEdition.Status editionStatus(
+            ProductPublicationQualityGate.MagazineStatus status) {
+        return switch (status) {
+            case READY -> ProductBriefEdition.Status.READY;
+            case WATCH_BRIEF -> ProductBriefEdition.Status.WATCH_BRIEF;
+            case INSUFFICIENT_EVIDENCE -> ProductBriefEdition.Status.INSUFFICIENT_EVIDENCE;
+        };
+    }
+
+    private PreparedInsight prepare(ProductBriefSynthesisRules.Draft draft,
+                                    ProductInsightWriter.WrittenInsight written) {
+        List<EvidenceFact> cited = facts.findAllByFactCodeInForAudit(written.citedFactCodes());
+        if (cited.size() != new LinkedHashSet<>(written.citedFactCodes()).size()) {
+            throw new ProductInsightWritingException("Product writer cited evidence that is not available for audit");
+        }
+        ProductInsightQualityGate.Result quality = qualityGate.evaluate(
+                written, cited, new LinkedHashSet<>(draft.factCodes()));
+        if (!quality.publishable()) {
+            throw new ProductInsightWritingException(
+                    "Product candidate blocked: " + quality.status() + " — " + quality.detail());
+        }
+        return new PreparedInsight(draft, written, cited.stream().map(EvidenceFact::getFactCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
+    }
+
+    private static boolean hasCandidateRejections(ProductBriefEdition edition) {
+        return edition.getFailureMessage() != null
+                && edition.getFailureMessage().startsWith("CANDIDATE_REJECTIONS:");
+    }
+
+    private static String candidateRejectionSummary(List<CandidateRejection> rejections) {
+        if (rejections.isEmpty()) return null;
+        String details = rejections.stream()
+                .map(r -> r.draft().theme().name() + ": " + compact(r.reason()))
+                .collect(Collectors.joining(" | "));
+        String result = "CANDIDATE_REJECTIONS: " + rejections.size() + " unsafe candidate(s) excluded. " + details;
+        return result.length() <= 2000 ? result : result.substring(0, 1999) + "…";
+    }
+
+    private static String compact(String value) {
+        if (value == null || value.isBlank()) return "unspecified rejection";
+        String normalized = value.replaceAll("\\s+", " ").strip();
+        return normalized.length() <= 360 ? normalized : normalized.substring(0, 360) + "…";
     }
 
     @Transactional(readOnly = true)
@@ -330,6 +357,7 @@ public class ProductBriefService {
     private record PreparedInsight(ProductBriefSynthesisRules.Draft draft,
                                    ProductInsightWriter.WrittenInsight written,
                                    Set<String> resolvedEvidenceIds) {}
+    private record CandidateRejection(ProductBriefSynthesisRules.Draft draft, String reason) {}
 
     public record BriefView(ProductBriefEdition edition, List<ProductBriefInsight> insights,
                             Map<Long, List<EvidenceFact>> evidenceByInsight) {}

@@ -58,6 +58,23 @@ public class GroundingGateL1 {
             {"「", "」"}, {"『", "』"}, {"«", "»"},
     };
 
+    /*
+     * A quoted demonstrative is not a proper name. Writers sometimes quote a
+     * referring phrase for emphasis (for example, "thủ tục này" / "this
+     * procedure"). Treating those phrases as names creates a false L1 failure
+     * while adding no grounding protection. This is deliberately a short,
+     * closed list of generic references: unknown quoted text still has to be
+     * present verbatim, so company, product and regulation names remain gated.
+     */
+    private static final Pattern GENERIC_VI_QUOTED_REFERENCE = Pattern.compile(
+            "(?iu)^(?:thủ tục|quy trình|quy định|văn bản|sản phẩm|hợp đồng|chính sách|"
+                    + "thay đổi|điều chỉnh|yêu cầu|biện pháp|nội dung|thông tin|khoản phí|"
+                    + "mức phí|quy tắc|điều khoản)\\s+(?:này|đó|ấy|trên|dưới)$");
+    private static final Pattern GENERIC_EN_QUOTED_REFERENCE = Pattern.compile(
+            "(?iu)^(?:this|that|these|those|the)\\s+(?:procedure|process|rule|regulation|"
+                    + "document|product|policy|change|adjustment|requirement|measure|content|"
+                    + "information|fee|premium|term|condition)s?$");
+
     public GateResult check(String claimText, List<String> citedCodes, List<EvidenceFact> citedFacts,
                             Set<String> allCodesInPack) {
         ObjectNode detail = mapper.createObjectNode();
@@ -90,11 +107,17 @@ public class GroundingGateL1 {
         String evidenceText = corpus.toString();
         evDates.addAll(extractDates(evidenceText));
 
-        // (2) Tên trong ngoặc kép — verbatim theo script gốc
+        // (2) Tên trong ngoặc kép — verbatim theo script gốc. Generic
+        // demonstratives are retained in the audit detail but are not names.
         List<String> quoted = extractQuoted(claimText);
         ArrayNode namesNode = detail.putArray("quotedNames");
+        ArrayNode ignoredReferencesNode = detail.putArray("ignoredQuotedReferences");
         List<String> missingNames = new ArrayList<>();
         for (String q : quoted) {
+            if (isGenericQuotedReference(q)) {
+                ignoredReferencesNode.add(q);
+                continue;
+            }
             boolean found = evidenceText.contains(q);
             ObjectNode n = namesNode.addObject();
             n.put("name", q); n.put("foundVerbatim", found);
@@ -166,6 +189,13 @@ public class GroundingGateL1 {
             while (m.find()) out.add(m.group(1).strip());
         }
         return out;
+    }
+
+    static boolean isGenericQuotedReference(String quoted) {
+        if (quoted == null) return false;
+        String text = quoted.strip().replaceAll("\\s+", " ");
+        return GENERIC_VI_QUOTED_REFERENCE.matcher(text).matches()
+                || GENERIC_EN_QUOTED_REFERENCE.matcher(text).matches();
     }
 
     static Set<LocalDate> extractDates(String text) {
