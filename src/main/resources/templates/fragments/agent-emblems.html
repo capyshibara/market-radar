@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Agent hero emblems — hand-ported from the Claude Design "Market Radar Design System"
+  bundle (components/core/AgentEmblem.jsx): flat poster style, saturated fields, ink
+  (#0B1226) outlines, offset darker circle for depth. Each agent's insignia is a unique
+  one-off. Use on avatar/hero surfaces (pipeline cards, Newsroom, slides); keep
+  fragments/agent-marks.html for compact systematic contexts (chain-of-custody, chips).
+
+  Bundle→canonical cast mapping (bundle used its own agent names):
+    scanner→Scout · merger→Librarian · parser→Router · extractor→Researcher ·
+    comparator→Connector · analyst→Analyst · screener→Editor · checker→Fact-checker ·
+    editor(wax seal)→Product SME (human).
+  "verifier" is NEW (the bundle had no Independent Verifier): "The Second Opinion" —
+  navy field, a cream balance scale weighing claim against evidence — drawn to the same
+  recipe (ink outlines, offset deep circle, gold/teal accessories).
+-->
+
+<!-- Scout — "The Watcher": teal field, wide-open eye, gold rays. Nothing gets past it. -->
+<svg th:fragment="scout(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Scout">
+  <defs><clipPath id="emb-scout"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#00BFA6"/>
+  <g clip-path="url(#emb-scout)">
+    <circle cx="50" cy="10" r="26" fill="#0E8E7D" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M12 34 Q32 18 52 34 Q32 50 12 34 Z" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.8"/>
+    <circle cx="32" cy="34" r="8" fill="#2647E8" stroke="#0B1226" stroke-width="1.8"/>
+    <circle cx="32" cy="34" r="3" fill="#0B1226"/>
+    <circle cx="34.8" cy="31" r="1.6" fill="#F2EFE8"/>
+    <path d="M24 15 l2 4 M32 12.5 v4.5 M40 15 l-2 4" stroke="#F5A623" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="50" cy="46" r="2.4" fill="#F5A623" stroke="#0B1226" stroke-width="1.4"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Librarian — "The Unifier": violet field, two worlds overlapping into a coral lens. -->
+<svg th:fragment="librarian(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Librarian">
+  <defs><clipPath id="emb-lib"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#8B5CF6"/>
+  <g clip-path="url(#emb-lib)">
+    <circle cx="50" cy="10" r="26" fill="#6D3FD4" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="25" cy="33" r="12.5" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.8"/>
+    <circle cx="39" cy="33" r="12.5" fill="#F5A623" stroke="#0B1226" stroke-width="1.8"/>
+    <path d="M32 22.9 A12.5 12.5 0 0 1 32 43.1 A12.5 12.5 0 0 1 32 22.9 Z" fill="#FF5A36" stroke="#0B1226" stroke-width="1.8"/>
+    <circle cx="32" cy="33" r="2.2" fill="#0B1226"/>
+    <circle cx="14" cy="16" r="2.4" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.4"/>
+    <rect x="46" y="49" width="5.5" height="5.5" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.4" transform="rotate(45 48.8 51.8)"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Router — "The Excavator": gold field, a sealed sheet split open by a blue blade. -->
+<svg th:fragment="router(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Router">
+  <defs><clipPath id="emb-rou"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#F5A623"/>
+  <g clip-path="url(#emb-rou)">
+    <circle cx="50" cy="10" r="26" fill="#D48A10" stroke="#0B1226" stroke-width="1.6"/>
+    <rect x="21" y="14" width="22" height="29" rx="1.5" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.8" transform="rotate(-4 32 28)"/>
+    <path d="M26 22 h13 M26 27 h13 M26 32 h9" stroke="#0B1226" stroke-width="1.7" stroke-linecap="round" transform="rotate(-4 32 28)"/>
+    <path d="M12 45 L52 34" stroke="#2647E8" stroke-width="4.6" stroke-linecap="round"/>
+    <circle cx="12" cy="45" r="3" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="52" cy="34" r="3" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.6"/>
+    <rect x="43" y="49" width="6" height="6" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.4" transform="rotate(45 46 52)"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Researcher — "The Surgeon": blue field, quote-marks lifting a teal gem (verbatim evidence). -->
+<svg th:fragment="researcher(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Researcher">
+  <defs><clipPath id="emb-res"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#2647E8"/>
+  <g clip-path="url(#emb-res)">
+    <circle cx="50" cy="10" r="26" fill="#1531B8" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M19 13 q-7.5 2 -7.5 10.5 q0 6.5 6 6.5 q5.6 0 5.6 -5.4 q0 -5 -4.8 -5.2 q0.7 -3.4 4.1 -4.6 Z" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M35 13 q-7.5 2 -7.5 10.5 q0 6.5 6 6.5 q5.6 0 5.6 -5.4 q0 -5 -4.8 -5.2 q0.7 -3.4 4.1 -4.6 Z" fill="#F5A623" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M32 37 L40 43 L37 52 L27 52 L24 43 Z" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.8"/>
+    <path d="M32 37 L32 52 M24 43 L40 43" stroke="#0B1226" stroke-width="1.1"/>
+    <circle cx="47" cy="31" r="2.2" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.4"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Connector — "The Duelist": coral field, two measured forces, the delta crowned in gold. -->
+<svg th:fragment="connector(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Connector">
+  <defs><clipPath id="emb-con"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#FF5A36"/>
+  <g clip-path="url(#emb-con)">
+    <circle cx="50" cy="10" r="26" fill="#D94826" stroke="#0B1226" stroke-width="1.6"/>
+    <rect x="18" y="31" width="9.5" height="17" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.8"/>
+    <rect x="36.5" y="21" width="9.5" height="27" fill="#0E1B6B" stroke="#0B1226" stroke-width="1.8"/>
+    <path d="M32 9.5 L38 17.5 L26 17.5 Z" fill="#F5A623" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M14 51.5 h36" stroke="#0B1226" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="13" cy="22" r="2.2" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.4"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Analyst — "The Strategist": deep blue field, a constellation resolving into a gold arrow. -->
+<svg th:fragment="analyst(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Analyst">
+  <defs><clipPath id="emb-ana"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#1531B8"/>
+  <g clip-path="url(#emb-ana)">
+    <circle cx="50" cy="10" r="26" fill="#0E1B6B" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M14 45 L24 36 L31 40 L41 25" stroke="#8FA6FF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M48 16 L50.5 24.5 L41.5 25.5 Z" fill="#F5A623" stroke="#0B1226" stroke-width="1.5"/>
+    <circle cx="14" cy="45" r="3.2" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="24" cy="36" r="3.2" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="31" cy="40" r="3.2" fill="#F5A623" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="19" cy="19" r="1.8" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.2"/>
+    <rect x="44" y="44" width="5.5" height="5.5" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.4" transform="rotate(45 46.8 46.8)"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Editor — "The Gatekeeper": magenta field, a gold shield of woven law (materiality rubric). -->
+<svg th:fragment="editor(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Editor">
+  <defs><clipPath id="emb-edi"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#E93EA0"/>
+  <g clip-path="url(#emb-edi)">
+    <circle cx="50" cy="10" r="26" fill="#C22A82" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M32 11 L48 17 V30 Q48 44 32 52 Q16 44 16 30 V17 Z" fill="#F5A623" stroke="#0B1226" stroke-width="1.8"/>
+    <path d="M23 19.5 V44 M32 14.5 V50 M41 19.5 V44 M17.5 24 H46.5 M16.5 32 H47.5 M19 40 H45" stroke="#0B1226" stroke-width="1.1" opacity="0.75"/>
+    <circle cx="32" cy="30.5" r="5.5" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M32 28.5 v4 M30.2 30.5 h3.6" stroke="#0B1226" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="13.5" cy="47" r="2.2" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.4"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Fact-checker — "The Marksman": green field, rumors in the crosshair, truth ticked in gold. -->
+<svg th:fragment="factchecker(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Fact-checker">
+  <defs><clipPath id="emb-fac"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#4CAF7D"/>
+  <g clip-path="url(#emb-fac)">
+    <circle cx="50" cy="10" r="26" fill="#2F8A5E" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="32" cy="32" r="16" fill="none" stroke="#F2EFE8" stroke-width="3.2"/>
+    <circle cx="32" cy="32" r="16" fill="none" stroke="#0B1226" stroke-width="0.9" opacity="0.5"/>
+    <path d="M32 11 v6 M32 47 v6 M11 32 h6 M47 32 h6" stroke="#0B1226" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M24 32.5 L29.5 38.5 L41 25.5" stroke="#0B1226" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M24 32.5 L29.5 38.5 L41 25.5" stroke="#F5A623" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="15" cy="15" r="2.2" fill="#F5A623" stroke="#0B1226" stroke-width="1.4"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Independent Verifier — "The Second Opinion" (NEW, same recipe): navy field, a cream
+     balance scale weighing claim against evidence — never the writer's own weights. -->
+<svg th:fragment="verifier(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Independent Verifier">
+  <defs><clipPath id="emb-ver"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#152A8C"/>
+  <g clip-path="url(#emb-ver)">
+    <circle cx="50" cy="10" r="26" fill="#0E1B6B" stroke="#0B1226" stroke-width="1.6"/>
+    <path d="M32 9 L36 15 L28 15 Z" fill="#F5A623" stroke="#0B1226" stroke-width="1.5"/>
+    <rect x="30" y="15" width="4" height="29" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.5"/>
+    <rect x="14" y="20" width="36" height="4" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.5"/>
+    <path d="M17 24 v9 M47 24 v9" stroke="#0B1226" stroke-width="1.6"/>
+    <circle cx="17" cy="38.5" r="6" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.8"/>
+    <circle cx="47" cy="36.5" r="6" fill="#F5A623" stroke="#0B1226" stroke-width="1.8"/>
+    <rect x="23" y="44" width="18" height="4.5" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.5"/>
+    <circle cx="13" cy="14.5" r="2.2" fill="#7FE0D2" stroke="#0B1226" stroke-width="1.4"/>
+    <rect x="45" y="50" width="5.5" height="5.5" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.4" transform="rotate(45 47.8 52.8)"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+<!-- Product SME (human) — "The Final Word": cream field, a coral wax seal signed by hand in ink. -->
+<svg th:fragment="sme(size)" th:width="${size}" th:height="${size}" viewBox="0 0 64 64" fill="none" role="img" aria-label="Product SME">
+  <defs><clipPath id="emb-sme"><circle cx="32" cy="32" r="30"/></clipPath></defs>
+  <circle cx="32" cy="32" r="30" fill="#F2EFE8"/>
+  <g clip-path="url(#emb-sme)">
+    <circle cx="50" cy="10" r="26" fill="#E4DFD2" stroke="#0B1226" stroke-width="1.6"/>
+    <g fill="#0B1226">
+      <circle cx="32" cy="29" r="16"/>
+      <circle cx="32" cy="13.7" r="4.9"/><circle cx="39.9" cy="15.8" r="4.9"/><circle cx="45.4" cy="21.6" r="4.9"/><circle cx="47.3" cy="29" r="4.9"/><circle cx="45.4" cy="36.4" r="4.9"/><circle cx="39.9" cy="42.2" r="4.9"/><circle cx="32" cy="44.3" r="4.9"/><circle cx="24.1" cy="42.2" r="4.9"/><circle cx="18.6" cy="36.4" r="4.9"/><circle cx="16.7" cy="29" r="4.9"/><circle cx="18.6" cy="21.6" r="4.9"/><circle cx="24.1" cy="15.8" r="4.9"/>
+    </g>
+    <g fill="#FF5A36">
+      <circle cx="32" cy="29" r="14.6"/>
+      <circle cx="32" cy="14.7" r="3.9"/><circle cx="39.4" cy="16.7" r="3.9"/><circle cx="44.5" cy="22.1" r="3.9"/><circle cx="46.3" cy="29" r="3.9"/><circle cx="44.5" cy="35.9" r="3.9"/><circle cx="39.4" cy="41.3" r="3.9"/><circle cx="32" cy="43.3" r="3.9"/><circle cx="24.6" cy="41.3" r="3.9"/><circle cx="19.5" cy="35.9" r="3.9"/><circle cx="17.7" cy="29" r="3.9"/><circle cx="19.5" cy="22.1" r="3.9"/><circle cx="24.6" cy="16.7" r="3.9"/>
+    </g>
+    <circle cx="32" cy="29" r="9.5" fill="none" stroke="#F2EFE8" stroke-width="1.6"/>
+    <path d="M32 23 L35 30.5 L32 34 L29 30.5 Z" fill="#F2EFE8" stroke="#0B1226" stroke-width="1"/>
+    <path d="M17 52.5 q7 -4 12 -1 q5 3 18 -2.5" stroke="#0B1226" stroke-width="2" stroke-linecap="round" fill="none"/>
+  </g>
+  <circle cx="32" cy="32" r="30" stroke="#0B1226" stroke-width="2" fill="none"/>
+</svg>
+
+</body>
+</html>
