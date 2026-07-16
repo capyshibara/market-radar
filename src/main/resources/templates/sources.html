@@ -11,6 +11,49 @@
 <link rel="stylesheet" href="/css/patterns.css"/>
 <link rel="stylesheet" href="/css/ops-components.css"/>
 <link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .source-modal[hidden] { display: none; }
+  .source-modal { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; }
+  .source-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .58); }
+  .source-modal-card { position: relative; width: min(680px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+    border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--surface-card);
+    box-shadow: 0 24px 64px rgba(15, 23, 42, .24); }
+  .source-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;
+    padding: 20px 22px 16px; border-bottom: 1px solid var(--border-subtle); }
+  .source-modal-head h2 { margin: 0; font-size: var(--text-xl); }
+  .source-modal-head p { margin: 5px 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+  .source-modal-close { border: 0; background: transparent; color: var(--text-secondary); cursor: pointer;
+    font-size: 24px; line-height: 1; padding: 2px 4px; }
+  .source-form { padding: 18px 22px 22px; }
+  .source-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .source-form-wide { grid-column: 1 / -1; }
+  .source-active-row { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 11px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--slate-50); }
+  .source-active-row label { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+  .source-active-row small { display: block; margin-top: 2px; color: var(--text-tertiary); }
+  .source-active-row input { width: 18px; height: 18px; accent-color: var(--brand-red-500); }
+  .source-test-panel { margin-top: 16px; padding: 14px; border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); background: var(--surface-card-sunk); }
+  .source-test-panel.is-success { border-color: var(--green-500); background: var(--green-50); }
+  .source-test-panel.is-error { border-color: var(--rose-500); background: var(--rose-50); }
+  .source-test-title { display: flex; align-items: center; gap: 7px; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+  .source-test-message { margin: 5px 0 12px; font-size: var(--text-xs); color: var(--text-secondary); }
+  .source-test-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+  .source-test-fact span { display: block; color: var(--text-tertiary); font-size: var(--text-2xs);
+    font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+  .source-test-fact strong { display: block; margin-top: 2px; font-size: var(--text-xs); overflow-wrap: anywhere; }
+  .source-form-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+  .source-form-actions > div { display: flex; gap: 8px; }
+  .source-save-feedback { margin-top: 12px; }
+  @media (max-width: 680px) {
+    .source-modal { padding: 10px; }
+    .source-modal-card { max-height: calc(100vh - 20px); }
+    .source-form-grid, .source-test-facts { grid-template-columns: 1fr; }
+    .source-form-wide { grid-column: auto; }
+    .source-form-actions { align-items: stretch; flex-direction: column; }
+    .source-form-actions > div { display: grid; grid-template-columns: 1fr 1fr; }
+  }
+</style>
 </head>
 <body>
 <div class="ops-shell">
@@ -29,6 +72,11 @@
             <h1 th:text="#{ops.sources.title}">Source Registry</h1>
             <p th:text="#{ops.sources.description}">description</p>
           </div>
+          <div class="actions" data-role-show="admin">
+            <button id="source-add-open" class="btn btn-primary" type="button">
+              <span aria-hidden="true">＋</span><span th:text="#{ops.sources.addSource}">Add source</span>
+            </button>
+          </div>
         </div>
 
         <div class="data-table-wrap"><div class="data-table-scroll">
@@ -40,6 +88,7 @@
               <th th:text="#{ops.sources.colFetchType}">Fetch type</th>
               <th th:text="#{ops.sources.colLang}">Lang</th>
               <th th:text="#{ops.sources.colHost}">Host</th>
+              <th th:text="#{ops.sources.colStatus}">Status</th>
               <th th:text="#{ops.sources.colVerified}">URL verified</th>
             </tr></thead>
             <tbody>
@@ -51,6 +100,10 @@
                 <td th:text="${s.type}">HTML</td>
                 <td th:text="${s.language}">vi</td>
                 <td style="font-family:var(--font-mono);font-size:var(--text-xs)" th:text="${s.allowedHost}">host</td>
+                <td>
+                  <span th:if="${s.active}" class="badge badge-success" th:text="#{ops.sources.active}">Active</span>
+                  <span th:unless="${s.active}" class="badge badge-neutral" th:text="#{ops.sources.inactive}">Inactive</span>
+                </td>
                 <td>
                   <span th:if="${s.urlUnverified}" class="badge badge-warn" th:text="#{ops.sources.unverified}">Unverified</span>
                   <span th:unless="${s.urlUnverified}" class="badge badge-success" th:text="#{ops.sources.verified}">Verified</span>
@@ -67,8 +120,193 @@
     </div>
   </div>
 </div>
+
+<div id="source-modal" class="source-modal" data-role-show="admin" hidden aria-hidden="true">
+  <div class="source-modal-backdrop" data-source-close></div>
+  <section class="source-modal-card" role="dialog" aria-modal="true" aria-labelledby="source-modal-title">
+    <div class="source-modal-head">
+      <div>
+        <h2 id="source-modal-title" th:text="#{ops.sources.formTitle}">Add a source</h2>
+        <p th:text="#{ops.sources.formDescription}">Test access and parser compatibility before activation.</p>
+      </div>
+      <button class="source-modal-close" type="button" data-source-close th:aria-label="#{ops.sources.close}">×</button>
+    </div>
+    <form id="source-form" class="source-form">
+      <div class="source-form-grid">
+        <div>
+          <div class="field-label"><label class="lbl" for="source-name" th:text="#{ops.sources.fieldName}">Source name</label><span class="req">*</span></div>
+          <input id="source-name" class="ops-input" name="name" required maxlength="180" placeholder="Vietnam Insurance Association"/>
+        </div>
+        <div>
+          <div class="field-label"><label class="lbl" for="source-code" th:text="#{ops.sources.fieldCode}">Source code</label><span class="req">*</span></div>
+          <input id="source-code" class="ops-input" name="code" required minlength="3" maxlength="40"
+                 pattern="[A-Z][A-Z0-9_]{2,39}" placeholder="IAV_VN"/>
+        </div>
+        <div class="source-form-wide">
+          <div class="field-label"><label class="lbl" for="source-url" th:text="#{ops.sources.fieldUrl}">Feed or page URL</label><span class="req">*</span></div>
+          <input id="source-url" class="ops-input" name="fetchUrl" type="url" required placeholder="https://example.com/news.xml"/>
+        </div>
+        <div>
+          <div class="field-label"><label class="lbl" for="source-parser" th:text="#{ops.sources.fieldParser}">Parser type</label><span class="req">*</span></div>
+          <select id="source-parser" class="ops-select" name="type" required>
+            <option value="RSS">RSS / Atom</option><option value="HTML">HTML</option>
+            <option value="PDF">PDF</option><option value="JSON">JSON API</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label"><label class="lbl" for="source-tier" th:text="#{ops.sources.fieldTier}">Trust tier</label><span class="req">*</span></div>
+          <select id="source-tier" class="ops-select" name="tier" required>
+            <option value="1" th:text="#{ops.sources.tier1}">Tier 1 — regulator / official</option>
+            <option value="2" th:text="#{ops.sources.tier2}">Tier 2 — established publisher</option>
+            <option value="3" th:text="#{ops.sources.tier3}">Tier 3 — contextual source</option>
+            <option value="4" th:text="#{ops.sources.tier4}">Tier 4 — discovery only</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label"><label class="lbl" for="source-language" th:text="#{ops.sources.fieldLanguage}">Language</label><span class="req">*</span></div>
+          <select id="source-language" class="ops-select" name="language" required>
+            <option value="vi" th:text="#{ops.sources.langVi}">Vietnamese</option>
+            <option value="en" th:text="#{ops.sources.langEn}">English</option>
+            <option value="zh" th:text="#{ops.sources.langZh}">Chinese</option>
+            <option value="ko" th:text="#{ops.sources.langKo}">Korean</option>
+            <option value="ja" th:text="#{ops.sources.langJa}">Japanese</option>
+          </select>
+        </div>
+        <div class="source-active-row">
+          <div><label for="source-active" th:text="#{ops.sources.fieldActive}">Activate after save</label>
+            <small th:text="#{ops.sources.activeHint}">Only available after a successful compatible test.</small></div>
+          <input id="source-active" name="active" type="checkbox" disabled/>
+        </div>
+      </div>
+
+      <div id="source-test-panel" class="source-test-panel" hidden aria-live="polite">
+        <div class="source-test-title"><span id="source-test-icon">●</span><span id="source-test-title-text"></span></div>
+        <p id="source-test-message" class="source-test-message"></p>
+        <div class="source-test-facts">
+          <div class="source-test-fact"><span th:text="#{ops.sources.testConnection}">Connection</span><strong id="test-connection">—</strong></div>
+          <div class="source-test-fact"><span th:text="#{ops.sources.testContent}">Detected content</span><strong id="test-content">—</strong></div>
+          <div class="source-test-fact"><span th:text="#{ops.sources.testHost}">Allowed host</span><strong id="test-host">—</strong></div>
+          <div class="source-test-fact"><span th:text="#{ops.sources.testParser}">Parser support</span><strong id="test-parser">—</strong></div>
+          <div class="source-test-fact"><span th:text="#{ops.sources.testSize}">Response size</span><strong id="test-size">—</strong></div>
+        </div>
+      </div>
+      <div id="source-save-feedback" class="source-save-feedback" hidden aria-live="polite"></div>
+
+      <div class="source-form-actions">
+        <button id="source-test" class="btn btn-secondary" type="button" th:text="#{ops.sources.testAction}">Test source</button>
+        <div>
+          <button class="btn btn-ghost" type="button" data-source-close th:text="#{ops.sources.cancel}">Cancel</button>
+          <button id="source-save" class="btn btn-primary" type="submit" disabled th:text="#{ops.sources.saveAction}">Save source</button>
+        </div>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div id="source-i18n" hidden
+     th:data-testing="#{ops.sources.testing}" th:data-saving="#{ops.sources.saving}"
+     th:data-test-pass="#{ops.sources.testPassed}" th:data-test-fail="#{ops.sources.testFailed}"
+     th:data-connected="#{ops.sources.connected}" th:data-not-connected="#{ops.sources.notConnected}"
+     th:data-supported="#{ops.sources.supported}" th:data-parser-needed="#{ops.sources.parserNeeded}"
+     th:data-request-error="#{ops.sources.requestError}" th:data-saved="#{ops.sources.saved}"
+     th:data-test-action="#{ops.sources.testAction}" th:data-save-action="#{ops.sources.saveAction}"></div>
 <script src="/js/ops-session.js"></script>
 <script src="/js/ops-sidebar.js"></script>
 <script src="/js/ops-pipeline-guard.js"></script>
+<script>
+(function () {
+  var modal = document.getElementById('source-modal');
+  var form = document.getElementById('source-form');
+  var openButton = document.getElementById('source-add-open');
+  var testButton = document.getElementById('source-test');
+  var saveButton = document.getElementById('source-save');
+  var activeInput = document.getElementById('source-active');
+  var nameInput = document.getElementById('source-name');
+  var codeInput = document.getElementById('source-code');
+  var panel = document.getElementById('source-test-panel');
+  var feedback = document.getElementById('source-save-feedback');
+  var words = document.getElementById('source-i18n').dataset;
+  var testPassed = false;
+  var codeWasEdited = false;
+  function field(name) { return form.elements.namedItem(name); }
+
+  function openModal() {
+    modal.hidden = false; modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden'; setTimeout(function () { nameInput.focus(); }, 0);
+  }
+  function closeModal() {
+    modal.hidden = true; modal.setAttribute('aria-hidden', 'true'); document.body.style.overflow = '';
+  }
+  function resetTest() {
+    testPassed = false; saveButton.disabled = true; activeInput.checked = false; activeInput.disabled = true;
+    panel.hidden = true; panel.className = 'source-test-panel'; feedback.hidden = true;
+  }
+  function sourceCode(value) {
+    return value.replace(/[Đđ]/g, 'D').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  }
+  function showTest(result) {
+    panel.hidden = false;
+    panel.className = 'source-test-panel ' + (result.success ? 'is-success' : 'is-error');
+    document.getElementById('source-test-title-text').textContent = result.success ? words.testPass : words.testFail;
+    document.getElementById('source-test-icon').textContent = result.success ? '✓' : '!';
+    document.getElementById('source-test-message').textContent = result.message || '';
+    document.getElementById('test-connection').textContent = result.success ? words.connected : words.notConnected;
+    document.getElementById('test-content').textContent = result.contentType || '—';
+    document.getElementById('test-host').textContent = result.allowedHost || '—';
+    document.getElementById('test-parser').textContent = result.parserSupport ? words.supported : words.parserNeeded;
+    document.getElementById('test-size').textContent = result.bytes ? Math.max(1, Math.round(result.bytes / 1024)) + ' KB' : '—';
+    testPassed = Boolean(result.success);
+    saveButton.disabled = !testPassed;
+    activeInput.disabled = !testPassed || !result.recommendedActive;
+    activeInput.checked = testPassed && Boolean(result.recommendedActive);
+  }
+  async function jsonResponse(response) {
+    var data;
+    try { data = await response.json(); } catch (ignored) { data = { success: false, message: words.requestError }; }
+    if (!response.ok && !data.message) data.message = words.requestError;
+    return data;
+  }
+
+  if (openButton) openButton.addEventListener('click', openModal);
+  document.querySelectorAll('[data-source-close]').forEach(function (el) { el.addEventListener('click', closeModal); });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && !modal.hidden) closeModal(); });
+  nameInput.addEventListener('input', function () { if (!codeWasEdited) codeInput.value = sourceCode(nameInput.value); resetTest(); });
+  codeInput.addEventListener('input', function () { codeWasEdited = codeInput.value.length > 0; resetTest(); });
+  document.getElementById('source-url').addEventListener('input', resetTest);
+  document.getElementById('source-parser').addEventListener('change', resetTest);
+
+  testButton.addEventListener('click', async function () {
+    if (!form.reportValidity()) return;
+    testButton.disabled = true; testButton.textContent = words.testing; feedback.hidden = true;
+    try {
+      var response = await fetch('/sources/test', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fetchUrl: field('fetchUrl').value, type: field('type').value }) });
+      showTest(await jsonResponse(response));
+    } catch (error) { showTest({ success: false, message: words.requestError, parserSupport: false }); }
+    finally { testButton.disabled = false; testButton.textContent = words.testAction; }
+  });
+
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault(); if (!testPassed || !form.reportValidity()) return;
+    saveButton.disabled = true; saveButton.textContent = words.saving; feedback.hidden = true;
+    var payload = { code: field('code').value, name: field('name').value, fetchUrl: field('fetchUrl').value,
+      type: field('type').value, tier: Number(field('tier').value), language: field('language').value,
+      active: field('active').checked, testPassed: true };
+    try {
+      var response = await fetch('/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      var result = await jsonResponse(response);
+      if (response.ok && result.success) {
+        feedback.className = 'source-save-feedback flash flash-success'; feedback.textContent = result.message || words.saved;
+        feedback.hidden = false; setTimeout(function () { window.location.reload(); }, 800); return;
+      }
+      feedback.className = 'source-save-feedback flash flash-error'; feedback.textContent = result.message || words.requestError; feedback.hidden = false;
+    } catch (error) {
+      feedback.className = 'source-save-feedback flash flash-error'; feedback.textContent = words.requestError; feedback.hidden = false;
+    }
+    saveButton.disabled = false; saveButton.textContent = words.saveAction;
+  });
+})();
+</script>
 </body>
 </html>

@@ -12,6 +12,13 @@
 
   <div class="ops-sidebar-body">
     <div>
+      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupIntelligence}">Intelligence</div>
+      <div class="ops-nav-group">
+        <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
+      </div>
+    </div>
+
+    <div>
       <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupAction}">Needs action</div>
       <div class="ops-nav-group">
         <a href="/review" class="ops-nav-item" th:classappend="${active == 'review'} ? 'is-active'">
@@ -21,36 +28,29 @@
       </div>
     </div>
 
-    <div>
-      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupAudit}">Audit trail</div>
+    <div data-nav-group="pipeline">
+      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupOperations}">Operations</div>
       <div class="ops-nav-group">
+        <a href="/pipeline" class="ops-nav-item" th:classappend="${active == 'pipelinerun'} ? 'is-active'" th:text="#{ops.sidebar.navPipelineRun}">Pipeline Runner</a>
+        <a href="/pipeline/history" class="ops-nav-item" th:classappend="${active == 'pipelinehistory'} ? 'is-active'" th:text="#{ops.sidebar.navRunHistory}">Run History</a>
+        <a href="/sources" class="ops-nav-item" th:classappend="${active == 'sources'} ? 'is-active'" th:text="#{ops.sidebar.navSources}">Source Registry</a>
+      </div>
+    </div>
+
+    <details class="ops-nav-advanced"
+             th:attr="open=${active == 'claims' or active == 'labels' or active == 'alerts' or active == 'llmsettings' or active == 'prompts' or active == 'classifications' or active == 'dedup' or active == 'rolematrix'} ? 'open' : null">
+      <summary th:text="#{ops.sidebar.groupAdvanced}">Advanced</summary>
+      <div class="ops-nav-group ops-nav-advanced-items">
         <a href="/claims" class="ops-nav-item" th:classappend="${active == 'claims'} ? 'is-active'" th:text="#{ops.sidebar.navClaims}">Claim Audit</a>
         <a href="/labels" class="ops-nav-item" th:classappend="${active == 'labels'} ? 'is-active'" th:text="#{ops.sidebar.navLabels}">Label Log</a>
         <a href="/alerts" class="ops-nav-item" th:classappend="${active == 'alerts'} ? 'is-active'" th:text="#{ops.sidebar.navAlerts}">Hot Alert Log</a>
-      </div>
-    </div>
-
-    <div data-nav-group="pipeline">
-      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupPipeline}">Pipeline config</div>
-      <div class="ops-nav-group">
-        <a href="/pipeline" class="ops-nav-item" th:classappend="${active == 'pipelinerun'} ? 'is-active'" th:text="#{ops.sidebar.navPipelineRun}">Pipeline Runner</a>
-        <a href="/pipeline/history" class="ops-nav-item" th:classappend="${active == 'pipelinehistory'} ? 'is-active'">Run History</a>
-        <a href="/llm-settings" class="ops-nav-item" th:classappend="${active == 'llmsettings'} ? 'is-active'">LLM Settings</a>
-        <a href="/prompts" class="ops-nav-item" th:classappend="${active == 'prompts'} ? 'is-active'">AI Prompts</a>
-        <a href="/sources" class="ops-nav-item" th:classappend="${active == 'sources'} ? 'is-active'" th:text="#{ops.sidebar.navSources}">Source Registry</a>
-        <a href="/classifications" class="ops-nav-item" th:classappend="${active == 'classifications'} ? 'is-active'" th:text="#{ops.sidebar.navClassifications}">Classifier + Routing</a>
-        <a href="/dedup" class="ops-nav-item" th:classappend="${active == 'dedup'} ? 'is-active'" th:text="#{ops.sidebar.navDedup}">Dedup / Conflict</a>
-      </div>
-    </div>
-
-    <div>
-      <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupReference}">Reference</div>
-      <div class="ops-nav-group">
+        <a href="/llm-settings" class="ops-nav-item" data-role-show="admin,auditor" th:classappend="${active == 'llmsettings'} ? 'is-active'" th:text="#{ops.sidebar.navLlmSettings}">LLM Settings</a>
+        <a href="/prompts" class="ops-nav-item" data-role-show="admin,auditor" th:classappend="${active == 'prompts'} ? 'is-active'" th:text="#{ops.sidebar.navPrompts}">AI Prompts</a>
+        <a href="/classifications" class="ops-nav-item" data-role-show="admin,auditor" th:classappend="${active == 'classifications'} ? 'is-active'" th:text="#{ops.sidebar.navClassifications}">Classifier + Routing</a>
+        <a href="/dedup" class="ops-nav-item" data-role-show="admin,auditor" th:classappend="${active == 'dedup'} ? 'is-active'" th:text="#{ops.sidebar.navDedup}">Dedup / Conflict</a>
         <a href="/ops/role-matrix" class="ops-nav-item" th:classappend="${active == 'rolematrix'} ? 'is-active'" th:text="#{ops.sidebar.navRoleMatrix}">Roles &amp; Permissions</a>
-        <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'">The Newsroom ↗</a>
-        <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navReport}">Weekly report ↗</a>
       </div>
-    </div>
+    </details>
   </div>
 
   <div class="ops-sidebar-footer">
@@ -65,10 +65,10 @@
     <div class="ops-switcher" id="ops-switcher">
       <div class="ops-switcher-label" th:text="#{ops.common.switchAccount}">Switch demo account</div>
       <div class="ops-switcher-item" th:each="acc : ${T(java.util.List).of(
-              T(java.util.Map).of('name','Trần Minh','email','minh.tran@marketradar-demo.vn','role','Checker · Compliance'),
-              T(java.util.Map).of('name','Phạm Lan','email','lan.pham@marketradar-demo.vn','role','Maker · Product'),
-              T(java.util.Map).of('name','Nguyễn An','email','an.nguyen@marketradar-demo.vn','role','Compliance Admin'),
-              T(java.util.Map).of('name','Lê Hoa','email','hoa.le@marketradar-demo.vn','role','Auditor'))}"
+              T(java.util.Map).of('name','Nguyễn Thị Minh Hạnh','email','hanh.nguyen@marketradar-demo.vn','role','Checker · Compliance'),
+              T(java.util.Map).of('name','Nguyễn Phương Đình','email','dinh.nguyen@marketradar-demo.vn','role','Maker · Product'),
+              T(java.util.Map).of('name','Trần Văn Cao','email','cao.tran@marketradar-demo.vn','role','Compliance Admin'),
+              T(java.util.Map).of('name','Lê Hoàng Anh','email','anh.le@marketradar-demo.vn','role','Auditor'))}"
            th:attr="data-email=${acc.get('email')}">
         <div class="n" th:text="${acc.get('name')}">Name</div>
         <div class="r" th:text="${acc.get('role')}">Role</div>

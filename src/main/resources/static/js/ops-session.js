@@ -32,16 +32,26 @@
   };
 
   var ACCOUNTS = [
-    { name: 'Trần Minh', email: 'minh.tran@marketradar-demo.vn', role: 'checker', dept: 'Compliance' },
-    { name: 'Phạm Lan', email: 'lan.pham@marketradar-demo.vn', role: 'maker', dept: 'Product' },
-    { name: 'Nguyễn An', email: 'an.nguyen@marketradar-demo.vn', role: 'admin', dept: null },
-    { name: 'Lê Hoa', email: 'hoa.le@marketradar-demo.vn', role: 'auditor', dept: null },
+    { name: 'Nguyễn Thị Minh Hạnh', email: 'hanh.nguyen@marketradar-demo.vn', role: 'checker', dept: 'Compliance' },
+    { name: 'Nguyễn Phương Đình', email: 'dinh.nguyen@marketradar-demo.vn', role: 'maker', dept: 'Product' },
+    { name: 'Trần Văn Cao', email: 'cao.tran@marketradar-demo.vn', role: 'admin', dept: null },
+    { name: 'Lê Hoàng Anh', email: 'anh.le@marketradar-demo.vn', role: 'auditor', dept: null },
   ];
 
   var KEY = 'mr_ops_session';
 
   function getSession() {
-    try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; }
+    try {
+      var stored = JSON.parse(localStorage.getItem(KEY));
+      if (!stored) return null;
+      // Keep existing demo sessions aligned when account display names change.
+      var current = ACCOUNTS.find(function (account) { return account.role === stored.role; });
+      if (current && (current.name !== stored.name || current.email !== stored.email)) {
+        setSession(current);
+        return current;
+      }
+      return stored;
+    } catch (e) { return null; }
   }
   function setSession(acc) { localStorage.setItem(KEY, JSON.stringify(acc)); }
   function clearSession() { localStorage.removeItem(KEY); }

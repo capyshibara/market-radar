@@ -45,8 +45,14 @@ public class PipelineRunStatusService {
         this.runLogRepo = runLogRepo;
     }
 
-    /** Job dùng để gắn PipelineItemLog vào ĐÚNG lần chạy hiện tại của stage mình. */
-    public Long currentRunLogId(String stage) { return currentRunLogId.get(stage); }
+    /**
+     * Job dùng để gắn PipelineItemLog vào ĐÚNG lần chạy hiện tại của stage mình.
+     * A scheduled/direct invocation outside {@link #trigger} must not append
+     * events to an old completed run merely because its id remains in memory.
+     */
+    public Long currentRunLogId(String stage) {
+        return get(stage).state() == RunState.RUNNING ? currentRunLogId.get(stage) : null;
+    }
 
     /** Batch 10 (feedback Hanh — "very very helpful" progress bar): completed/total
      * per running stage, set by the job itself (only it knows its own loop size). */

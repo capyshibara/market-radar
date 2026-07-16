@@ -210,7 +210,10 @@ public class IngestionJob {
         int stored = 0;
         for (var art : capItems(source, parsers.parseMofList(listRes.body(), source.getFetchUrl()))) {
             var existing = rawDocs.findFirstByUrlOrderByIdAsc(art.url());
-            if (existing.isPresent() && existing.get().isFullTextFetched()) continue;
+            if (existing.isPresent() && existing.get().isFullTextFetched()) {
+                logIngestDocument(existing.get(), "UNCHANGED", "Full text already current");
+                continue;
+            }
 
             String fullText = null, note = null;
             try {
@@ -228,12 +231,20 @@ public class IngestionJob {
                     : (art.title() + (art.description().isBlank() ? "" : "\n\n" + art.description()));
             String hash = sha256(normalizeForHash(text));
             if (existing.isPresent()) {
-                if (isFull) { existing.get().upgradeToFullText(hash, text, note); rawDocs.save(existing.get()); stored++; }
+                if (isFull) {
+                    existing.get().upgradeToFullText(hash, text, note);
+                    rawDocs.save(existing.get());
+                    logIngestDocument(existing.get(), "UPDATED", "Full text backfilled");
+                    stored++;
+                } else {
+                    logIngestDocument(existing.get(), "UNCHANGED", "Existing document retained");
+                }
             } else if (!rawDocs.existsByContentHash(hash)) {
                 RawDoc doc = new RawDoc(source, art.url(), art.title(), art.publishedAt(), Instant.now(),
                         hash, text, source.getLanguage(), RawDoc.ParseStatus.OK, note);
                 if (isFull) doc.upgradeToFullText(hash, text, note);
-                rawDocs.save(doc);
+                doc = rawDocs.save(doc);
+                logIngestDocument(doc, "NEW", "New document stored");
                 stored++;
             }
         }
@@ -324,7 +335,10 @@ public class IngestionJob {
         for (var item : capItems(source, listing)) {
             String link = item.link() == null ? source.getFetchUrl() : item.link();
             var existing = rawDocs.findFirstByUrlOrderByIdAsc(link);
-            if (existing.isPresent() && existing.get().isFullTextFetched()) continue; // đã có toàn văn — khỏi fetch lại
+            if (existing.isPresent() && existing.get().isFullTextFetched()) {
+                logIngestDocument(existing.get(), "UNCHANGED", "Full text already current");
+                continue; // đã có toàn văn — khỏi fetch lại
+            }
 
             String linkHost = safeHost(link);
             String fetchHost = articleFetchHost(source, linkHost);
@@ -355,12 +369,14 @@ public class IngestionJob {
             if (existing.isPresent()) {
                 existing.get().upgradeToFullText(hash, fullText, note);
                 rawDocs.save(existing.get());
+                logIngestDocument(existing.get(), "UPDATED", "Full text backfilled");
                 stored++;
             } else if (!rawDocs.existsByContentHash(hash)) {
                 RawDoc doc = new RawDoc(source, link, item.title(), item.publishedAt(), Instant.now(),
                         hash, fullText, source.getLanguage(), RawDoc.ParseStatus.OK, note);
                 doc.upgradeToFullText(hash, fullText, note);
-                rawDocs.save(doc);
+                doc = rawDocs.save(doc);
+                logIngestDocument(doc, "NEW", "New document stored");
                 stored++;
             }
         }
@@ -421,7 +437,10 @@ public class IngestionJob {
         for (var item : capItems(source, parsers.parseRss(result.body()))) {
             String link = item.link() == null ? source.getFetchUrl() : item.link();
             var existing = rawDocs.findFirstByUrlOrderByIdAsc(link);
-            if (existing.isPresent() && existing.get().isFullTextFetched()) continue;
+            if (existing.isPresent() && existing.get().isFullTextFetched()) {
+                logIngestDocument(existing.get(), "UNCHANGED", "Full text already current");
+                continue;
+            }
 
             String linkHost = safeHost(link);
             String fetchHost = articleFetchHost(source, linkHost);
@@ -449,12 +468,14 @@ public class IngestionJob {
             if (existing.isPresent()) {
                 existing.get().upgradeToFullText(hash, fullText, note);
                 rawDocs.save(existing.get());
+                logIngestDocument(existing.get(), "UPDATED", "Full text backfilled");
                 stored++;
             } else if (!rawDocs.existsByContentHash(hash)) {
                 RawDoc doc = new RawDoc(source, link, item.title(), item.publishedAt(), Instant.now(),
                         hash, fullText, source.getLanguage(), RawDoc.ParseStatus.OK, note);
                 doc.upgradeToFullText(hash, fullText, note);
-                rawDocs.save(doc);
+                doc = rawDocs.save(doc);
+                logIngestDocument(doc, "NEW", "New document stored");
                 stored++;
             }
         }
@@ -471,17 +492,33 @@ public class IngestionJob {
         String hash = sha256(normalizeForHash(text));
         if (rawDocs.existsByContentHash(hash)) {
             log.debug("Dedup hash trùng, bỏ qua: {}", url);
+            rawDocs.findFirstByUrlOrderByIdAsc(url)
+                    .ifPresent(doc -> logIngestDocument(doc, "UNCHANGED", "Duplicate content retained"));
             return false;
         }
-        rawDocs.save(new RawDoc(source, url, title, publishedAt, Instant.now(),
+        RawDoc saved = rawDocs.save(new RawDoc(source, url, title, publishedAt, Instant.now(),
                 hash, text, source.getLanguage(), RawDoc.ParseStatus.OK, note));
+        logIngestDocument(saved, "NEW", "New document stored");
         return true;
     }
 
     private void recordFailure(Source source, String url, RawDoc.ParseStatus status, String reason) {
         String hash = sha256("FAILURE:" + url + ":" + Instant.now());
-        rawDocs.save(new RawDoc(source, url, null, null, Instant.now(),
+        RawDoc failed = rawDocs.save(new RawDoc(source, url, null, null, Instant.now(),
                 hash, null, source.getLanguage(), status, reason));
+        logIngestDocument(failed, "PARSE_FAILED", reason);
+    }
+
+    /**
+     * Document-level ingest events make the cycle trail historically truthful.
+     * Source-level records are retained above for fetch diagnostics; this record
+     * is deliberately in addition to them, not a replacement.
+     */
+    private void logIngestDocument(RawDoc doc, String status, String message) {
+        Long runLogId = progress.currentRunLogId("ingest");
+        if (runLogId == null || doc == null || doc.getId() == null) return;
+        itemLogs.save(new PipelineItemLog(runLogId, PipelineItemLog.ItemType.RAW_DOC,
+                String.valueOf(doc.getId()), doc.getTitle(), doc.getId(), status, message));
     }
 
     private static String sha256(String s) {

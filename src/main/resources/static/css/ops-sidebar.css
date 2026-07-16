@@ -1,7 +1,7 @@
 /* ============================================================
    Market Radar — Ops Console — Sidebar shell
-   Persistent left nav: Needs Action / Audit Trail / Pipeline Config /
-   Reference groups, account switcher, EN/VI toggle. Dark surface
+   Persistent left nav: Intelligence / Needs Action / Operations with a
+   collapsed Advanced group, account switcher, EN/VI toggle. Dark surface
    (--surface-nav) distinguishes it from the light content canvas.
    ============================================================ */
 
@@ -27,6 +27,17 @@
 .ops-nav-item .nav-badge { font-size: var(--text-2xs); font-weight: var(--weight-bold); min-width: 18px; text-align: center;
   background: var(--slate-700); color: var(--slate-200); border-radius: var(--radius-pill); padding: 1px 6px; }
 .ops-nav-item.is-active .nav-badge { background: rgba(255,255,255,0.25); color: #fff; }
+
+.ops-nav-advanced { margin: 0; }
+.ops-nav-advanced summary { position: relative; cursor: pointer; list-style: none; user-select: none;
+  font-size: var(--text-2xs); font-weight: var(--weight-bold); color: var(--slate-500);
+  text-transform: uppercase; letter-spacing: var(--tracking-label); padding: 0 24px 6px 8px; }
+.ops-nav-advanced summary::-webkit-details-marker { display: none; }
+.ops-nav-advanced summary::after { content: '›'; position: absolute; right: 9px; top: -3px;
+  color: var(--slate-500); font-size: 16px; line-height: 1; transition: transform var(--duration-fast) var(--ease-standard); }
+.ops-nav-advanced[open] summary::after { transform: rotate(90deg); }
+.ops-nav-advanced summary:hover { color: var(--slate-300); }
+.ops-nav-advanced-items { margin-top: 2px; }
 
 .ops-sidebar-footer { padding: 12px; border-top: 1px solid var(--border-nav); position: relative; }
 .ops-account { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: var(--radius-sm); }
