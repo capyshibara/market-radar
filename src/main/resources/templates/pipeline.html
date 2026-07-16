@@ -14,80 +14,82 @@
 <link rel="stylesheet" href="/css/agents.css"/>
 <style>
   /* ============================================================
-     Pipeline Ops board — dark operational theme from the Claude Design
-     "Market Radar Design System" bundle (ui_kits/pipeline-ops): agents
-     presented step-by-step as hero profiles (AgentEmblem insignias +
-     Newsroom-style identity), grouped by desk, statuses in the ops
-     pill vocabulary. All JS hooks preserved: .stage-row[data-stage],
-     [data-badge], [data-progress]/.bar-fill/[data-progress-label],
-     [data-output] details>pre, and the product row's data-product-*.
+     Pipeline Ops board — light theme (matches the rest of the ops
+     console; agents presented step-by-step as hero profiles from
+     the Claude Design "Market Radar Design System" bundle
+     (ui_kits/pipeline-ops), grouped by desk, in the console's own
+     surface/border/text tokens. All JS hooks preserved:
+     .stage-row[data-stage], [data-badge], [data-progress]/.bar-fill/
+     [data-progress-label], [data-output] details>pre, and the
+     product row's data-product-*.
      ============================================================ */
-  .pl-board { background: #0F1115; border: 1px solid #232830; border-radius: 14px;
-    padding: 20px 20px 24px; }
+  .pl-board { background: var(--surface-card-sunk); border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg, 14px); padding: 20px 20px 24px; }
   .pl-board-head { display: flex; align-items: baseline; justify-content: space-between;
-    gap: 12px; padding: 2px 6px 14px; border-bottom: 1px solid #232830; margin-bottom: 6px; }
-  .pl-board-title { font-size: 12px; font-weight: 700; letter-spacing: .08em;
-    text-transform: uppercase; color: #F1F1EE; }
-  .pl-board-sub { font-family: var(--font-mono, monospace); font-size: 11px; color: #7A7E88; }
+    gap: 12px; padding: 2px 6px 14px; border-bottom: 1px solid var(--border-default); margin-bottom: 6px; }
+  .pl-board-title { font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-primary); }
+  .pl-board-title strong { color: var(--blue-700, #2255BB); }
+  .pl-board-sub { font-family: monospace; font-size: 11px; color: var(--text-tertiary); }
 
-  .desk-label { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  .desk-label { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
     margin: 20px 6px 10px; display: flex; align-items: center; gap: 10px; }
-  .desk-label::after { content: ""; flex: 1; height: 1px; background: #232830; }
-  .desk-label small { font-weight: 600; letter-spacing: .06em; color: #7A7E88; text-transform: none; }
-  .desk-gather { color: #9A9A94; }
-  .desk-understand { color: #8CB0EA; }
-  .desk-guard { color: #8FCB98; }
-  .desk-publish { color: #E0A94A; }
+  .desk-label::after { content: ""; flex: 1; height: 1px; background: var(--border-default); }
+  .desk-label small { font-weight: 600; letter-spacing: .02em; color: var(--text-tertiary); text-transform: none; }
+  .desk-gather { color: var(--text-secondary); }
+  .desk-understand { color: var(--blue-700, #2255BB); }
+  .desk-guard { color: var(--green-700, #1C6B3C); }
+  .desk-publish { color: var(--amber-700, #92600C); }
 
-  .stage-row { background: #14171D; border: 1px solid #262B34; border-radius: 10px;
-    padding: 16px 18px 14px; position: relative; }
+  .stage-row { background: var(--surface-card); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); padding: 16px 18px 14px; position: relative; }
   .stage-row + .stage-row { margin-top: 14px; }
   .stage-row + .stage-row::before { content: ""; position: absolute; left: 47px; top: -15px;
-    height: 14px; border-left: 2px dashed #2A2F38; }
-  .stage-row.is-running { border-color: #3A5FA8; box-shadow: 0 0 0 1px #3A5FA8 inset; }
-  .stage-row.is-failed { border-color: #8A3438; }
+    height: 14px; border-left: 2px dashed var(--border-default); }
+  .stage-row.is-running { border-color: var(--blue-400, #5B8DEF); box-shadow: 0 0 0 1px var(--blue-400, #5B8DEF) inset; }
+  .stage-row.is-failed { border-color: var(--red-400, #E0585B); }
 
   .st-top { display: flex; align-items: flex-start; gap: 16px; }
   .st-heroes { flex: none; display: flex; gap: 8px; padding-top: 2px; }
   .st-meta { flex: 1; min-width: 0; }
-  .st-step { font-family: var(--font-mono, monospace); font-size: 10px; font-weight: 700;
-    letter-spacing: .1em; text-transform: uppercase; color: #7A7E88; margin-bottom: 4px; }
-  .st-name { font-weight: 700; font-size: 15px; color: #F1F1EE; line-height: 1.3; }
-  .st-name small { font-weight: 500; color: #9AA0AB; font-size: 12.5px; }
+  .st-step { font-family: monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px; }
+  .st-name { font-weight: 700; font-size: 15px; color: var(--text-primary); line-height: 1.3; }
+  .st-name small { font-weight: 500; color: var(--text-secondary); font-size: 12.5px; }
   .st-profiles { margin-top: 6px; }
-  .st-profile { font-size: 12px; color: #B8BCC4; line-height: 1.55; }
-  .st-profile strong { color: #E7E9ED; font-weight: 600; }
-  .st-profile em { color: #9FB4E8; }
-  .st-desc { font-size: 11.5px; color: #7A7E88; margin-top: 7px; max-width: 640px; }
+  .st-profile { font-size: 12px; color: var(--text-secondary); line-height: 1.55; }
+  .st-profile strong { color: var(--text-primary); font-weight: 600; }
+  .st-profile em { color: var(--blue-700, #2255BB); font-style: italic; }
+  .st-desc { font-size: 11.5px; color: var(--text-tertiary); margin-top: 7px; max-width: 640px; }
   .st-context { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 9px; }
-  .st-chip { display: inline-block; font-family: var(--font-mono, monospace); font-size: 10px;
-    background: #1B2029; border: 1px solid #2A2F38; border-radius: 4px; padding: 2px 8px; color: #8CB0EA; }
-  .st-chip.gate { color: #8FCB98; }
+  .st-chip { display: inline-block; font-family: monospace; font-size: 10px;
+    background: var(--surface-card-sunk); border: 1px solid var(--border-default); border-radius: 4px;
+    padding: 2px 8px; color: var(--blue-700, #2255BB); }
+  .st-chip.gate { color: var(--green-700, #1C6B3C); }
   .st-right { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
   .st-right form { margin: 0; }
 
   .pl-board .badge-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px;
-    font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 4px 11px;
-    border-radius: 20px; margin: 0; font-family: var(--font-mono, monospace); }
-  .pl-board .badge-idle { background: rgba(154,154,148,.16); color: #B8B8B0; }
-  .pl-board .badge-running { background: rgba(46,90,172,.26); color: #8CB0EA; }
-  .pl-board .badge-success { background: rgba(80,168,96,.16); color: #7FD98F; }
-  .pl-board .badge-failed { background: rgba(234,28,36,.18); color: #F0868A; }
+    font-weight: 700; letter-spacing: .03em; text-transform: uppercase; padding: 4px 11px;
+    border-radius: 20px; margin: 0; font-family: monospace; }
+  .pl-board .badge-idle { background: var(--surface-card-sunk); color: var(--text-tertiary); }
+  .pl-board .badge-running { background: var(--blue-50, #EAF1FE); color: var(--blue-700, #2255BB); }
+  .pl-board .badge-success { background: var(--green-50, #EAF7EF); color: var(--green-700, #1C6B3C); }
+  .pl-board .badge-failed { background: var(--red-50, #FDECEC); color: var(--red-700, #A32626); }
 
   .pl-progress { display: none; margin-top: 12px; }
-  .pl-progress .bar-track { height: 6px; border-radius: 999px; background: #1B2029; overflow: hidden; }
-  .pl-progress .bar-fill { height: 100%; background: #5B8DEF; border-radius: 999px;
+  .pl-progress .bar-track { height: 6px; border-radius: 999px; background: var(--surface-card-sunk); overflow: hidden; }
+  .pl-progress .bar-fill { height: 100%; background: var(--blue-400, #5B8DEF); border-radius: 999px;
     transition: width .3s ease; width: 0%; }
-  .pl-progress .bar-label { font-size: 10px; color: #7A7E88; margin-top: 5px;
-    font-family: var(--font-mono, monospace); }
+  .pl-progress .bar-label { font-size: 10px; color: var(--text-tertiary); margin-top: 5px; font-family: monospace; }
 
-  .pl-output { margin-top: 12px; border-top: 1px solid #232830; padding-top: 9px; }
-  .pl-output summary { cursor: pointer; color: #8CB0EA; font-size: 11.5px; font-weight: 600; user-select: none; }
-  .pl-output pre { background: #0F1115; border: 1px solid #262B34; border-radius: 8px;
-    padding: 12px 14px; margin: 9px 0 0; font-size: 11px; line-height: 1.55; color: #B8BCC4;
+  .pl-output { margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 9px; }
+  .pl-output summary { cursor: pointer; color: var(--text-secondary); font-size: 11.5px; font-weight: 600; user-select: none; }
+  .pl-output pre { background: var(--surface-card-sunk); border: 1px solid var(--border-default); border-radius: 8px;
+    padding: 12px 14px; margin: 9px 0 0; font-size: 11px; line-height: 1.55; color: var(--text-secondary);
     white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
 
-  .stage-row-product { border-left: 3px solid #E0A94A; }
+  .stage-row-product { border-left: 3px solid var(--amber-500, #E0A94A); }
   .pl-help { font-size: var(--text-xs); color: var(--text-tertiary); border: 1px solid var(--border-default);
     border-radius: var(--radius-md); padding: 9px 12px; background: var(--surface-card-sunk); margin-bottom: 16px; }
   .pl-help summary { cursor: pointer; color: var(--text-secondary); font-weight: 600; }
@@ -139,24 +141,24 @@
 
       <div class="pl-board">
         <div class="pl-board-head">
-          <span class="pl-board-title">Pipeline Ops — <span style="color:#8CB0EA">9 AI agents</span>, 3 desks, 1 signature</span>
-          <span class="pl-board-sub">Chín AI agent · ba desk · một chữ ký con người</span>
+          <span class="pl-board-title" th:text="#{ops.pipeline.board.title}">Pipeline Ops — 9 AI agents, 3 desks, 1 signature</span>
+          <span class="pl-board-sub" th:text="#{ops.pipeline.board.sub}">Nine AI agents · three desks · one human signature</span>
         </div>
 
         <!-- ================= DESK 1 — GATHER ================= -->
-        <div class="desk-label desk-gather">Desk 1 — Gather <small>· Thu thập</small></div>
+        <div class="desk-label desk-gather" th:text="#{ops.pipeline.desk.gather}">Desk 1 — Gather</div>
 
         <div class="stage-row" data-stage="ingest">
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: scout(62)}"/></div>
             <div class="st-meta">
-              <div class="st-step">Step 01 · Gather</div>
-              <div class="st-name">Scout <small>· Trinh sát — “I never leave the allowlist.”</small></div>
+              <div class="st-step" th:text="#{ops.pipeline.step01}">Step 01 · Gather</div>
+              <div class="st-name">Scout <small>· <span th:text="#{ops.pipeline.epithet.scout}">The Watcher</span> — <span th:text="#{ops.pipeline.tagline.scout}">“I never leave the allowlist.”</span></small></div>
               <div class="st-desc" th:text="#{ops.pipeline.stageIngestDesc}">Fetch whitelisted sources → raw docs (hash dedup, no LLM)</div>
               <div class="st-context"><span class="st-chip" th:text="${ingestLlmLabel}">No LLM</span><span class="st-chip gate">TOOL: SafeFetcher</span></div>
             </div>
             <div class="st-right">
-              <span class="badge-status badge-idle" data-badge>IDLE</span>
+              <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
               <form method="post" action="/pipeline/run/ingest"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
             </div>
           </div>
@@ -171,17 +173,17 @@
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: librarian(62)}"/><th:block th:replace="~{fragments/agent-emblems :: router(62)}"/></div>
             <div class="st-meta">
-              <div class="st-step">Step 02 · Gather</div>
-              <div class="st-name">Librarian × Router <small>· Thủ thư × Điều phối</small></div>
+              <div class="st-step" th:text="#{ops.pipeline.step02}">Step 02 · Gather</div>
+              <div class="st-name">Librarian × Router</div>
               <div class="st-profiles">
-                <div class="st-profile"><strong>Librarian</strong> — <em>“A duplicate never costs a model call.”</em></div>
-                <div class="st-profile"><strong>Router</strong> — <em>“I read every story three times, then vote.”</em></div>
+                <div class="st-profile"><strong>Librarian</strong> · <span th:text="#{ops.pipeline.epithet.librarian}">The Unifier</span> — <em th:text="#{ops.pipeline.tagline.librarian}">“A duplicate never costs a model call.”</em></div>
+                <div class="st-profile"><strong>Router</strong> · <span th:text="#{ops.pipeline.epithet.router}">The Excavator</span> — <em th:text="#{ops.pipeline.tagline.router}">“I read every story three times, then vote.”</em></div>
               </div>
               <div class="st-desc" th:text="#{ops.pipeline.stageClassifyDesc}">Near-duplicate filter first, then 3-vote topic classification + routing</div>
               <div class="st-context"><span class="st-chip" th:text="${classifyLlmLabel}">Model</span><span class="st-chip gate">GUARD: 2/3 vote</span></div>
             </div>
             <div class="st-right">
-              <span class="badge-status badge-idle" data-badge>IDLE</span>
+              <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
               <form method="post" action="/pipeline/run/classify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
             </div>
           </div>
@@ -193,23 +195,23 @@
         </div>
 
         <!-- ================= DESK 2 — UNDERSTAND ================= -->
-        <div class="desk-label desk-understand">Desk 2 — Understand <small>· Phân tích</small></div>
+        <div class="desk-label desk-understand" th:text="#{ops.pipeline.desk.understand}">Desk 2 — Understand</div>
 
         <div class="stage-row" data-stage="extract">
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: researcher(62)}"/><th:block th:replace="~{fragments/agent-emblems :: connector(62)}"/></div>
             <div class="st-meta">
-              <div class="st-step">Step 03 · Understand</div>
-              <div class="st-name">Researcher × Connector <small>· Nghiên cứu viên × Người kết nối</small></div>
+              <div class="st-step" th:text="#{ops.pipeline.step03}">Step 03 · Understand</div>
+              <div class="st-name">Researcher × Connector</div>
               <div class="st-profiles">
-                <div class="st-profile"><strong>Researcher</strong> — <em>“I may only quote — never write.”</em></div>
-                <div class="st-profile"><strong>Connector</strong> — <em>“One article is never a trend.”</em></div>
+                <div class="st-profile"><strong>Researcher</strong> · <span th:text="#{ops.pipeline.epithet.researcher}">The Surgeon</span> — <em th:text="#{ops.pipeline.tagline.researcher}">“I may only quote — never write.”</em></div>
+                <div class="st-profile"><strong>Connector</strong> · <span th:text="#{ops.pipeline.epithet.connector}">The Duelist</span> — <em th:text="#{ops.pipeline.tagline.connector}">“One article is never a trend.”</em></div>
               </div>
               <div class="st-desc" th:text="#{ops.pipeline.stageExtractDesc}">Verbatim spans from CONFIRMED docs — exact-substring gate, rejects any modified span</div>
               <div class="st-context"><span class="st-chip" th:text="${extractLlmLabel}">Model</span><span class="st-chip gate">GUARD: verbatim gate</span></div>
             </div>
             <div class="st-right">
-              <span class="badge-status badge-idle" data-badge>IDLE</span>
+              <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
               <form method="post" action="/pipeline/run/extract"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
             </div>
           </div>
@@ -224,17 +226,17 @@
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: analyst(62)}"/><th:block th:replace="~{fragments/agent-emblems :: factchecker(62)}"/></div>
             <div class="st-meta">
-              <div class="st-step">Step 04 · Understand → Guard</div>
-              <div class="st-name">Analyst × Fact-checker <small>· Chuyên viên phân tích × Kiểm chứng dữ kiện</small></div>
+              <div class="st-step" th:text="#{ops.pipeline.step04}">Step 04 · Understand → Guard</div>
+              <div class="st-name">Analyst × Fact-checker</div>
               <div class="st-profiles">
-                <div class="st-profile"><strong>Analyst</strong> — <em>“What, pattern, so-what, now-what — with citations.”</em></div>
-                <div class="st-profile"><strong>Fact-checker</strong> (Gate L1) — <em>“Letter-for-letter, or it doesn't pass.”</em></div>
+                <div class="st-profile"><strong>Analyst</strong> · <span th:text="#{ops.pipeline.epithet.analyst}">The Strategist</span> — <em th:text="#{ops.pipeline.tagline.analyst}">“What, pattern, so-what, now-what — with citations.”</em></div>
+                <div class="st-profile"><strong>Fact-checker</strong> <span th:text="#{ops.pipeline.gateL1Tag}">(Gate L1)</span> · <span th:text="#{ops.pipeline.epithet.factchecker}">The Marksman</span> — <em th:text="#{ops.pipeline.tagline.factchecker}">“Letter-for-letter, or it doesn't pass.”</em></div>
               </div>
               <div class="st-desc" th:text="#{ops.pipeline.stageInterpretDesc}">Bilingual claim sentences from evidence packs; deterministic grounding gate on both languages</div>
               <div class="st-context"><span class="st-chip" th:text="${interpretLlmLabel}">Model</span><span class="st-chip gate">GATE L1: exact match, both languages</span></div>
             </div>
             <div class="st-right">
-              <span class="badge-status badge-idle" data-badge>IDLE</span>
+              <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
               <form method="post" action="/pipeline/run/interpret"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
             </div>
           </div>
@@ -246,19 +248,19 @@
         </div>
 
         <!-- ================= DESK 3 — GUARD ================= -->
-        <div class="desk-label desk-guard">Desk 3 — Guard <small>· Kiểm chứng</small></div>
+        <div class="desk-label desk-guard" th:text="#{ops.pipeline.desk.guard}">Desk 3 — Guard</div>
 
         <div class="stage-row" data-stage="verify">
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: verifier(62)}"/></div>
             <div class="st-meta">
-              <div class="st-step">Step 05 · Guard</div>
-              <div class="st-name">Independent Verifier <small>· Kiểm chứng độc lập — “Nobody grades their own homework.”</small></div>
+              <div class="st-step" th:text="#{ops.pipeline.step05}">Step 05 · Guard</div>
+              <div class="st-name">Independent Verifier <small>· <span th:text="#{ops.pipeline.epithet.verifier}">The Second Opinion</span> — <span th:text="#{ops.pipeline.tagline.verifier}">“Nobody grades their own homework.”</span></small></div>
               <div class="st-desc" th:text="#{ops.pipeline.stageVerifyDesc}">Independent entailment check by a different model family; routes to auto-approve or review</div>
               <div class="st-context"><span class="st-chip" th:text="${verifyLlmLabel}">Model</span><span class="st-chip gate">GATE L2: INVARIANT ≠ writer family</span></div>
             </div>
             <div class="st-right">
-              <span class="badge-status badge-idle" data-badge>IDLE</span>
+              <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
               <form method="post" action="/pipeline/run/verify"><button class="btn btn-primary" type="submit" th:text="#{ops.pipeline.runBtn}">Run</button></form>
             </div>
           </div>
@@ -270,17 +272,17 @@
         </div>
 
         <!-- ================= PUBLISH ================= -->
-        <div class="desk-label desk-publish">Publish <small>· Xuất bản — Editor curates, a human signs</small></div>
+        <div class="desk-label desk-publish"><span th:text="#{ops.pipeline.desk.publish}">Publish</span> <small>· <span th:text="#{ops.pipeline.desk.publishSub}">Editor curates, a human signs</span></small></div>
 
         <div class="stage-row stage-row-product" data-product-row>
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: editor(62)}"/><th:block th:replace="~{fragments/agent-emblems :: sme(62)}"/></div>
             <div class="st-meta">
-              <div class="st-step">Step 06 · Publish</div>
-              <div class="st-name">Editor × Product SME <small>· Biên tập viên × Chuyên gia Sản phẩm</small></div>
+              <div class="st-step" th:text="#{ops.pipeline.step06}">Step 06 · Publish</div>
+              <div class="st-name">Editor × Product SME</div>
               <div class="st-profiles">
-                <div class="st-profile"><strong>Editor</strong> — <em>“Awards and PR fluff never make my report.”</em></div>
-                <div class="st-profile"><strong>Product SME</strong> (human) — <em>the final signature on every edition · chữ ký cuối cùng</em></div>
+                <div class="st-profile"><strong>Editor</strong> · <span th:text="#{ops.pipeline.epithet.editor}">The Gatekeeper</span> — <em th:text="#{ops.pipeline.tagline.editor}">“Awards and PR fluff never make my report.”</em></div>
+                <div class="st-profile"><strong>Product SME</strong> <span th:text="#{ops.pipeline.humanTag}">(human)</span> · <span th:text="#{ops.pipeline.epithet.sme}">The Final Word</span> — <em th:text="#{ops.pipeline.tagline.sme}">The final signature on every edition.</em></div>
               </div>
               <div class="st-desc" th:text="#{ops.pipeline.productDesc}">Create the current 7, 30 and 90-day editions from the verified evidence above.</div>
               <div class="st-context"><span class="st-chip" th:text="#{ops.pipeline.productModel}">Uses the Product writer, independent verifier and publication gate</span><span class="st-chip gate">FAIL-CLOSED: insufficient evidence never pads</span></div>
@@ -300,6 +302,19 @@
     </div>
   </div>
 </div>
+<script th:inline="javascript">
+  /* Localized status labels for the JS-driven polling below — resolved server-side
+     from the SAME message bundle as the rest of the page, so switching ?lang=
+     changes badge text too, not just the static HTML. */
+  window.PL_I18N = {
+    notRun: /*[[#{ops.pipeline.status.notRun}]]*/ 'Not run yet',
+    running: /*[[#{ops.pipeline.status.running}]]*/ 'Running',
+    done: /*[[#{ops.pipeline.status.done}]]*/ 'Done',
+    failed: /*[[#{ops.pipeline.status.failed}]]*/ 'Failed',
+    generating: /*[[#{ops.pipeline.status.generating}]]*/ 'Generating',
+    reviewResults: /*[[#{ops.pipeline.status.reviewResults}]]*/ 'Review results'
+  };
+</script>
 <script src="/js/ops-session.js"></script>
 <script src="/js/ops-sidebar.js"></script>
 <script>
@@ -322,9 +337,12 @@
 /* Batch 9 (feedback Hanh): job giờ chạy nền — poll trạng thái mỗi 2s để hiện
  * RUNNING/SUCCESS/FAILED + output KHÔNG cần reload trang, và tắt mọi nút Run
  * trong lúc có stage nào đó đang chạy (executor chạy tuần tự, chồng nút chỉ
- * gây nhầm lẫn "đã bấm mà không thấy gì" — đúng bug Hanh báo). */
+ * gây nhầm lẫn "đã bấm mà không thấy gì" — đúng bug Hanh báo).
+ * 2026-07-17: badge text giờ đọc từ window.PL_I18N (đổi ?lang= đổi luôn text JS). */
 (function () {
   var productRunning = false;
+  var I18N = window.PL_I18N || { notRun: 'Not run yet', running: 'Running', done: 'Done',
+    failed: 'Failed', generating: 'Generating', reviewResults: 'Review results' };
 
   function fmtElapsed(sec) {
     if (sec == null) return '';
@@ -354,7 +372,7 @@
           row.classList.add('is-running');
           badge.classList.add('badge-running');
           var pct = (s.total != null && s.total > 0) ? Math.round((s.completed / s.total) * 100) : null;
-          badge.textContent = 'RUNNING' + (pct != null ? ' · ' + pct + '%' : '')
+          badge.textContent = I18N.running + (pct != null ? ' · ' + pct + '%' : '')
               + (s.elapsedSeconds != null ? ' · ' + fmtElapsed(s.elapsedSeconds) : '');
           if (pct != null) {
             progWrap.style.display = 'block';
@@ -366,16 +384,16 @@
         } else if (s.state === 'SUCCESS') {
           progWrap.style.display = 'none';
           badge.classList.add('badge-success');
-          badge.textContent = 'DONE · ' + fmtElapsed(s.elapsedSeconds);
+          badge.textContent = I18N.done + ' · ' + fmtElapsed(s.elapsedSeconds);
         } else if (s.state === 'FAILED') {
           progWrap.style.display = 'none';
           row.classList.add('is-failed');
           badge.classList.add('badge-failed');
-          badge.textContent = 'FAILED';
+          badge.textContent = I18N.failed;
         } else {
           progWrap.style.display = 'none';
           badge.classList.add('badge-idle');
-          badge.textContent = 'NOT RUN YET';
+          badge.textContent = I18N.notRun;
         }
 
         var text = s.state === 'FAILED' ? ('ERROR: ' + s.error) : s.output;
@@ -420,9 +438,9 @@
       row.classList.remove('is-failed');
       row.classList.add('is-running');
       badge.className = 'badge-status badge-running';
-      badge.textContent = 'GENERATING';
+      badge.textContent = I18N.generating;
       button.disabled = true;
-      button.textContent = button.dataset.runningText || 'Generating…';
+      button.textContent = button.dataset.runningText || I18N.generating;
       document.querySelectorAll('.stage-row[data-stage] form button').forEach(function (stageButton) {
         stageButton.disabled = true;
       });
@@ -441,12 +459,12 @@
           output.open = failed;
           row.classList.toggle('is-failed', failed);
           badge.className = 'badge-status ' + (failed ? 'badge-failed' : 'badge-success');
-          badge.textContent = failed ? 'REVIEW RESULTS' : 'DONE';
+          badge.textContent = failed ? I18N.reviewResults : I18N.done;
         })
         .catch(function (error) {
           row.classList.add('is-failed');
           badge.className = 'badge-status badge-failed';
-          badge.textContent = 'FAILED';
+          badge.textContent = I18N.failed;
           pre.textContent = 'ERROR: ' + error.message;
           output.style.display = 'block';
           output.open = true;

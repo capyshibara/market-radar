@@ -211,23 +211,23 @@
     <section class="custody-section">
       <div class="custody-kicker" th:text="${vi ? 'CHUỖI KIỂM CHỨNG · 9 AI AGENT, 1 CHỮ KÝ CON NGƯỜI' : 'CHAIN OF CUSTODY · NINE AI AGENTS, ONE HUMAN SIGNATURE'}">Chain of custody</div>
       <div class="custody-row">
-        <span class="custody-step" title="Scout — crawl (code)"><th:block th:replace="~{fragments/agent-marks :: code('#0E1B6B', 26)}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Scout — thu thập (code)' : 'Scout — crawl (code)'}"><th:block th:replace="~{fragments/agent-marks :: code('#0E1B6B', 26)}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Librarian — dedup (code)"><th:block th:replace="~{fragments/agent-marks :: code('#0E1B6B', 26)}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Librarian — lọc trùng (code)' : 'Librarian — dedup (code)'}"><th:block th:replace="~{fragments/agent-marks :: code('#0E1B6B', 26)}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Router — classify + route (AI)"><th:block th:replace="~{fragments/agent-marks :: ai('#0E1B6B', 26, 'cc-router')}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Router — phân loại + định tuyến (AI)' : 'Router — classify + route (AI)'}"><th:block th:replace="~{fragments/agent-marks :: ai('#0E1B6B', 26, 'cc-router')}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Researcher — verbatim evidence (AI)"><th:block th:replace="~{fragments/agent-marks :: ai('#2647E8', 26, 'cc-researcher')}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Researcher — bằng chứng nguyên văn (AI)' : 'Researcher — verbatim evidence (AI)'}"><th:block th:replace="~{fragments/agent-marks :: ai('#2647E8', 26, 'cc-researcher')}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Connector — cross-source clustering (code)"><th:block th:replace="~{fragments/agent-marks :: code('#2647E8', 26)}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Connector — gom cụm xuyên nguồn (code)' : 'Connector — cross-source clustering (code)'}"><th:block th:replace="~{fragments/agent-marks :: code('#2647E8', 26)}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Analyst — decision briefs (AI)"><th:block th:replace="~{fragments/agent-marks :: ai('#2647E8', 26, 'cc-analyst')}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Analyst — bản tóm tắt quyết định (AI)' : 'Analyst — decision briefs (AI)'}"><th:block th:replace="~{fragments/agent-marks :: ai('#2647E8', 26, 'cc-analyst')}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Editor — materiality rubric (code)"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 26)}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Editor — quy tắc trọng yếu (code)' : 'Editor — materiality rubric (code)'}"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 26)}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Fact-checker — Gate L1, exact match (code)"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 26)}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Fact-checker — Gate L1, khớp chính xác (code)' : 'Fact-checker — Gate L1, exact match (code)'}"><th:block th:replace="~{fragments/agent-marks :: code('#2F6B3D', 26)}"/></span>
         <span class="custody-link"></span>
-        <span class="custody-step" title="Independent Verifier — Gate L2, different model family (AI)"><th:block th:replace="~{fragments/agent-marks :: ai('#2F6B3D', 26, 'cc-verifier')}"/></span>
+        <span class="custody-step" th:attr="title=${vi ? 'Independent Verifier — Gate L2, khác họ model (AI)' : 'Independent Verifier — Gate L2, different model family (AI)'}"><th:block th:replace="~{fragments/agent-marks :: ai('#2F6B3D', 26, 'cc-verifier')}"/></span>
         <span class="custody-link"></span>
         <span class="custody-approved">
           <th:block th:replace="~{fragments/agent-marks :: human('#2647E8', 26)}"/>
