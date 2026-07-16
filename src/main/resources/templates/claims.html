@@ -89,7 +89,11 @@
               <div class="citation-block" th:each="f : ${v.citedFacts}" style="margin-bottom:8px">
                 <div class="citation-head">
                   <span class="citation-lang" th:text="${f.spanLanguage.toUpperCase()}">VI</span>
-                  <span class="citation-source" th:text="${f.factCode}">F-001</span>
+                  <span class="citation-source" th:text="${f.rawDoc.source.name} + ' · ' + ${f.factCode}">Source · F-001</span>
+                  <span class="badge badge-neutral" th:if="${!f.active}" th:text="#{ops.review.detail.archivedEvidence}">Archived evidence</span>
+                  <a class="citation-source-link" th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}"
+                     th:href="${f.rawDoc.url}" target="_blank" rel="noopener noreferrer"
+                     th:text="#{ops.review.detail.openOriginalSource}">Open original source ↗</a>
                 </div>
                 <blockquote th:text="${f.spanText}">span</blockquote>
               </div>

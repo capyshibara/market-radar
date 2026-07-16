@@ -135,9 +135,14 @@ public class ClaimController {
 
     @GetMapping("/claims")
     public String claimsAudit(Model model) {
-        Map<String, EvidenceFact> factByCode = facts.findAllForReport().stream()
+        List<InterpretedClaim> auditedClaims = claims.findAllForAudit();
+        List<String> citedCodes = auditedClaims.stream()
+                .flatMap(c -> factCodes(c.getFactCodesCsv()).stream()).distinct().toList();
+        Map<String, EvidenceFact> factByCode = (citedCodes.isEmpty()
+                ? List.<EvidenceFact>of()
+                : facts.findAllByFactCodeInForAudit(citedCodes)).stream()
                 .collect(Collectors.toMap(EvidenceFact::getFactCode, Function.identity()));
-        List<ClaimView> views = claims.findAllForAudit().stream()
+        List<ClaimView> views = auditedClaims.stream()
                 .map(c -> new ClaimView(c, resolve(c.getFactCodesCsv(), factByCode)))
                 .toList();
         long passCount = views.stream().filter(v -> v.claim().getGateStatus() == GateStatus.PASS).count();
@@ -194,8 +199,12 @@ public class ClaimController {
     }
 
     private static List<EvidenceFact> resolve(String csv, Map<String, EvidenceFact> byCode) {
+        return factCodes(csv).stream().map(byCode::get).filter(Objects::nonNull).toList();
+    }
+
+    private static List<String> factCodes(String csv) {
         if (csv == null || csv.isBlank()) return List.of();
-        return Arrays.stream(csv.split(","))
-                .map(String::strip).map(byCode::get).filter(Objects::nonNull).toList();
+        return Arrays.stream(csv.split(",")).map(String::strip)
+                .filter(code -> !code.isBlank()).distinct().toList();
     }
 }

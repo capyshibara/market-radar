@@ -12,7 +12,6 @@ import com.marketradar.interpret.GroundingGateL1;
 import com.marketradar.repo.*;
 
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -78,8 +77,11 @@ public class ReviewController {
     public String detail(@PathVariable Long id, Model model) {
         InterpretedClaim c = claims.findByIdFetched(id)
                 .orElseThrow(() -> new NoSuchElementException("Không có claim id=" + id));
+        EvidenceResolution evidence = resolveEvidence(c);
         model.addAttribute("claim", c);
-        model.addAttribute("citedFacts", resolveCited(c));
+        model.addAttribute("citedFacts", evidence.facts());
+        model.addAttribute("missingFactCodes", evidence.missingCodes());
+        model.addAttribute("evidenceComplete", evidence.complete());
         model.addAttribute("verification",
                 verifications.findFirstByClaimOrderByCreatedAtDescIdDesc(c).orElse(null));
         return "review-detail";
@@ -96,12 +98,14 @@ public class ReviewController {
         InterpretedClaim c = load(id);
         String err = requirePending(c);
         if (err == null) err = ReviewRules.validateApprove(evidenceViewed);
+        EvidenceResolution evidence = resolveEvidence(c);
+        if (err == null) err = requireCompleteEvidence(evidence);
         if (err != null) return flashBack(redirect, id, err);
 
         c.setReviewStatus(ReviewStatus.APPROVED);
         claims.save(c);
         labels.save(logOf(c, LabelLog.Action.APPROVE, null, null, null, reviewerName));
-        alerts.maybeAlert(c, resolveCited(c), "REVIEW:APPROVE");   // Batch 5: hot alert T3+
+        alerts.maybeAlert(c, evidence.facts(), "REVIEW:APPROVE");   // Batch 5: hot alert T3+
         redirect.addFlashAttribute("msg", c.getClaimCode() + " → APPROVED.");
         return "redirect:/review";
     }
@@ -116,13 +120,13 @@ public class ReviewController {
         InterpretedClaim c = load(id);
         String err = requirePending(c);
         if (err == null) err = ReviewRules.validateEdit(evidenceViewed, newText);
+        EvidenceResolution evidence = resolveEvidence(c);
+        if (err == null) err = requireCompleteEvidence(evidence);
         if (err != null) return flashBack(redirect, id, err);
 
         // Text sửa CHẠY LẠI Gate L1 với đúng citation cũ — fail loud với cả con người
-        List<String> codes = c.getFactCodesCsv() == null || c.getFactCodesCsv().isBlank()
-                ? List.of()
-                : Arrays.stream(c.getFactCodesCsv().split(",")).map(String::strip).toList();
-        List<EvidenceFact> cited = resolveCited(c);
+        List<String> codes = factCodes(c.getFactCodesCsv());
+        List<EvidenceFact> cited = evidence.facts();
         GroundingGateL1.GateResult r = gate.check(newText.strip(), codes, cited,
                 new HashSet<>(codes));
 
@@ -158,13 +162,15 @@ public class ReviewController {
         String err = requirePending(c);
         if (err == null) err = ReviewRules.validateForceApprove(
                 evidenceViewed, reason, c.getFactCodesCsv());
+        EvidenceResolution evidence = resolveEvidence(c);
+        if (err == null) err = requireCompleteEvidence(evidence);
         if (err != null) return flashBack(redirect, id, err);
 
         c.setReviewStatus(ReviewStatus.FORCE_APPROVED);
         claims.save(c);
         labels.save(logOf(c, LabelLog.Action.FORCE_APPROVE, null, null,
                 reason.strip(), reviewerName));
-        alerts.maybeAlert(c, resolveCited(c), "REVIEW:FORCE_APPROVE"); // Batch 5: hot alert T3+
+        alerts.maybeAlert(c, evidence.facts(), "REVIEW:FORCE_APPROVE"); // Batch 5: hot alert T3+
         redirect.addFlashAttribute("msg", c.getClaimCode()
                 + " → FORCE_APPROVED (override đã ghi log kèm lý do).");
         return "redirect:/review";
@@ -227,12 +233,39 @@ public class ReviewController {
                 .map(v -> v.getVerdict().name()).orElse("—");
     }
 
-    private List<EvidenceFact> resolveCited(InterpretedClaim c) {
-        String csv = c.getFactCodesCsv();
+    /**
+     * Review is an audit operation: resolve the exact fact editions cited when the
+     * claim was created, even if a later extraction superseded them. Report reads
+     * correctly use active facts only; reviewer reads must preserve history.
+     */
+    private EvidenceResolution resolveEvidence(InterpretedClaim c) {
+        List<String> codes = factCodes(c.getFactCodesCsv());
+        if (codes.isEmpty()) return new EvidenceResolution(List.of(), List.of());
+        Map<String, EvidenceFact> byCode = facts.findAllByFactCodeInForAudit(codes).stream()
+                .collect(Collectors.toMap(EvidenceFact::getFactCode, fact -> fact));
+        List<EvidenceFact> resolved = codes.stream().map(byCode::get).filter(Objects::nonNull).toList();
+        List<String> missing = codes.stream().filter(code -> !byCode.containsKey(code)).toList();
+        return new EvidenceResolution(resolved, missing);
+    }
+
+    private static List<String> factCodes(String csv) {
         if (csv == null || csv.isBlank()) return List.of();
-        Map<String, EvidenceFact> byCode = facts.findAllForReport().stream()
-                .collect(Collectors.toMap(EvidenceFact::getFactCode, Function.identity()));
-        return Arrays.stream(csv.split(","))
-                .map(String::strip).map(byCode::get).filter(Objects::nonNull).toList();
+        return Arrays.stream(csv.split(",")).map(String::strip)
+                .filter(code -> !code.isBlank()).distinct().toList();
+    }
+
+    private static String requireCompleteEvidence(EvidenceResolution evidence) {
+        if (evidence.complete()) return null;
+        if (evidence.facts().isEmpty() && evidence.missingCodes().isEmpty()) {
+            return "Claim has no cited evidence — approval is blocked.";
+        }
+        return "Cited evidence could not be fully resolved (missing: "
+                + String.join(", ", evidence.missingCodes()) + ") — approval is blocked.";
+    }
+
+    private record EvidenceResolution(List<EvidenceFact> facts, List<String> missingCodes) {
+        boolean complete() {
+            return !facts.isEmpty() && missingCodes.isEmpty();
+        }
     }
 }

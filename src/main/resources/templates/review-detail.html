@@ -28,9 +28,6 @@
   .rd-edit-toggle { font-size: var(--text-xs); color: var(--text-link); background: none; border: none; cursor: pointer; padding: 0; margin-top: 8px; }
   #edit-panel, #force-panel, #reject-panel { display: none; margin-top: 10px; }
   #edit-panel.is-open, #force-panel.is-open, #reject-panel.is-open { display: block; }
-  .citation-source-link { color: var(--text-link); font-size: var(--text-xs); font-weight: 600; text-decoration: none; white-space: nowrap; }
-  .citation-source-link:hover { text-decoration: underline; }
-  .citation-published { color: var(--text-tertiary); font-size: var(--text-2xs); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -92,12 +89,18 @@
             <div class="desc" th:text="#{ops.review.detail.noEvidenceDesc}">Only Reject is offered.</div>
           </div>
 
+          <div th:if="${!#lists.isEmpty(missingFactCodes)}" class="no-evidence-notice" style="margin-bottom:10px">
+            <div class="title" th:text="#{ops.review.detail.partialEvidenceTitle}">Some cited evidence is missing</div>
+            <div class="desc" th:text="#{ops.review.detail.partialEvidenceDesc(${#strings.listJoin(missingFactCodes, ', ')})}">Approval is blocked.</div>
+          </div>
+
           <div th:unless="${#lists.isEmpty(citedFacts)}">
             <div class="citation-block" th:each="f : ${citedFacts}" style="margin-bottom:10px">
               <div class="citation-head">
                 <span class="citation-lang" th:text="${f.spanLanguage.toUpperCase()}">VI</span>
                 <span class="citation-source" th:text="${f.rawDoc.source.name} + ' · ' + ${f.factCode}">Source · F-001</span>
                 <span class="badge" th:classappend="${f.rawDoc.source.tier <= 2} ? 'badge-success' : 'badge-neutral'" th:text="'Tier ' + ${f.rawDoc.source.tier}">Tier 1</span>
+                <span class="badge badge-neutral" th:if="${!f.active}" th:text="#{ops.review.detail.archivedEvidence}">Archived evidence</span>
                 <span class="citation-published" th:if="${f.rawDoc.publishedAt != null}"
                       th:text="#{ops.review.detail.publishedAt(${#temporals.format(f.rawDoc.publishedAt.atZone(T(java.time.ZoneId).systemDefault()), 'MMM d, yyyy')})}">Published Jul 16, 2026</span>
                 <a class="citation-source-link" th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}"
@@ -107,7 +110,7 @@
               <blockquote th:text="'“' + ${f.spanText} + '”'">"quote"</blockquote>
             </div>
 
-            <label class="evidence-affirm is-unchecked" id="affirm-label">
+            <label class="evidence-affirm is-unchecked" id="affirm-label" th:if="${evidenceComplete}">
               <input type="checkbox" id="affirm-checkbox"/>
               <span class="txt" id="affirm-text" th:text="#{ops.review.detail.confirmUnchecked}">confirm</span>
             </label>
@@ -119,7 +122,7 @@
             <input class="ops-input" id="reviewer-display" disabled value="—"/>
           </div>
 
-          <div class="rd-actions" id="rd-actions" th:with="hasEvidence=${!#lists.isEmpty(citedFacts)}">
+          <div class="rd-actions" id="rd-actions" th:with="hasEvidence=${evidenceComplete}">
 
             <!-- 1. Approve as-is -->
             <form th:action="@{'/review/' + ${claim.id} + '/approve'}" method="post" class="rd-action-form" data-role-hide="maker">
@@ -130,7 +133,7 @@
             </form>
 
             <!-- 2. Edit then approve -->
-            <div data-role-hide="" th:if="${!#lists.isEmpty(citedFacts)}">
+            <div data-role-hide="" th:if="${evidenceComplete}">
               <button type="button" class="btn btn-secondary btn-full needs-evidence" id="edit-toggle-btn" disabled
                       th:text="#{ops.review.detail.editThenApproveBtn}">Edit then approve</button>
               <div id="edit-panel">
