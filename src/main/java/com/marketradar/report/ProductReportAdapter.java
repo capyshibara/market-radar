@@ -4,6 +4,8 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.product.ProductBriefEdition;
 import com.marketradar.product.ProductBriefInsight;
 import com.marketradar.product.ProductBriefService;
+import com.marketradar.product.CurrentProductNewsItem;
+import com.marketradar.product.CurrentProductNewsService;
 import com.marketradar.product.ProductInsightContract;
 import com.marketradar.product.ProductPublicationGateAdapter;
 import com.marketradar.product.ProductReportCadence;
@@ -47,30 +49,36 @@ public class ProductReportAdapter {
     private final ProductBriefService briefs;
     private final com.marketradar.product.ProductInsightQualityGate qualityGate;
     private final com.marketradar.product.ProductInsightWriter writer;
+    private final CurrentProductNewsService currentNews;
 
     public ProductReportAdapter(ProductBriefService briefs,
                                 com.marketradar.product.ProductInsightQualityGate qualityGate,
-                                com.marketradar.product.ProductInsightWriter writer) {
+                                com.marketradar.product.ProductInsightWriter writer,
+                                CurrentProductNewsService currentNews) {
         this.briefs = briefs;
         this.qualityGate = qualityGate;
         this.writer = writer;
+        this.currentNews = currentNews;
     }
 
     /** The only current-report path: exact cadence dates, never "latest of any window". */
     public Snapshot current(ProductReportCadence cadence, LocalDate asOf) {
         LocalDate start = cadence.start(asOf);
+        // The source-news cards and Product edition use the same explicit cadence window.
+        List<CurrentProductNewsItem> news = currentNews.current(cadence, asOf);
         return briefs.current(start, asOf)
-                .map(view -> adapt(view, start, asOf))
+                .map(view -> adapt(view, start, asOf, news))
                 .orElseGet(() -> Snapshot.insufficient(start, asOf,
-                        InsufficientReason.NO_CURRENT_EDITION));
+                        InsufficientReason.NO_CURRENT_EDITION, news));
     }
 
     private Snapshot adapt(ProductBriefService.BriefView view,
-                           LocalDate windowStart, LocalDate windowEnd) {
+                           LocalDate windowStart, LocalDate windowEnd,
+                           List<CurrentProductNewsItem> news) {
             if (!editionUsesCurrentVerifiedWriter(view.edition())) {
                 return new Snapshot(view.edition(), Availability.INSUFFICIENT_EVIDENCE,
                         InsufficientReason.LEGACY_OR_UNVERIFIED_EDITION,
-                        windowStart, windowEnd, List.of(), List.of(), Map.of());
+                        windowStart, windowEnd, List.of(), List.of(), Map.of(), news);
             }
             List<ProductBriefInsight> executive = view.insights().stream()
                     .filter(i -> placement(i.getPublicationDisposition())
@@ -108,7 +116,7 @@ public class ProductReportAdapter {
                     : availability == Availability.WATCH_BRIEF
                     ? InsufficientReason.NONE : InsufficientReason.NO_CORROBORATED_INSIGHT;
             return new Snapshot(view.edition(), availability, reason, windowStart, windowEnd,
-                    executive, watch, Map.copyOf(cited));
+                    executive, watch, Map.copyOf(cited), news);
     }
 
     /** Persisted gate disposition is authoritative. REJECT/null are never rendered. */
@@ -144,10 +152,12 @@ public class ProductReportAdapter {
                            LocalDate windowEnd,
                            List<ProductBriefInsight> executiveInsights,
                            List<ProductBriefInsight> watchSignals,
-                           Map<Long, List<EvidenceFact>> evidenceByInsight) {
-        static Snapshot insufficient(LocalDate start, LocalDate end, InsufficientReason reason) {
+                           Map<Long, List<EvidenceFact>> evidenceByInsight,
+                           List<CurrentProductNewsItem> currentNews) {
+        static Snapshot insufficient(LocalDate start, LocalDate end, InsufficientReason reason,
+                                     List<CurrentProductNewsItem> currentNews) {
             return new Snapshot(null, Availability.INSUFFICIENT_EVIDENCE, reason,
-                    start, end, List.of(), List.of(), Map.of());
+                    start, end, List.of(), List.of(), Map.of(), currentNews);
         }
 
         public boolean decisionReady() { return availability == Availability.READY; }

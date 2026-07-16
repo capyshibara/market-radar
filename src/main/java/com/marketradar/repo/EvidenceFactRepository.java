@@ -26,6 +26,20 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
            "order by f.eventDate desc")
     List<EvidenceFact> findAllForReport();
 
+    /**
+     * Read-only candidate set for the "Current Product News" layer.  This is
+     * intentionally broader than the decision-brief query: the service applies
+     * its separate editorial policy and never changes fact or document state.
+     * Fetching document/source here keeps the report read safe with
+     * open-in-view disabled.
+     */
+    @Query("select f from EvidenceFact f " +
+           "join fetch f.rawDoc d join fetch d.source s " +
+           "where f.active = true and s.active = true " +
+           "and d.fullTextFetched = true and d.sampleData = false " +
+           "and d.duplicateOfId is null and s.tier between 1 and 3")
+    List<EvidenceFact> findCurrentProductNewsCandidates();
+
     @Query("select f from EvidenceFact f where f.active = true order by f.id")
     List<EvidenceFact> findAllActiveOrderById();
 

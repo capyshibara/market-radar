@@ -15,4 +15,10 @@ public interface ClassificationRepository extends JpaRepository<Classification, 
     @Query("select c from Classification c join fetch c.rawDoc d join fetch d.source " +
            "order by c.createdAt desc")
     List<Classification> findAllForDisplay();
+
+    /** Targeted read for a report candidate set; does not mutate classifications. */
+    @Query("select c from Classification c join fetch c.rawDoc d join fetch d.source " +
+           "where d.id in :rawDocIds")
+    List<Classification> findByRawDocIdIn(@org.springframework.data.repository.query.Param("rawDocIds")
+                                           List<Long> rawDocIds);
 }

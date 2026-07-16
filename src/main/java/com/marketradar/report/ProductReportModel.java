@@ -51,6 +51,8 @@ public class ProductReportModel {
         model.put("productWatchBriefInsights", snapshot.watchBriefInsights());
         model.put("productEvidenceByInsight", snapshot.evidenceByInsight());
         model.put("productLeadInsight", snapshot.leadInsight());
+        model.put("currentProductNews", snapshot.currentNews());
+        model.put("hasCurrentProductNews", !snapshot.currentNews().isEmpty());
         model.put("references", snapshot.references());
         return model;
     }

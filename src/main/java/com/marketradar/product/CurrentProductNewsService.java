@@ -1,0 +1,109 @@
+package com.marketradar.product;
+
+import com.marketradar.domain.Classification;
+import com.marketradar.domain.EvidenceFact;
+import com.marketradar.domain.RawDoc;
+import com.marketradar.repo.ClassificationRepository;
+import com.marketradar.repo.EvidenceFactRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Read-only current-news layer used when the decision brief is sparse. This
+ * service has no LLM calls and does not reuse legacy narrative claims.
+ */
+@Service
+public class CurrentProductNewsService {
+
+    public static final int MAX_ITEMS = 12;
+    private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private final EvidenceFactRepository facts;
+    private final ClassificationRepository classifications;
+    private final Clock clock;
+
+    public CurrentProductNewsService(EvidenceFactRepository facts,
+                                     ClassificationRepository classifications) {
+        this(facts, classifications, Clock.system(REPORT_ZONE));
+    }
+
+    CurrentProductNewsService(EvidenceFactRepository facts,
+                              ClassificationRepository classifications,
+                              Clock clock) {
+        this.facts = facts;
+        this.classifications = classifications;
+        this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CurrentProductNewsItem> findCurrent(ProductReportCadence cadence) {
+        return current(cadence, LocalDate.now(clock));
+    }
+
+    /** Explicit as-of seam keeps all Product read models on the same rolling window. */
+    @Transactional(readOnly = true)
+    public List<CurrentProductNewsItem> current(ProductReportCadence cadence, LocalDate asOf) {
+        if (cadence == null) throw new IllegalArgumentException("cadence is required");
+        if (asOf == null) throw new IllegalArgumentException("asOf is required");
+        List<EvidenceFact> candidates = facts.findCurrentProductNewsCandidates();
+        if (candidates.isEmpty()) return List.of();
+
+        List<Long> docIds = candidates.stream().map(f -> f.getRawDoc().getId()).distinct().toList();
+        Map<Long, Classification> classificationByDoc = classifications.findByRawDocIdIn(docIds).stream()
+                .collect(Collectors.toMap(c -> c.getRawDoc().getId(), c -> c, (first, ignored) -> first));
+
+        List<EvidenceFact> ordered = candidates.stream()
+                .filter(f -> allowed(f, classificationByDoc.get(f.getRawDoc().getId()), cadence, asOf))
+                .sorted(Comparator
+                        .comparing((EvidenceFact f) -> publicationDate(f), Comparator.reverseOrder())
+                        .thenComparingInt(f -> f.getRawDoc().getSource().getTier())
+                        .thenComparing(EvidenceFact::getFactCode))
+                .toList();
+
+        Set<Long> selectedDocuments = new HashSet<>();
+        List<CurrentProductNewsItem> result = new ArrayList<>();
+        for (EvidenceFact fact : ordered) {
+            RawDoc doc = fact.getRawDoc();
+            if (!selectedDocuments.add(doc.getId())) continue; // one source item per document
+            result.add(toItem(fact));
+            if (result.size() == MAX_ITEMS) break;
+        }
+        return List.copyOf(result);
+    }
+
+    private static boolean allowed(EvidenceFact fact, Classification classification,
+                                   ProductReportCadence cadence, LocalDate asOf) {
+        RawDoc doc = fact.getRawDoc();
+        Set<String> labels = classification == null ? Set.of() : classification.getLabels().stream()
+                .map(Enum::name).collect(Collectors.toUnmodifiableSet());
+        CurrentProductNewsPolicy.Input input = new CurrentProductNewsPolicy.Input(
+                fact.isActive(), doc.getSource().isActive(), doc.getRawText(), doc.isFullTextFetched(),
+                doc.getParseStatus() == null ? null : doc.getParseStatus().name(), doc.isSampleData(),
+                doc.getDuplicateOfId() != null, doc.getSource().getTier(), publicationDate(fact),
+                classification == null ? null : classification.getStatus().name(), labels,
+                doc.getTitle(), fact.getSpanText());
+        return CurrentProductNewsPolicy.evaluate(input, cadence, asOf).eligible();
+    }
+
+    private static CurrentProductNewsItem toItem(EvidenceFact fact) {
+        RawDoc doc = fact.getRawDoc();
+        return new CurrentProductNewsItem(fact.getFactCode(), doc.getId(), doc.getTitle(),
+                doc.getSource().getCode(), doc.getSource().getName(), doc.getSource().getTier(),
+                doc.getUrl(), publicationDate(fact), fact.getFactType().name(), fact.getSpanText());
+    }
+
+    private static LocalDate publicationDate(EvidenceFact fact) {
+        return fact.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
+    }
+}

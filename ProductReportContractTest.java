@@ -29,6 +29,10 @@ public class ProductReportContractTest {
         check(fragment.contains("do not treat it as a market-wide trend"),
                 "Watch Brief cannot be represented as a market conclusion");
         check(fragment.contains("productWatchSignals"), "separate WATCH rendering");
+        check(fragment.contains("currentProductNews"), "current cited-news layer is rendered independently");
+        check(fragment.contains("verbatimEvidenceSpan"), "news layer renders exact source evidence, not generated summary");
+        check(fragment.contains("not recommendations, trend claims, or market conclusions"),
+                "news layer cannot be mistaken for a Product conclusion");
         check(fragment.contains("references"), "references derive from rendered adapter snapshot");
         System.out.println("ProductReportContractTest: ALL PASS");
     }

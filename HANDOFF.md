@@ -34,6 +34,13 @@ run. They are not yet a substitute for fresh source content:
    citations, a Product validation action and a stated limitation. It is never labelled a
    market-wide trend or Decision Brief; the full Decision Brief still requires three
    `DECISION_READY` insights. Zero safe signals remains `INSUFFICIENT_EVIDENCE`.
+7. Every 7/30/90-day Product surface also renders **Current Product News** independently of the
+   insight tier. These cards are source fields only—publication date, publisher, article link,
+   fact code and an exact verbatim evidence span—not LLM summaries, recommendations or trend
+   claims. Admission requires an active, confirmed, full-text, non-duplicate tier 1–3 document
+   in the exact cadence window, an 80+ character span that occurs verbatim in the source, a
+   Product-relevant label, and life-scope/no-claims-only checks. This restores useful current
+   coverage when the decision layer is sparse without reviving legacy unverified prose.
 
 After restarting the built JAR, inspect `/sources`, then run **Ingest → Classify → Extract →
 Product regenerate** once (never the legacy Interpret/Verify stages). Do not rerun the current

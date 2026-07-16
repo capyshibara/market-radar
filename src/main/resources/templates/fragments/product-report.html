@@ -38,6 +38,29 @@
     </p>
   </section>
 
+  <!-- This is deliberately a source-reading layer, not generated intelligence.
+       It remains visible when the stricter insight publication gate has no result. -->
+  <section class="current-news" th:if="${hasCurrentProductNews}">
+    <h2 th:text="${vi ? 'Tin Product hiện tại đã xác nhận' : 'Current Product News'}">Current Product News</h2>
+    <p class="news-disclaimer"
+       th:text="${vi ? 'Các mục dưới đây là dữ kiện quan sát được từ nguồn hiện tại, có trích dẫn nguyên văn. Chúng không phải là khuyến nghị, nhận định xu hướng hay kết luận thị trường.' : 'The items below are observed facts from current sources with verbatim citations. They are not recommendations, trend claims, or market conclusions.'}">
+      Observed source facts only — not recommendations or market conclusions.
+    </p>
+    <article class="current-news-item" th:each="n : ${currentProductNews}">
+      <p class="kiq">
+        <span th:text="${n.publishedDate}">2026-07-16</span>
+        <span th:text="${' · ' + n.sourceName}"> · Source</span>
+        <span th:text="${' · ' + n.factType}"> · EVENT</span>
+      </p>
+      <h3><a th:href="${n.sourceUrl}" th:text="${n.title}">Source title</a></h3>
+      <h4 th:text="${vi ? 'Dữ kiện quan sát được (nguyên văn)' : 'Observed fact (verbatim)'}">Observed fact (verbatim)</h4>
+      <blockquote th:text="${n.verbatimEvidenceSpan}">Verbatim evidence span.</blockquote>
+      <p class="citation"><code th:text="${n.factCode}">F-001</code>
+        <span th:text="${vi ? ' · nguồn gốc đã xác minh' : ' · verified source record'}"> · verified source record</span>
+      </p>
+    </article>
+  </section>
+
   <section th:if="${decisionReady}">
     <h2 th:text="${vi ? 'Insight sẵn sàng cho quyết định' : 'Decision-ready insights'}">Decision-ready insights</h2>
     <article class="insight" th:each="i : ${productExecutiveInsights}">
