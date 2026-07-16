@@ -5,6 +5,7 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.repo.ClassificationRepository;
 import com.marketradar.repo.EvidenceFactRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,7 @@ public class CurrentProductNewsService {
     private final ClassificationRepository classifications;
     private final Clock clock;
 
+    @Autowired
     public CurrentProductNewsService(EvidenceFactRepository facts,
                                      ClassificationRepository classifications) {
         this(facts, classifications, Clock.system(REPORT_ZONE));
