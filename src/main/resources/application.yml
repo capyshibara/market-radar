@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   datasource:
     # File-backed (đổi từ in-mem 2026-07-12): restart KHÔNG mất dữ liệu nữa — raw docs,
     # classification, LlmCallLog (replay-cache) đều giữ lại. Demo chạy lại pipeline

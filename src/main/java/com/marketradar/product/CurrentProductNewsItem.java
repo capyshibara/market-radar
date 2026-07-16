@@ -58,6 +58,7 @@ public record CurrentProductNewsItem(
     }
 
     public String getEvidenceLanguage() { return evidenceLanguage == null || evidenceLanguage.isBlank() ? "unknown" : evidenceLanguage; }
+    public boolean isManuallySupplied() { return "MANUAL_RESEARCH".equals(sourceCode); }
 
     public String getSourceTierLabelEn() { return "Tier " + sourceTier + " source"; }
     public String getSourceTierLabelVi() { return "Nguồn cấp " + sourceTier; }

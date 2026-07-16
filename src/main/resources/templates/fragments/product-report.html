@@ -183,6 +183,7 @@
                 <dt th:text="${vi ? 'Ngày công bố' : 'Published'}">Published</dt><dd th:text="${n.publishedDate}">2026-07-16</dd>
                 <dt th:text="${vi ? 'Cấp nguồn' : 'Source quality'}">Source quality</dt><dd th:text="${vi ? n.sourceTierLabelVi : n.sourceTierLabelEn}">Tier 1 source</dd>
               </dl>
+              <p class="original-language-label" th:if="${n.manuallySupplied}" th:text="${vi ? 'Tài liệu do người dùng cung cấp · cần đối chiếu với nguồn gốc' : 'Manually supplied document · cross-check against the original source'}">Manually supplied document</p>
               <span class="citation-code" th:text="${n.factCode + (vi ? ' · hồ sơ đã xác minh' : ' · verified record')}">F-001 · verified record</span>
             </aside>
           </article>

@@ -91,7 +91,9 @@ public class CurrentProductNewsService {
         Set<String> labels = classification == null ? Set.of() : classification.getLabels().stream()
                 .map(Enum::name).collect(Collectors.toUnmodifiableSet());
         CurrentProductNewsPolicy.Input input = new CurrentProductNewsPolicy.Input(
-                fact.isActive(), doc.getSource().isActive(), doc.getRawText(), doc.isFullTextFetched(),
+                fact.isActive(), doc.getSource().isActive()
+                        || doc.getIntakeMethod() != RawDoc.IntakeMethod.CRAWLED,
+                doc.getRawText(), doc.isFullTextFetched(),
                 doc.getParseStatus() == null ? null : doc.getParseStatus().name(), doc.isSampleData(),
                 doc.getDuplicateOfId() != null, doc.getSource().getTier(), publicationDate(fact),
                 classification == null ? null : classification.getStatus().name(), labels,
@@ -107,8 +109,10 @@ public class CurrentProductNewsService {
                 .map(Enum::name).collect(Collectors.toUnmodifiableSet());
         LocalDate published = publicationDate(fact);
         CurrentProductNewsTopic topic = CurrentProductNewsTopic.from(labels, fact.getFactType().name());
+        String sourceName = doc.getPublisherName() == null || doc.getPublisherName().isBlank()
+                ? doc.getSource().getName() : doc.getPublisherName();
         return new CurrentProductNewsItem(fact.getFactCode(), doc.getId(), doc.getTitle(),
-                doc.getSource().getCode(), doc.getSource().getName(), doc.getSource().getTier(),
+                doc.getSource().getCode(), sourceName, doc.getSource().getTier(),
                 doc.getUrl(), published, fact.getFactType().name(), fact.getSpanText(), topic,
                 ChronoUnit.DAYS.between(published, asOf), fact.getSummaryVi(), fact.getSummaryEn(),
                 fact.getSpanLanguage());

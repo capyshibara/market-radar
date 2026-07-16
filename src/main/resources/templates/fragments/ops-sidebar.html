@@ -33,6 +33,7 @@
       <div class="ops-nav-group">
         <a href="/pipeline" class="ops-nav-item" th:classappend="${active == 'pipelinerun'} ? 'is-active'" th:text="#{ops.sidebar.navPipelineRun}">Pipeline Runner</a>
         <a href="/pipeline/history" class="ops-nav-item" th:classappend="${active == 'pipelinehistory'} ? 'is-active'" th:text="#{ops.sidebar.navRunHistory}">Run History</a>
+        <a href="/documents/intake" class="ops-nav-item" th:classappend="${active == 'manualintake'} ? 'is-active'">Add document</a>
         <a href="/sources" class="ops-nav-item" th:classappend="${active == 'sources'} ? 'is-active'" th:text="#{ops.sidebar.navSources}">Source Registry</a>
       </div>
     </div>

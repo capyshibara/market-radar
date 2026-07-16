@@ -15,6 +15,8 @@ import java.time.Instant;
 public class RawDoc {
 
     public enum ParseStatus { OK, PARSE_ERROR, FETCH_REJECTED, EMPTY_CONTENT }
+    /** How the original content entered the evidence store; never inferred from the URL. */
+    public enum IntakeMethod { CRAWLED, MANUAL_TEXT, FILE_UPLOAD }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -77,6 +79,17 @@ public class RawDoc {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean fullTextFetched = false;
 
+    @Enumerated(EnumType.STRING)
+    // Default keeps additive schema update safe for the existing populated H2 database.
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default 'CRAWLED'")
+    private IntakeMethod intakeMethod = IntakeMethod.CRAWLED;
+
+    @Column(length = 240)
+    private String publisherName;
+
+    @Column(length = 512)
+    private String originalFilename;
+
     protected RawDoc() {}
 
     public RawDoc(Source source, String url, String title, Instant publishedAt,
@@ -110,6 +123,17 @@ public class RawDoc {
     public Long getDuplicateOfId() { return duplicateOfId; }
     public void setDuplicateOfId(Long duplicateOfId) { this.duplicateOfId = duplicateOfId; }
     public boolean isFullTextFetched() { return fullTextFetched; }
+
+    /** Used only when an operator has supplied complete text or a file directly. */
+    public void markFullTextAvailable() { this.fullTextFetched = true; }
+    public IntakeMethod getIntakeMethod() { return intakeMethod; }
+    public void setIntakeMethod(IntakeMethod intakeMethod) {
+        this.intakeMethod = intakeMethod == null ? IntakeMethod.CRAWLED : intakeMethod;
+    }
+    public String getPublisherName() { return publisherName; }
+    public void setPublisherName(String publisherName) { this.publisherName = publisherName; }
+    public String getOriginalFilename() { return originalFilename; }
+    public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
 
     /** Batch 9: nâng cấp doc title-only lên toàn văn TẠI CHỖ (không insert row mới,
      * tránh phải xử lý dedup EXACT_URL cho 2 bản của cùng 1 bài). */

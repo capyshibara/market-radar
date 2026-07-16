@@ -36,6 +36,26 @@ database, change claim decisions, or lower any publication gate.
 Product insights are immutable; run Product regeneration only when you want a new edition to
 apply the language-purity gate. Do not rerun Ingest/Classify/Extract merely to change language.
 
+## Manual evidence intake — 2026-07-16
+
+- `/documents/intake` adds two traceable ways to enrich the corpus: paste original article/post
+  text, or upload a PDF/TXT file. Each submission requires title, publisher, original HTTPS URL,
+  publication date and language. The saved `RawDoc` is marked `MANUAL_TEXT` or `FILE_UPLOAD`,
+  retains the exact full text and content hash, and is visibly labelled as manually supplied if it
+  reaches Current Product News.
+- Manual intake is **not** a publication shortcut. It remains a tier-3 source and must pass the
+  ordinary Classify → Extract → review/verification/publication path. The source is inactive for
+  the crawler, so a scheduled ingest never tries to fetch the synthetic manual source.
+- PDF extraction uses the existing PDFBox safeguards: encrypted and image-only PDFs fail loudly;
+  files are limited to 10 MB, PDFs to 100 pages, and input text to 250,000 characters. Long text
+  is then processed by the existing overlapping chunker—24,000 characters per chunk with overlap—
+  rather than silently truncated to one LLM request.
+- Do **not** crawl LinkedIn Showcase pages or public posts. LinkedIn’s terms prohibit scraping
+  and its official Posts API is limited to organizations for which the authenticated user has the
+  necessary role. Treat a LinkedIn post as a manual-paste discovery record; ingest the linked
+  original publisher page/PDF separately after confirming internal rights. A direct public BCG PDF
+  is suitable for the upload route, with its BCG URL kept as the provenance link.
+
 
 ## Latest live update — 2026-07-16 (supersedes the completion statement below)
 
