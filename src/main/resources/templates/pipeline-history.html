@@ -14,14 +14,14 @@
 <style>
   .ph-section { margin-bottom: 28px; }
   .ph-section h2 { font-size: var(--text-md); font-weight: 700; margin: 0 0 10px; }
-  .ph-cycle-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
-  .ph-cycle { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 12px 14px; background: var(--surface-card); text-align: left; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard); }
-  .ph-cycle:hover, .ph-cycle.is-selected { border-color: var(--brand-red-400); box-shadow: 0 0 0 2px var(--brand-red-50); }
-  .ph-cycle-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-  .ph-cycle-head .n { font-weight: 700; font-size: var(--text-sm); color: var(--text-primary); }
-  .ph-stage-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: var(--text-xs); }
-  .ph-stage-row .stage-name { width: 90px; font-weight: 600; color: var(--text-secondary); flex: none; }
-  .ph-stage-row .meta { color: var(--text-tertiary); font-family: var(--font-mono); }
+  .ph-cycle-table tbody tr { cursor: pointer; }
+  .ph-cycle-table tbody tr:hover td, .ph-cycle-table tbody tr.is-selected td { background: var(--brand-red-50); }
+  .ph-cycle-table .cycle-stage { display: inline-flex; gap: 4px; align-items: center; margin: 2px 4px 2px 0; }
+  .ph-cycle-table .cycle-stage-name { color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--text-2xs); }
+  .ph-cycle-table .cycle-meta { color: var(--text-tertiary); font-family: var(--font-mono); font-size: var(--text-2xs); white-space: nowrap; }
+  .ph-cycle-more { margin-top: 10px; }
+  .ph-cycle-more button { font-size: var(--text-xs); padding: 6px 10px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); color: var(--text-link); background: var(--surface-card); cursor: pointer; }
+  .ph-cycle-more button:hover { border-color: var(--brand-red-400); }
   .ph-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px;
     padding: 12px 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md);
     background: var(--surface-card-sunk); }
@@ -64,21 +64,25 @@
           <div class="title">No runs yet</div>
           <div class="desc">Run a stage on the Pipeline Runner page first.</div>
         </div>
-        <div class="ph-cycle-grid" th:unless="${#lists.isEmpty(batches)}">
-        <button type="button" class="ph-cycle" th:each="b : ${batches}" th:attr="data-cycle-card=${b.batchId}">
-          <div class="ph-cycle-head">
-            <span class="n" th:text="'Cycle ' + ${b.batchId}">Cycle 1</span>
-            <span class="badge badge-neutral" th:text="${#lists.size(b.runs)} + ' stage run(s)'">3 stage run(s)</span>
-          </div>
-          <div class="ph-stage-row" th:each="r : ${b.runs}">
-            <span class="stage-name" th:text="${r.stage}">ingest</span>
-            <span class="badge" th:classappend="${r.state == 'SUCCESS'} ? 'badge-success' : (${r.state == 'FAILED'} ? 'badge-danger' : 'badge-info')"
-                  th:text="${r.state}">SUCCESS</span>
-            <span class="meta" th:text="${r.completed} + ' / ' + ${r.total} + ' items'">10 / 10 items</span>
-            <span class="meta" th:text="${#temporals.format(r.startedAt.atZone(T(java.time.ZoneId).systemDefault()), 'MMM d, HH:mm:ss')}">Jul 14, 12:00:00</span>
-            <span class="meta" th:if="${r.errorMessage != null}" th:text="'— ' + ${r.errorMessage}" style="color:var(--sev-danger-fg)">error</span>
-          </div>
-        </button>
+        <div class="data-table-wrap" th:unless="${#lists.isEmpty(batches)}"><div class="data-table-scroll">
+          <table class="data-table ph-cycle-table" id="ph-cycle-table">
+            <thead><tr><th>Cycle</th><th>Started</th><th>Stage runs</th><th>Progress</th></tr></thead>
+            <tbody>
+              <tr th:each="b : ${batches}" th:attr="data-cycle-row=${b.batchId}">
+                <td><span class="code-chip code-chip-sm" th:text="'Cycle ' + ${b.batchId}">Cycle 1</span></td>
+                <td class="cycle-meta" th:text="${#temporals.format(b.runs[0].startedAt.atZone(T(java.time.ZoneId).systemDefault()), 'MMM d, yyyy HH:mm')}">Jul 16, 2026 12:00</td>
+                <td>
+                  <span class="cycle-stage" th:each="r : ${b.runs}">
+                    <span class="cycle-stage-name" th:text="${r.stage}">ingest</span>
+                    <span class="badge badge-sm" th:classappend="${r.state == 'SUCCESS'} ? 'badge-success' : (${r.state == 'FAILED'} ? 'badge-danger' : 'badge-info')" th:text="${r.state}">SUCCESS</span>
+                  </span>
+                </td>
+                <td class="cycle-meta" th:text="${#lists.size(b.runs)} + ' stage run(s)'">3 stage run(s)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div></div>
+        <div class="ph-cycle-more" id="ph-cycle-more" hidden><button type="button" id="ph-cycle-more-button">Load older cycles</button></div>
         </div>
       </div>
 
@@ -171,7 +175,7 @@
   var rows = Array.from(table.querySelectorAll('tbody tr'));
   var cols = ['source', 'ingest', 'classify', 'extract', 'interpret', 'verify'];
   var cycleSelect = document.getElementById('pf-cycle');
-  var cycleCards = Array.from(document.querySelectorAll('[data-cycle-card]'));
+  var cycleRows = Array.from(document.querySelectorAll('[data-cycle-row]'));
 
   cols.forEach(function (col) {
     var select = document.getElementById('pf-' + col);
@@ -188,7 +192,7 @@
    * page useful for older databases where historical rows may be sparse. */
   if (cycleSelect) {
     var cycleValues = Array.from(new Set(
-      cycleCards.map(function (card) { return card.dataset.cycleCard; })
+      cycleRows.map(function (row) { return row.dataset.cycleRow; })
         .concat(rows.map(function (row) { return row.dataset.cycle; }).filter(Boolean))
     )).sort(function (a, b) { return Number(b) - Number(a); });
     cycleValues.forEach(function (cycle) {
@@ -220,8 +224,8 @@
     var countEl = document.getElementById('ph-count');
     if (countEl) countEl.textContent = shown + ' / ' + rows.length + ' shown';
     table.classList.toggle('show-cycle-column', !selectedCycle);
-    cycleCards.forEach(function (card) {
-      card.classList.toggle('is-selected', !!selectedCycle && card.dataset.cycleCard === selectedCycle);
+    cycleRows.forEach(function (row) {
+      row.classList.toggle('is-selected', !!selectedCycle && row.dataset.cycleRow === selectedCycle);
     });
   }
 
@@ -232,10 +236,10 @@
   var searchEl = document.getElementById('pf-search');
   if (searchEl) searchEl.addEventListener('input', applyFilters);
   if (cycleSelect) cycleSelect.addEventListener('change', applyFilters);
-  cycleCards.forEach(function (card) {
-    card.addEventListener('click', function () {
+  cycleRows.forEach(function (row) {
+    row.addEventListener('click', function () {
       if (cycleSelect) {
-        cycleSelect.value = card.dataset.cycleCard;
+        cycleSelect.value = row.dataset.cycleRow;
         applyFilters();
       }
     });
@@ -247,6 +251,20 @@
     if (cycleSelect) cycleSelect.value = '';
     applyFilters();
   });
+  /* Keep long-lived installations compact: display the newest 12 cycles, then
+   * reveal older history on demand.  The selector still contains every cycle. */
+  var visibleCycles = 12;
+  var moreCycles = document.getElementById('ph-cycle-more');
+  var moreCyclesButton = document.getElementById('ph-cycle-more-button');
+  function renderCycleHistory() {
+    cycleRows.forEach(function (row, index) { row.hidden = index >= visibleCycles; });
+    if (moreCycles) moreCycles.hidden = visibleCycles >= cycleRows.length;
+  }
+  if (moreCyclesButton) moreCyclesButton.addEventListener('click', function () {
+    visibleCycles += 12;
+    renderCycleHistory();
+  });
+  renderCycleHistory();
   applyFilters();
 })();
 </script>
