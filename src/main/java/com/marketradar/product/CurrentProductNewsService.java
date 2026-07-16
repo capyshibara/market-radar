@@ -110,7 +110,8 @@ public class CurrentProductNewsService {
         return new CurrentProductNewsItem(fact.getFactCode(), doc.getId(), doc.getTitle(),
                 doc.getSource().getCode(), doc.getSource().getName(), doc.getSource().getTier(),
                 doc.getUrl(), published, fact.getFactType().name(), fact.getSpanText(), topic,
-                ChronoUnit.DAYS.between(published, asOf));
+                ChronoUnit.DAYS.between(published, asOf), fact.getSummaryVi(), fact.getSummaryEn(),
+                fact.getSpanLanguage());
     }
 
     /**

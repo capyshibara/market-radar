@@ -20,7 +20,7 @@ public enum CurrentProductNewsTopic {
     PRODUCT_AND_BENEFITS(
             "Products, benefits & pricing", "Sản phẩm, quyền lợi & định phí",
             "What product proposition, benefit, eligibility, fee, or pricing detail should Product compare?",
-            "Product nên so sánh chi tiết nào về định vị sản phẩm, quyền lợi, điều kiện tham gia, phí hoặc định phí?",
+            "Bộ phận Sản phẩm nên so sánh chi tiết nào về định vị sản phẩm, quyền lợi, điều kiện tham gia, phí hoặc định phí?",
             "Compare only the cited detail with our current proposition; verify market, segment, and effective date first.",
             "Chỉ so sánh chi tiết được trích dẫn với sản phẩm hiện tại; trước tiên cần xác minh thị trường, phân khúc và ngày hiệu lực."),
     MARKET_METRICS(
@@ -34,13 +34,13 @@ public enum CurrentProductNewsTopic {
             "Could this channel development affect how a product is packaged, explained, sold, or supported?",
             "Diễn biến kênh này có thể ảnh hưởng đến cách đóng gói, giải thích, bán hoặc hỗ trợ sản phẩm không?",
             "Validate the channel, customer segment, and operating model before proposing a Product response.",
-            "Xác minh kênh, phân khúc khách hàng và mô hình vận hành trước khi đề xuất phản ứng của Product."),
+            "Xác minh kênh, phân khúc khách hàng và mô hình vận hành trước khi đề xuất phản ứng của Bộ phận Sản phẩm."),
     OTHER_PRODUCT_SIGNAL(
-            "Other Product signals", "Tín hiệu Product khác",
+            "Other Product signals", "Tín hiệu Sản phẩm khác",
             "Which Product assumption could this source help the team validate or challenge?",
-            "Nguồn này có thể giúp đội ngũ kiểm chứng hoặc phản biện giả định Product nào?",
+            "Nguồn này có thể giúp đội ngũ kiểm chứng hoặc phản biện giả định nào của Sản phẩm?",
             "Open the source, identify the exact Product decision in scope, and seek corroboration before acting.",
-            "Mở nguồn, xác định chính xác quyết định Product liên quan và tìm nguồn đối chứng trước khi hành động.");
+            "Mở nguồn, xác định chính xác quyết định Sản phẩm liên quan và tìm nguồn đối chứng trước khi hành động.");
 
     private final String labelEn;
     private final String labelVi;

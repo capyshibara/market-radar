@@ -43,10 +43,13 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
             pattern: comparison with the supplied peer/history evidence. With one independent
             source, explicitly say "tín hiệu đơn nguồn" / "single-source signal" and never trend.
             soWhat: decision mechanism for our Product team, not generic monitoring.
-            nowWhat: start exactly "Chủ trì: Product" and "Owner: Product" respectively;
+            nowWhat: start exactly "Chủ trì: Bộ phận Sản phẩm" and "Owner: Product" respectively;
             include a 30/45/60/90-day horizon and an explicit "tiêu chí" / "criterion" gate.
             caveat: strongest uncertainty or contrary/transfer constraint.
-            Keep Vietnamese and English semantically aligned and concise.
+            Keep Vietnamese and English semantically aligned and concise. Each Vietnamese
+            field must be Vietnamese prose; each English field must be English prose. Proper
+            names and accepted acronyms are the only exception. Do not leave explanatory
+            English phrases in Vietnamese fields or Vietnamese phrases in English fields.
             """;
 
     private static final Set<String> FIELDS = Set.of(
@@ -160,6 +163,7 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
                     out.patternVi(), out.patternEn(), out.soWhatVi(), out.soWhatEn(),
                     out.nowWhatVi(), out.nowWhatEn(), out.caveatVi(), out.caveatEn());
             if (!ProductInsightContract.complete(shape)) reject("required Product insight contract failed");
+            BilingualTextPolicy.requireInsightLanguagePurity(out);
             validateSingleSourceLanguage(draft, out);
             validateWhatNumbers(draft, out);
             return out;

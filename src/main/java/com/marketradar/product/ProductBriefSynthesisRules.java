@@ -261,17 +261,13 @@ public final class ProductBriefSynthesisRules {
     }
 
     private static String summaryFor(Signal signal, boolean vi) {
-        String summary = vi ? firstNonBlank(signal.summaryVi(), signal.summaryEn())
-                : firstNonBlank(signal.summaryEn(), signal.summaryVi());
-        String title = signal.title();
-        // Some legacy facts explain background but omit the move named by the title.
-        // Preserve both without inventing an action or calling another model.
-        if (!vi && notBlank(title) && title.length() <= 180 && summary.length() < 120
-                && has(normalize(title), "launch", "introduce", "transfer", "partner", "expand", "change")) {
-            String cleanTitle = title.strip().replaceAll("[.!?]+$", "");
-            if (!normalize(summary).contains(normalize(cleanTitle))) return cleanTitle + ". " + summary;
-        }
-        return summary;
+        // Do not substitute an original-language summary into the opposite language
+        // field. A missing translation must remain missing rather than contaminating
+        // a bilingual Product insight. Current-news cards still retain the original
+        // title and exact evidence separately for audit.
+        return vi
+                ? BilingualTextPolicy.safeDisplaySummary(signal.summaryVi(), true)
+                : BilingualTextPolicy.safeDisplaySummary(signal.summaryEn(), false);
     }
 
     private static ProductBriefInsight.Confidence confidence(int clusters, int sources, boolean official) {
@@ -285,9 +281,9 @@ public final class ProductBriefSynthesisRules {
         if (docs < 2) notes.add(vi ? "chỉ có một tài liệu" : "only one document");
         if (sources < 2) notes.add(vi ? "chưa có nguồn độc lập thứ hai" : "no second independent source");
         if (!official) notes.add(vi ? "chưa có nguồn cấp 1" : "no tier-1 source");
-        if (mixedLegacy) notes.add(vi ? "có evidence từ pipeline/model cũ" : "includes legacy pipeline/model evidence");
+        if (mixedLegacy) notes.add(vi ? "có bằng chứng từ quy trình/mô hình cũ" : "includes legacy pipeline/model evidence");
         if (notes.isEmpty()) return vi
-                ? "Đã có nhiều tài liệu/nguồn; vẫn cần Product owner xác nhận tính áp dụng nội bộ."
+                ? "Đã có nhiều tài liệu/nguồn; vẫn cần người phụ trách Sản phẩm xác nhận tính áp dụng nội bộ."
                 : "Multiple documents/sources are present; a Product owner must still confirm internal applicability.";
         return (vi ? "Giới hạn: " : "Limitations: ") + String.join(vi ? "; " : "; ", notes) + ".";
     }
@@ -303,7 +299,7 @@ public final class ProductBriefSynthesisRules {
                     offerHeadline(topic, true), offerHeadline(topic, false),
                     "Các tín hiệu này có thể thay đổi chuẩn so sánh về quyền lợi, phí hoặc phân khúc; chúng chưa chứng minh nhu cầu khách hàng hay yêu cầu sao chép đối thủ.",
                     "These signals may change the benchmark for benefits, fees or segments; they do not prove customer demand or justify copying a competitor.",
-                    "Chủ trì: Product Portfolio. Trong 30 ngày, lập bảng so sánh quyền lợi–phí–đối tượng với danh mục hiện tại; tiêu chí quyết định là có khoảng trống đủ lớn để nghiên cứu khách hàng hoặc prototype.",
+                    "Chủ trì: Bộ phận Sản phẩm – Danh mục sản phẩm. Trong 30 ngày, lập bảng so sánh quyền lợi–phí–đối tượng với danh mục hiện tại; tiêu chí quyết định là có khoảng trống đủ lớn để nghiên cứu khách hàng hoặc tạo mẫu thử.",
                     "Owner: Product Portfolio. Within 30 days, compare benefits, fees and target segments with the current portfolio; the decision criterion is a gap large enough to merit customer research or a prototype.");
             case VN_REGULATORY_CHANGE -> regulationContract(topic);
             case DISTRIBUTION_INNOVATION -> new TextContract(
@@ -312,16 +308,16 @@ public final class ProductBriefSynthesisRules {
                     "Distribution innovation may require product-design changes",
                     "Cơ chế kênh mới có thể thay đổi thời điểm mua, mức đơn giản của quyền lợi và yêu cầu tích hợp; tính phù hợp với khách hàng Việt Nam chưa được chứng minh.",
                     "A new channel can change purchase moments, benefit simplicity and integration needs; fit for Vietnamese customers is not yet proven.",
-                    "Chủ trì: Product Innovation. Trong 45 ngày, phối hợp Distribution để xác định use case và ràng buộc sản phẩm; tiêu chí tiếp tục là một thử nghiệm nhỏ có chỉ số thành công đo được.",
+                    "Chủ trì: Bộ phận Sản phẩm – Đổi mới sản phẩm. Trong 45 ngày, phối hợp Phân phối để xác định tình huống sử dụng và ràng buộc sản phẩm; tiêu chí tiếp tục là một thử nghiệm nhỏ có chỉ số thành công đo được.",
                     "Owner: Product Innovation. Within 45 days, work with Distribution to define the use case and product constraints; the continuation criterion is a small experiment with a measurable success metric.");
             case REGIONAL_TRANSFER -> regionalContract(topic, signals);
             case MARKET_PATTERN -> new TextContract(
                     ProductKiqContract.leadCodes(ProductKiqContract.Kiq.MARKET_PATTERN),
-                    "Tín hiệu thị trường cần thêm bằng chứng trước khi ảnh hưởng roadmap",
+                    "Tín hiệu thị trường cần thêm bằng chứng trước khi ảnh hưởng lộ trình",
                     "Market signals need more evidence before affecting the roadmap",
                     "Các số liệu hoặc sự kiện này cung cấp bối cảnh nhưng chưa tự thân chỉ ra thay đổi cần thiết trong thiết kế sản phẩm.",
                     "These metrics or events provide context but do not by themselves establish a required product-design change.",
-                    "Chủ trì: Product Insights. Trong 30 ngày, kiểm tra thêm nguồn độc lập và liên kết với quyết định danh mục; tiêu chí nâng cấp là có bằng chứng sản phẩm, quy định hoặc khách hàng bổ sung.",
+                    "Chủ trì: Bộ phận Sản phẩm – Phân tích thị trường. Trong 30 ngày, kiểm tra thêm nguồn độc lập và liên kết với quyết định danh mục; tiêu chí nâng cấp là có bằng chứng sản phẩm, quy định hoặc khách hàng bổ sung.",
                     "Owner: Product Insights. Within 30 days, seek another independent source and connect the signal to a portfolio decision; the promotion criterion is additional product, regulatory or customer evidence.");
         };
     }
@@ -331,9 +327,9 @@ public final class ProductBriefSynthesisRules {
             return new TextContract(
                     ProductKiqContract.leadCodes(ProductKiqContract.Kiq.REGULATORY_RESPONSE),
                     regulationHeadline(topic, true), regulationHeadline(topic, false),
-                    "Việc chứng chỉ hết hiệu lực có thể làm giảm năng lực tư vấn hoặc ảnh hưởng readiness của đợt ra mắt; đây không phải thay đổi đề xuất sản phẩm.",
+                    "Việc chứng chỉ hết hiệu lực có thể làm giảm năng lực tư vấn hoặc ảnh hưởng mức độ sẵn sàng của đợt ra mắt; đây không phải thay đổi đề xuất sản phẩm.",
                     "Certificate expiry may constrain adviser capacity or launch readiness; it is not itself a change to the product proposition.",
-                    "Chủ trì: Product Governance. Trong 30 ngày, phối hợp Distribution xác định năng lực tư vấn bị ảnh hưởng và đối chiếu các đợt ra mắt phụ thuộc kênh; tiêu chí hoàn tất là có phương án trước mốc hiệu lực.",
+                    "Chủ trì: Bộ phận Sản phẩm – Quản trị sản phẩm. Trong 30 ngày, phối hợp Phân phối xác định năng lực tư vấn bị ảnh hưởng và đối chiếu các đợt ra mắt phụ thuộc kênh; tiêu chí hoàn tất là có phương án trước mốc hiệu lực.",
                     "Owner: Product Governance. Within 30 days, work with Distribution to quantify affected adviser capacity and map channel-dependent launches; the completion criterion is a mitigation before the effective date.");
         }
         return new TextContract(
@@ -341,7 +337,7 @@ public final class ProductBriefSynthesisRules {
                 regulationHeadline(topic, true), regulationHeadline(topic, false),
                 "Quy định có thể ảnh hưởng điều khoản, quyền lợi, định phí, phê duyệt hoặc quy trình phân phối; phạm vi pháp lý phải được xác nhận trước khi đổi sản phẩm.",
                 "The rule may affect wording, benefits, pricing, approval or distribution; Legal must confirm scope before Product changes an offer.",
-                "Chủ trì: Product Governance. Trong 30 ngày, phối hợp Pháp chế lập impact map theo sản phẩm, điều khoản và mốc hiệu lực; tiêu chí hoàn tất là mỗi tác động có quyết định và owner Product.",
+                "Chủ trì: Bộ phận Sản phẩm – Quản trị sản phẩm. Trong 30 ngày, phối hợp Pháp chế lập bản đồ tác động theo sản phẩm, điều khoản và mốc hiệu lực; tiêu chí hoàn tất là mỗi tác động có quyết định và người phụ trách Sản phẩm.",
                 "Owner: Product Governance. Within 30 days, work with Legal on an impact map by product, clause and effective date; the completion criterion is a decision and Product owner for every impact.");
     }
 
@@ -353,12 +349,12 @@ public final class ProductBriefSynthesisRules {
                     ProductKiqContract.leadCodes(ProductKiqContract.Kiq.TRANSFERABLE_INNOVATION),
                     regionalHeadline(topic, true), regionalHeadline(topic, false),
                     hasDemandEvidence
-                            ? "Sự kết hợp giữa đề xuất di sản HNW và chỉ báo nhu cầu tạo ra một opportunity space đáng kiểm tra, chưa chứng minh nhu cầu tại Việt Nam. Ẩn số chính là quy mô phân khúc, tính khả thi pháp lý của chỉ dẫn sau biến cố và willingness-to-pay."
-                            : "Đề xuất này mở rộng benchmark từ quyền lợi tài chính sang quản trị di sản và chỉ dẫn sau biến cố; một động thái đối thủ chưa chứng minh nhu cầu tại Việt Nam hay willingness-to-pay.",
+                            ? "Sự kết hợp giữa đề xuất di sản HNW và chỉ báo nhu cầu tạo ra một không gian cơ hội đáng kiểm tra, chưa chứng minh nhu cầu tại Việt Nam. Ẩn số chính là quy mô phân khúc, tính khả thi pháp lý của chỉ dẫn sau biến cố và mức sẵn sàng chi trả."
+                            : "Đề xuất này mở rộng chuẩn so sánh từ quyền lợi tài chính sang quản trị di sản và chỉ dẫn sau biến cố; một động thái đối thủ chưa chứng minh nhu cầu tại Việt Nam hay mức sẵn sàng chi trả.",
                     hasDemandEvidence
                             ? "The combination of an HNW legacy proposition and demand indicators creates a testable opportunity space, not proof of Vietnam demand. Key unknowns are segment size, legal feasibility of post-event instructions and willingness to pay."
                             : "The proposition expands the benchmark from financial benefits to legacy governance and post-event instructions; one competitor move does not prove Vietnam demand or willingness to pay.",
-                    "Chủ trì: Product Innovation. Trong 60 ngày, benchmark danh mục, legal-screen cơ chế và phỏng vấn khách hàng mục tiêu; tiêu chí go/no-go là tính khả thi pháp lý và bằng chứng willingness-to-pay.",
+                    "Chủ trì: Bộ phận Sản phẩm – Đổi mới sản phẩm. Trong 60 ngày, đối chiếu danh mục, rà soát pháp lý cơ chế và phỏng vấn khách hàng mục tiêu; tiêu chí tiếp tục/dừng là tính khả thi pháp lý và bằng chứng về mức sẵn sàng chi trả.",
                     "Owner: Product Innovation. Within 60 days, benchmark the portfolio, legally screen the mechanism and interview target customers; the go/no-go criterion is legal feasibility plus willingness-to-pay evidence.");
         }
         return new TextContract(
@@ -366,30 +362,30 @@ public final class ProductBriefSynthesisRules {
                 regionalHeadline(topic, true), regionalHeadline(topic, false),
                 "Các mô hình khu vực có thể mở rộng không gian ý tưởng, nhưng khác biệt về quy định, hành vi và kinh tế sản phẩm có thể làm kết luận không chuyển giao được.",
                 "Regional models can widen the idea space, but regulatory, behavioral and product-economics differences may prevent transfer.",
-                "Chủ trì: Product Innovation. Trong 60 ngày, chọn tối đa một ý tưởng để regulatory-screen và kiểm tra customer evidence cùng unit-economics; tiêu chí vào roadmap là vượt cả ba cổng.",
+                "Chủ trì: Bộ phận Sản phẩm – Đổi mới sản phẩm. Trong 60 ngày, chọn tối đa một ý tưởng để rà soát quy định và kiểm tra bằng chứng khách hàng cùng hiệu quả kinh tế sản phẩm; tiêu chí vào lộ trình là vượt cả ba cổng.",
                 "Owner: Product Innovation. Within 60 days, select at most one idea for regulatory screening, customer evidence and unit-economics testing; the roadmap criterion is passing all three gates.");
     }
 
     private static String offerHeadline(Topic topic, boolean vi) {
         return switch (topic) {
-            case HEALTH_PROTECTION -> vi ? "Đề xuất sức khỏe và bảo vệ cần benchmark khoảng trống quyền lợi"
+            case HEALTH_PROTECTION -> vi ? "Đề xuất sức khỏe và bảo vệ cần đối chiếu khoảng trống quyền lợi"
                     : "Health and protection propositions need benefit-gap benchmarking";
-            case WEALTH_LEGACY -> vi ? "Đề xuất tích lũy và di sản cần benchmark giá trị khách hàng"
+            case WEALTH_LEGACY -> vi ? "Đề xuất tích lũy và di sản cần đối chiếu giá trị khách hàng"
                     : "Wealth and legacy propositions need customer-value benchmarking";
-            case PRICING_BENEFITS -> vi ? "Thay đổi quyền lợi hoặc phí cần benchmark trực tiếp"
+            case PRICING_BENEFITS -> vi ? "Thay đổi quyền lợi hoặc phí cần đối chiếu trực tiếp"
                     : "Benefit or fee changes need direct benchmarking";
-            default -> vi ? "Thay đổi đề xuất giá trị sản phẩm cần được benchmark"
+            default -> vi ? "Thay đổi đề xuất giá trị sản phẩm cần được đối chiếu"
                     : "Product value-proposition changes need benchmarking";
         };
     }
 
     private static String regulationHeadline(Topic topic, boolean vi) {
         return switch (topic) {
-            case AGENT_REGULATION -> vi ? "Thay đổi quy định đại lý cần lập impact map Product–Distribution"
+            case AGENT_REGULATION -> vi ? "Thay đổi quy định đại lý cần lập bản đồ tác động Sản phẩm–Phân phối"
                     : "Agent-rule change needs a Product–Distribution impact map";
-            case PRODUCT_APPROVAL -> vi ? "Thay đổi phê duyệt sản phẩm cần Product và Pháp chế đánh giá phạm vi"
+            case PRODUCT_APPROVAL -> vi ? "Thay đổi phê duyệt sản phẩm cần Sản phẩm và Pháp chế đánh giá phạm vi"
                     : "Product-approval change needs Product and Legal scope assessment";
-            default -> vi ? "Thay đổi quy định cần Product và Pháp chế đánh giá phạm vi"
+            default -> vi ? "Thay đổi quy định cần Sản phẩm và Pháp chế đánh giá phạm vi"
                     : "Regulatory change needs Product and Legal scope assessment";
         };
     }
@@ -400,17 +396,13 @@ public final class ProductBriefSynthesisRules {
                     : "Regional wealth and legacy propositions merit a Vietnam transfer test";
             case HEALTH_PROTECTION -> vi ? "Đổi mới sức khỏe khu vực cần kiểm tra khả năng áp dụng tại Việt Nam"
                     : "Regional health innovation needs a Vietnam applicability test";
-            case DIGITAL_EMBEDDED -> vi ? "Mô hình số khu vực cần kiểm tra use case trước khi vào roadmap"
+            case DIGITAL_EMBEDDED -> vi ? "Mô hình số khu vực cần kiểm tra tình huống sử dụng trước khi vào lộ trình"
                     : "Regional digital models need a use-case test before entering the roadmap";
             case AGENT_BANCA -> vi ? "Mô hình phân phối khu vực cần kiểm tra ràng buộc thiết kế sản phẩm"
                     : "Regional distribution models need a product-design constraint test";
             default -> vi ? "Tín hiệu khu vực là giả thuyết chuyển giao, không phải khuyến nghị sao chép"
                     : "Regional signals are transfer hypotheses, not copy recommendations";
         };
-    }
-
-    private static String firstNonBlank(String first, String second) {
-        return notBlank(first) ? first.strip() : (second == null ? "" : second.strip());
     }
 
     private static boolean has(String text, String... terms) {

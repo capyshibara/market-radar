@@ -1,5 +1,42 @@
 # Market Radar — Engineering Handoff (updated 2026-07-16 quality-remediation session)
 
+## Latest report-language and evidence-traceability update — 2026-07-16
+
+This update fixes two user-visible defects that were discovered while reviewing the live Product
+reports and Reviewer Queue. It is additive: it does **not** rerun the pipeline, erase the
+database, change claim decisions, or lower any publication gate.
+
+### Reviewer evidence must survive reprocessing
+
+- A claim stores the fact codes it cited when it was created. Reprocessing can supersede those
+  facts, marking them inactive while retaining them for audit. The Reviewer Detail and Claim
+  Audit screens now resolve the cited codes through the audit query, which includes archived
+  editions; they must never use the active-report query for a historical review.
+- Archived evidence is visibly labelled, retains its original-source HTTPS link, and can still be
+  reviewed. If even one cited fact is genuinely missing, the screen lists the missing code(s) and
+  blocks approve, edit+approve, and force-approve in both the UI and server. Reject remains
+  available. This closes a previous partial-evidence approval gap.
+
+### Product-report bilingual rules
+
+- **Original title and original evidence remain in the source language in both report modes.**
+  They are now labelled as original-language material rather than being mistaken for a failed
+  translation. This is required for traceability and exact-citation review.
+- Each Current Product News card uses the extractor's Vietnamese or English summary only as a
+  report-language display summary. If no safe summary exists in the selected language, the UI
+  explicitly says so; it never pretends that an original quotation is translated.
+- Generated Product insight fields now have a deterministic language-purity gate. Vietnamese
+  fields containing substantial English prose, or English fields containing substantial Vietnamese
+  prose, are rejected and the bounded writer repair path is used. Proper names and acronyms are
+  allowed. The writer prompt repeats the same rule.
+- Remaining user-facing report labels, confidence badges, fact-type labels and report metadata
+  are locale-aware. Mode codes and pipeline identifiers remain technical audit metadata only.
+
+**Operator effect:** restart after rebuilding to see the UI/evidence changes. Existing persisted
+Product insights are immutable; run Product regeneration only when you want a new edition to
+apply the language-purity gate. Do not rerun Ingest/Classify/Extract merely to change language.
+
+
 ## Latest live update — 2026-07-16 (supersedes the completion statement below)
 
 The controlled live reprocess has since completed for **Classify** and **Extract**. A Product
@@ -35,9 +72,10 @@ run. They are not yet a substitute for fresh source content:
    market-wide trend or Decision Brief; the full Decision Brief still requires three
    `DECISION_READY` insights. Zero safe signals remains `INSUFFICIENT_EVIDENCE`.
 7. Every 7/30/90-day Product surface also renders **Current Product News** independently of the
-   insight tier. These cards are source fields only—publication date, publisher, article link,
-   fact code and an exact verbatim evidence span—not LLM summaries, recommendations or trend
-   claims. Admission requires an active, confirmed, full-text, non-duplicate tier 1–3 document
+   insight tier. These cards retain the original title and exact verbatim evidence span, plus an
+   extractor-provided summary only when it is safe in the chosen report language; they never use
+   an LLM translation, recommendation or trend claim. Admission requires an active, confirmed,
+   full-text, non-duplicate tier 1–3 document
    in the exact cadence window, an 80+ character span that occurs verbatim in the source, a
    Product-relevant label, and life-scope/no-claims-only checks. This restores useful current
    coverage when the decision layer is sparse without reviving legacy unverified prose.

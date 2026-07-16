@@ -34,7 +34,7 @@ public final class ProductInsightContract {
     public static boolean productOwnedAction(String nowWhat, boolean vi) {
         if (!present(nowWhat)) return false;
         String normalized = nowWhat.strip().toLowerCase(java.util.Locale.ROOT);
-        boolean owner = vi ? normalized.startsWith("chủ trì: product")
+        boolean owner = vi ? normalized.startsWith("chủ trì: bộ phận sản phẩm")
                 : normalized.startsWith("owner: product");
         boolean horizon = vi
                 ? normalized.matches("(?s).*trong (30|45|60|90) ngày.*")

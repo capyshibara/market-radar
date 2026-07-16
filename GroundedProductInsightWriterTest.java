@@ -51,9 +51,9 @@ public class GroundedProductInsightWriterTest {
                 "whatEn":"The insurer launched a health product.",
                 "patternVi":"Đây là tín hiệu đơn nguồn, chưa phải xu hướng.",
                 "patternEn":"This is a single-source signal, not a trend.",
-                "soWhatVi":"Product cần kiểm tra khoảng trống trong danh mục sức khỏe.",
+                "soWhatVi":"Bộ phận Sản phẩm cần kiểm tra khoảng trống trong danh mục sức khỏe.",
                 "soWhatEn":"Product should test the health portfolio gap.",
-                "nowWhatVi":"Chủ trì: Product. Trong 30 ngày, kiểm tra đề xuất; tiêu chí là có bằng chứng khách hàng bổ sung.",
+                "nowWhatVi":"Chủ trì: Bộ phận Sản phẩm. Trong 30 ngày, kiểm tra đề xuất; tiêu chí là có bằng chứng khách hàng bổ sung.",
                 "nowWhatEn":"Owner: Product. Within 30 days, test the proposition; the criterion is additional customer evidence.",
                 "caveatVi":"Bằng chứng hiện chỉ từ một nguồn.",
                 "caveatEn":"Evidence currently comes from one source.","factCodes":["FACT-1"]}
