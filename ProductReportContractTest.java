@@ -24,14 +24,14 @@ public class ProductReportContractTest {
         }
         String fragment = Files.readString(Path.of("src/main/resources/templates/fragments/product-report.html"));
         check(fragment.contains("INSUFFICIENT_EVIDENCE"), "explicit insufficient state");
-        check(fragment.contains("CURRENT WATCH BRIEF"), "explicit current Watch Brief state");
+        check(fragment.contains("executiveBrief.modeCode"), "explicit evidence/watch/decision brief state");
         check(fragment.contains("productWatchBriefInsights"), "Watch Brief renders only safe adapter signals");
-        check(fragment.contains("do not treat it as a market-wide trend"),
+        check(fragment.contains("not market-wide conclusions"),
                 "Watch Brief cannot be represented as a market conclusion");
         check(fragment.contains("productWatchSignals"), "separate WATCH rendering");
         check(fragment.contains("currentProductNews"), "current cited-news layer is rendered independently");
         check(fragment.contains("verbatimEvidenceSpan"), "news layer renders exact source evidence, not generated summary");
-        check(fragment.contains("not recommendations, trend claims, or market conclusions"),
+        check(fragment.contains("reading frames, not AI-generated conclusions"),
                 "news layer cannot be mistaken for a Product conclusion");
         check(fragment.contains("references"), "references derive from rendered adapter snapshot");
         System.out.println("ProductReportContractTest: ALL PASS");

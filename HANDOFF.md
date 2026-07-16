@@ -41,6 +41,14 @@ run. They are not yet a substitute for fresh source content:
    in the exact cadence window, an 80+ character span that occurs verbatim in the source, a
    Product-relevant label, and life-scope/no-claims-only checks. This restores useful current
    coverage when the decision layer is sparse without reviving legacy unverified prose.
+8. The unified Product surfaces now use an **editorial intelligence layout** rather than an
+   audit-log layout. A deterministic executive layer counts verified developments, independent
+   sources and Product priority areas; groups evidence into regulation, product/benefit, market
+   metric and distribution lenses; and turns the leading lenses into 48-hour/30-day validation
+   actions. These reading frames never create market claims. The publication gate remains
+   authoritative, while its technical `INSUFFICIENT_EVIDENCE` detail is moved into a compact
+   expandable trust note instead of dominating the report. Weekly, monthly, quarterly, Product
+   and email surfaces share the same magazine-style template and source register.
 
 After restarting the built JAR, inspect `/sources`, then run **Ingest → Classify → Extract →
 Product regenerate** once (never the legacy Interpret/Verify stages). Do not rerun the current

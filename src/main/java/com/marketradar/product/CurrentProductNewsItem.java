@@ -2,7 +2,7 @@ package com.marketradar.product;
 
 import java.time.LocalDate;
 
-/** Read model for a source-backed item; every displayed sentence is a source field. */
+/** Source-backed item plus deterministic Product reading metadata. */
 public record CurrentProductNewsItem(
         String factCode,
         long rawDocId,
@@ -13,4 +13,28 @@ public record CurrentProductNewsItem(
         String sourceUrl,
         LocalDate publishedDate,
         String factType,
-        String verbatimEvidenceSpan) {}
+        String verbatimEvidenceSpan,
+        CurrentProductNewsTopic topic,
+        long ageDays) {
+
+    public String getTopicLabelEn() { return topic.getLabelEn(); }
+    public String getTopicLabelVi() { return topic.getLabelVi(); }
+    public String getReviewQuestionEn() { return topic.getReviewQuestionEn(); }
+    public String getReviewQuestionVi() { return topic.getReviewQuestionVi(); }
+    public String getValidationStepEn() { return topic.getValidationStepEn(); }
+    public String getValidationStepVi() { return topic.getValidationStepVi(); }
+
+    public String getSourceTierLabelEn() { return "Tier " + sourceTier + " source"; }
+    public String getSourceTierLabelVi() { return "Nguồn cấp " + sourceTier; }
+
+    public String getFreshnessLabelEn() {
+        if (ageDays == 0) return "Published today";
+        if (ageDays == 1) return "Published 1 day ago";
+        return "Published " + ageDays + " days ago";
+    }
+
+    public String getFreshnessLabelVi() {
+        if (ageDays == 0) return "Công bố hôm nay";
+        return "Công bố " + ageDays + " ngày trước";
+    }
+}

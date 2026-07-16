@@ -3,8 +3,37 @@
 <head>
   <meta charset="UTF-8"/>
   <title>Market Radar · Product</title>
+  <th:block th:replace="~{fragments/product-report-styles :: styles}"></th:block>
   <style>
-    body{width:760px;margin:0;padding:28px;background:#f4f1ea;color:#17233d;font-family:Arial,sans-serif}.report-header{border-bottom:4px solid #ba122b}.cadence-nav,details{display:none}.status,.insight,.watch,.references,.current-news{background:#fff;padding:18px;margin:14px 0;border-radius:8px}.insufficient{border:2px solid #b97600}.insight{border-left:5px solid #ba122b}.watch{border-left:5px solid #b97600}.current-news{border:1px solid #305b8d}.current-news-item{padding:12px 0;border-top:1px solid #cbd9e8}.current-news-item:first-of-type{border-top:0}.current-news blockquote{margin:8px 0;padding-left:12px;border-left:3px solid #305b8d;white-space:pre-wrap}.eyebrow,.meta,.kiq,.caveat{color:#596273}p{line-height:1.45}
+    body{width:640px;font-size:12px;background:#fff}
+    .report-toolbar,.cadence-nav,details{display:none!important}
+    .report-page{width:640px;max-width:640px;margin:0;border:0;box-shadow:none}
+    .report-header{padding:32px 30px 0}
+    .masthead-top{margin-bottom:24px;padding-bottom:12px}
+    .publication-name{font-size:9px}.edition-mark{font-size:8px}
+    .eyebrow{font-size:8px;margin-bottom:9px}
+    .report-header h1{max-width:560px;font-size:34px;line-height:1.08}
+    .report-deck{max-width:560px;margin:12px 0 18px;font-size:15px}
+    .meta-cell{padding:10px 8px}.meta-label{font-size:7px}.meta-value{font-size:9px}
+    .trust-strip{margin:18px 30px 0;padding:14px 16px}
+    .trust-copy h2{font-size:17px}.trust-copy p{font-size:10px}.trust-state{width:110px}
+    .state-badge{font-size:7px;padding:5px 7px}
+    .report-section{padding:28px 30px 4px}.report-section + .report-section{margin-top:20px}
+    .section-head{margin-bottom:16px}.section-head h2{font-size:23px}.section-intro{font-size:10px}
+    .section-stat{width:85px}.section-stat strong{font-size:25px}.section-stat span{font-size:7px}
+    .priority-grid,.action-horizons,.insight-grid{display:block}
+    .priority-card,.action-step,.insight-card{display:block;margin-bottom:10px;min-height:0}
+    .priority-card{padding:16px 16px 52px}.priority-card h3{font-size:16px}.priority-card p{font-size:10px}
+    .action-step,.action-step:first-child{padding:13px 0;border-left:0;border-top:1px solid #dfe3e8}
+    .action-step:first-child{border-top:0}.action-step h3{font-size:14px}
+    .topic-heading{display:block;padding:14px}.topic-title-row{border-right:0;border-bottom:1px solid rgba(255,255,255,.18);padding:0 0 9px;margin-bottom:9px}
+    .topic-title-row h3{font-size:17px}.topic-heading p{padding:5px 0;font-size:8.5px}
+    .current-news-item,.news-index,.news-main,.news-side{display:block;width:auto}
+    .current-news-item{padding:18px 0}.news-index{margin-bottom:5px}.news-main{padding:0}
+    .current-news-item h3{font-size:17px}.evidence-quote{font-size:11px}
+    .news-side{margin-top:12px;padding:10px 0 0;border-left:0;border-top:1px solid var(--line)}
+    .reference-row,.reference-row > *{display:block;width:auto}.reference-publisher{margin-top:3px}
+    .report-footer{padding:20px 30px}.footer-grid,.footer-grid > div{display:block}.footer-title{width:auto;margin-bottom:9px}.footer-copy{padding:0;border:0}
   </style>
 </head>
 <body>

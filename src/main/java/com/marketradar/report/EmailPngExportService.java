@@ -44,6 +44,26 @@ public class EmailPngExportService {
             @page { size: %fmm %fmm; margin: 0; }
             body, h1, h2, h3, h4, p, li, td, th, span, div, b, i, a, strong
               { font-family:'DejaVu Sans', sans-serif !important; }
+            .report-page { background:#fffdfa !important; color:#172033 !important; }
+            .report-header { border-top:6px solid #d7192d !important; }
+            .report-header h1, .section-head h2, .priority-card h3,
+            .insight-card h3, .current-news-item h3 { color:#172b4d !important; }
+            .eyebrow, .section-kicker, .priority-number, .section-stat strong,
+            .reference-code { color:#a40f20 !important; }
+            .report-meta, .meta-cell, .report-section, .priority-card,
+            .insight-card, .reference-row { border-color:#dfe3e8 !important; }
+            .trust-strip { border:1px solid #c8ced7 !important;
+                           border-left:4px solid #96600d !important; background:#fff6df !important; }
+            .trust-strip.watch-mode { border-left-color:#315f91 !important; background:#edf4fa !important; }
+            .trust-strip.ready-mode { border-left-color:#176447 !important; background:#eaf6f0 !important; }
+            .priority-card { border:1px solid #dfe3e8 !important; background:#ffffff !important; }
+            .action-horizons, .news-ledger, .reference-register { border-top:2px solid #172033 !important; }
+            .topic-heading { background:#172b4d !important; color:#ffffff !important; }
+            .topic-heading h3, .topic-heading p, .topic-heading strong { color:#ffffff !important; }
+            .evidence-quote { border-left:3px solid #315f91 !important; color:#3f4a5f !important; }
+            .meta-chip { background:#edf4fa !important; color:#315f91 !important; }
+            .report-footer { background:#172b4d !important; color:#dfe7f2 !important; }
+            .report-footer .footer-title { color:#ffffff !important; }
             """.formatted(PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
 
     private final SpringTemplateEngine templateEngine;

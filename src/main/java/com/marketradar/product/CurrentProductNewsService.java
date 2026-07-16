@@ -12,8 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -74,14 +76,13 @@ public class CurrentProductNewsService {
                 .toList();
 
         Set<Long> selectedDocuments = new HashSet<>();
-        List<CurrentProductNewsItem> result = new ArrayList<>();
+        List<CurrentProductNewsItem> uniqueItems = new ArrayList<>();
         for (EvidenceFact fact : ordered) {
             RawDoc doc = fact.getRawDoc();
             if (!selectedDocuments.add(doc.getId())) continue; // one source item per document
-            result.add(toItem(fact));
-            if (result.size() == MAX_ITEMS) break;
+            uniqueItems.add(toItem(fact, classificationByDoc.get(doc.getId()), asOf));
         }
-        return List.copyOf(result);
+        return selectBalancedCoverage(uniqueItems);
     }
 
     private static boolean allowed(EvidenceFact fact, Classification classification,
@@ -98,11 +99,57 @@ public class CurrentProductNewsService {
         return CurrentProductNewsPolicy.evaluate(input, cadence, asOf).eligible();
     }
 
-    private static CurrentProductNewsItem toItem(EvidenceFact fact) {
+    private static CurrentProductNewsItem toItem(EvidenceFact fact,
+                                                 Classification classification,
+                                                 LocalDate asOf) {
         RawDoc doc = fact.getRawDoc();
+        Set<String> labels = classification == null ? Set.of() : classification.getLabels().stream()
+                .map(Enum::name).collect(Collectors.toUnmodifiableSet());
+        LocalDate published = publicationDate(fact);
+        CurrentProductNewsTopic topic = CurrentProductNewsTopic.from(labels, fact.getFactType().name());
         return new CurrentProductNewsItem(fact.getFactCode(), doc.getId(), doc.getTitle(),
                 doc.getSource().getCode(), doc.getSource().getName(), doc.getSource().getTier(),
-                doc.getUrl(), publicationDate(fact), fact.getFactType().name(), fact.getSpanText());
+                doc.getUrl(), published, fact.getFactType().name(), fact.getSpanText(), topic,
+                ChronoUnit.DAYS.between(published, asOf));
+    }
+
+    /**
+     * Prevent one noisy category from consuming the whole brief. The newest
+     * item in every available Product topic is selected before any topic gets a
+     * second item; selected cards are then grouped in stable editorial order.
+     */
+    /** Public deterministic seam used by coverage regression tests. */
+    public static List<CurrentProductNewsItem> selectBalancedCoverage(List<CurrentProductNewsItem> items) {
+        if (items == null || items.isEmpty()) return List.of();
+        EnumMap<CurrentProductNewsTopic, List<CurrentProductNewsItem>> byTopic =
+                new EnumMap<>(CurrentProductNewsTopic.class);
+        for (CurrentProductNewsItem item : items) {
+            if (item == null || item.topic() == null) continue;
+            byTopic.computeIfAbsent(item.topic(), ignored -> new ArrayList<>()).add(item);
+        }
+        byTopic.values().forEach(topicItems -> topicItems.sort(Comparator
+                .comparing(CurrentProductNewsItem::publishedDate, Comparator.reverseOrder())
+                .thenComparingInt(CurrentProductNewsItem::sourceTier)
+                .thenComparing(CurrentProductNewsItem::factCode)));
+
+        List<CurrentProductNewsItem> selected = new ArrayList<>();
+        for (int round = 0; selected.size() < MAX_ITEMS; round++) {
+            boolean found = false;
+            for (CurrentProductNewsTopic topic : CurrentProductNewsTopic.values()) {
+                List<CurrentProductNewsItem> topicItems = byTopic.getOrDefault(topic, List.of());
+                if (round < topicItems.size()) {
+                    selected.add(topicItems.get(round));
+                    found = true;
+                    if (selected.size() == MAX_ITEMS) break;
+                }
+            }
+            if (!found) break;
+        }
+        selected.sort(Comparator
+                .comparingInt((CurrentProductNewsItem item) -> item.topic().ordinal())
+                .thenComparing(CurrentProductNewsItem::publishedDate, Comparator.reverseOrder())
+                .thenComparing(CurrentProductNewsItem::factCode));
+        return List.copyOf(selected);
     }
 
     private static LocalDate publicationDate(EvidenceFact fact) {

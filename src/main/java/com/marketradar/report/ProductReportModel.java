@@ -1,5 +1,6 @@
 package com.marketradar.report;
 
+import com.marketradar.product.CurrentProductNewsGroup;
 import com.marketradar.product.ProductReportCadence;
 import org.springframework.stereotype.Component;
 
@@ -53,6 +54,13 @@ public class ProductReportModel {
         model.put("productLeadInsight", snapshot.leadInsight());
         model.put("currentProductNews", snapshot.currentNews());
         model.put("hasCurrentProductNews", !snapshot.currentNews().isEmpty());
+        model.put("currentProductNewsGroups", CurrentProductNewsGroup.from(snapshot.currentNews()));
+        model.put("currentProductNewsCount", snapshot.currentNews().size());
+        model.put("currentProductNewsTopicCount", snapshot.currentNews().stream()
+                .map(item -> item.topic()).distinct().count());
+        model.put("currentProductNewsSourceCount", snapshot.currentNews().stream()
+                .map(item -> item.sourceCode()).distinct().count());
+        model.put("executiveBrief", ProductExecutiveBrief.from(snapshot, vi));
         model.put("references", snapshot.references());
         return model;
     }

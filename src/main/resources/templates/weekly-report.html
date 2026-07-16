@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title th:text="${vi ? 'Market Radar · 7 ngày' : 'Market Radar · 7 days'}">Market Radar</title>
   <link rel="stylesheet" href="/css/fonts.css"/>
-  <link rel="stylesheet" href="/css/base.css"/>
-  <style>
-    body{max-width:960px;margin:0 auto;padding:40px 28px;color:#17233d;font-family:Arial,sans-serif}.report-header{border-bottom:4px solid #ba122b;padding-bottom:20px}.eyebrow,.meta,.kiq,.caveat{color:#596273}.cadence-nav{display:flex;gap:18px;margin:18px 0}.status,.insight,.watch,.references,.current-news{padding:22px;margin:18px 0;border:1px solid #ddd;border-radius:10px}.insufficient{border-color:#b97600;background:#fff8e8}.insight{border-left:5px solid #ba122b}.watch{border-left:5px solid #b97600}.current-news{border-color:#305b8d;background:#f4f8fd}.current-news-item{padding:14px 0;border-top:1px solid #cbd9e8}.current-news-item:first-of-type{border-top:0}.news-disclaimer{color:#394f6b}.current-news blockquote{margin:10px 0;padding:10px 14px;border-left:3px solid #305b8d;background:#fff;white-space:pre-wrap}.citation{font-size:.9em}h4{margin-bottom:4px}p{line-height:1.55}code{font-size:.82em}@media print{.cadence-nav{display:none}body{padding:0}.insight,.watch,.current-news-item{break-inside:avoid}}
-  </style>
+  <th:block th:replace="~{fragments/product-report-styles :: styles}"></th:block>
 </head>
 <body>
   <th:block th:replace="~{fragments/product-report :: body}"></th:block>
