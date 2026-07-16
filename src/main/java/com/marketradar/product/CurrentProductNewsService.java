@@ -106,6 +106,9 @@ public class CurrentProductNewsService {
     }
 
     private static LocalDate publicationDate(EvidenceFact fact) {
+        if (fact == null || fact.getRawDoc() == null || fact.getRawDoc().getPublishedAt() == null) {
+            return null;
+        }
         return fact.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
     }
 }
