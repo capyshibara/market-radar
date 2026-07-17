@@ -627,6 +627,7 @@ public class SeedData implements CommandLineRunner {
         routingRules.save(new RoutingRule(Category.FEE_BENEFIT_COMMISSION_CHANGE, Department.PRODUCT));
         routingRules.save(new RoutingRule(Category.FEE_BENEFIT_COMMISSION_CHANGE, Department.SALES));
         routingRules.save(new RoutingRule(Category.PRODUCT_REGULATION, Department.PRODUCT));
+        routingRules.save(new RoutingRule(Category.PRODUCT_REGULATION, Department.COMPLIANCE));
         routingRules.save(new RoutingRule(Category.SALES_DATA, Department.SALES));
         routingRules.save(new RoutingRule(Category.DISTRIBUTION_CHANNEL, Department.SALES));
     }

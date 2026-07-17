@@ -7,4 +7,7 @@ import java.util.List;
 
 public interface RoutingRuleRepository extends JpaRepository<RoutingRule, Long> {
     List<RoutingRule> findByCategory(Category category);
+
+    boolean existsByCategoryAndDepartment(Category category,
+                                          com.marketradar.domain.Department department);
 }

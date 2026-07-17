@@ -43,6 +43,10 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
     @Query("select f from EvidenceFact f where f.active = true order by f.id")
     List<EvidenceFact> findAllActiveOrderById();
 
+    /** Desk feed: resolve one story link per routed document. Read-only. */
+    @Query("select f from EvidenceFact f where f.rawDoc.id in :rawDocIds and f.active = true order by f.id")
+    List<EvidenceFact> findActiveByRawDocIdIn(@Param("rawDocIds") List<Long> rawDocIds);
+
     /** Immutable editions must keep resolving their original evidence after a newer
      * extraction edition supersedes it. This audit read intentionally includes inactive rows. */
     @Query("select f from EvidenceFact f " +

@@ -5,6 +5,30 @@
 > `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
 > artwork, and sourced exhibits rather than decorative pseudo-data.
 
+## Department desks — 2026-07-17
+
+- **Routing is now visible.** New ops console page `/desks` (sidebar: Intelligence → Department
+  Desks) shows one card per department with routed-story volume, last-7-day count and the three
+  newest routed stories; `/desks/{dept}` lists the full feed with the router's recorded reason and
+  category chips per item, plus links to the explained source story (when a fact exists) and the
+  publisher. Read-only: the desk renders exactly what the deterministic `Router` persisted — it
+  never re-routes, re-labels or calls an LLM.
+- **COMPLIANCE department added, data-justified.** Corpus scan 2026-07-17: 222 REGULATION evidence
+  facts existed but only PRODUCT received PRODUCT_REGULATION documents, while the demo account
+  roster already contains Compliance roles. New rule PRODUCT_REGULATION → COMPLIANCE (SeedData for
+  fresh DBs + `ComplianceRoutingMigration` for existing ones, which also re-ran the deterministic
+  router over the 12 confirmed regulation classifications so the desk is not empty). FEE_CHANGE
+  (22 facts) was judged too thin for an Actuarial desk.
+- **H2 gotcha handled.** `DepartmentSchemaMigration` widens the enum CHECK constraints on
+  `routing_rules.department` and `classification_departments.departments` before the routing
+  migration runs — same pattern as the edition-status migration; ddl-auto=update never widens
+  existing CHECK constraints.
+- **Verification:** Maven packaging and every standalone `*Test.java` suite pass (new:
+  `DeskConsoleContractTest`, `DepartmentSchemaMigrationTest`). A throwaway instance on an isolated
+  DB copy confirmed both migrations log correctly, 12 stories re-routed, and `/desks` +
+  `/desks/compliance` render inside the ops shell in EN and VI. The live database was not touched;
+  one rebuild/restart applies everything.
+
 ## Explained source stories / report-to-corpus trace — 2026-07-17
 
 - **A citation code is now a reading path, not a dead end.** Every human editorial takeaway lists

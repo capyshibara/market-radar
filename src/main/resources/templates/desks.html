@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="#{ops.desks.title}">Department Desks</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .desk-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-top:20px; }
+  .desk-card { border:1px solid var(--border, #E1DDD2); border-radius:10px; background:var(--surface, #fff); overflow:hidden; }
+  .desk-card-head { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border, #E1DDD2); }
+  .desk-card-head strong { font-size:var(--text-md, 15px); }
+  .desk-card[data-dept="PRODUCT"] .desk-card-head { background:#EAF0FB; }
+  .desk-card[data-dept="SALES"] .desk-card-head { background:#FAF0DC; }
+  .desk-card[data-dept="COMPLIANCE"] .desk-card-head { background:#EAF3EE; }
+  .desk-stats { display:flex; gap:22px; padding:12px 16px; }
+  .desk-stats dt { font-size:11px; color:var(--text-secondary, #6b6a63); text-transform:uppercase; letter-spacing:.05em; }
+  .desk-stats dd { margin:2px 0 0; font-size:20px; font-weight:600; }
+  .desk-recent { padding:0 16px 8px; }
+  .desk-recent li { margin:0 0 9px; font-size:13px; line-height:1.45; list-style:none; }
+  .desk-recent li small { display:block; color:var(--text-secondary, #6b6a63); }
+  .desk-card-foot { padding:10px 16px 14px; }
+</style>
+</head>
+<body>
+<div class="ops-shell">
+<th:block th:replace="~{fragments/ops-sidebar :: sidebar('desks', ${queueCount})}"></th:block>
+<div class="ops-main">
+<div class="ops-content">
+  <div class="page-header">
+    <div>
+      <h1 th:text="#{ops.desks.title}">Department Desks</h1>
+      <p th:text="#{ops.desks.description}">Routed stories per department.</p>
+    </div>
+  </div>
+
+  <div class="desk-grid">
+    <div class="desk-card" th:each="d : ${desks}" th:attr="data-dept=${d.dept.name()}">
+      <div class="desk-card-head">
+        <strong th:text="#{'ops.desks.dept.' + ${d.dept.name()}}">Department</strong>
+        <span class="badge badge-info" th:if="${d.newThisWeek > 0}"
+              th:text="${d.newThisWeek + ' ' + #messages.msg('ops.desks.newBadge')}">new</span>
+      </div>
+      <dl class="desk-stats">
+        <div><dt th:text="#{ops.desks.statRouted}">Routed stories</dt><dd th:text="${d.total}">0</dd></div>
+        <div><dt th:text="#{ops.desks.statWeek}">Last 7 days</dt><dd th:text="${d.newThisWeek}">0</dd></div>
+      </dl>
+      <ul class="desk-recent">
+        <li th:each="item : ${d.recent}">
+          <span th:text="${item.title}">Title</span>
+          <small th:text="${item.sourceName + ' · ' + item.publishedLabel}">Source</small>
+        </li>
+        <li th:if="${d.recent.isEmpty()}"><small th:text="#{ops.desks.empty}">Nothing routed yet.</small></li>
+      </ul>
+      <div class="desk-card-foot">
+        <a class="btn btn-secondary" th:href="${'/desks/' + #strings.toLowerCase(d.dept.name())}"
+           th:text="#{ops.desks.openDesk}">Open desk</a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+</body>
+</html>
