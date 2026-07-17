@@ -16,7 +16,7 @@
    ============================================================ */
 
 :root {
-  --pattern-ring-color: var(--slate-400);
+  --pattern-ring-color: var(--accent-blue-grey);
   --pattern-ring-accent: var(--brand-red-500);
   --pattern-ring-gap: 34px;
   --pattern-sweep-angle: 200deg; /* @kind other */

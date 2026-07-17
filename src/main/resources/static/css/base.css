@@ -41,3 +41,4 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 a { color: var(--text-link); }
 
 code, pre, kbd { font-family: var(--font-mono); }
+html[lang="vi"] .page-header h1 { font-family: 'Lora', Georgia, serif; }

@@ -5,6 +5,42 @@
 > `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
 > artwork, and sourced exhibits rather than decorative pseudo-data.
 
+## Product report human-editorial redesign + updated design system — 2026-07-17
+
+- **Weekly, Monthly and Quarterly now have a separate human editorial layer.** The default EN/VI
+  editions are fully written from the current copied corpus by `ProductReportEditorialService`:
+  a lead argument, three evidence-linked takeaways, one sourced comparison chart, three Product
+  decisions and a bounded watchlist. The human layer is explicitly labelled and never changes
+  fact, claim, verification or publication-gate state. Its fact codes remain traceable to the
+  immutable evidence layer.
+- **Admins and Product makers can edit this layer** at
+  `/report/product/edit?cadence=weekly|monthly|quarterly&lang=en|vi`. English and Vietnamese are
+  stored separately in `product_report_editorial_drafts`; save immediately updates the reader and
+  PDF. The editor shows a locked, source-linked evidence register and does not offer controls to
+  rewrite evidence. Product Report Review is available in the Ops sidebar.
+- **Report hierarchy changed from rule-first to intelligence-first.** Cover and human argument
+  lead; a real-data exhibit, Product implications and decisions follow; current source
+  developments form the inspectable evidence section. Machine-generated insights remain clearly
+  labelled as gate-passed signals. Gate logic/principles are reduced to a compact expandable
+  method note near the end instead of occupying the opening screen.
+- **The updated Market Radar Design System is synchronized across the application.** Global Ops
+  tokens now use the latest Work Sans + Libre Caslon display system, warm Meridian surfaces,
+  ink-blue actions, near-square radii and the navy navigation shell while preserving red active
+  navigation and the existing semantic gate/severity colors. The standalone Newsroom/Agents page
+  was retokened too. Product reports use Libre Caslon Text + Work Sans (Lora for Vietnamese), warm
+  paper, hairline furniture, Meridian chart colors and three cadence-specific pattern artworks
+  copied from the supplied design-system library.
+- **Product PDF is now Meridian landscape letter**, with the local cover artwork inlined for the
+  offline renderer, browser grids restated as reliable PDF tables, full source quotations kept in
+  the interactive reader rather than bloating print, and the source register grouping fact codes
+  from the same document. The method and evidence registers are still present; the PDF is shorter
+  and avoids splitting the human lead headline across pages.
+- **QA used only `/tmp/mr-design-qa.mv.db`, copied from the real database.** No live pipeline ran
+  and no user database row was edited. The isolated app served both languages, all cadences, the
+  editor and Ops pages; an editorial POST persisted into the reader. The Monthly PDF rendered as
+  landscape Letter with embedded fonts and was visually inspected page-by-page. Restart/rebuild is
+  required to see these code/template changes; no pipeline rerun is required.
+
 ## Showcase completion — 2026-07-17
 
 This section supersedes the older “not yet wired”, “weekly restyle not started”, and “Ops nav
@@ -23,23 +59,34 @@ cleanup not started” notes later in this historical handoff.
   update time. The seeded July issue is now a fully written bilingual learning dossier covering
   the three-layer product architecture, customer mechanics, reward economics, operating model,
   benefits/evidence limits, exclusions/fairness/data boundaries and a bounded pilot decision.
-- **The 7/30/90-day Product reports are news-first.** Current verified developments, numbers and
-  competitor/regulatory moves now lead the page. Market readout and Product implications follow;
-  technical gate detail is a compact evidence note and methodology furniture is omitted from
-  print when it would create an orphan page. Weekly, monthly and quarterly web pages use the
+- **The Special Issue now uses the supplied Meridian visual catalog, not generic report cards.**
+  The contents spread adapts the design system's triskelion Symbol Series artwork and
+  `toc-visual` structure. Subsequent pages use evidence-count pictograms, a three-circle product
+  architecture, a five-step customer journey, a source-backed 60% reward-cap exhibit, a three-year
+  premium cycle, a five-owner operating chain, a value-versus-safety balance, and a four-gate pilot
+  roadmap. Saturated colors remain confined to artwork and data; all quantitative visuals state
+  their public source and distinguish a stated term from an observed result. CSS fallbacks keep
+  the geometric artwork visible in the offline PDF renderer, which does not draw inline SVG.
+- **The 7/30/90-day Product reports are intelligence-first.** A human-curated argument,
+  evidence-linked takeaways, comparison exhibit and Product decisions lead; current verified
+  developments then expose the inspectable evidence. Technical gate detail is a compact evidence
+  note. Weekly, monthly and quarterly web pages use the
   Meridian report system (warm paper, navy/brand blue, Libre Caslon Text + Work Sans; Lora for
   Vietnamese/multilingual evidence). All three now expose matching `.pdf` downloads.
-- **Ops Console design and language pass.** Topic Lab was returned to the Ops system (Inter + IBM
-  Plex Mono, slate surfaces and red action), sidebar labels and all new workflows are bilingual,
-  manual intake is the intended two-action experience, and the BCG-specific placeholder was
-  removed. Report and Ops palettes are deliberately not mixed.
+- **Ops Console design and language pass.** Topic Lab and all operational screens consume the
+  updated system-wide Ops tokens (Work Sans + IBM Plex Mono, warm canvas, navy/blue chrome and red
+  active navigation), sidebar labels and all new workflows are bilingual, manual intake is the
+  intended two-action experience, and the BCG-specific placeholder was removed.
 - **QA evidence.** The isolated copied-database smoke test returned HTTP 200 for intake, corpus,
   Topic Lab, both editor languages, and all three Product report cadences. The Special Issue
   reader had zero overflowing pages across its 11-page stack. English and Vietnamese Special
-  Issue PDFs rendered 11 landscape pages; Product PDFs rendered A4 with embedded Work Sans,
-  Libre Caslon Text and Lora. Visual inspection caught and fixed clipped rich text, an editor
+  Issue PDFs rendered 11 landscape pages; Product PDFs now render landscape Letter with embedded
+  Work Sans, Libre Caslon Text and Lora. Visual inspection caught and fixed clipped rich text, an editor
   template error, two Thymeleaf news accessors, multilingual missing glyphs and an orphaned final
   PDF page. Maven packaging, `git diff --check`, and every standalone `*Test.java` suite pass.
+  The visual-enrichment follow-up re-rendered all 22 EN/VI Special Issue pages at 96 DPI and
+  inspected dense pages again at 144 DPI; economics, operating-model and Vietnamese pilot
+  collisions found in the first proof were corrected before handoff.
 
 ## Product Special Issues / Product Academy — 2026-07-17
 

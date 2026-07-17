@@ -3,8 +3,9 @@
    ============================================================ */
 
 :root {
-  --font-ui:   'Inter', ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --font-ui:   'Work Sans', ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-display: 'Libre Caslon Text', Georgia, serif;
 
   /* Type scale — dense operational UI, never below 12px */
   --text-2xs:  11px;  --leading-2xs:  16px;

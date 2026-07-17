@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${lang}">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title th:text="${vi ? 'Biên tập Báo cáo Product · Market Radar' : 'Product Report Review · Market Radar'}">Product Report Review</title>
+  <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
+  <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
+  <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
+  <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
+  <style>
+    .editor-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 14px;border:1px solid var(--border-default);background:var(--surface-card)}
+    .editor-toolbar label{font-size:var(--text-xs);font-weight:var(--weight-semibold)}.editor-toolbar select{width:190px}
+    .editor-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+    .editor-panel{padding:22px;border:1px solid var(--border-default);border-radius:var(--radius-md);background:var(--surface-card);margin-bottom:18px}
+    .editor-panel h2{margin:0;font-family:var(--font-display);font-size:var(--text-xl)}.editor-panel-intro{margin:6px 0 20px;color:var(--text-secondary);font-size:var(--text-sm)}
+    .editor-section{padding:20px 0;border-top:1px solid var(--border-default)}.editor-section:first-of-type{border-top:0;padding-top:0}
+    .editor-section-head{display:flex;gap:10px;align-items:baseline;margin-bottom:14px}.editor-number{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--action-primary);font-weight:700}
+    .editor-section h3{margin:0;font-size:var(--text-md)}.field{margin-bottom:14px}.field:last-child{margin-bottom:0}.field label{display:block;margin-bottom:6px;font-size:var(--text-2xs);font-weight:700;letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-secondary)}
+    .field textarea{min-height:86px}.field textarea.long{min-height:150px}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.decision-grid{display:grid;grid-template-columns:150px 1fr;gap:12px}
+    .sticky{position:sticky;top:18px}.editor-status{padding:14px;border-left:3px solid var(--accent-teal);background:var(--surface-card-sunk);margin-bottom:16px}.editor-status strong{display:block;margin-bottom:4px}.editor-status span{font-size:var(--text-xs);color:var(--text-secondary)}
+    .evidence-list{margin:0;padding:0;list-style:none;max-height:410px;overflow:auto}.evidence-list li{padding:10px 0;border-top:1px solid var(--border-subtle);font-size:var(--text-xs)}.evidence-list li:first-child{border-top:0}.evidence-list code{display:block;color:var(--action-primary);font-size:var(--text-2xs);margin-bottom:3px}.evidence-list a{font-weight:600;text-decoration:none}.evidence-list span{display:block;color:var(--text-tertiary);margin-top:2px}
+    .editor-boundary{font-size:var(--text-xs);color:var(--text-secondary);line-height:1.55}.save-button{width:100%;margin-top:14px}
+    @media(max-width:1050px){.editor-layout{grid-template-columns:1fr}.sticky{position:static}}@media(max-width:700px){.field-grid,.decision-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('productreporteditor', ${queueCount})}"></th:block>
+  <div class="ops-main"><div class="ops-content">
+    <div class="page-header"><div><h1 th:text="${vi ? 'Biên tập Báo cáo Product' : 'Product Report Review'}">Product Report Review</h1><p th:text="${vi ? 'Biên tập riêng nội dung tiếng Việt và tiếng Anh. Dữ kiện nguồn vẫn bất biến và được quản lý bởi pipeline.' : 'Human-edit English and Vietnamese narrative separately. Source evidence remains immutable and pipeline-controlled.'}">Description</p></div><div class="actions"><a class="btn btn-secondary" th:href="${'/report/' + #strings.toLowerCase(cadence.name()) + '?lang=' + lang}" target="_blank" th:text="${vi ? 'Xem bản đọc' : 'Preview reader'}">Preview reader</a><a class="btn btn-secondary" th:href="${'/report/' + #strings.toLowerCase(cadence.name()) + '.pdf?lang=' + lang}" th:text="${vi ? 'Xem PDF' : 'Preview PDF'}">Preview PDF</a></div></div>
+    <p class="flash flash-success" th:if="${editorialSuccess}" th:text="${editorialSuccess}"></p><p class="flash flash-error" th:if="${editorialError}" th:text="${editorialError}"></p>
+    <form class="editor-toolbar" method="get"><label for="cadence" th:text="${vi ? 'Chu kỳ báo cáo' : 'Report cadence'}">Cadence</label><select class="ops-select" id="cadence" name="cadence" onchange="this.form.submit()"><option th:each="option:${cadenceOptions}" th:value="${#strings.toLowerCase(option.name())}" th:selected="${option == cadence}" th:text="${option.label(vi)}">30-day brief</option></select><input type="hidden" name="lang" th:value="${lang}"/></form>
+    <form method="post" action="/report/product/edit"><input type="hidden" name="cadence" th:value="${#strings.toLowerCase(cadence.name())}"/>
+      <div class="editor-layout"><main>
+        <section class="editor-panel"><h2 th:text="${vi ? 'Bìa và luận điểm chính' : 'Cover and lead argument'}">Cover and lead argument</h2><p class="editor-panel-intro" th:text="${vi ? 'Đây là nội dung người đọc thấy trước tiên; viết như một biên tập viên Product, không phải mô tả pipeline.' : 'This is what the reader sees first; write as a Product editor, not as pipeline documentation.'}">Intro</p>
+          <div class="field"><label th:text="${vi ? 'Tiêu đề báo cáo' : 'Report title'}">Title</label><input class="ops-input" name="title" th:value="${editorialBrief.title}"/></div>
+          <div class="field"><label th:text="${vi ? 'Dòng giới thiệu' : 'Deck'}">Deck</label><textarea class="ops-textarea" name="deck" th:text="${editorialBrief.deck}"></textarea></div>
+          <div class="field-grid"><div class="field"><label th:text="${vi ? 'Nhãn góc nhìn' : 'Brief label'}">Label</label><input class="ops-input" name="leadLabel" th:value="${editorialBrief.leadLabel}"/></div><div class="field"><label th:text="${vi ? 'Biên tập viên' : 'Editor'}">Editor</label><input class="ops-input" name="editor" th:value="${editorialBrief.editor}"/></div></div>
+          <div class="field"><label th:text="${vi ? 'Tiêu đề luận điểm' : 'Lead headline'}">Lead headline</label><input class="ops-input" name="leadHeadline" th:value="${editorialBrief.leadHeadline}"/></div>
+          <div class="field"><label th:text="${vi ? 'Phân tích chính' : 'Lead analysis'}">Lead analysis</label><textarea class="ops-textarea long" name="leadNarrative" th:text="${editorialBrief.leadNarrative}"></textarea></div>
+        </section>
+        <section class="editor-panel"><h2 th:text="${vi ? 'Các insight biên tập' : 'Editorial insights'}">Editorial insights</h2><p class="editor-panel-intro" th:text="${vi ? 'Mỗi insight phải tách quan sát khỏi hàm ý cho Product và giữ fact code hiển thị bên cạnh.' : 'Each insight separates the observation from the Product implication and keeps its fact codes visible.'}">Intro</p>
+          <div class="editor-section" th:each="item,stat:${editorialBrief.takeaways}"><div class="editor-section-head"><span class="editor-number" th:text="${item.number}">01</span><h3 th:text="${item.citationCodes}">F-001</h3></div><div class="field"><label th:text="${vi ? 'Tiêu đề insight' : 'Insight title'}">Title</label><input class="ops-input" th:name="${'takeaway.'+stat.index+'.title'}" th:value="${item.title}"/></div><div class="field"><label th:text="${vi ? 'Nội dung quan sát' : 'Evidence-led observation'}">Body</label><textarea class="ops-textarea" th:name="${'takeaway.'+stat.index+'.body'}" th:text="${item.body}"></textarea></div><div class="field"><label th:text="${vi ? 'Hàm ý cho Product' : 'Implication for Product'}">Implication</label><textarea class="ops-textarea" th:name="${'takeaway.'+stat.index+'.implication'}" th:text="${item.implication}"></textarea></div></div>
+        </section>
+        <section class="editor-panel"><h2 th:text="${vi ? 'Hành động đề xuất' : 'Recommended decisions'}">Recommended decisions</h2><div class="field"><label th:text="${vi ? 'Tiêu đề phần' : 'Section headline'}">Section headline</label><input class="ops-input" name="numbersHeadline" th:value="${editorialBrief.numbersHeadline}"/></div>
+          <div class="editor-section" th:each="item,stat:${editorialBrief.decisions}"><div class="decision-grid"><div class="field"><label th:text="${vi ? 'Thời hạn / nhóm' : 'Horizon / group'}">Horizon</label><input class="ops-input" th:name="${'decision.'+stat.index+'.horizon'}" th:value="${item.horizon}"/></div><div class="field"><label th:text="${vi ? 'Quyết định' : 'Decision'}">Action</label><input class="ops-input" th:name="${'decision.'+stat.index+'.action'}" th:value="${item.action}"/></div></div><div class="field"><label th:text="${vi ? 'Lý do và phạm vi' : 'Rationale and scope'}">Rationale</label><textarea class="ops-textarea" th:name="${'decision.'+stat.index+'.rationale'}" th:text="${item.rationale}"></textarea></div></div>
+          <div class="field"><label th:text="${vi ? 'Danh sách theo dõi' : 'Watchlist'}">Watchlist</label><textarea class="ops-textarea" name="watchlist" th:text="${editorialBrief.watchlist}"></textarea></div>
+          <div class="field"><label th:text="${vi ? 'Ranh giới biên tập' : 'Editorial boundary'}">Boundary</label><textarea class="ops-textarea" name="editorialBoundary" th:text="${editorialBrief.editorialBoundary}"></textarea></div>
+        </section>
+      </main><aside><section class="editor-panel sticky"><h2 th:text="${vi ? 'Kiểm soát biên tập' : 'Editorial control'}">Editorial control</h2><div class="editor-status"><strong th:text="${vi ? 'Tổng hợp do con người thực hiện' : 'Human-curated synthesis'}">Human curated</strong><span th:text="${(vi ? 'Rà soát: ' : 'Reviewed: ') + editorialBrief.reviewedAt}">Reviewed</span></div><p class="editor-boundary" th:text="${editorialBrief.editorialBoundary}">Boundary</p><h3 th:text="${vi ? 'Bằng chứng được khóa' : 'Locked evidence register'}">Evidence</h3><ul class="evidence-list"><li th:each="ref:${editorialAllReferences}"><code th:text="${ref.factCode}">F-001</code><a th:if="${ref.externalLink}" th:href="${ref.url}" target="_blank" rel="noopener" th:text="${ref.title}">Title</a><span th:unless="${ref.externalLink}" th:text="${ref.title}">Title</span><span th:text="${ref.publisher}">Publisher</span></li></ul><button class="btn btn-primary save-button" type="submit" th:text="${vi ? 'Lưu bản biên tập' : 'Save editorial draft'}">Save</button></section></aside></div>
+    </form>
+  </div></div>
+</div>
+<script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+</body></html>

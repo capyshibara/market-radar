@@ -23,7 +23,14 @@ public class ProductReportContractTest {
             }
         }
         String fragment = Files.readString(Path.of("src/main/resources/templates/fragments/product-report.html"));
-        check(fragment.contains("INSUFFICIENT_EVIDENCE"), "explicit insufficient state");
+        check(fragment.contains("editorialBrief.leadNarrative"),
+                "human editorial argument leads the report");
+        check(fragment.contains("editorialBrief.takeaways"),
+                "human-curated Product takeaways are rendered");
+        check(fragment.contains("editorialBrief.decisions"),
+                "report translates analysis into Product decisions");
+        check(fragment.contains("editorialBrief.chart"),
+                "report includes evidence-linked visual comparison");
         check(fragment.contains("executiveBrief.modeLabel"), "human-readable evidence/watch/decision brief state");
         check(fragment.contains("productWatchBriefInsights"), "Watch Brief renders only safe adapter signals");
         check(fragment.contains("not market-wide conclusions"),
@@ -34,8 +41,12 @@ public class ProductReportContractTest {
         check(fragment.contains("n.displaySummaryVi") && fragment.contains("n.displaySummaryEn"),
                 "news layer renders a report-language summary when safely available");
         check(fragment.contains("Original-language source evidence"), "original evidence is explicitly labelled by language");
-        check(fragment.contains("reading frames, not AI-generated conclusions"),
-                "news layer cannot be mistaken for a Product conclusion");
+        check(fragment.contains("immutable evidence layer"),
+                "human synthesis is explicitly separated from immutable evidence");
+        check(fragment.contains("METHOD · COMPACT"),
+                "rules and publication logic are kept in a compact method note");
+        check(!fragment.contains("priority-grid"),
+                "legacy rule-heavy priority cards no longer dominate the report");
         check(fragment.contains("references"), "references derive from rendered adapter snapshot");
         System.out.println("ProductReportContractTest: ALL PASS");
     }

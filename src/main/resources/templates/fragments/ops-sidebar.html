@@ -15,6 +15,7 @@
       <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupIntelligence}">Intelligence</div>
       <div class="ops-nav-group">
         <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
+        <a href="/report/product/edit?cadence=monthly" class="ops-nav-item" data-role-show="admin,maker" th:classappend="${active == 'productreporteditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Báo cáo Product' : 'Product Report Review'}">Product Report Review</a>
         <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
         <a href="/product/special-issues/wellness-linked-life/edit" class="ops-nav-item" data-role-show="admin" th:classappend="${active == 'specialissueeditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Chuyên đề' : 'Special Issue Review'}">Special Issue Review</a>
         <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tòa soạn ↗' : 'The Newsroom ↗'}">The Newsroom ↗</a>

@@ -19,8 +19,13 @@ public class ProductReportModel {
     public static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final ProductReportAdapter reports;
+    private final ProductReportEditorialService editorial;
 
-    public ProductReportModel(ProductReportAdapter reports) { this.reports = reports; }
+    public ProductReportModel(ProductReportAdapter reports,
+                              ProductReportEditorialService editorial) {
+        this.reports = reports;
+        this.editorial = editorial;
+    }
 
     public Map<String, Object> build(ProductReportCadence cadence, Locale locale) {
         return build(cadence, locale, LocalDate.now(REPORT_ZONE));
@@ -61,6 +66,12 @@ public class ProductReportModel {
         model.put("currentProductNewsSourceCount", snapshot.currentNews().stream()
                 .map(item -> item.sourceCode()).distinct().count());
         model.put("executiveBrief", ProductExecutiveBrief.from(snapshot, vi));
+        ProductReportEditorialService.EditorialBrief editorialBrief = editorial.current(cadence, locale);
+        model.put("editorialBrief", editorialBrief);
+        java.util.Set<String> currentCodes = snapshot.currentNews().stream()
+                .map(item -> item.factCode()).collect(java.util.stream.Collectors.toSet());
+        model.put("editorialReferences", editorial.references(editorialBrief, currentCodes));
+        model.put("editorialAllReferences", editorial.references(editorialBrief));
         model.put("references", snapshot.references());
         return model;
     }

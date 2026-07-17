@@ -14,7 +14,7 @@
 
 /* ---------- PageHeader ---------- */
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 24px 0 20px; }
-.page-header h1 { margin: 0; font-size: var(--text-2xl); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight); color: var(--text-primary); }
+.page-header h1 { margin: 0; font-family: var(--font-display); font-size: var(--text-2xl); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight); color: var(--text-primary); }
 .page-header p { margin: 6px 0 0; font-size: var(--text-sm); color: var(--text-secondary); max-width: 640px; line-height: var(--leading-sm); }
 .page-header .actions { display: flex; gap: 8px; flex: none; }
 

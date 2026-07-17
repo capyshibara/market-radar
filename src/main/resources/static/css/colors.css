@@ -7,6 +7,31 @@
    ============================================================ */
 
 :root {
+  /* ---------- Meridian visual language (updated design-system overlay) ---------- */
+  --ink-blue: #2647E8;
+  --navy-deepest: #0B1226;
+  --navy-dark: #0E1B6B;
+  --navy-mid: #152A8C;
+  --navy-bright: #1531B8;
+  --paper: #F8F6F1;
+  --paper-canvas: #EDEAE2;
+  --ink: #33322E;
+  --ink-soft: #4A4A45;
+  --muted-label: #8A8878;
+  --hairline: #E1DDD2;
+  --hairline-dotted: #C9C4B4;
+  --cream-text: #F2EFE8;
+  --cream-text-soft: #C7C3B8;
+  --accent-teal: #4F9B90;
+  --accent-gold: #C9A15A;
+  --accent-violet: #8477B0;
+  --accent-blue-grey: #9AA5D9;
+  --chart-blue: #2647E8;
+  --chart-gold: #F5A623;
+  --chart-teal: #00BFA6;
+  --chart-coral: #FF5A36;
+  --chart-violet: #8B5CF6;
+  --link-color: #FF5A36;
   /* ---------- Base: brand ---------- */
   --brand-red-50:  oklch(96% 0.02 25);
   --brand-red-100: oklch(91% 0.05 25);
@@ -84,37 +109,37 @@
   --teal-600: oklch(46% 0.10 195);
 
   /* ---------- Semantic: surfaces ---------- */
-  --surface-app:       var(--slate-0);
-  --surface-canvas:    var(--slate-0);
-  --surface-card:      var(--slate-0);
-  --surface-card-sunk: var(--slate-50);
-  --surface-nav:       var(--slate-900);
+  --surface-app:       #FDFCF9;
+  --surface-canvas:    var(--paper-canvas);
+  --surface-card:      #FFFFFF;
+  --surface-card-sunk: var(--paper-canvas);
+  --surface-nav:       var(--navy-dark);
   --surface-overlay:   oklch(20% 0.01 255 / 0.5);
-  --surface-code:      var(--slate-900);
+  --surface-code:      var(--navy-deepest);
 
   /* ---------- Semantic: borders ---------- */
-  --border-subtle:  var(--slate-150);
-  --border-default: var(--slate-200);
-  --border-strong:  var(--slate-300);
-  --border-focus:   var(--blue-500);
+  --border-subtle:  var(--hairline);
+  --border-default: var(--hairline-dotted);
+  --border-strong:  #B7B2A0;
+  --border-focus:   var(--ink-blue);
   --border-nav:     oklch(100% 0 0 / 0.08);
 
   /* ---------- Semantic: text ---------- */
-  --text-primary:   var(--slate-900);
-  --text-secondary: var(--slate-600);
-  --text-tertiary:  var(--slate-400);
+  --text-primary:   var(--ink);
+  --text-secondary: var(--ink-soft);
+  --text-tertiary:  var(--muted-label);
   --text-inverse:   var(--slate-0);
-  --text-nav:       oklch(85% 0.008 255);
+  --text-nav:       var(--cream-text-soft);
   --text-nav-active: var(--slate-0);
-  --text-link:      var(--blue-600);
-  --text-code:      oklch(88% 0.01 255);
+  --text-link:      var(--link-color);
+  --text-code:      var(--cream-text);
 
   /* ---------- Semantic: brand action ---------- */
-  --action-primary:        var(--brand-red-500);
-  --action-primary-hover:  var(--brand-red-600);
-  --action-primary-active: var(--brand-red-700);
+  --action-primary:        var(--ink-blue);
+  --action-primary-hover:  var(--navy-bright);
+  --action-primary-active: var(--navy-mid);
   --action-primary-text:   var(--slate-0);
-  --focus-ring: 0 0 0 3px oklch(52% 0.20 25 / 0.28);
+  --focus-ring: 0 0 0 3px oklch(46% 0.19 265 / 0.28);
 
   /* ---------- Semantic: status vocabulary ---------- */
   /* Gate L1 */

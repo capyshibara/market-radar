@@ -1,10 +1,11 @@
-/* ============================================================
-   Market Radar — Ops Console — Fonts
-   Two-typeface system: Inter (UI/body) + IBM Plex Mono (data/code).
-   Source Serif 4 is the weekly-report's editorial typeface and is
-   intentionally NOT used here — the ops console is a dense
-   operational tool, not an editorial reading surface.
-   Loaded via Google Fonts (no local binaries were provided).
-   ============================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+/* Updated Market Radar system: Work Sans for UI, Libre Caslon Text for
+   editorial display moments, IBM Plex Mono for evidence/data. Local files
+   keep the console stable offline; Google remains a fallback for IBM Plex. */
+@font-face { font-family:'Work Sans'; src:url('/fonts/WorkSans-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Work Sans'; src:url('/fonts/WorkSans-SemiBold.ttf') format('truetype'); font-weight:600; font-style:normal; font-display:swap; }
+@font-face { font-family:'Work Sans'; src:url('/fonts/WorkSans-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Libre Caslon Text'; src:url('/fonts/LibreCaslonText-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Libre Caslon Text'; src:url('/fonts/LibreCaslonText-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Lora'; src:url('/fonts/Lora-Regular.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Lora'; src:url('/fonts/Lora-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');

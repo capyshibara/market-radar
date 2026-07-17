@@ -45,11 +45,11 @@
   <!-- Trust-tier legend: shape encodes tier, so it survives grayscale/projectors -->
   <div class="ag-legend">
     <div class="ag-legend-item">
-      <th:block th:replace="~{fragments/agent-marks :: code('#17233D', 26)}"/>
+      <th:block th:replace="~{fragments/agent-marks :: code('#0E1B6B', 26)}"/>
       <span th:text="#{ops.agents.legend.code}">Code — deterministic, exact, no model</span>
     </div>
     <div class="ag-legend-item">
-      <th:block th:replace="~{fragments/agent-marks :: ai('#2E5AAC', 26, 'lg-ai')}"/>
+      <th:block th:replace="~{fragments/agent-marks :: ai('#2647E8', 26, 'lg-ai')}"/>
       <span th:text="#{ops.agents.legend.ai}">AI — powerful, never trusted alone</span>
     </div>
     <div class="ag-legend-item">
@@ -65,7 +65,7 @@
     <div class="ag-grid">
 
       <div class="ag-card">
-        <div class="ag-card-banner" style="background:#EEF1F6">
+        <div class="ag-card-banner" style="background:#F1EEE5">
           <span class="ag-card-desk" style="color:var(--ag-navy)" th:text="#{ops.agents.deskTag.gather}">Gather</span>
         </div>
         <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-emblems :: scout(56)}"/></div>
@@ -80,7 +80,7 @@
       </div>
 
       <div class="ag-card">
-        <div class="ag-card-banner" style="background:#EEF1F6">
+        <div class="ag-card-banner" style="background:#F1EEE5">
           <span class="ag-card-desk" style="color:var(--ag-navy)" th:text="#{ops.agents.deskTag.gather}">Gather</span>
         </div>
         <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-emblems :: librarian(56)}"/></div>
@@ -95,7 +95,7 @@
       </div>
 
       <div class="ag-card">
-        <div class="ag-card-banner" style="background:#EEF1F6">
+        <div class="ag-card-banner" style="background:#F1EEE5">
           <span class="ag-card-desk" style="color:var(--ag-navy)" th:text="#{ops.agents.deskTag.gather}">Gather</span>
         </div>
         <div class="ag-card-avatar"><th:block th:replace="~{fragments/agent-emblems :: router(56)}"/></div>

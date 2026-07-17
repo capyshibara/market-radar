@@ -32,8 +32,10 @@ public class SpecialIssueController {
             .report-page:last-child { page-break-after:auto; }
             body, p, li, td, th, span, div, a { font-family:'Work Sans', sans-serif !important; }
             .display, .cover h1, .summary-box, .finding-no, .finding h3, .toc-no, .toc-text b,
-            .lede, .system-layer h3, .callout, .formula b, .big-stat strong, .risk-col h3,
-            .caslon { font-family:'Libre Caslon Text', serif !important; }
+            .toc-content h2, .lede, .system-layer h3, .architecture-visual .arch-circle,
+            .arch-card b, .callout, .formula b, .big-stat strong, .cap-number, .cycle-title,
+            .risk-col h3, .balance-side b, .evidence-tier b, .caslon
+              { font-family:'Libre Caslon Text', serif !important; }
             .source-item a { font-family:'Lora', serif !important; }
             .display span, .cover h1 span { font-family:'Libre Caslon Text', serif !important; }
             .locale-vi .display, .locale-vi .display span, .locale-vi .cover h1,
@@ -41,7 +43,10 @@ public class SpecialIssueController {
             .locale-vi .finding h3, .locale-vi .toc-no, .locale-vi .toc-text b,
             .locale-vi .lede, .locale-vi .system-layer h3, .locale-vi .callout,
             .locale-vi .formula b, .locale-vi .big-stat strong, .locale-vi .risk-col h3,
-            .locale-vi .source-item a, .locale-vi .condition b { font-family:'Lora', serif !important; }
+            .locale-vi .source-item a, .locale-vi .condition b, .locale-vi .toc-content h2,
+            .locale-vi .architecture-visual .arch-circle, .locale-vi .arch-card b,
+            .locale-vi .cap-number, .locale-vi .cycle-title, .locale-vi .balance-side b,
+            .locale-vi .evidence-tier b { font-family:'Lora', serif !important; }
             .report-page { background:#F8F6F1 !important; color:#33322E !important; }
             .report-page.page-dark { background:#0E1B6B !important; color:#F2EFE8 !important; }
             .cover h1 { color:#F2EFE8 !important; }
@@ -65,6 +70,35 @@ public class SpecialIssueController {
             .system-layer:nth-child(3) { border-color:#8477B0 !important; }
             .go { background:#DFF4ED !important; color:#176447 !important; }
             .hold { background:#FFF0D8 !important; color:#8A5A08 !important; }
+            /* Meridian Review visual system: the web reader uses the supplied inline SVG;
+               the offline PDF uses deterministic CSS geometry so artwork never disappears. */
+            .toc-art-stage svg { display:none !important; }
+            .toc-visual, .toc-content, .cap-exhibit, .balance-core { background:#0E1B6B !important; }
+            .toc-content h2, .toc-entry .toc-no, .toc-entry .toc-text b { color:#F2EFE8 !important; }
+            .toc-content h2 span { color:#8FA6FF !important; }
+            .metric-dots i { background:#2647E8 !important; }
+            .metric:nth-child(2) .metric-dots i { background:#4F9B90 !important; }
+            .metric:nth-child(3) .metric-dots i { background:#8477B0 !important; }
+            .architecture-visual .policy { background:#9AA5D9 !important; }
+            .architecture-visual .programme { background:#4F9B90 !important; }
+            .architecture-visual .link { background:#C9A15A !important; }
+            .architecture-visual .arch-core, .cycle-node b, .pilot-marker
+              { background:#F8F6F1 !important; color:#0E1B6B !important; }
+            .arch-card, .cycle-exhibit, .balance-visual { border-color:#E1DDD2 !important; }
+            .cap-number { color:#F5A623 !important; }
+            .cap-caption { color:#F2EFE8 !important; }
+            .cap-scale { color:#C7C3B8 !important; }
+            .cap-track { background:#E9E5D9 !important; }
+            .cap-fill { background:#F5A623 !important; }
+            .cap-rest { background:#B9C6F4 !important; }
+            .cycle-node:after, .pilot-phase:after { background:#B9C6F4 !important; }
+            .owner-chain { border-color:#2647E8 !important; }
+            .balance-rule { background:#4F9B90 !important; }
+            .balance-side:last-child .balance-rule { background:#8477B0 !important; }
+            .pilot-phase:first-child .pilot-marker { background:#2647E8 !important; color:#FFFFFF !important; }
+            .evidence-tier { background:#EBEEFC !important; border-color:#2647E8 !important; }
+            .evidence-tier:nth-child(2) { background:#E5F2EF !important; border-color:#4F9B90 !important; }
+            .evidence-tier:nth-child(3) { background:#EEEAF5 !important; border-color:#8477B0 !important; }
             * { -fs-page-break-min-height: 0; }
             """;
 

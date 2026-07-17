@@ -4,18 +4,18 @@
 
 :root {
   --ag-red: #EA1C24;         /* human authority / brand */
-  --ag-ink: #0C0C0D;
-  --ag-navy: #17233D;        /* Gather desk (ink/neutral semantic) */
-  --ag-blue: #2E5AAC;        /* Understand desk (AI-interpretation semantic) */
+  --ag-ink: #33322E;
+  --ag-navy: #0E1B6B;        /* Gather desk */
+  --ag-blue: #2647E8;        /* Understand desk */
   --ag-green: #2F6B3D;       /* Guard desk (verified semantic) */
   --ag-amber: #B97600;       /* gates / watch */
-  --ag-paper: #F7F7F4;
-  --ag-hairline: #E2E6EA;
-  --ag-body: #3A3A35;
-  --ag-secondary: #6B6B64;
-  --ag-tertiary: #9A9A94;
-  --ag-serif: 'Source Serif 4', Georgia, serif;
-  --ag-ui: 'Inter', sans-serif;
+  --ag-paper: #F8F6F1;
+  --ag-hairline: #E1DDD2;
+  --ag-body: #4A4A45;
+  --ag-secondary: #74746C;
+  --ag-tertiary: #8A8878;
+  --ag-serif: 'Libre Caslon Text', Georgia, serif;
+  --ag-ui: 'Work Sans', sans-serif;
   --ag-mono: 'IBM Plex Mono', monospace;
 }
 
@@ -30,7 +30,7 @@
 @media (max-width: 860px) { .ag-grid { grid-template-columns: 1fr; } }
 
 /* ---- agent card (bundle AgentCard, JSX inline-styles → classes) ---- */
-.ag-card { border: 1px solid var(--ag-hairline); background: #fff; text-align: center;
+.ag-card { border: 1px solid var(--ag-hairline); background: #fff; border-radius: 6px; text-align: center;
   font-family: var(--ag-ui); }
 .ag-card-banner { height: 44px; position: relative; }
 .ag-card-desk { position: absolute; top: 9px; left: 12px; font-size: 10px; font-weight: 800;
