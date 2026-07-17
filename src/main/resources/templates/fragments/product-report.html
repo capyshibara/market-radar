@@ -98,7 +98,7 @@
           <strong class="plain-label" th:text="${vi ? 'BẰNG CHỨNG NÓI GÌ' : 'WHAT THE EVIDENCE SAYS'}">What the evidence says</strong>
           <p th:text="${item.body}">Observation</p>
           <div class="product-meaning"><strong th:text="${vi ? 'VÌ SAO ĐIỀU NÀY QUAN TRỌNG' : 'WHY THIS MATTERS'}">Why this matters</strong><span th:text="${item.implication}">Implication</span></div>
-          <code th:text="${item.citationCodes}">F-001</code>
+          <div class="story-link-list"><strong th:text="${vi ? 'ĐỌC CÂU CHUYỆN ĐẦY ĐỦ' : 'READ THE FULL STORIES'}">Read the full stories</strong><a th:each="code:${item.citationCodeList}" th:href="${'/report/story/' + code + '?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=' + lang}" th:text="${code + ' →'}">F-001 →</a></div>
         </article>
       </div>
 
@@ -149,6 +149,7 @@
               <h3><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.originalTitle}">Source title</a><span th:unless="${n.externalSourceLink}" th:text="${n.originalTitle}">Uploaded document</span></h3>
               <p class="display-summary" th:if="${!#strings.isEmpty(vi ? n.displaySummaryVi : n.displaySummaryEn)}"><strong th:text="${vi ? 'Điều gì đã xảy ra: ' : 'What happened: '}">What happened: </strong><span th:text="${vi ? n.displaySummaryVi : n.displaySummaryEn}">Display summary.</span></p>
               <p class="display-summary unavailable" th:unless="${!#strings.isEmpty(vi ? n.displaySummaryVi : n.displaySummaryEn)}" th:text="${vi ? 'Chỉ có bằng chứng nguyên văn; chưa có bản tóm tắt an toàn bằng ngôn ngữ báo cáo.' : 'Only verbatim source evidence is available; no safe report-language summary is available.'}">Only verbatim source evidence is available.</p>
+              <a class="full-story-link" th:href="${'/report/story/' + n.factCode + '?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=' + lang}"><strong th:text="${vi ? 'Đọc toàn bộ câu chuyện đã giải thích' : 'Read the full explained story'}">Read the full explained story</strong><span th:text="${vi ? 'Bản kể lại · bối cảnh · ý nghĩa Product · toàn văn đã thu thập →' : 'Retelling · context · Product meaning · full crawled text →'}">Retelling and full source →</span></a>
               <details class="source-evidence"><summary th:text="${vi ? 'Mở bằng chứng nguyên văn' : 'Open verbatim evidence'}">Open evidence</summary><p class="evidence-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Bằng chứng gốc · tiếng Việt · trích nguyên văn' : (n.evidenceLanguage == 'en' ? 'Bằng chứng gốc · tiếng Anh · trích nguyên văn' : 'Bằng chứng gốc từ nguồn · trích nguyên văn')) : (n.evidenceLanguage == 'vi' ? 'Original evidence · Vietnamese · verbatim' : (n.evidenceLanguage == 'en' ? 'Original evidence · English · verbatim' : 'Original-language source evidence · verbatim'))}">Original evidence</p><blockquote class="evidence-quote" th:text="${n.originalEvidence}">Verbatim evidence span.</blockquote></details>
             </div>
             <aside class="news-side">
@@ -185,7 +186,7 @@
           <div class="insight-block"><h4 th:text="${vi ? 'Ý nghĩa với Bộ phận Sản phẩm' : 'So what for Product'}">So what</h4><p th:text="${vi ? i.soWhatVi : i.soWhatEn}">So what</p></div>
           <div class="insight-block"><h4 th:text="${vi ? 'Hành động tiếp theo' : 'Now what'}">Now what</h4><p th:text="${vi ? i.nowWhatVi : i.nowWhatEn}">Now what</p></div>
           <p class="caveat"><strong th:text="${vi ? 'Giới hạn: ' : 'Caveat: '}">Caveat: </strong><span th:text="${vi ? i.caveatVi : i.caveatEn}">Caveat</span></p>
-          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span> <code th:text="${f.factCode}">fact</code></li></ul></details>
+          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span> <code th:text="${f.factCode}">fact</code> · <a th:href="${'/report/story/' + f.factCode + '?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=' + lang}" th:text="${vi ? 'Đọc bản giải thích' : 'Read explained story'}">Read story</a></li></ul></details>
         </article>
       </div>
 
@@ -209,7 +210,7 @@
           <div class="insight-block"><h4 th:text="${vi ? 'Ý nghĩa cần kiểm tra' : 'Why Product should investigate'}">Why investigate</h4><p th:text="${vi ? i.soWhatVi : i.soWhatEn}">So what</p></div>
           <div class="insight-block"><h4 th:text="${vi ? 'Bước xác minh' : 'Next validation step'}">Next step</h4><p th:text="${vi ? i.nowWhatVi : i.nowWhatEn}">Now what</p></div>
           <p class="caveat"><strong th:text="${vi ? 'Giới hạn: ' : 'Caveat: '}">Caveat: </strong><span th:text="${vi ? i.caveatVi : i.caveatEn}">Caveat</span></p>
-          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span> <code th:text="${f.factCode}">fact</code></li></ul></details>
+          <details class="evidence-details"><summary th:text="${vi ? 'Bằng chứng được trích dẫn' : 'Cited evidence'}">Cited evidence</summary><ul><li th:each="f : ${productEvidenceByInsight.get(i.id)}"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Source</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span> <code th:text="${f.factCode}">fact</code> · <a th:href="${'/report/story/' + f.factCode + '?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=' + lang}" th:text="${vi ? 'Đọc bản giải thích' : 'Read explained story'}">Read story</a></li></ul></details>
         </article>
       </div>
     </section>

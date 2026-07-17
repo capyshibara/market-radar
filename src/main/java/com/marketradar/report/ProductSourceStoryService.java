@@ -61,10 +61,12 @@ public class ProductSourceStoryService {
 
         String sourceName = doc.getPublisherName() == null || doc.getPublisherName().isBlank()
                 ? doc.getSource().getName() : doc.getPublisherName().strip();
-        String retelling = BilingualTextPolicy.safeDisplaySummary(
-                vi ? fact.getSummaryVi() : fact.getSummaryEn(), vi);
-        boolean translatedRetellingAvailable = !retelling.isBlank();
-        if (!translatedRetellingAvailable) retelling = missingRetelling(vi);
+        String retellingEn = BilingualTextPolicy.safeDisplaySummary(fact.getSummaryEn(), false);
+        String retellingVi = BilingualTextPolicy.safeDisplaySummary(fact.getSummaryVi(), true);
+        boolean retellingEnAvailable = !retellingEn.isBlank();
+        boolean retellingViAvailable = !retellingVi.isBlank();
+        if (!retellingEnAvailable) retellingEn = missingRetelling(false);
+        if (!retellingViAvailable) retellingVi = missingRetelling(true);
 
         String fullText = doc.getRawText() == null ? "" : doc.getRawText();
         SourceText sourceText = splitSourceText(fullText, fact.getSpanText());
@@ -74,12 +76,14 @@ public class ProductSourceStoryService {
                 fact.getFactType().name(), languageLabel(fact.getSpanLanguage(), vi),
                 intakeLabel(doc.getIntakeMethod(), vi), doc.isFullTextFetched(), fullText.length(),
                 topic.label(vi), marketLabel(market.scope(), vi), geographyLabel(market.geography(), vi),
-                retelling, translatedRetellingAvailable, topic.readerContext(vi),
+                retellingEn, retellingEnAvailable, retellingVi, retellingViAvailable,
+                topic.readerContext(vi),
                 topic.productMeaning(vi), topic.reviewQuestion(vi), topic.validationStep(vi),
                 limitation(market.scope(), vi), fact.getSpanText(), sourceText);
     }
 
-    static SourceText splitSourceText(String fullText, String evidence) {
+    /** Pure seam used by regression tests to protect evidence-to-document highlighting. */
+    public static SourceText splitSourceText(String fullText, String evidence) {
         String body = fullText == null ? "" : fullText;
         String span = evidence == null ? "" : evidence;
         if (body.isBlank()) return new SourceText("", span, "", span, false);
@@ -201,7 +205,8 @@ public class ProductSourceStoryService {
                               String evidenceLanguageLabel, String intakeLabel,
                               boolean fullTextAvailable, int textCharacters,
                               String topicLabel, String marketLabel, String geographyLabel,
-                              String retelling, boolean translatedRetellingAvailable,
+                              String retellingEn, boolean retellingEnAvailable,
+                              String retellingVi, boolean retellingViAvailable,
                               String context, String productMeaning, String reviewQuestion,
                               String validationStep, String limitation,
                               String originalEvidence, SourceText sourceText) {}

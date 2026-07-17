@@ -18,6 +18,8 @@ public enum PromptKey {
             "Viết bài phân tích liền mạch cho mỗi chương của báo cáo tháng/quý — kể chuyện, có mạch, có từ nối, gắn hàm ý cho từng phòng ban."),
     PRODUCT_INSIGHT("Product insight có cấu trúc",
             "Viết What / comparison-pattern / So what / Product-owned Now what / caveat song ngữ từ evidence pack Product; JSON schema đóng, không thêm fact."),
+    STORY_EXPLAIN("Kể lại câu chuyện nguồn (song ngữ)",
+            "Viết lại một bài nguồn bằng ngôn ngữ đời thường EN + VI kèm giải thích thuật ngữ, CHỈ dùng nội dung đã lưu; là lớp hỗ trợ đọc, không phải bằng chứng."),
     VERIFY("Kiểm chứng entailment (Gate L2)",
             "Xét một claim có được evidence hậu thuẫn không (ENTAILED/CONTRADICTED/NEUTRAL). PHẢI khác họ model với writer.");
 

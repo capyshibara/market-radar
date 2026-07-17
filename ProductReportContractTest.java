@@ -62,6 +62,9 @@ public class ProductReportContractTest {
         check(fragment.contains("n.originalEvidence"), "news layer renders exact source evidence, not generated summary");
         check(fragment.contains("n.displaySummaryVi") && fragment.contains("n.displaySummaryEn"),
                 "news layer renders a report-language summary when safely available");
+        check(fragment.contains("/report/story/") && fragment.contains("Read the full explained story")
+                        && fragment.contains("item.citationCodeList"),
+                "every report layer links synthesis back to an explained source story");
         check(fragment.contains("Original-language source evidence"), "original evidence is explicitly labelled by language");
         check(fragment.contains("immutable evidence layer"),
                 "human synthesis is explicitly separated from immutable evidence");
@@ -87,6 +90,17 @@ public class ProductReportContractTest {
         check(editor.contains("guide.context") && editor.contains("guide.story")
                         && editor.contains("guide.recommendation") && editor.contains("glossary."),
                 "human review can edit the non-expert guide and glossary");
+        String sourceStory = Files.readString(Path.of(
+                "src/main/resources/templates/product-source-story.html"));
+        check(sourceStory.contains("story.retelling") && sourceStory.contains("story.context")
+                        && sourceStory.contains("story.productMeaning"),
+                "source story retells and explains the evidence in the report language");
+        check(sourceStory.contains("story.sourceText.before")
+                        && sourceStory.contains("story.sourceText.evidence")
+                        && sourceStory.contains("story.sourceText.after"),
+                "source story highlights the exact evidence inside the full crawled text");
+        check(sourceStory.contains("Open original") && sourceStory.contains("FULL CRAWLED DOCUMENT"),
+                "source story preserves a path to the publisher and complete stored document");
         System.out.println("ProductReportContractTest: ALL PASS");
     }
 

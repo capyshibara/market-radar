@@ -5,6 +5,45 @@
 > `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
 > artwork, and sourced exhibits rather than decorative pseudo-data.
 
+## Explained source stories / report-to-corpus trace — 2026-07-17
+
+- **A citation code is now a reading path, not a dead end.** Every human editorial takeaway lists
+  links for all of its supporting fact codes; every current-development card and every cited
+  machine-signal fact also links to `/report/story/{factCode}`. The link preserves the current
+  Weekly/Monthly/Quarterly context and EN/VI language so a non-specialist can move from the brief
+  to the supporting story without searching the Ops corpus.
+- **The new Source Story reader explains one record in layers.** It shows the extractor's stored
+  EN and VI retellings side by side, the background a non-Product reader needs, why that class of
+  signal can affect a Product decision, the question to ask, a bounded validation step and the
+  explicit limit of a single source. Regulation, product/benefit, metric and distribution stories
+  each use their own bilingual reading lens rather than generic filler.
+- **A richer full-article rewrite is available on demand and cached.** When the stored fact summary
+  is not enough, the reader can run one explained-rewrite job. The configured writer receives at
+  most 12,000 characters of the stored article plus the cited evidence span, returns a 4–7 sentence
+  plain-language retelling and jargon explanations in both EN and VI, and stores the accepted result
+  once in `story_explainer` for all future readers. EN/VI language-purity checks run before storage;
+  one repair attempt is allowed, and a rejected result is shown to the operator rather than saved.
+  Opening or reading a story never calls the writer automatically.
+- **The rewrite never replaces the source.** The exact evidence span remains verbatim and is shown
+  separately from the bilingual retelling. Below it, the reader exposes the complete text stored in
+  `raw_docs` and highlights that exact span inside the crawled/uploaded document. Publisher URL,
+  source-registry code/tier, document ID, publication/fetch dates, intake method and source language
+  remain visible. If a safe EN or VI retelling is missing, the page says so instead of inventing a
+  translation.
+- **The evidence boundary remains unchanged.** Story context is deterministic reading guidance;
+  it does not alter the underlying fact, classification, verifier result, review status or
+  publication gate. International stories are labelled as comparison material, not evidence that
+  the same opportunity or rule applies in Vietnam. One Vietnam source is not presented as a
+  market-wide trend.
+- **Verification:** Maven packaging, `git diff --check` and seven focused Product-report/market
+  regressions pass. A non-web Spring integration test opened an isolated copied H2 corpus, resolved
+  real fact `F-717`, rendered the complete EN and VI Source Story templates, confirmed that the
+  stored document is longer than the extracted span, and rendered the Monthly Product PDF with the
+  new links. The final 20-page landscape-Letter proof was text-checked; the takeaway-link page and
+  a full-story evidence card were rendered to PNG and visually inspected without clipping. The
+  user's live port-8081 database, review state and pipeline were not touched. A rebuild/restart is
+  sufficient; no pipeline or report regeneration is required.
+
 ## Non-expert Product report reading layer — 2026-07-17
 
 - **Weekly, Monthly and Quarterly now teach the reader before asking for a Product decision.**
