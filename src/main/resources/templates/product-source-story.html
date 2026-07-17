@@ -6,73 +6,60 @@
   <title th:text="${(vi ? 'Câu chuyện nguồn · ' : 'Source story · ') + story.factCode}">Source story</title>
   <th:block th:replace="~{fragments/product-report-styles :: styles}"></th:block>
   <style>
-    .source-story-page { overflow:hidden; }
-    .source-story-page .report-header { padding-bottom:38px; }
-    .source-story-page .report-header h1 { max-width:850px; font-size:46px; }
-    .retelling-pair { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:24px; }
-    .story-retelling { padding:24px 27px; border-left:5px solid var(--blue); background:var(--blue-soft); }
-    .story-retelling small, .story-panel small, .source-panel small { display:block; margin-bottom:8px; color:var(--blue-ink); font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
-    .story-retelling p { margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:18px; line-height:1.55; }
-    .story-retelling.unavailable { border-left-color:var(--amber); background:var(--amber-soft); }
-    .locale-vi .retelling-pair .retell-en { order:2; }
-    .explainer-grid { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line-dark); }
-    .explainer-panel { min-width:0; padding:26px 27px 30px; border-left:1px solid var(--line-dark); }
-    .explainer-panel:first-child { border-left:0; }
-    .explainer-panel small { display:block; margin-bottom:10px; color:var(--blue-ink); font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
-    .explainer-panel > p { margin:0; color:var(--ink); font-family:var(--serif); font-size:16.5px; line-height:1.7; }
-    .explainer-terms { margin-top:20px; padding-top:16px; border-top:1px dotted var(--line-dark); }
-    .explainer-terms ul { margin:0; padding-left:18px; }
-    .explainer-terms li { margin:0 0 8px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
-    .explainer-note { margin:14px 0 0; padding:12px 15px; background:#F1EEE5; color:var(--ink-soft); font-size:11.5px; }
-    .explainer-generate { padding:30px; border:1px dashed var(--line-dark); background:#FBFAF6; text-align:center; }
-    .explainer-generate p { max-width:640px; margin:0 auto 16px; color:var(--ink-soft); font-size:14px; line-height:1.6; }
+    /* Source-story reading layer: teal identity, deliberately distinct from the report's blue. */
+    .source-story-page { --teal:#2E7D70; --teal-deep:#1F5A50; --teal-soft:#E7F2EF; overflow:hidden; background:#FBFAF7; }
+    .story-band { display:flex; justify-content:space-between; align-items:center; gap:16px; margin:0 0 30px; padding:13px 18px; background:var(--teal-deep); color:#EAF4F1; }
+    .story-band .band-mark { font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+    .story-band a { color:#BFE0D8; font-size:11.5px; font-weight:600; text-decoration:none; }
+    .story-band a:hover { color:#fff; }
+    .source-story-page .report-header { padding-bottom:30px; }
+    .story-kicker-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .story-chip { padding:4px 10px; border:1px solid var(--teal); color:var(--teal-deep); font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .story-chip.solid { background:var(--teal); color:#fff; border-color:var(--teal); }
+    .source-story-page .report-header h1 { max-width:900px; font-size:42px; line-height:1.15; }
+    .story-byline { margin:12px 0 0; color:var(--muted); font-size:12.5px; }
+    .story-byline strong { color:var(--ink); }
+    .story-lede { max-width:840px; margin:22px 0 0; padding:20px 24px; border-left:5px solid var(--teal); background:var(--teal-soft); }
+    .story-lede small { display:block; margin-bottom:7px; color:var(--teal-deep); font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .story-lede p { margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:19px; line-height:1.55; }
+    .story-lede.unavailable { border-left-color:var(--amber); background:var(--amber-soft); }
+    .source-story-page .section-kicker { color:var(--teal-deep); }
+    .rewrite-body { max-width:860px; padding:28px 30px 30px; border:1px solid var(--line-dark); border-top:4px solid var(--teal); background:#fff; }
+    .rewrite-body > p { margin:0; color:var(--ink); font-family:var(--serif); font-size:17.5px; line-height:1.75; }
+    .rewrite-terms { margin-top:20px; padding-top:15px; border-top:1px dotted var(--line-dark); }
+    .rewrite-terms small { display:block; margin-bottom:8px; color:var(--teal-deep); font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .rewrite-terms ul { margin:0; padding-left:18px; }
+    .rewrite-terms li { margin:0 0 7px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
+    .explainer-generate { max-width:860px; padding:26px 30px; border:1px dashed var(--line-dark); background:#FBFAF6; text-align:center; }
+    .explainer-generate p { max-width:560px; margin:0 auto 14px; color:var(--ink-soft); font-size:13.5px; line-height:1.6; }
     .explainer-generate .explainer-error { color:#9B3A22; font-weight:600; }
-    .explainer-generate button { padding:13px 30px; border:0; background:var(--navy-deep); color:#fff; font-size:13px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; }
-    .explainer-generate button:hover { background:var(--blue); }
-    .locale-vi .explainer-grid .explainer-panel.en { order:2; }
-    .story-meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:28px; border-top:2px solid var(--navy-deep); border-bottom:1px solid var(--line); }
-    .story-meta > div { min-width:0; padding:15px 16px; border-left:1px solid var(--line); }
-    .story-meta > div:first-child { border-left:0; padding-left:0; }
-    .story-meta dt { color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
-    .story-meta dd { margin:4px 0 0; color:var(--ink); font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
-    .story-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--line-dark); }
-    .story-panel { min-width:0; padding:25px 24px 28px; border-left:1px solid var(--line-dark); }
-    .story-panel:first-child { border-left:0; }
-    .story-panel:nth-child(1) { border-top:4px solid var(--navy-deep); }
-    .story-panel:nth-child(2) { border-top:4px solid #4A9D8E; }
-    .story-panel:nth-child(3) { border-top:4px solid #BA8D46; }
-    .story-panel h3 { margin:0 0 12px; color:var(--navy-deep); font-family:var(--serif); font-size:22px; line-height:1.25; }
-    .story-panel p { margin:0; color:var(--ink-soft); font-size:13.5px; line-height:1.65; }
-    .story-action { display:grid; grid-template-columns:1fr 1fr; margin-top:22px; background:var(--navy-deep); color:#fff; }
-    .story-action > div { padding:23px 25px; }
-    .story-action > div + div { border-left:1px solid rgba(255,255,255,.22); }
-    .story-action small { display:block; margin-bottom:7px; color:#BFC9F5; font-size:9.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
-    .story-action p { margin:0; color:#fff; font-size:14px; line-height:1.55; }
+    .explainer-generate button { padding:12px 28px; border:0; background:var(--teal-deep); color:#fff; font-size:12.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; }
+    .explainer-generate button:hover { background:var(--teal); }
     .trace-grid { display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:28px; }
     .source-panel { padding:26px; border:1px solid var(--line-dark); background:#F3F0E8; }
-    .source-panel blockquote { margin:0; padding-left:19px; border-left:4px solid var(--blue); color:var(--ink); font-family:"Lora",var(--serif); font-size:16px; font-style:italic; line-height:1.75; white-space:pre-wrap; }
-    .source-audit { padding:24px; border-top:4px solid var(--navy-deep); background:#fff; }
+    .source-panel small { display:block; margin-bottom:8px; color:var(--teal-deep); font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .source-panel blockquote { margin:0; padding-left:19px; border-left:4px solid var(--teal); color:var(--ink); font-family:"Lora",var(--serif); font-size:16px; font-style:italic; line-height:1.75; white-space:pre-wrap; }
+    .source-audit { padding:24px; border-top:4px solid var(--teal-deep); background:#fff; }
     .source-audit dl { margin:0; }
     .source-audit dt { margin:13px 0 2px; color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
     .source-audit dt:first-child { margin-top:0; }
     .source-audit dd { margin:0; color:var(--ink); font-size:12px; overflow-wrap:anywhere; }
-    .source-audit a { color:var(--blue-ink); font-weight:600; }
+    .source-audit a { color:var(--teal-deep); font-weight:600; }
     .document-intro { display:flex; justify-content:space-between; gap:24px; align-items:flex-end; margin-bottom:20px; }
-    .document-intro h2 { margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:31px; line-height:1.2; }
-    .document-intro p { max-width:620px; margin:8px 0 0; color:var(--ink-soft); }
+    .document-intro h2 { margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:29px; line-height:1.2; }
     .document-stat { min-width:130px; text-align:right; color:var(--muted); font-size:10px; text-transform:uppercase; }
-    .document-stat strong { display:block; color:var(--blue-ink); font-family:var(--serif); font-size:30px; line-height:1; }
+    .document-stat strong { display:block; color:var(--teal-deep); font-family:var(--serif); font-size:30px; line-height:1; }
     .full-source-text { max-height:760px; overflow:auto; padding:31px 34px; border:1px solid var(--line-dark); background:#FFFEFB; color:var(--ink-soft); font-family:"Lora",var(--serif); font-size:15px; line-height:1.85; white-space:pre-wrap; }
     .full-source-text mark { padding:2px 3px; background:#FFF0A8; color:var(--ink); box-decoration-break:clone; -webkit-box-decoration-break:clone; }
-    .source-boundary { margin:18px 0 0; padding:13px 15px; background:#F1EEE5; color:var(--ink-soft); font-size:11.5px; }
-    .story-footer { margin-top:42px; }
+    .reading-guide { max-width:900px; margin-top:44px; border:1px solid var(--line); background:#F7F5EF; }
+    .reading-guide summary { padding:15px 20px; color:var(--teal-deep); font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; cursor:pointer; }
+    .reading-guide .guide-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; padding:6px 22px 20px; }
+    .reading-guide h4 { margin:14px 0 4px; color:var(--navy-deep); font-size:12px; }
+    .reading-guide p { margin:0; color:var(--ink-soft); font-size:12.5px; line-height:1.6; }
+    .story-footer { margin-top:40px; }
     @media(max-width:760px) {
-      .source-story-page .report-header h1 { font-size:35px; }
-      .story-meta, .story-grid, .story-action, .trace-grid, .retelling-pair, .explainer-grid { grid-template-columns:1fr; }
-      .explainer-panel { border-left:0; }
-      .explainer-panel + .explainer-panel { border-top:1px solid var(--line-dark); }
-      .story-meta > div, .story-panel, .story-action > div + div { border-left:0; }
-      .story-meta > div { border-top:1px solid var(--line); padding-left:0; }
+      .source-story-page .report-header h1 { font-size:32px; }
+      .trace-grid, .reading-guide .guide-grid { grid-template-columns:1fr; }
       .document-intro { display:block; }
       .document-stat { margin-top:15px; text-align:left; }
       .full-source-text { padding:22px 19px; }
@@ -91,98 +78,77 @@
   </div>
 
   <main class="report-page source-story-page">
-    <header class="report-header">
-      <div class="masthead-top"><div class="publication-name">MARKET RADAR · <span th:text="${vi ? 'CÂU CHUYỆN NGUỒN' : 'SOURCE STORY'}">SOURCE STORY</span></div><div class="edition-mark" th:text="${story.factCode + ' · DOC #' + story.rawDocId}">F-001</div></div>
-      <p class="eyebrow" th:text="${vi ? 'ĐỌC SÂU · GIẢI THÍCH · TRUY VẾT' : 'READ DEEPER · EXPLAINED · TRACEABLE'}">Read deeper</p>
-      <h1 th:text="${vi ? 'Toàn bộ câu chuyện đằng sau một tín hiệu' : 'The full story behind one signal'}">The full story behind one signal</h1>
-      <p class="report-deck" th:text="${story.originalTitle}">Original source title</p>
+    <div class="story-band">
+      <span class="band-mark" th:text="${(vi ? 'CÂU CHUYỆN NGUỒN' : 'SOURCE STORY') + ' · ' + story.factCode}">SOURCE STORY · F-001</span>
+      <a th:href="${cadencePath + '?lang=' + lang}" th:text="${(vi ? '← Báo cáo ' : '← ') + #strings.capitalize(#strings.toLowerCase(cadence.name())) + (vi ? '' : ' report')}">← Report</a>
+    </div>
 
-      <div class="retelling-pair">
-        <div class="story-retelling retell-en" th:classappend="${!story.retellingEnAvailable} ? ' unavailable' : ''">
-          <small th:text="${'EN · ' + (vi ? 'CÂU CHUYỆN KỂ LẠI TIẾNG ANH' : 'THE STORY RETOLD IN ENGLISH')}">EN retelling</small>
-          <p th:text="${story.retellingEn}">What happened.</p>
-        </div>
-        <div class="story-retelling retell-vi" th:classappend="${!story.retellingViAvailable} ? ' unavailable' : ''">
-          <small th:text="${'VI · ' + (vi ? 'CÂU CHUYỆN KỂ LẠI TIẾNG VIỆT' : 'THE STORY RETOLD IN VIETNAMESE')}">VI retelling</small>
-          <p th:text="${story.retellingVi}">Chuyện gì đã xảy ra.</p>
-        </div>
+    <header class="report-header">
+      <div class="story-kicker-row">
+        <span class="story-chip solid" th:text="${story.topicLabel}">Topic</span>
+        <span class="story-chip" th:text="${story.marketLabel + ' · ' + story.geographyLabel}">Market</span>
+        <span class="story-chip" th:text="${story.evidenceLanguageLabel}">Language</span>
       </div>
-      <dl class="story-meta">
-        <div><dt th:text="${vi ? 'Chủ đề' : 'Reading lens'}">Lens</dt><dd th:text="${story.topicLabel}">Product</dd></div>
-        <div><dt th:text="${vi ? 'Thị trường' : 'Market'}">Market</dt><dd th:text="${story.marketLabel + ' · ' + story.geographyLabel}">Vietnam</dd></div>
-        <div><dt th:text="${vi ? 'Nguồn · ngày' : 'Publisher · date'}">Publisher</dt><dd th:text="${story.sourceName + ' · ' + story.publishedLabel}">Publisher</dd></div>
-        <div><dt th:text="${vi ? 'Ngôn ngữ bằng chứng' : 'Evidence language'}">Language</dt><dd th:text="${story.evidenceLanguageLabel}">English</dd></div>
-      </dl>
+      <h1 th:text="${story.originalTitle}">Original source title</h1>
+      <p class="story-byline"><strong th:text="${story.sourceName}">Publisher</strong> · <span th:text="${story.publishedLabel}">Date</span></p>
+
+      <div class="story-lede" th:classappend="${!(vi ? story.retellingViAvailable : story.retellingEnAvailable)} ? ' unavailable' : ''">
+        <small th:text="${vi ? 'TÓM TẮT' : 'SUMMARY'}">Summary</small>
+        <p th:text="${vi ? story.retellingVi : story.retellingEn}">What happened.</p>
+      </div>
     </header>
 
     <section class="report-section">
-      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '01 · ĐỌC TRONG BỐI CẢNH' : '01 · READ IT IN CONTEXT'}">Context</div><h2 th:text="${vi ? 'Hiểu câu chuyện trước khi dùng nó' : 'Understand the story before using it'}">Understand the story</h2><p class="section-intro" th:text="${vi ? 'Ba ô dưới đây tách kiến thức nền, ý nghĩa với Product và giới hạn của một nguồn riêng lẻ.' : 'These panels separate the background, Product meaning and the limit of a single source.'}">Reading guide.</p></div></div>
-      <div class="story-grid">
-        <article class="story-panel"><small>01 · <span th:text="${vi ? 'BỐI CẢNH CẦN BIẾT' : 'BACKGROUND YOU NEED'}">Background</span></small><h3 th:text="${vi ? 'Đặt thông tin vào đúng khung' : 'Put the information in the right frame'}">Context</h3><p th:text="${story.context}">Context.</p></article>
-        <article class="story-panel"><small>02 · <span th:text="${vi ? 'Ý NGHĨA VỚI PRODUCT' : 'WHY PRODUCT CARES'}">Meaning</span></small><h3 th:text="${vi ? 'Nó có thể ảnh hưởng đến quyết định nào?' : 'Which decision could it affect?'}">Meaning</h3><p th:text="${story.productMeaning}">Why it matters.</p></article>
-        <article class="story-panel"><small>03 · <span th:text="${vi ? 'KHÔNG ĐƯỢC KẾT LUẬN QUÁ MỨC' : 'DO NOT OVER-READ IT'}">Boundary</span></small><h3 th:text="${vi ? 'Một câu chuyện chưa phải xu hướng' : 'One story is not a trend'}">Boundary</h3><p th:text="${story.limitation}">Limit.</p></article>
-      </div>
-      <div class="story-action">
-        <div><small th:text="${vi ? 'CÂU HỎI PRODUCT CẦN TRẢ LỜI' : 'THE QUESTION PRODUCT SHOULD ASK'}">Question</small><p th:text="${story.reviewQuestion}">Question.</p></div>
-        <div><small th:text="${vi ? 'BƯỚC KIỂM CHỨNG TIẾP THEO' : 'NEXT VALIDATION STEP'}">Next step</small><p th:text="${story.validationStep}">Action.</p></div>
-      </div>
-    </section>
-
-    <section class="report-section">
-      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '02 · VIẾT LẠI VÀ GIẢI THÍCH' : '02 · REWRITTEN AND EXPLAINED'}">Explained</div><h2 th:text="${vi ? 'Câu chuyện viết lại bằng ngôn ngữ đời thường' : 'The story rewritten in plain language'}">Rewritten in plain language</h2><p class="section-intro" th:text="${vi ? 'Bản viết lại song ngữ dưới đây chỉ dùng nội dung của chính bài nguồn, kèm giải thích thuật ngữ cho người đọc không chuyên. Đây là lớp hỗ trợ đọc — không phải bằng chứng.' : 'The bilingual rewrite below uses only the source article itself, with jargon explained for a non-specialist reader. It is a reading aid—not evidence.'}">Plain-language rewrite.</p></div></div>
-      <th:block th:if="${explainer != null}">
-        <div class="explainer-grid">
-          <article class="explainer-panel en">
-            <small th:text="${'EN · ' + (vi ? 'BẢN VIẾT LẠI TIẾNG ANH' : 'PLAIN-LANGUAGE REWRITE')}">EN rewrite</small>
-            <p th:text="${explainer.rewriteEn}">Plain English rewrite.</p>
-            <div class="explainer-terms" th:if="${!explainer.termsEnList.isEmpty()}">
-              <small th:text="${vi ? 'THUẬT NGỮ (GIẢI THÍCH TIẾNG ANH)' : 'TERMS EXPLAINED'}">Terms</small>
-              <ul><li th:each="term : ${explainer.termsEnList}" th:text="${term}">Term — explanation.</li></ul>
-            </div>
-          </article>
-          <article class="explainer-panel vi">
-            <small th:text="${'VI · ' + (vi ? 'BẢN VIẾT LẠI TIẾNG VIỆT' : 'VIETNAMESE REWRITE')}">VI rewrite</small>
-            <p th:text="${explainer.rewriteVi}">Bản viết lại tiếng Việt.</p>
-            <div class="explainer-terms" th:if="${!explainer.termsViList.isEmpty()}">
-              <small th:text="${vi ? 'THUẬT NGỮ ĐƯỢC GIẢI THÍCH' : 'TERMS (EXPLAINED IN VIETNAMESE)'}">Thuật ngữ</small>
-              <ul><li th:each="term : ${explainer.termsViList}" th:text="${term}">Thuật ngữ — giải thích.</li></ul>
-            </div>
-          </article>
+      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '01 · VIẾT LẠI VÀ GIẢI THÍCH' : '01 · REWRITTEN AND EXPLAINED'}">Explained</div><h2 th:text="${vi ? 'Câu chuyện viết lại bằng ngôn ngữ đời thường' : 'The story rewritten in plain language'}">Rewritten in plain language</h2></div></div>
+      <div class="rewrite-body" th:if="${explainer != null}">
+        <p th:text="${vi ? explainer.rewriteVi : explainer.rewriteEn}">Plain-language rewrite.</p>
+        <div class="rewrite-terms" th:if="${!(vi ? explainer.termsViList : explainer.termsEnList).isEmpty()}">
+          <small th:text="${vi ? 'THUẬT NGỮ' : 'TERMS'}">Terms</small>
+          <ul><li th:each="term : ${vi ? explainer.termsViList : explainer.termsEnList}" th:text="${term}">Term — explanation.</li></ul>
         </div>
-        <p class="explainer-note" th:text="${(vi ? 'Sinh một lần bởi writer ' : 'Generated once by the writer ') + explainer.writerProvider + (vi ? ', lưu và tái sử dụng cho mọi người đọc. Khi có khác biệt, nguyên văn evidence và toàn văn nguồn bên dưới là hồ sơ kiểm tra.' : ', stored and reused for every reader. If anything differs, the verbatim evidence and full source below remain the audit record.')}">Provenance.</p>
-      </th:block>
+      </div>
       <div class="explainer-generate" th:if="${explainer == null}">
-        <p th:text="${vi ? 'Chưa có bản viết lại cho câu chuyện này. Hệ thống sẽ gọi writer đúng một lần, viết lại bài nguồn bằng cả tiếng Anh và tiếng Việt kèm giải thích thuật ngữ, rồi lưu lại cho mọi người đọc sau.' : 'No rewrite exists for this story yet. The system will call the writer exactly once, retell the source article in both English and Vietnamese with jargon explained, then store it for every future reader.'}">Generate description.</p>
-        <p class="explainer-error" th:if="${explainError != null}" th:text="${(vi ? 'Lần sinh trước bị từ chối bởi kiểm tra ngôn ngữ: ' : 'The last attempt was rejected by the language check: ') + explainError}">Error.</p>
+        <p th:text="${vi ? 'Viết lại bài gốc bằng ngôn ngữ đời thường, kèm giải thích thuật ngữ — tạo một lần, lưu cho mọi người đọc.' : 'Retell the original article in plain language with jargon explained — generated once, stored for every reader.'}">Generate description.</p>
+        <p class="explainer-error" th:if="${explainError != null}" th:text="${(vi ? 'Lần tạo trước bị từ chối: ' : 'The last attempt was rejected: ') + explainError}">Error.</p>
         <form method="post" th:action="${'/report/story/' + story.factCode + '/explain'}">
           <input type="hidden" name="cadence" th:value="${#strings.toLowerCase(cadence.name())}"/>
           <input type="hidden" name="lang" th:value="${lang}"/>
-          <button type="submit" th:text="${vi ? 'Tạo bản viết lại có giải thích' : 'Generate the explained rewrite'}">Generate</button>
+          <button type="submit" th:text="${vi ? 'Tạo bản viết lại' : 'Generate the rewrite'}">Generate</button>
         </form>
       </div>
     </section>
 
     <section class="report-section">
-      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '03 · TRUY VẾT VỀ BẰNG CHỨNG' : '03 · TRACE IT TO THE EVIDENCE'}">Trace</div><h2 th:text="${vi ? 'Đoạn nguồn đã tạo ra tín hiệu này' : 'The source passage behind this signal'}">Evidence</h2><p class="section-intro" th:text="${vi ? 'Đoạn dưới đây được giữ nguyên ngôn ngữ nguồn. Đây là phần đã được trích xuất thành fact code, không phải bản dịch hoặc nội dung viết lại.' : 'The passage below remains in its source language. It is the exact text extracted into the fact code—not a translation or rewrite.'}">Verbatim evidence.</p></div></div>
+      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '02 · BẰNG CHỨNG' : '02 · THE EVIDENCE'}">Evidence</div><h2 th:text="${vi ? 'Đoạn nguồn đã tạo ra tín hiệu này' : 'The source passage behind this signal'}">Evidence</h2></div></div>
       <div class="trace-grid">
         <div class="source-panel"><small th:text="${story.factCode + ' · ' + story.evidenceLanguageLabel + ' · ' + (vi ? 'NGUYÊN VĂN' : 'VERBATIM')}">F-001</small><blockquote th:text="${story.originalEvidence}">Exact evidence.</blockquote></div>
         <aside class="source-audit"><dl>
           <dt th:text="${vi ? 'Tài liệu đã lưu' : 'Stored document'}">Document</dt><dd th:text="${'DOC #' + story.rawDocId + ' · ' + story.intakeLabel}">Doc</dd>
           <dt th:text="${vi ? 'Nguồn hệ thống' : 'Registry source'}">Source</dt><dd th:text="${story.sourceCode + ' · Tier ' + story.sourceTier}">Source</dd>
           <dt th:text="${vi ? 'Thời điểm thu thập' : 'Crawled / added'}">Fetched</dt><dd th:text="${story.fetchedLabel}">Fetched</dd>
-          <dt th:text="${vi ? 'Liên kết nguồn gốc' : 'Original source'}">Original</dt><dd><a th:if="${story.externalSourceLink}" th:href="${story.sourceUrl}" target="_blank" rel="noopener" th:text="${vi ? 'Đọc tại nhà xuất bản ↗' : 'Read at publisher ↗'}">Publisher</a><span th:unless="${story.externalSourceLink}" th:text="${vi ? 'Tài liệu được tải lên; không có URL công khai.' : 'Uploaded document; no public URL.'}">Uploaded</span></dd>
+          <dt th:text="${vi ? 'Liên kết nguồn gốc' : 'Original source'}">Original</dt><dd><a th:if="${story.externalSourceLink}" th:href="${story.sourceUrl}" target="_blank" rel="noopener" th:text="${vi ? 'Đọc tại nhà xuất bản ↗' : 'Read at publisher ↗'}">Publisher</a><span th:unless="${story.externalSourceLink}" th:text="${vi ? 'Tài liệu tải lên; không có URL công khai.' : 'Uploaded document; no public URL.'}">Uploaded</span></dd>
         </dl></aside>
       </div>
     </section>
 
     <section class="report-section">
-      <div class="document-intro"><div><div class="section-kicker" th:text="${vi ? '04 · TOÀN VĂN ĐÃ THU THẬP' : '04 · FULL CRAWLED DOCUMENT'}">Full document</div><h2 th:text="${vi ? 'Đọc câu chuyện đầy đủ, với bằng chứng được tô sáng' : 'Read the complete story, with the evidence highlighted'}">Full document</h2><p th:text="${vi ? 'Đây là văn bản hệ thống thực sự lưu khi thu thập hoặc nhập tài liệu. Phần màu vàng là đoạn đã được dùng cho fact code ở trên.' : 'This is the text actually stored when the article or document was collected. The yellow passage is the span used for the fact code above.'}">Stored source.</p></div><div class="document-stat"><strong th:text="${#numbers.formatInteger(story.textCharacters, 1, 'COMMA')}">4,500</strong><span th:text="${vi ? 'ký tự đã lưu' : 'stored characters'}">characters</span></div></div>
+      <div class="document-intro"><div><div class="section-kicker" th:text="${vi ? '03 · TOÀN VĂN ĐÃ THU THẬP' : '03 · FULL CRAWLED DOCUMENT'}">Full document</div><h2 th:text="${vi ? 'Đọc câu chuyện đầy đủ' : 'Read the complete story'}">Full document</h2></div><div class="document-stat"><strong th:text="${#numbers.formatInteger(story.textCharacters, 1, 'COMMA')}">4,500</strong><span th:text="${vi ? 'ký tự đã lưu' : 'stored characters'}">characters</span></div></div>
       <div class="full-source-text" th:if="${story.sourceText.matched}"><span th:text="${story.sourceText.before}"></span><mark th:text="${story.sourceText.evidence}"></mark><span th:text="${story.sourceText.after}"></span></div>
       <div class="full-source-text" th:unless="${story.sourceText.matched}" th:text="${story.sourceText.fullText}">Full source text.</div>
-      <p class="source-boundary" th:text="${vi ? 'Ranh giới: phần kể lại và giải thích giúp người đọc hiểu nguồn, nhưng không thay đổi bằng chứng, trạng thái kiểm chứng hoặc cổng xuất bản. Khi có khác biệt, văn bản nguồn và fact code là hồ sơ kiểm tra.' : 'Boundary: the retelling and explanation help the reader understand the source, but do not change evidence, verification status or publication gates. If anything differs, the source text and fact code remain the audit record.'}">Boundary.</p>
     </section>
 
-    <footer class="report-footer story-footer"><div class="footer-grid"><div class="footer-title" th:text="${vi ? 'Từ insight về lại câu chuyện' : 'From insight back to the story'}">Source story</div><div class="footer-copy"><p th:text="${vi ? 'Market Radar liên kết từng kết luận biên tập với bằng chứng đã thu thập, đồng thời giữ bản kể lại và nguyên văn ở hai lớp riêng biệt.' : 'Market Radar links editorial conclusions to collected evidence while keeping the retelling and verbatim source in separate, inspectable layers.'}">Method.</p></div></div></footer>
+    <details class="reading-guide">
+      <summary th:text="${vi ? 'Hướng dẫn đọc · cách dùng một nguồn riêng lẻ' : 'Reading guide · how to use a single source'}">Reading guide</summary>
+      <div class="guide-grid">
+        <div><h4 th:text="${vi ? 'Bối cảnh cần biết' : 'Background you need'}">Background</h4><p th:text="${story.context}">Context.</p></div>
+        <div><h4 th:text="${vi ? 'Ý nghĩa với Product' : 'Why Product cares'}">Meaning</h4><p th:text="${story.productMeaning}">Why it matters.</p></div>
+        <div><h4 th:text="${vi ? 'Câu hỏi nên đặt' : 'The question to ask'}">Question</h4><p th:text="${story.reviewQuestion}">Question.</p></div>
+        <div><h4 th:text="${vi ? 'Bước kiểm chứng tiếp theo' : 'Next validation step'}">Next step</h4><p th:text="${story.validationStep}">Action.</p></div>
+        <div><h4 th:text="${vi ? 'Giới hạn' : 'The limit'}">Limit</h4><p th:text="${story.limitation}">Limit.</p></div>
+      </div>
+    </details>
+
+    <footer class="report-footer story-footer"><div class="footer-grid"><div class="footer-title" th:text="${'Market Radar · ' + story.factCode}">Source story</div><div class="footer-copy"><p th:text="${vi ? 'Bản kể lại là lớp hỗ trợ đọc; nguyên văn và toàn văn nguồn ở trên là hồ sơ kiểm tra.' : 'The retelling is a reading aid; the verbatim span and full source above remain the audit record.'}">Boundary.</p></div></div></footer>
   </main>
 </body>
 </html>

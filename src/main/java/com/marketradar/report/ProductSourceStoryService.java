@@ -125,8 +125,8 @@ public class ProductSourceStoryService {
 
     private static String missingRetelling(boolean vi) {
         return vi
-                ? "Chưa có bản kể lại tiếng Việt vượt qua kiểm tra ngôn ngữ. Hãy đọc phần bằng chứng được tô sáng và toàn văn nguồn bên dưới; hệ thống không tự đoán bản dịch còn thiếu."
-                : "No English retelling passed the language check. Read the highlighted evidence and full source below; the system does not invent a missing translation.";
+                ? "Chưa có bản tóm tắt tiếng Việt an toàn — hãy đọc bằng chứng và toàn văn bên dưới."
+                : "No safe English summary yet — read the evidence and full text below.";
     }
 
     private static String limitation(ProductMarketScope scope, boolean vi) {
