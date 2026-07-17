@@ -31,6 +31,16 @@ public class ProductReportContractTest {
                 "report translates analysis into Product decisions");
         check(fragment.contains("editorialBrief.chart"),
                 "report includes evidence-linked visual comparison");
+        check(fragment.contains("editorialBrief.marketBridge.domesticRead"),
+                "human editorial separates the domestic read");
+        check(fragment.contains("editorialBrief.marketBridge.internationalRead"),
+                "human editorial separates international comparison signals");
+        check(fragment.contains("editorialBrief.marketBridge.vietnamImplication"),
+                "report explicitly bridges international evidence back to Vietnam");
+        check(fragment.contains("currentProductNewsScopes"),
+                "source developments are partitioned by market before topic");
+        check(fragment.contains("n.marketScopeLabelEn") && fragment.contains("n.marketScopeLabelVi"),
+                "each source development carries a bilingual market label");
         check(fragment.contains("executiveBrief.modeLabel"), "human-readable evidence/watch/decision brief state");
         check(fragment.contains("productWatchBriefInsights"), "Watch Brief renders only safe adapter signals");
         check(fragment.contains("not market-wide conclusions"),

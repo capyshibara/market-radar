@@ -72,6 +72,16 @@
         </aside>
       </div>
 
+      <section class="market-bridge" aria-label="Vietnam applicability bridge">
+        <div class="bridge-head"><div><div class="section-kicker" th:text="${vi ? 'BẢN ĐỒ THỊ TRƯỜNG' : 'MARKET MAP'}">Market map</div><h3 th:text="${vi ? 'Trong nước trước. Quốc tế để đối chiếu. Việt Nam là điểm đến của quyết định.' : 'Domestic first. International for comparison. Vietnam as the decision destination.'}">Domestic and international bridge</h3></div><span class="bridge-marker">VN</span></div>
+        <div class="bridge-grid">
+          <article class="bridge-column domestic"><span class="scope-pill vietnam" th:text="${vi ? 'VIỆT NAM · HÀNH ĐỘNG TRỰC TIẾP' : 'VIETNAM · DIRECT ACTION'}">Vietnam</span><p th:text="${editorialBrief.marketBridge.domesticRead}">Domestic read</p></article>
+          <article class="bridge-column international"><span class="scope-pill international" th:text="${vi ? 'QUỐC TẾ · ĐIỂM ĐỐI CHIẾU' : 'INTERNATIONAL · COMPARISON'}">International</span><p th:text="${editorialBrief.marketBridge.internationalRead}">International read</p></article>
+          <article class="bridge-column implication"><span class="scope-pill implication" th:text="${vi ? 'CẦU NỐI · KHẢ NĂNG ÁP DỤNG' : 'BRIDGE · VIETNAM APPLICABILITY'}">Bridge</span><p th:text="${editorialBrief.marketBridge.vietnamImplication}">Vietnam implication</p></article>
+        </div>
+        <div class="bridge-question"><strong th:text="${vi ? 'Câu hỏi cho Product' : 'The Product question'}">The Product question</strong><p th:text="${editorialBrief.marketBridge.decisionQuestion}">Decision question</p></div>
+      </section>
+
       <div class="editorial-takeaways">
         <article class="editorial-takeaway" th:each="item:${editorialBrief.takeaways}">
           <div class="takeaway-rule"><span th:text="${item.number}">01</span></div>
@@ -104,14 +114,23 @@
       </div>
       <p class="news-disclaimer" th:text="${vi ? 'Phần phân tích ở trên do con người biên tập. Các hồ sơ dưới đây là lớp bằng chứng bất biến; mở trích dẫn khi cần kiểm tra nguyên văn.' : 'The analysis above is human-curated. The records below are the immutable evidence layer; open a citation when verbatim checking is needed.'}">Evidence note.</p>
 
-      <div class="news-topic" th:each="g,groupStat : ${currentProductNewsGroups}" th:classappend="${groupStat.first} ? ' first-news-topic' : ''">
-        <div class="topic-heading"><div class="topic-title-row"><h3 th:text="${vi ? g.labelVi : g.labelEn}">Topic</h3><span><b th:text="${g.itemCount}">2</b><small th:text="${vi ? ' hồ sơ' : ' records'}"> records</small></span></div></div>
+      <div class="scope-summary" aria-label="Domestic and international coverage">
+        <div class="scope-summary-cell vietnam"><span th:text="${vi ? 'VIỆT NAM' : 'VIETNAM'}">Vietnam</span><strong th:text="${vietnamProductNewsCount}">0</strong><small th:text="${vi ? 'diễn biến đủ điều kiện' : 'eligible developments'}">developments</small></div>
+        <div class="scope-summary-cell international"><span th:text="${vi ? 'QUỐC TẾ' : 'INTERNATIONAL'}">International</span><strong th:text="${internationalProductNewsCount}">0</strong><small th:text="${vi ? 'tín hiệu để đối chiếu' : 'comparison signals'}">signals</small></div>
+      </div>
 
-        <div class="news-ledger">
-          <article class="current-news-item" th:each="n : ${g.items}">
+      <section class="market-scope-news" th:each="scopeGroup,scopeStat : ${currentProductNewsScopes}" th:classappend="${scopeGroup.vietnam} ? ' vietnam-scope' : ' international-scope'">
+        <header class="market-scope-heading"><div><span class="scope-pill" th:classappend="${scopeGroup.vietnam} ? ' vietnam' : ' international'" th:text="${vi ? scopeGroup.labelVi : scopeGroup.labelEn}">Market scope</span><h3 th:text="${vi ? scopeGroup.labelVi : scopeGroup.labelEn}">Market scope</h3><p th:text="${vi ? scopeGroup.descriptionVi : scopeGroup.descriptionEn}">Description</p></div><div class="scope-count"><strong th:text="${scopeGroup.itemCount}">0</strong><span th:text="${vi ? 'hồ sơ' : 'records'}">records</span></div></header>
+        <div class="market-scope-empty" th:if="${scopeGroup.items.empty}"><strong th:text="${scopeGroup.vietnam ? (vi ? 'Chưa có diễn biến Việt Nam đủ điều kiện trong kỳ.' : 'No eligible Vietnam development in this window.') : (vi ? 'Chưa có tín hiệu quốc tế đủ điều kiện trong kỳ.' : 'No eligible international signal in this window.')}">No eligible evidence.</strong><p th:text="${scopeGroup.vietnam ? (vi ? 'Đây là khoảng trống độ phủ nguồn cần xử lý, không phải bằng chứng thị trường không có thay đổi.' : 'This is a source-coverage gap to address, not evidence that the market did not move.') : (vi ? 'Không bổ sung tin cũ hoặc yếu chỉ để lấp chỗ trống.' : 'Older or weaker news is not substituted merely to fill the section.')}">Coverage note.</p></div>
+
+        <div class="news-topic" th:each="g,groupStat : ${scopeGroup.topicGroups}" th:classappend="${groupStat.first} ? ' first-news-topic' : ''">
+          <div class="topic-heading"><div class="topic-title-row"><h4 th:text="${vi ? g.labelVi : g.labelEn}">Topic</h4><span><b th:text="${g.itemCount}">2</b><small th:text="${vi ? ' hồ sơ' : ' records'}"> records</small></span></div></div>
+
+          <div class="news-ledger">
+            <article class="current-news-item" th:each="n : ${g.items}">
             <div class="news-index"></div>
             <div class="news-main">
-              <div class="news-meta"><span class="meta-chip" th:text="${vi ? (n.factType == 'EVENT' ? 'SỰ KIỆN' : (n.factType == 'PRODUCT_LAUNCH' ? 'RA MẮT SẢN PHẨM' : (n.factType == 'FEE_CHANGE' ? 'THAY ĐỔI PHÍ' : (n.factType == 'REGULATION' ? 'QUY ĐỊNH' : 'CHỈ SỐ')))) : (n.factType == 'EVENT' ? 'EVENT' : (n.factType == 'PRODUCT_LAUNCH' ? 'PRODUCT LAUNCH' : (n.factType == 'FEE_CHANGE' ? 'FEE CHANGE' : (n.factType == 'REGULATION' ? 'REGULATION' : 'METRIC'))))}">EVENT</span><span class="meta-chip neutral" th:text="${vi ? n.freshnessLabelVi : n.freshnessLabelEn}">Published 2 days ago</span></div>
+              <div class="news-meta"><span class="meta-chip scope" th:classappend="${n.vietnamMarket} ? ' vietnam' : ' international'" th:text="${vi ? n.marketScopeLabelVi : n.marketScopeLabelEn}">Vietnam</span><span class="meta-chip" th:text="${vi ? (n.factType == 'EVENT' ? 'SỰ KIỆN' : (n.factType == 'PRODUCT_LAUNCH' ? 'RA MẮT SẢN PHẨM' : (n.factType == 'FEE_CHANGE' ? 'THAY ĐỔI PHÍ' : (n.factType == 'REGULATION' ? 'QUY ĐỊNH' : 'CHỈ SỐ')))) : (n.factType == 'EVENT' ? 'EVENT' : (n.factType == 'PRODUCT_LAUNCH' ? 'PRODUCT LAUNCH' : (n.factType == 'FEE_CHANGE' ? 'FEE CHANGE' : (n.factType == 'REGULATION' ? 'REGULATION' : 'METRIC'))))}">EVENT</span><span class="meta-chip neutral" th:text="${vi ? n.freshnessLabelVi : n.freshnessLabelEn}">Published 2 days ago</span></div>
               <p class="original-language-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Tiêu đề gốc · tiếng Việt' : (n.evidenceLanguage == 'en' ? 'Tiêu đề gốc · tiếng Anh' : 'Tiêu đề gốc từ nguồn')) : (n.evidenceLanguage == 'vi' ? 'Original source title · Vietnamese' : (n.evidenceLanguage == 'en' ? 'Original source title · English' : 'Original source title'))}">Original source title</p>
               <h3><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.originalTitle}">Source title</a><span th:unless="${n.externalSourceLink}" th:text="${n.originalTitle}">Uploaded document</span></h3>
               <p class="display-summary" th:if="${!#strings.isEmpty(vi ? n.displaySummaryVi : n.displaySummaryEn)}"><strong th:text="${vi ? 'Điều gì đã xảy ra: ' : 'What happened: '}">What happened: </strong><span th:text="${vi ? n.displaySummaryVi : n.displaySummaryEn}">Display summary.</span></p>
@@ -122,14 +141,16 @@
               <dl>
                 <dt th:text="${vi ? 'Nguồn' : 'Publisher'}">Publisher</dt><dd><a class="source-link" th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.sourceName}">Source</a><span th:unless="${n.externalSourceLink}" th:text="${n.sourceName}">Uploaded source</span></dd>
                 <dt th:text="${vi ? 'Ngày công bố' : 'Published'}">Published</dt><dd th:text="${n.publishedDate}">2026-07-16</dd>
+                <dt th:text="${vi ? 'Thị trường' : 'Market'}">Market</dt><dd th:text="${vi ? n.geographyLabelVi : n.geographyLabelEn}">Vietnam</dd>
                 <dt th:text="${vi ? 'Cấp nguồn' : 'Source quality'}">Source quality</dt><dd th:text="${vi ? n.sourceTierLabelVi : n.sourceTierLabelEn}">Tier 1 source</dd>
               </dl>
               <p class="original-language-label" th:if="${n.manuallySupplied}" th:text="${vi ? 'Tài liệu do người dùng cung cấp · cần đối chiếu với nguồn gốc' : 'Manually supplied document · cross-check against the original source'}">Manually supplied document</p>
               <span class="citation-code" th:text="${n.factCode + (vi ? ' · hồ sơ đã xác minh' : ' · verified record')}">F-001 · verified record</span>
             </aside>
-          </article>
+            </article>
+          </div>
         </div>
-      </div>
+      </section>
     </section>
     <section class="report-section" th:if="${decisionReady or watchBrief}">
       <div class="section-head">
@@ -194,9 +215,9 @@
     <section class="report-section references" th:if="${hasCurrentProductNews or !#lists.isEmpty(references)}">
       <div class="section-head"><div><div class="section-kicker" th:text="${vi ? 'NGUỒN & TRUY XUẤT' : 'SOURCES & TRACEABILITY'}">Sources &amp; traceability</div><h2 th:text="${vi ? 'Danh mục nguồn đã dùng' : 'Source register'}">Source register</h2></div></div>
       <div class="reference-register">
-        <div class="reference-row" th:each="n : ${currentProductNews}"><span class="reference-code" th:text="${n.factCode}">F-001</span><span class="reference-source"><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.title}">Title</a><span th:unless="${n.externalSourceLink}" th:text="${n.title}">Uploaded document</span></span><span class="reference-publisher" th:text="${n.sourceName}">Source</span></div>
-        <div class="reference-row editorial-reference" th:each="ref : ${editorialReferences}"><span class="reference-code" th:text="${ref.factCode}">F-001</span><span class="reference-source"><a th:if="${ref.externalLink}" th:href="${ref.url}" th:text="${ref.title}">Title</a><span th:unless="${ref.externalLink}" th:text="${ref.title}">Uploaded document</span></span><span class="reference-publisher" th:text="${ref.publisher}">Source</span></div>
-        <div class="reference-row" th:each="f : ${references}"><span class="reference-code" th:text="${f.factCode}">F-001</span><span class="reference-source"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Title</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span></span><span class="reference-publisher" th:text="${f.rawDoc.source.name}">Source</span></div>
+        <div class="reference-row" th:each="n : ${currentProductNews}"><span class="reference-code" th:text="${n.factCode}">F-001</span><span class="reference-source"><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.title}">Title</a><span th:unless="${n.externalSourceLink}" th:text="${n.title}">Uploaded document</span></span><span class="reference-market" th:classappend="${n.vietnamMarket} ? ' vietnam' : ' international'" th:text="${vi ? n.marketScopeLabelVi : n.marketScopeLabelEn}">Vietnam</span><span class="reference-publisher" th:text="${n.sourceName}">Source</span></div>
+        <div class="reference-row editorial-reference" th:each="ref : ${editorialReferences}"><span class="reference-code" th:text="${ref.factCode}">F-001</span><span class="reference-source"><a th:if="${ref.externalLink}" th:href="${ref.url}" th:text="${ref.title}">Title</a><span th:unless="${ref.externalLink}" th:text="${ref.title}">Uploaded document</span></span><span class="reference-market" th:classappend="${ref.marketScope == 'VIETNAM'} ? ' vietnam' : ' international'" th:text="${ref.marketScope == 'VIETNAM' ? (vi ? 'Việt Nam' : 'Vietnam') : (vi ? 'Quốc tế' : 'International')}">Market</span><span class="reference-publisher" th:text="${ref.publisher}">Source</span></div>
+        <div class="reference-row" th:each="f : ${references}"><span class="reference-code" th:text="${f.factCode}">F-001</span><span class="reference-source"><a th:if="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:href="${f.rawDoc.url}" th:text="${f.rawDoc.title}">Title</a><span th:unless="${#strings.startsWith(f.rawDoc.url, 'https://')}" th:text="${f.rawDoc.title}">Uploaded document</span></span><span class="reference-market" th:if="${referenceMarketPositions.get(f.factCode) != null}" th:classappend="${referenceMarketPositions.get(f.factCode).scope.name() == 'VIETNAM'} ? ' vietnam' : ' international'" th:text="${referenceMarketPositions.get(f.factCode).scope.name() == 'VIETNAM' ? (vi ? 'Việt Nam' : 'Vietnam') : (vi ? 'Quốc tế' : 'International')}">Market</span><span class="reference-publisher" th:text="${f.rawDoc.source.name}">Source</span></div>
       </div>
     </section>
 

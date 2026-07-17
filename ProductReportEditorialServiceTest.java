@@ -17,6 +17,13 @@ public class ProductReportEditorialServiceTest {
                     cadence + " chart is evidence-linked");
             check(en.leadNarrative().length() > 300, cadence + " English analysis is substantive");
             check(vi.leadNarrative().length() > 250, cadence + " Vietnamese analysis is substantive");
+            check(en.marketBridge() != null, cadence + " has a domestic/international bridge");
+            check(en.marketBridge().domesticRead().length() > 80,
+                    cadence + " has a substantive domestic read");
+            check(en.marketBridge().internationalRead().length() > 80,
+                    cadence + " has a substantive international read");
+            check(en.marketBridge().decisionQuestion().endsWith("?"),
+                    cadence + " bridge ends in a decision question");
             check("HUMAN_CURATED".equals(en.status()), cadence + " is labelled human-curated");
             check(!en.citedFactCodes().isEmpty(), cadence + " retains an auditable fact register");
         }

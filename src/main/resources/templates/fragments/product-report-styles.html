@@ -160,6 +160,22 @@
   .chart-note { margin:17px 0 8px; padding-top:11px; border-top:1px solid var(--line-dark); color:var(--muted); font-size:10.5px; line-height:1.5; }
   .editorial-chart code, .editorial-takeaway code { color:var(--blue-ink); font-family:var(--mono); font-size:9.5px; }
 
+  .market-bridge { margin-top:42px; border:1px solid var(--line-dark); border-top:4px solid var(--navy-deep); background:#F8F5EE; page-break-inside:avoid; }
+  .bridge-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding:22px 24px 18px; }
+  .bridge-head h3 { max-width:720px; margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:23px; line-height:1.3; }
+  .bridge-marker { display:grid; place-items:center; width:44px; height:44px; flex:none; border-radius:50%; background:var(--navy-deep); color:#fff; font-family:var(--mono); font-size:12px; font-weight:700; }
+  .bridge-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--line); }
+  .bridge-column { min-width:0; padding:20px 22px; border-left:1px solid var(--line); }
+  .bridge-column:first-child { border-left:0; }
+  .bridge-column p { margin:13px 0 0; color:var(--ink-soft); font-size:12.5px; line-height:1.62; }
+  .scope-pill { display:inline-block; padding:4px 8px; border-radius:999px; font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+  .scope-pill.vietnam, .reference-market.vietnam, .meta-chip.scope.vietnam { background:#DDEDE4; color:#205B36; }
+  .scope-pill.international, .reference-market.international, .meta-chip.scope.international { background:#E4E9FF; color:#1839B9; }
+  .scope-pill.implication { background:#FFF0CF; color:#875204; }
+  .bridge-question { display:grid; grid-template-columns:170px 1fr; gap:22px; padding:16px 22px; border-top:1px solid var(--line-dark); background:var(--navy-deep); color:#fff; }
+  .bridge-question strong { color:#8FA6FF; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; }
+  .bridge-question p { margin:0; font-family:var(--serif); font-size:16px; line-height:1.45; }
+
   .editorial-takeaways { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:46px; border-top:2px solid var(--navy-deep); border-bottom:1px solid var(--line); }
   .editorial-takeaway { min-width:0; padding:24px 22px 22px; border-left:1px solid var(--line); page-break-inside:avoid; }
   .editorial-takeaway:first-child { border-left:0; padding-left:0; }
@@ -191,11 +207,30 @@
   .editorial-boundary strong { color:var(--ink-soft); }
 
   .news-disclaimer { margin:0 0 20px; padding:12px 14px; background:#F1EEE5; border-left:3px solid var(--line-dark); color:var(--ink-soft); font-size:12.5px; }
+  .scope-summary { display:grid; grid-template-columns:1fr 1fr; margin:22px 0 28px; border:1px solid var(--line-dark); }
+  .scope-summary-cell { display:grid; grid-template-columns:110px 58px 1fr; align-items:center; gap:12px; padding:16px 18px; }
+  .scope-summary-cell + .scope-summary-cell { border-left:1px solid var(--line-dark); }
+  .scope-summary-cell > span { font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:.07em; }
+  .scope-summary-cell strong { font-family:var(--serif); font-size:28px; line-height:1; }
+  .scope-summary-cell small { color:var(--muted); font-size:10.5px; }
+  .scope-summary-cell.vietnam { background:#EFF6F1; color:#205B36; }
+  .scope-summary-cell.international { background:#F0F2FC; color:#1839B9; }
+  .market-scope-news { margin-top:38px; padding-top:24px; border-top:3px solid var(--navy-deep); }
+  .market-scope-news.international-scope { border-top-color:var(--blue); }
+  .market-scope-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:28px; margin-bottom:20px; }
+  .market-scope-heading h3 { margin:10px 0 5px; color:var(--navy-deep); font-family:var(--serif); font-size:29px; line-height:1.2; }
+  .market-scope-heading p { max-width:690px; margin:0; color:var(--ink-soft); font-size:12.5px; }
+  .scope-count { min-width:75px; text-align:right; }
+  .scope-count strong { display:block; color:var(--navy-deep); font-family:var(--serif); font-size:32px; line-height:1; }
+  .scope-count span { color:var(--muted); font-size:9px; letter-spacing:.07em; text-transform:uppercase; }
+  .market-scope-empty { margin:8px 0 24px; padding:18px 20px; border-left:4px solid var(--amber); background:#FFF7E6; }
+  .market-scope-empty strong { color:var(--navy-deep); font-family:var(--serif); font-size:16px; }
+  .market-scope-empty p { margin:6px 0 0; color:var(--ink-soft); font-size:12px; }
   .news-topic { margin-top:36px; }
   .news-topic.first-news-topic { margin-top:12px; }
   .topic-heading { padding:15px 18px; background:var(--navy-deep); color:#fff; }
   .topic-title-row { display:flex; align-items:center; justify-content:space-between; gap:20px; }
-  .topic-title-row h3 { margin:0; color:#fff; font-family:var(--serif); font-size:22px; line-height:1.25; }
+  .topic-title-row h3, .topic-title-row h4 { margin:0; color:#fff; font-family:var(--serif); font-size:22px; line-height:1.25; }
   .topic-title-row > span { color:#fff; font-family:var(--serif); font-size:34px; font-weight:700; opacity:.72; }
   .news-ledger { counter-reset:news; border-top:2px solid var(--navy-deep); }
   .current-news-item { counter-increment:news; display:table; table-layout:fixed; width:100%; padding:27px 0; border-bottom:1px solid var(--line); }
@@ -247,6 +282,7 @@
   .reference-row > * { display:table-cell; vertical-align:top; }
   .reference-code { width:82px; color:var(--blue-ink); font-family:var(--mono); font-size:10px; }
   .reference-source { padding-right:18px; }
+  .reference-market { width:105px; padding:3px 7px; border-radius:999px; font-family:var(--mono); font-size:8.5px; font-weight:700; text-align:center; text-transform:uppercase; }
   .reference-publisher { width:190px; color:var(--muted); }
   .editorial-reference { background:#F5F2EB; }
   .report-methodology { margin-bottom:0; }
@@ -293,7 +329,7 @@
     .section-head, .section-head > div { display:block; }
     .section-stat { width:auto; text-align:left; margin-top:13px; }
     .section-stat strong, .section-stat span { display:inline; margin-right:5px; }
-    .editorial-lead-grid, .editorial-takeaways, .decision-grid { grid-template-columns:1fr; }
+    .editorial-lead-grid, .editorial-takeaways, .decision-grid, .bridge-grid { grid-template-columns:1fr; }
     .editorial-lead-grid { gap:28px; }
     .editorial-lead h2 { font-size:29px; }
     .lead-narrative { font-size:16.5px; }
@@ -304,13 +340,20 @@
     .decision-card, .decision-card:first-child { padding:18px 0; border-left:0; border-top:1px solid rgba(255,255,255,.18); }
     .decision-card:first-child { padding-top:0; border-top:0; }
     .watchlist { grid-template-columns:1fr; gap:6px; }
+    .bridge-column, .bridge-column:first-child { border-left:0; border-top:1px solid var(--line); }
+    .bridge-column:first-child { border-top:0; }
+    .bridge-question { grid-template-columns:1fr; gap:6px; }
+    .scope-summary { grid-template-columns:1fr; }
+    .scope-summary-cell + .scope-summary-cell { border-left:0; border-top:1px solid var(--line-dark); }
+    .market-scope-heading { display:block; }
+    .scope-count { text-align:left; margin-top:12px; }
     .current-news-item, .news-index, .news-main, .news-side { display:block; width:auto; }
     .news-index { margin-bottom:8px; }
     .news-main { padding-right:0; }
     .news-side { margin-top:18px; border-left:0; border-top:1px solid var(--line); padding:14px 0 0; }
     .insight-grid { grid-template-columns:1fr; }
     .reference-row, .reference-row > * { display:block; width:auto; }
-    .reference-publisher { margin-top:4px; }
+    .reference-market, .reference-publisher { margin-top:4px; }
     .custody-section { padding:26px 22px 24px; }
     .footer-grid, .footer-grid > div { display:block; }
     .report-footer { padding:26px 22px; }
@@ -325,7 +368,7 @@
     .report-header { padding:32px 32px 0; }
     .report-header h1 { font-size:42px; }
     .report-cover-art { height:48mm; margin-top:7mm; page-break-inside:avoid; }
-    .editorial-lead-grid { page-break-inside:avoid; }
+    .editorial-lead-grid, .market-bridge, .market-scope-heading { page-break-inside:avoid; }
     .cadence-nav { display:none; }
     .trust-strip { margin-left:32px; margin-right:32px; }
     .report-section { padding-left:32px; padding-right:32px; }

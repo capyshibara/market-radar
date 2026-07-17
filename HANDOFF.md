@@ -5,6 +5,39 @@
 > `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
 > artwork, and sourced exhibits rather than decorative pseudo-data.
 
+## Vietnam / international Product intelligence split — 2026-07-17
+
+- **The rolling Product reports are now domestic-first without becoming inward-looking.** Weekly,
+  Monthly and Quarterly open with a Market Map containing three deliberately separate reads:
+  Vietnam developments with direct local implications, international signals used for comparison,
+  and a human-written bridge explaining what is (and is not) transferable to Vietnam. A Product
+  decision question makes the purpose of the comparison explicit.
+- **Source developments are visibly partitioned by market before they are grouped by topic.** The
+  evidence section has separate “Vietnam market moves” and “International product signals” areas,
+  visible counts, geography labels and per-record market badges. The source register carries the
+  same labels, so an international example cannot silently appear to be domestic evidence. If one
+  side has no eligible development, the report says so instead of filling the gap with old content.
+- **Market assignment is deterministic presentation metadata.** `ProductMarketScopeClassifier`
+  uses event/entity, source-code and publisher/host signals; an explicit Vietnam event wins over a
+  foreign publisher headquarters or an English source language. Best-effort international
+  geography is retained for comparison. This classification balances report selection and layout
+  only—it does not change facts, claim review, verification or publication gates.
+- **The market bridge is human-editable in both languages.** Product Report Review now exposes
+  domestic read, international read, Vietnam application and Product question fields for every
+  cadence/language. Older saved drafts are normalized with the new bridge without discarding their
+  existing editorial content.
+- **Approval audit:** before touching review state, a stopped-database backup was created at
+  `data/backups/marketradar-before-pass-entailed-approval-20260717-1415.mv.db`. The live corpus has
+  239 non-superseded claims whose gate is `PASS` and whose latest verifier verdict is `ENTAILED`:
+  36 are `APPROVED` and 203 are `AUTO_APPROVED`; **zero are pending**. Therefore no new approval was
+  written. The remaining pending `PASS` claims have Neutral, Contradicted or Verifier Error verdicts
+  and were deliberately left untouched.
+- **Verification:** Maven packaging and five focused regression suites pass. A temporary build
+  returned HTTP 200 for all Weekly/Monthly/Quarterly EN and VI readers, all three PDF downloads and
+  the Product editor. The Monthly PDF is a 13-page landscape Letter document; its Market Map was
+  rendered at 144 DPI and visually checked after adding PDF-safe market-marker colors. No pipeline
+  stage or report regeneration was run during this verification.
+
 ## Product report human-editorial redesign + updated design system — 2026-07-17
 
 - **Weekly, Monthly and Quarterly now have a separate human editorial layer.** The default EN/VI

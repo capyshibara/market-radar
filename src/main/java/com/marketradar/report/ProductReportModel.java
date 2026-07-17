@@ -1,6 +1,8 @@
 package com.marketradar.report;
 
-import com.marketradar.product.CurrentProductNewsGroup;
+import com.marketradar.product.CurrentProductNewsScopeGroup;
+import com.marketradar.product.ProductMarketScope;
+import com.marketradar.product.ProductMarketScopeClassifier;
 import com.marketradar.product.ProductReportCadence;
 import org.springframework.stereotype.Component;
 
@@ -59,7 +61,11 @@ public class ProductReportModel {
         model.put("productLeadInsight", snapshot.leadInsight());
         model.put("currentProductNews", snapshot.currentNews());
         model.put("hasCurrentProductNews", !snapshot.currentNews().isEmpty());
-        model.put("currentProductNewsGroups", CurrentProductNewsGroup.from(snapshot.currentNews()));
+        model.put("currentProductNewsScopes", CurrentProductNewsScopeGroup.from(snapshot.currentNews()));
+        model.put("vietnamProductNewsCount", snapshot.currentNews().stream()
+                .filter(item -> item.marketScope() == ProductMarketScope.VIETNAM).count());
+        model.put("internationalProductNewsCount", snapshot.currentNews().stream()
+                .filter(item -> item.marketScope() == ProductMarketScope.INTERNATIONAL).count());
         model.put("currentProductNewsCount", snapshot.currentNews().size());
         model.put("currentProductNewsTopicCount", snapshot.currentNews().stream()
                 .map(item -> item.topic()).distinct().count());
@@ -73,6 +79,9 @@ public class ProductReportModel {
         model.put("editorialReferences", editorial.references(editorialBrief, currentCodes));
         model.put("editorialAllReferences", editorial.references(editorialBrief));
         model.put("references", snapshot.references());
+        model.put("referenceMarketPositions", snapshot.references().stream()
+                .collect(java.util.stream.Collectors.toMap(fact -> fact.getFactCode(),
+                        ProductMarketScopeClassifier::classify, (first, ignored) -> first)));
         return model;
     }
 }

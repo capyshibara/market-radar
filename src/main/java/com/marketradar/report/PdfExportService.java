@@ -78,7 +78,8 @@ public class PdfExportService {
             .trust-strip.ready-mode { border-left-color:#2F6B3D !important; background:#EAF1EA !important; }
             /* OpenHTMLtoPDF is CSS2-oriented: restate the editorial grids as
                tables so the PDF preserves the browser's multi-column hierarchy. */
-            .editorial-lead-grid, .editorial-takeaways, .decision-grid { display:table !important; width:100% !important; table-layout:fixed !important; }
+            .editorial-lead-grid, .editorial-takeaways, .decision-grid,
+            .bridge-grid, .scope-summary { display:table !important; width:100% !important; table-layout:fixed !important; }
             .editorial-lead, .editorial-chart, .editorial-takeaway, .decision-card { display:table-cell !important; vertical-align:top !important; }
             .editorial-lead { width:64% !important; padding-right:10mm !important; }
             .editorial-chart { width:36% !important; background:#F1EEE5 !important; border-top:3px solid #2647E8 !important; }
@@ -91,6 +92,21 @@ public class PdfExportService {
             .takeaway-rule span { background:#2647E8 !important; color:#ffffff !important; }
             .editorial-takeaway:nth-child(2) .takeaway-rule span { background:#00BFA6 !important; }
             .editorial-takeaway:nth-child(3) .takeaway-rule span { background:#F5A623 !important; color:#0E1B6B !important; }
+            .market-bridge { border:1px solid #CFCABB !important; border-top:4px solid #0E1B6B !important; background:#F8F5EE !important; }
+            .bridge-marker { display:block !important; width:12mm !important; height:9mm !important; padding-top:3mm !important; border-radius:50% !important; background:#0E1B6B !important; color:#ffffff !important; text-align:center !important; }
+            .bridge-column { display:table-cell !important; width:33.333% !important; vertical-align:top !important; border-left:1px solid #E3DFD4 !important; }
+            .bridge-column:first-child { border-left:0 !important; }
+            .bridge-question { display:table !important; width:100% !important; background:#0E1B6B !important; color:#ffffff !important; }
+            .bridge-question strong, .bridge-question p { display:table-cell !important; vertical-align:top !important; }
+            .bridge-question strong { width:25% !important; color:#8FA6FF !important; }
+            .bridge-question p { color:#ffffff !important; }
+            .scope-summary-cell { display:table-cell !important; width:50% !important; border:1px solid #CFCABB !important; }
+            .scope-summary-cell.vietnam { background:#EFF6F1 !important; color:#205B36 !important; }
+            .scope-summary-cell.international { background:#F0F2FC !important; color:#1839B9 !important; }
+            .market-scope-heading { page-break-inside:avoid !important; page-break-after:avoid !important; }
+            .market-scope-empty { background:#FFF7E6 !important; border-left:4px solid #96600D !important; }
+            .scope-pill.vietnam, .reference-market.vietnam, .meta-chip.scope.vietnam { background:#DDEDE4 !important; color:#205B36 !important; }
+            .scope-pill.international, .reference-market.international, .meta-chip.scope.international { background:#E4E9FF !important; color:#1839B9 !important; }
             .decision-section { background:#0E1B6B !important; color:#F2EFE8 !important; }
             .decision-section h2, .decision-card h3 { color:#ffffff !important; }
             .decision-section .section-kicker, .decision-horizon { color:#8FA6FF !important; }
@@ -99,7 +115,7 @@ public class PdfExportService {
             .decision-card p { color:#D8DEF2 !important; }
             .news-ledger, .reference-register { border-top:2px solid #0E1B6B !important; }
             .topic-heading { background:#0E1B6B !important; color:#ffffff !important; }
-            .topic-heading h3, .topic-heading p, .topic-heading strong { color:#ffffff !important; }
+            .topic-heading h3, .topic-heading h4, .topic-heading p, .topic-heading strong { color:#ffffff !important; }
             .topic-heading { page-break-after:avoid !important; }
             .news-topic { page-break-before:always !important; }
             .news-topic.first-news-topic { page-break-before:auto !important; }

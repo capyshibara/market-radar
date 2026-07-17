@@ -19,7 +19,14 @@ public record CurrentProductNewsItem(
         String displaySummaryVi,
         String displaySummaryEn,
         String evidenceLanguage,
-        boolean manuallySupplied) {
+        boolean manuallySupplied,
+        ProductMarketScope marketScope,
+        String geography) {
+
+    public CurrentProductNewsItem {
+        marketScope = marketScope == null ? ProductMarketScope.INTERNATIONAL : marketScope;
+        geography = geography == null || geography.isBlank() ? "Global / regional" : geography.strip();
+    }
 
     public CurrentProductNewsItem(String factCode, long rawDocId, String title,
                                   String sourceCode, String sourceName, int sourceTier,
@@ -29,7 +36,20 @@ public record CurrentProductNewsItem(
                                   String evidenceLanguage) {
         this(factCode, rawDocId, title, sourceCode, sourceName, sourceTier, sourceUrl,
                 publishedDate, factType, verbatimEvidenceSpan, topic, ageDays,
-                displaySummaryVi, displaySummaryEn, evidenceLanguage, false);
+                displaySummaryVi, displaySummaryEn, evidenceLanguage, false,
+                ProductMarketScope.INTERNATIONAL, "Global / regional");
+    }
+
+    public CurrentProductNewsItem(String factCode, long rawDocId, String title,
+                                  String sourceCode, String sourceName, int sourceTier,
+                                  String sourceUrl, LocalDate publishedDate, String factType,
+                                  String verbatimEvidenceSpan, CurrentProductNewsTopic topic,
+                                  long ageDays, String displaySummaryVi, String displaySummaryEn,
+                                  String evidenceLanguage, boolean manuallySupplied) {
+        this(factCode, rawDocId, title, sourceCode, sourceName, sourceTier, sourceUrl,
+                publishedDate, factType, verbatimEvidenceSpan, topic, ageDays,
+                displaySummaryVi, displaySummaryEn, evidenceLanguage, manuallySupplied,
+                ProductMarketScope.INTERNATIONAL, "Global / regional");
     }
 
     /**
@@ -71,6 +91,24 @@ public record CurrentProductNewsItem(
 
     public String getEvidenceLanguage() { return evidenceLanguage == null || evidenceLanguage.isBlank() ? "unknown" : evidenceLanguage; }
     public boolean isManuallySupplied() { return manuallySupplied; }
+    public boolean isVietnamMarket() { return marketScope == ProductMarketScope.VIETNAM; }
+    public String getMarketScopeLabelEn() {
+        return isVietnamMarket() ? "Vietnam" : "International";
+    }
+    public String getMarketScopeLabelVi() {
+        return isVietnamMarket() ? "Việt Nam" : "Quốc tế";
+    }
+    public String getGeographyLabelEn() { return geography; }
+    public String getGeographyLabelVi() {
+        return switch (geography) {
+            case "Vietnam" -> "Việt Nam";
+            case "South Korea" -> "Hàn Quốc";
+            case "Japan" -> "Nhật Bản";
+            case "China" -> "Trung Quốc";
+            case "Global / regional" -> "Toàn cầu / khu vực";
+            default -> geography;
+        };
+    }
     public boolean hasExternalSourceLink() {
         return sourceUrl != null && (sourceUrl.startsWith("https://") || sourceUrl.startsWith("http://"));
     }

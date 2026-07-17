@@ -111,47 +111,60 @@ public class CurrentProductNewsService {
         CurrentProductNewsTopic topic = CurrentProductNewsTopic.from(labels, fact.getFactType().name());
         String sourceName = doc.getPublisherName() == null || doc.getPublisherName().isBlank()
                 ? doc.getSource().getName() : doc.getPublisherName();
+        ProductMarketScopeClassifier.MarketPosition position =
+                ProductMarketScopeClassifier.classify(fact);
         return new CurrentProductNewsItem(fact.getFactCode(), doc.getId(), doc.getTitle(),
                 doc.getSource().getCode(), sourceName, doc.getSource().getTier(),
                 doc.getUrl(), published, fact.getFactType().name(), fact.getSpanText(), topic,
                 ChronoUnit.DAYS.between(published, asOf), fact.getSummaryVi(), fact.getSummaryEn(),
-                fact.getSpanLanguage(), doc.getIntakeMethod() != RawDoc.IntakeMethod.CRAWLED);
+                fact.getSpanLanguage(), doc.getIntakeMethod() != RawDoc.IntakeMethod.CRAWLED,
+                position.scope(), position.geography());
     }
 
     /**
      * Prevent one noisy category from consuming the whole brief. The newest
-     * item in every available Product topic is selected before any topic gets a
-     * second item; selected cards are then grouped in stable editorial order.
+     * item in every available Product topic and market scope is selected before
+     * any bucket gets a second item; selected cards are then grouped in stable
+     * domestic-first editorial order.
      */
     /** Public deterministic seam used by coverage regression tests. */
     public static List<CurrentProductNewsItem> selectBalancedCoverage(List<CurrentProductNewsItem> items) {
         if (items == null || items.isEmpty()) return List.of();
-        EnumMap<CurrentProductNewsTopic, List<CurrentProductNewsItem>> byTopic =
-                new EnumMap<>(CurrentProductNewsTopic.class);
+        EnumMap<ProductMarketScope, EnumMap<CurrentProductNewsTopic, List<CurrentProductNewsItem>>>
+                byScope = new EnumMap<>(ProductMarketScope.class);
         for (CurrentProductNewsItem item : items) {
             if (item == null || item.topic() == null) continue;
-            byTopic.computeIfAbsent(item.topic(), ignored -> new ArrayList<>()).add(item);
+            byScope.computeIfAbsent(item.marketScope(), ignored ->
+                            new EnumMap<>(CurrentProductNewsTopic.class))
+                    .computeIfAbsent(item.topic(), ignored -> new ArrayList<>()).add(item);
         }
-        byTopic.values().forEach(topicItems -> topicItems.sort(Comparator
-                .comparing(CurrentProductNewsItem::publishedDate, Comparator.reverseOrder())
-                .thenComparingInt(CurrentProductNewsItem::sourceTier)
-                .thenComparing(CurrentProductNewsItem::factCode)));
+        byScope.values().forEach(byTopic -> byTopic.values().forEach(topicItems ->
+                topicItems.sort(Comparator
+                        .comparing(CurrentProductNewsItem::publishedDate, Comparator.reverseOrder())
+                        .thenComparingInt(CurrentProductNewsItem::sourceTier)
+                        .thenComparing(CurrentProductNewsItem::factCode))));
 
         List<CurrentProductNewsItem> selected = new ArrayList<>();
         for (int round = 0; selected.size() < MAX_ITEMS; round++) {
             boolean found = false;
-            for (CurrentProductNewsTopic topic : CurrentProductNewsTopic.values()) {
-                List<CurrentProductNewsItem> topicItems = byTopic.getOrDefault(topic, List.of());
-                if (round < topicItems.size()) {
-                    selected.add(topicItems.get(round));
-                    found = true;
-                    if (selected.size() == MAX_ITEMS) break;
+            for (ProductMarketScope scope : ProductMarketScope.values()) {
+                Map<CurrentProductNewsTopic, List<CurrentProductNewsItem>> byTopic =
+                        byScope.getOrDefault(scope, new EnumMap<>(CurrentProductNewsTopic.class));
+                for (CurrentProductNewsTopic topic : CurrentProductNewsTopic.values()) {
+                    List<CurrentProductNewsItem> topicItems = byTopic.getOrDefault(topic, List.of());
+                    if (round < topicItems.size()) {
+                        selected.add(topicItems.get(round));
+                        found = true;
+                        if (selected.size() == MAX_ITEMS) break;
+                    }
                 }
+                if (selected.size() == MAX_ITEMS) break;
             }
             if (!found) break;
         }
         selected.sort(Comparator
-                .comparingInt((CurrentProductNewsItem item) -> item.topic().ordinal())
+                .comparingInt((CurrentProductNewsItem item) -> item.marketScope().ordinal())
+                .thenComparingInt(item -> item.topic().ordinal())
                 .thenComparing(CurrentProductNewsItem::publishedDate, Comparator.reverseOrder())
                 .thenComparing(CurrentProductNewsItem::factCode));
         return List.copyOf(selected);
