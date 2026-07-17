@@ -32,6 +32,20 @@ public class ProductReportEditorialServiceTest {
                     cadence + " lead exhibit is a quantitative comparison");
             check(en.leadNarrative().length() > 300, cadence + " English analysis is substantive");
             check(vi.leadNarrative().length() > 250, cadence + " Vietnamese analysis is substantive");
+            check(en.readerGuide().context().length() > 200,
+                    cadence + " explains the context for non-expert readers");
+            check(en.readerGuide().story().length() > 250,
+                    cadence + " connects the signals into a plain-language story");
+            check(en.readerGuide().recommendation().length() > 180,
+                    cadence + " gives a concrete recommendation");
+            check(vi.readerGuide().context().length() > 180
+                            && vi.readerGuide().story().length() > 220,
+                    cadence + " has an equally substantive Vietnamese reader guide");
+            check(en.glossary().size() >= 5 && vi.glossary().size() == en.glossary().size(),
+                    cadence + " has a bilingual quick glossary");
+            check(en.glossary().stream().allMatch(term -> term.term().length() > 1
+                            && term.definition().length() > 45),
+                    cadence + " glossary entries are explanatory, not labels only");
             check(en.marketBridge() != null, cadence + " has a domestic/international bridge");
             check(en.marketBridge().domesticRead().length() > 80,
                     cadence + " has a substantive domestic read");

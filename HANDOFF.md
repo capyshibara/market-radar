@@ -5,6 +5,37 @@
 > `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
 > artwork, and sourced exhibits rather than decorative pseudo-data.
 
+## Non-expert Product report reading layer — 2026-07-17
+
+- **Weekly, Monthly and Quarterly now teach the reader before asking for a Product decision.**
+  Each English and Vietnamese edition opens with a one-minute three-part orientation: the context
+  a non-specialist needs, the story connecting that edition's signals, and a concrete recommended
+  next step. The copy is cadence-specific rather than generic: Weekly pairs growth with control,
+  Monthly connects portfolio pruning, reusable infrastructure and a slower market, and Quarterly
+  explains the broader proposition system before proposing a bounded 30/60/90-day experiment.
+- **The analysis itself is easier to decode.** Every takeaway now separates “what the evidence
+  says” from “why this matters”; every exhibit carries a plain-language reading and a use/caveat;
+  and the decisions section explains that recommendations are prompts for validation, not automatic
+  approvals. A bilingual quick glossary explains first-year premium, portfolio/SKU/API and other
+  cadence-specific Product terms without pretending to replace policy or legal definitions.
+- **This remains a real human-review layer.** Product Report Review exposes the context, story,
+  recommendation and every glossary definition for each cadence/language. Saves persist in
+  `product_report_editorial_drafts` and immediately update the web reader and PDF. Older saved
+  drafts automatically inherit the new guide and glossary while retaining their existing human
+  narrative, market bridge, exhibits, decisions and evidence register.
+- **No evidence boundary was loosened.** The new material interprets the already locked fact-code
+  register; it does not rewrite facts, alter classifier/verifier results, approve claims or bypass
+  publication gates. Recommendations are explicitly framed as bounded Product work to discuss and
+  test rather than facts asserted by a source.
+- **Verification used only the isolated `/tmp/market-radar-reader-qa.mv.db` copy on port 8097.**
+  All six EN/VI readers and both editor locales returned HTTP 200. A save test confirmed that the
+  story and glossary fields persist. The final Monthly EN and VI PDFs are 18-page landscape Letter
+  documents; orientation, editor-read/chart and Vietnamese glossary pages were rendered to PNG and
+  visually inspected with no blank pages, clipped copy or broken diacritics. Maven packaging,
+  `git diff --check` and five focused Product-report/market regression suites pass. The user's live
+  port-8081 database and pipeline were not touched. Rebuild and restart are sufficient; no pipeline
+  rerun or report regeneration is required.
+
 ## Product Report Exhibit Studio + Meridian canvas — 2026-07-17
 
 - **Weekly, Monthly and Quarterly now contain a real visual-intelligence layer, not a decorative

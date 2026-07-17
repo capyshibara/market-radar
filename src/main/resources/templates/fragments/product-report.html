@@ -54,6 +54,15 @@
       <a href="/report/quarterly" th:classappend="${cadence.name() == 'QUARTERLY'} ? ' active' : ''" th:text="${vi ? '90 ngày' : '90 days'}">90 days</a>
     </nav>
 
+    <section class="report-section reader-orientation">
+      <div class="orientation-head"><div><div class="section-kicker" th:text="${vi ? 'BẮT ĐẦU TỪ ĐÂY · DÀNH CHO NGƯỜI KHÔNG CHUYÊN PRODUCT' : 'START HERE · FOR NON-PRODUCT READERS'}">Start here</div><h2 th:text="${vi ? 'Hiểu báo cáo trong một phút' : 'Understand the report in one minute'}">Understand the report in one minute</h2><p th:text="${vi ? 'Đọc ba ô từ trái sang phải: bối cảnh cần biết, câu chuyện nối các tín hiệu, rồi khuyến nghị hành động.' : 'Read the three panels from left to right: the context you need, the story connecting the signals, then the recommended action.'}">Reading route.</p></div><div class="orientation-route"><span>01</span><i>→</i><span>02</span><i>→</i><span>03</span></div></div>
+      <div class="orientation-grid">
+        <article class="orientation-card context"><span class="orientation-number">01</span><div><small th:text="${vi ? 'BỐI CẢNH' : 'CONTEXT'}">Context</small><h3 th:text="${vi ? 'Cần biết gì trước khi đọc?' : 'What should I know first?'}">What should I know?</h3><p th:text="${editorialBrief.readerGuide.context}">Context.</p></div></article>
+        <article class="orientation-card story"><span class="orientation-number">02</span><div><small th:text="${vi ? 'CÂU CHUYỆN' : 'STORY'}">Story</small><h3 th:text="${vi ? 'Các tín hiệu nối với nhau thế nào?' : 'How do the signals connect?'}">How do the signals connect?</h3><p th:text="${editorialBrief.readerGuide.story}">Story.</p></div></article>
+        <article class="orientation-card recommendation"><span class="orientation-number">03</span><div><small th:text="${vi ? 'KHUYẾN NGHỊ' : 'RECOMMENDATION'}">Recommendation</small><h3 th:text="${vi ? 'Nên làm gì tiếp theo?' : 'What should happen next?'}">What should happen next?</h3><p th:text="${editorialBrief.readerGuide.recommendation}">Recommendation.</p></div></article>
+      </div>
+    </section>
+
     <section class="report-section editorial-brief">
       <div class="editorial-lead-grid">
         <article class="editorial-lead">
@@ -86,20 +95,25 @@
         <article class="editorial-takeaway" th:each="item:${editorialBrief.takeaways}">
           <div class="takeaway-rule"><span th:text="${item.number}">01</span></div>
           <h3 th:text="${item.title}">Insight</h3>
+          <strong class="plain-label" th:text="${vi ? 'BẰNG CHỨNG NÓI GÌ' : 'WHAT THE EVIDENCE SAYS'}">What the evidence says</strong>
           <p th:text="${item.body}">Observation</p>
-          <div class="product-meaning"><strong th:text="${vi ? 'Hàm ý cho Product' : 'What it means for Product'}">What it means</strong><span th:text="${item.implication}">Implication</span></div>
+          <div class="product-meaning"><strong th:text="${vi ? 'VÌ SAO ĐIỀU NÀY QUAN TRỌNG' : 'WHY THIS MATTERS'}">Why this matters</strong><span th:text="${item.implication}">Implication</span></div>
           <code th:text="${item.citationCodes}">F-001</code>
         </article>
       </div>
 
       <div class="decision-section">
-        <div class="section-head compact-head"><div><div class="section-kicker" th:text="${vi ? 'TỪ PHÂN TÍCH ĐẾN QUYẾT ĐỊNH' : 'FROM READOUT TO DECISION'}">From readout to decision</div><h2 th:text="${editorialBrief.numbersHeadline}">Three decisions</h2></div></div>
+        <div class="section-head compact-head"><div><div class="section-kicker" th:text="${vi ? 'TỪ PHÂN TÍCH ĐẾN QUYẾT ĐỊNH' : 'FROM READOUT TO DECISION'}">From readout to decision</div><h2 th:text="${editorialBrief.numbersHeadline}">Three decisions</h2><p class="decision-explainer" th:text="${vi ? 'Đây là khuyến nghị để thảo luận và kiểm chứng—không phải quyết định tự động hay phê duyệt sản phẩm.' : 'These are recommendations for discussion and validation—not automatic decisions or product approval.'}">Recommendations, not automatic decisions.</p></div></div>
         <div class="decision-grid">
           <article class="decision-card" th:each="decision:${editorialBrief.decisions}"><span class="decision-horizon" th:text="${decision.horizon}">Now</span><h3 th:text="${decision.action}">Action</h3><p th:text="${decision.rationale}">Rationale</p></article>
         </div>
       </div>
 
       <div class="watchlist"><strong th:text="${vi ? 'Cần theo dõi tiếp' : 'What to watch next'}">What to watch</strong><p th:text="${editorialBrief.watchlist}">Watchlist</p></div>
+      <section class="plain-glossary" th:if="${!#lists.isEmpty(editorialBrief.glossary)}">
+        <div class="glossary-head"><div><div class="section-kicker" th:text="${vi ? 'GIẢI THÍCH NHANH' : 'QUICK GLOSSARY'}">Quick glossary</div><h2 th:text="${vi ? 'Thuật ngữ trong báo cáo, viết bằng ngôn ngữ đơn giản' : 'The report’s terms, in plain language'}">Terms in plain language</h2></div><p th:text="${vi ? 'Các định nghĩa này giúp đọc báo cáo; chúng không thay thế điều khoản sản phẩm hoặc định nghĩa pháp lý.' : 'These definitions are reading aids; they do not replace product terms or legal definitions.'}">Reading aid.</p></div>
+        <dl class="glossary-grid"><div class="glossary-term" th:each="entry:${editorialBrief.glossary}"><dt th:text="${entry.term}">Term</dt><dd th:text="${entry.definition}">Definition</dd></div></dl>
+      </section>
       <p class="editorial-boundary"><strong th:text="${vi ? 'Ranh giới biên tập: ' : 'Editorial boundary: '}">Editorial boundary: </strong><span th:text="${editorialBrief.editorialBoundary}">Boundary</span></p>
     </section>
 

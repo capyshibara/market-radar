@@ -125,6 +125,11 @@ public class ProductReportEditorialService {
                     value(form, "decision." + i + ".rationale", old.rationale())));
         }
         String editor = value(form, "editor", current.editor());
+        ReaderGuide oldGuide = current.readerGuide();
+        ReaderGuide revisedGuide = new ReaderGuide(
+                value(form, "guide.context", oldGuide.context()),
+                value(form, "guide.story", oldGuide.story()),
+                value(form, "guide.recommendation", oldGuide.recommendation()));
         MarketBridge oldBridge = current.marketBridge();
         MarketBridge revisedBridge = new MarketBridge(
                 value(form, "bridge.domesticRead", oldBridge.domesticRead()),
@@ -157,17 +162,25 @@ public class ProductReportEditorialService {
                                     old.citationCodes()), current.citedFactCodes(), old.citationCodes()),
                     List.copyOf(data)));
         }
+        List<GlossaryTerm> glossary = new ArrayList<>();
+        for (int i = 0; i < current.glossary().size(); i++) {
+            GlossaryTerm old = current.glossary().get(i);
+            glossary.add(new GlossaryTerm(
+                    value(form, "glossary." + i + ".term", old.term()),
+                    value(form, "glossary." + i + ".definition", old.definition())));
+        }
         EditorialBrief revised = new EditorialBrief(
                 value(form, "title", current.title()),
                 value(form, "deck", current.deck()),
                 value(form, "leadLabel", current.leadLabel()),
                 value(form, "leadHeadline", current.leadHeadline()),
                 value(form, "leadNarrative", current.leadNarrative()),
-                revisedBridge,
+                revisedGuide, revisedBridge,
                 List.copyOf(takeaways), current.chart(), List.copyOf(exhibits),
                 value(form, "numbersHeadline", current.numbersHeadline()),
                 List.copyOf(decisions),
                 value(form, "watchlist", current.watchlist()),
+                List.copyOf(glossary),
                 value(form, "editorialBoundary", current.editorialBoundary()),
                 current.citedFactCodes(), editor,
                 DateTimeFormatter.ofPattern(isVi(locale) ? "dd/MM/yyyy HH:mm" : "MMM d, yyyy HH:mm",
@@ -202,20 +215,26 @@ public class ProductReportEditorialService {
         };
     }
 
-    /** Older saved drafts predate the domestic/international bridge and Exhibit Studio. */
+    /** Older saved drafts predate the market bridge, Exhibit Studio and non-expert guide. */
     private static EditorialBrief completeLegacyDraft(ProductReportCadence cadence, boolean vi,
                                                        EditorialBrief stored) {
         EditorialBrief fallback = defaults(cadence, vi);
         if (stored.marketBridge() != null && stored.exhibits() != null
-                && !stored.exhibits().isEmpty()) return stored;
+                && !stored.exhibits().isEmpty() && stored.readerGuide() != null
+                && !stored.readerGuide().context().isBlank() && !stored.glossary().isEmpty()) {
+            return stored;
+        }
         return new EditorialBrief(stored.title(), stored.deck(), stored.leadLabel(),
                 stored.leadHeadline(), stored.leadNarrative(),
+                stored.readerGuide() == null || stored.readerGuide().context().isBlank()
+                        ? fallback.readerGuide() : stored.readerGuide(),
                 stored.marketBridge() == null ? fallback.marketBridge() : stored.marketBridge(),
                 stored.takeaways(), stored.chart(),
                 stored.exhibits() == null || stored.exhibits().isEmpty()
                         ? fallback.exhibits() : stored.exhibits(),
                 stored.numbersHeadline(), stored.decisions(),
-                stored.watchlist(), stored.editorialBoundary(), stored.citedFactCodes(),
+                stored.watchlist(), stored.glossary().isEmpty() ? fallback.glossary() : stored.glossary(),
+                stored.editorialBoundary(), stored.citedFactCodes(),
                 stored.editor(), stored.reviewedAt(), stored.status());
     }
 
@@ -230,6 +249,13 @@ public class ProductReportEditorialService {
                         "Growth attracts attention; governance determines whether it can scale."),
                 t(vi, "Fubon Life báo cáo phí năm đầu lũy kế sáu tháng tăng 35% và tổng phí tăng 19% so với cùng kỳ. Cùng tuần, cơ quan giám sát Nhật Bản nhấn mạnh khung quản trị và khảo sát thực trạng đại lý bảo hiểm trong ngành ô tô sau khi luật sửa đổi có hiệu lực. Hai diễn biến không chứng minh một xu hướng chung, nhưng chúng đặt ra một câu hỏi hữu ích: khi tăng trưởng đến từ kênh hoặc đề xuất mới, Product có thể chứng minh rằng quy trình tư vấn, giám sát và xử lý ngoại lệ cũng đã sẵn sàng hay chưa?",
                         "Fubon Life reported six-month first-year premium up 35% and total premium up 19% year on year. In the same week, Japan’s supervisor stressed governance frameworks and a fact-finding survey of auto-industry insurance agents after an amended law took effect. The two events do not prove one market trend, but they frame a useful question: when growth comes through a channel or proposition, can Product demonstrate that advice, oversight and exception handling are ready too?"),
+                guide(vi,
+                        "Trong bảo hiểm nhân thọ, tăng trưởng phí không tự động đồng nghĩa với tăng trưởng tốt. Phí năm đầu phản ánh doanh số từ hợp đồng mới trong kỳ; tổng phí còn bao gồm phí từ danh mục đang hiệu lực. Khoảng cách giữa hai chỉ số cho thấy nhịp bán mới, nhưng chưa cho biết lợi nhuận, mức phù hợp của sản phẩm hay chất lượng tư vấn.",
+                        "In life insurance, faster premium growth is not automatically better growth. First-year premium reflects new policies sold in the period; total premium also includes the existing book. A gap between the two shows new-business momentum, but does not by itself reveal profitability, customer fit or advice quality.",
+                        "Câu chuyện bắt đầu bằng tín hiệu tăng trưởng của Fubon: doanh số mới tăng nhanh hơn tổng phí. Tín hiệu từ Nhật Bản tạo đối trọng: khi phân phối mở rộng, trách nhiệm giám sát cũng phải rõ hơn. Vì vậy, báo cáo chuyển câu hỏi từ ‘tăng trưởng bao nhiêu’ sang ‘điều kiện nào giúp tăng trưởng an toàn và lặp lại được’. Chưa có dữ kiện Việt Nam đủ mạnh trong tuần, nên hai ví dụ chỉ được dùng để đặt câu hỏi.",
+                        "The story starts with Fubon’s growth signal: new-business premium rose faster than overall premium. Japan supplies the counterweight: when distribution expands, supervision must become more explicit. The report therefore moves from ‘how much growth?’ to ‘what makes growth safe and repeatable?’ There is no equally strong Vietnam product event this week, so the examples are prompts—not a local forecast.",
+                        "Chọn một sản phẩm hoặc kênh đang hoạt động tại Việt Nam. Đặt bảng tăng trưởng—doanh số, cơ cấu, duy trì hợp đồng và biên lợi nhuận—bên cạnh bản đồ kiểm soát—đào tạo, tư vấn phù hợp, giám sát và xử lý ngoại lệ. Không dùng mức tăng của Fubon làm mục tiêu; dùng nó để kiểm tra xem tăng trưởng của mình đến từ đâu và có bền vững hay không.",
+                        "Choose one live Vietnam proposition or channel. Put its growth dashboard—volume, mix, persistency and margin—beside its control map—training, suitability, monitoring and exception handling. Do not use Fubon’s growth rate as a target; use it to ask what is driving our growth and whether it is sustainable."),
                 bridge(vi,
                         "Cửa sổ 7 ngày chưa có diễn biến sản phẩm Việt Nam đủ sâu để tạo một luận điểm trong nước. Đây là khoảng trống nguồn cần xử lý, không phải bằng chứng thị trường đứng yên.",
                         "The seven-day window has no Vietnam product development deep enough to support a domestic thesis. That is a source-coverage gap, not evidence that the market stood still.",
@@ -271,6 +297,12 @@ public class ProductReportEditorialService {
                                 "Ưu tiên điều khoản, thông báo sản phẩm và tài liệu phân phối sơ cấp thay vì kéo dài bản tuần bằng tin ít liên quan.")),
                 t(vi, "Theo dõi: cơ cấu sản phẩm tạo tăng trưởng tại Fubon Life; kết quả khảo sát đại lý của FSA Nhật Bản; và bất kỳ thông báo sản phẩm Việt Nam mới nào đủ toàn văn.",
                         "Watch: the product mix behind Fubon Life’s growth; the Japanese FSA’s agent survey findings; and any new full-text Vietnam product notices."),
+                List.of(
+                        term(vi, "Phí năm đầu", "First-year premium", "Phí ghi nhận từ hợp đồng mới trong năm đầu; thường dùng để nhìn nhịp bán mới.", "Premium from newly sold policies in their first year; commonly used to read new-business momentum."),
+                        term(vi, "Tổng phí", "Total premium", "Tổng phí trong kỳ từ cả hợp đồng mới và danh mục đang hiệu lực.", "Premium in the period from both new policies and the existing in-force book."),
+                        term(vi, "Đề xuất sản phẩm", "Product proposition", "Tổng thể lời hứa với khách hàng: quyền lợi, giá, dịch vụ, trải nghiệm và cách phân phối.", "The complete customer promise: benefits, price, service, experience and route to market."),
+                        term(vi, "Kênh phân phối", "Distribution channel", "Con đường đưa sản phẩm đến khách hàng, chẳng hạn đại lý, ngân hàng hoặc đối tác số.", "The route through which a product reaches customers, such as agents, banks or digital partners."),
+                        term(vi, "Quản trị kênh", "Channel governance", "Quyền sở hữu và kiểm soát đối với đào tạo, tư vấn, giám sát, ngoại lệ và hậu kiểm.", "Ownership and controls for training, advice, supervision, exceptions and post-sale review.")),
                 boundary(vi), codes("F-1833,F-1836,F-1837,F-1707,F-1711,F-1712"),
                 DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
     }
@@ -286,6 +318,13 @@ public class ProductReportEditorialService {
                         "The month’s message is not ‘launch more’; it is to decide what to keep, what platform to build, and which capabilities must travel with it."),
                 t(vi, "Ba tín hiệu tạo thành một câu chuyện có ích. Thứ nhất, AIA Việt Nam công bố ngừng triển khai một số sản phẩm qua kênh Đại lý và Đối tác, với việc ngừng nhận hồ sơ mới từ ngày 01/07 đối với danh sách liên quan. Thứ hai, Income chuyển nền tảng HIVE—được phát triển nội bộ trong năm năm—sang một hệ sinh thái có thể triển khai micro-insurance, thuê bao và sản phẩm theo mức sử dụng. Thứ ba, Swiss Re dự báo tăng trưởng phí bảo hiểm thực toàn cầu giảm từ 3,9% năm 2025 xuống 1,3% năm 2026. Kết hợp lại, Product nên ưu tiên kỷ luật danh mục và khả năng tái sử dụng hơn là chỉ tăng số lượng SKU.",
                         "Three signals form a useful story. First, AIA Vietnam announced the discontinuation of selected products through Agency and Partner channels, including a stop to new applications from 1 July for the relevant list. Second, Income is moving HIVE—a platform developed internally over five years—into an ecosystem able to launch micro-insurance, subscription and usage-based products. Third, Swiss Re forecasts real global premium growth slowing from 3.9% in 2025 to 1.3% in 2026. Together, they argue for portfolio discipline and reusable capability rather than simply adding SKUs."),
+                guide(vi,
+                        "Một công ty bảo hiểm không chỉ ra mắt sản phẩm mới. Công ty còn phải duy trì sản phẩm cũ, thay đổi quyền lợi, cập nhật tài liệu bán hàng, hỗ trợ hợp đồng đang hiệu lực và cuối cùng ngừng sản phẩm. Mỗi sản phẩm riêng biệt tạo thêm chi phí công nghệ, vận hành, đào tạo và tuân thủ. Vì vậy, số lượng sản phẩm nhiều hơn không tự động tạo ra nhiều giá trị hơn.",
+                        "An insurer does more than launch products. It must maintain old products, change benefits, update sales material, service in-force policies and eventually retire products. Every bespoke product adds technology, operations, training and compliance cost. More products therefore do not automatically create more value.",
+                        "Câu chuyện tháng này có ba hồi. AIA Việt Nam cho thấy hồi ‘dọn danh mục’: ngừng sản phẩm là một quyết định vòng đời cần được vận hành tốt. HIVE cho thấy hồi ‘xây để dùng lại’: nền tảng chỉ có ý nghĩa nếu nhiều sản phẩm và đối tác dùng chung thành phần. Dự báo của Swiss Re tạo bối cảnh kinh tế: khi tăng trưởng chậm lại, chi phí của danh mục phức tạp trở nên dễ nhìn thấy hơn. Kết luận là tinh gọn trước, sau đó đầu tư hạ tầng quanh một use case rõ ràng.",
+                        "This month has three acts. AIA Vietnam shows portfolio housekeeping: retiring a product is a lifecycle decision that must be executed well. HIVE shows building for reuse: a platform matters only when products and partners share components. Swiss Re supplies the economic backdrop: when growth slows, the cost of complexity becomes more visible. The conclusion is to simplify first, then invest around a clear use case.",
+                        "Trong 30 ngày, lập bảng giữ–đầu tư–ngừng cho từng sản phẩm, tính cả vai trò khách hàng, doanh số, biên lợi nhuận, chi phí phục vụ và độ phức tạp. Song song, chọn một hành trình đối tác có vấn đề cụ thể để kiểm tra thành phần dùng chung; đặt chỉ số thành công, chi phí đơn vị, chủ sở hữu và điều kiện dừng trước khi xây nền tảng.",
+                        "Over 30 days, build a keep–invest–retire view for each product, including customer role, sales, margin, service cost and complexity. In parallel, choose one problematic partner journey to test reusable components; define success measures, unit cost, ownership and stop conditions before building a platform."),
                 bridge(vi,
                         "AIA Việt Nam ngừng triển khai một nhóm sản phẩm qua kênh Đại lý và Đối tác. Đây là diễn biến trong nước có tác động trực tiếp đến quản trị vòng đời, tài liệu bán hàng và chuyển tiếp kênh.",
                         "AIA Vietnam is discontinuing a set of products across Agency and Partner channels. This is a domestic development with direct implications for lifecycle governance, sales materials and channel transition.",
@@ -326,6 +365,13 @@ public class ProductReportEditorialService {
                                 "Liên kết thay đổi đề xuất với đào tạo, công cụ giải thích, kiểm tra hiểu biết và giám sát chất lượng tư vấn; dùng tín hiệu Prudential như một điểm đối chiếu.")),
                 t(vi, "Theo dõi: lịch chuyển tiếp đầy đủ của AIA Việt Nam; use case đầu tiên của HIVE dưới chủ sở hữu mới; bằng chứng thực nghiệm về chi phí và tốc độ ra mắt; và tác động của tăng trưởng phí chậm lên mix sản phẩm nhân thọ.",
                         "Watch: AIA Vietnam’s full transition timetable; HIVE’s first use case under its new owner; empirical evidence on launch speed and cost; and the effect of slower premium growth on life product mix."),
+                List.of(
+                        term(vi, "Danh mục sản phẩm", "Product portfolio", "Toàn bộ sản phẩm công ty đang bán, duy trì hoặc chuẩn bị ngừng.", "The complete set of products the company sells, maintains or is preparing to retire."),
+                        term(vi, "Tinh gọn danh mục", "Portfolio pruning", "Quyết định giữ, đầu tư, hợp nhất hoặc ngừng sản phẩm để giảm trùng lặp và tập trung nguồn lực.", "Deciding what to keep, invest in, merge or retire to reduce overlap and focus resources."),
+                        term(vi, "SKU", "SKU", "Một đơn vị sản phẩm hoặc phiên bản có cấu hình riêng; nhiều SKU thường kéo theo nhiều quy trình riêng.", "A distinct product or configuration; more SKUs commonly create more bespoke processes."),
+                        term(vi, "Vòng đời sản phẩm", "Product lifecycle", "Chuỗi từ ý tưởng, phê duyệt, ra mắt và thay đổi đến ngừng bán và phục vụ hợp đồng còn hiệu lực.", "The journey from idea, approval and launch through change, retirement and servicing the remaining book."),
+                        term(vi, "API", "API", "Giao diện cho phép các hệ thống trao đổi dữ liệu hoặc gọi chức năng theo cách có kiểm soát.", "A controlled interface through which systems exchange data or call a capability."),
+                        term(vi, "Kinh tế đơn vị", "Unit economics", "Doanh thu, chi phí và biên lợi nhuận của một đơn vị đo cụ thể như một hợp đồng hoặc giao dịch.", "Revenue, cost and margin for a defined unit such as one policy or transaction.")),
                 boundary(vi), codes("F-1843,F-1844,F-1848,F-1849,F-819,F-820,F-821,F-822,F-823,F-717,F-1728,F-1730,F-1820"),
                 DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
     }
@@ -341,6 +387,13 @@ public class ProductReportEditorialService {
                         "The opportunity is not to copy one product; it is to learn how to structure an operable proposition system."),
                 t(vi, "AIA Hong Kong kết hợp hợp đồng tiết kiệm trọn đời với chỉ dẫn quản lý tài sản tương lai, tách hợp đồng và rút tiền theo lịch—biến hoạch định di sản thành một tập hợp cơ chế phục vụ. Great Eastern đặt sản phẩm chăm sóc dài hạn cạnh dữ liệu về chi phí chăm sóc tại nhà, khoảng trống chi trả và gánh nặng người chăm sóc. Income mô tả HIVE như lớp hạ tầng API-first nối hệ thống lõi với kênh phân phối và cho phép nhiều hình thức sản phẩm. Ba ví dụ phục vụ các phân khúc khác nhau, nhưng cùng yêu cầu Product thiết kế đồng thời hợp đồng, dịch vụ, quy trình, dữ liệu và chủ sở hữu vận hành.",
                         "AIA Hong Kong combines a participating whole-life savings policy with future asset instructions, policy splitting and scheduled withdrawals—turning legacy planning into a set of service mechanics. Great Eastern places long-term-care products alongside evidence on home-care cost, payout gaps and caregiver burden. Income describes HIVE as an API-first layer connecting core systems to distribution and enabling multiple product forms. The examples serve different segments, but all require Product to design policy, service, process, data and operating ownership together."),
+                guide(vi,
+                        "Một sản phẩm bảo hiểm nhân thọ hiện đại có thể gồm nhiều hơn hợp đồng và số tiền chi trả. Nó có thể bao gồm dịch vụ tư vấn, chỉ dẫn tài sản, điều phối chăm sóc, hành trình số, mạng lưới đối tác và quy trình vận hành sau bán. ‘Hệ thống đề xuất’ là cách các phần đó phối hợp để giải quyết một công việc thực tế của khách hàng—ví dụ chuyển giao tài sản hoặc tổ chức chăm sóc dài hạn.",
+                        "A modern life-insurance product can be more than a policy and a payout. It may include advice, asset instructions, care coordination, digital journeys, partner networks and post-sale operations. A ‘proposition system’ is how those parts work together to solve a real customer job—for example transferring wealth or arranging long-term care.",
+                        "Câu chuyện quý đi từ nhu cầu đến khả năng vận hành. Wealth Flexi minh họa các cơ chế phục vụ quanh hoạch định di sản. Nghiên cứu chăm sóc tại nhà cho thấy một khoảng trống tài chính và dịch vụ có thể đo được. HIVE minh họa hạ tầng cho phép dùng lại thành phần qua nhiều đề xuất. Neo Việt Nam là việc ngừng sản phẩm của AIA: ngay cả ý tưởng tốt cũng cần năng lực thay đổi và kết thúc vòng đời. Bài học chung không phải sao chép sản phẩm nước ngoài mà là thiết kế đồng thời khách hàng, hợp đồng, dịch vụ và vận hành.",
+                        "The quarter’s story moves from need to operability. Wealth Flexi illustrates service mechanics around legacy planning. The home-care research reveals a measurable financial and service gap. HIVE illustrates infrastructure that can reuse components across propositions. AIA’s Vietnam retirement is the local anchor: even a good idea needs the capability to change and end its lifecycle. The common lesson is not to copy a foreign product, but to co-design customer need, policy, service and operations.",
+                        "Chọn một vấn đề khách hàng Việt Nam—không chọn sẵn một sản phẩm nước ngoài. Trong 30 ngày xác minh nhu cầu và phân khúc; trong 60 ngày kiểm tra pháp lý, định phí, dịch vụ, dữ liệu và đối tác; trong 90 ngày thử một cơ chế nhỏ với chỉ số tiếp tục/dừng. Chỉ đầu tư nền tảng sau khi chứng minh có ít nhất một use case có giá trị và khả năng tái sử dụng thực sự.",
+                        "Choose one Vietnam customer problem—not a foreign product to copy. In 30 days validate the need and segment; by 60 days test legal, actuarial, service, data and partner boundaries; by 90 days trial one small mechanism with explicit continue/stop measures. Fund a platform only after proving one valuable use case and a credible path to reuse."),
                 bridge(vi,
                         "Neo trong nước là cách AIA Việt Nam thực thi ngừng sản phẩm qua nhiều kênh: một bài kiểm tra thực tế về dữ liệu, tài liệu, đào tạo và trách nhiệm vận hành trong vòng đời sản phẩm.",
                         "The domestic anchor is AIA Vietnam’s multi-channel product retirement: a live test of data, materials, training and operating accountability across the product lifecycle.",
@@ -382,6 +435,13 @@ public class ProductReportEditorialService {
                                 "Kết nối ra mắt, thay đổi, đào tạo kênh và ngừng sản phẩm trong một quy trình có chủ sở hữu, mốc hiệu lực và bằng chứng hoàn tất.")),
                 t(vi, "Theo dõi: mức sử dụng thực tế của các cơ chế Wealth Flexi; tính bền vững kinh tế của dịch vụ chăm sóc tại nhà; use case thương mại đầu tiên của HIVE; và cách AIA Việt Nam thực thi ngừng sản phẩm qua nhiều kênh.",
                         "Watch: actual use of Wealth Flexi’s service mechanics; the economics of home-care support; HIVE’s first commercial use case; and AIA Vietnam’s execution of a multi-channel product exit."),
+                List.of(
+                        term(vi, "Hệ thống đề xuất", "Proposition system", "Sự kết hợp giữa hợp đồng, quyền lợi, dịch vụ, dữ liệu, kênh và vận hành để giải quyết một nhu cầu khách hàng.", "The combination of policy, benefits, services, data, channels and operations used to solve a customer need."),
+                        term(vi, "HNW", "HNW", "High-net-worth: khách hàng có tài sản ròng cao và thường có nhu cầu phức tạp về bảo vệ, đầu tư hoặc di sản.", "High-net-worth: customers with substantial assets and often complex protection, investment or legacy needs."),
+                        term(vi, "Bảo hiểm trọn đời có chia lãi", "Participating whole-life", "Hợp đồng bảo vệ trọn đời có thể nhận phần chia từ kết quả của quỹ tham gia theo điều khoản sản phẩm.", "Whole-life protection that may receive a share of participating-fund performance under the product terms."),
+                        term(vi, "Rider / quyền lợi bổ trợ", "Rider", "Quyền lợi bổ sung gắn với hợp đồng chính để mở rộng phạm vi bảo vệ hoặc dịch vụ.", "An add-on attached to the core policy to extend protection or service coverage."),
+                        term(vi, "Số tiền bảo hiểm", "Sum assured", "Mức quyền lợi danh nghĩa được quy định trong hợp đồng khi xảy ra sự kiện được bảo hiểm.", "The contractual benefit amount payable when the specified insured event occurs."),
+                        term(vi, "Mô hình vận hành", "Operating model", "Cách con người, quy trình, công nghệ, dữ liệu, đối tác và quyền ra quyết định phối hợp để cung cấp sản phẩm.", "How people, processes, technology, data, partners and decision rights work together to deliver the proposition.")),
                 boundary(vi), codes("F-1209,F-1210,F-1211,F-1212,F-1213,F-919,F-920,F-921,F-922,F-924,F-819,F-820,F-821,F-822,F-823,F-1842,F-1843,F-1844,F-1848,F-1811,F-1812,F-1813,F-1805,F-1820"),
                 DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
     }
@@ -550,6 +610,19 @@ public class ProductReportEditorialService {
                 t(vi, viImplication, enImplication), t(vi, viQuestion, enQuestion));
     }
 
+    private static ReaderGuide guide(boolean vi,
+                                     String viContext, String enContext,
+                                     String viStory, String enStory,
+                                     String viRecommendation, String enRecommendation) {
+        return new ReaderGuide(t(vi, viContext, enContext), t(vi, viStory, enStory),
+                t(vi, viRecommendation, enRecommendation));
+    }
+
+    private static GlossaryTerm term(boolean vi, String viTerm, String enTerm,
+                                     String viDefinition, String enDefinition) {
+        return new GlossaryTerm(t(vi, viTerm, enTerm), t(vi, viDefinition, enDefinition));
+    }
+
     private static EditorialDecision decision(boolean vi, String viHorizon, String enHorizon,
                                                String viAction, String enAction, String viRationale) {
         String enRationale = switch (enAction) {
@@ -622,23 +695,38 @@ public class ProductReportEditorialService {
     private static String t(boolean vi, String viText, String enText) { return vi ? viText : enText; }
 
     public record EditorialBrief(String title, String deck, String leadLabel, String leadHeadline,
-                                 String leadNarrative, MarketBridge marketBridge,
+                                 String leadNarrative, ReaderGuide readerGuide,
+                                 MarketBridge marketBridge,
                                  List<EditorialTakeaway> takeaways,
                                  EditorialChart chart, List<EditorialExhibit> exhibits,
                                  String numbersHeadline,
                                  List<EditorialDecision> decisions, String watchlist,
+                                 List<GlossaryTerm> glossary,
                                  String editorialBoundary, List<String> citedFactCodes,
                                  String editor, String reviewedAt, String status) {
         public EditorialBrief {
+            readerGuide = readerGuide == null ? new ReaderGuide("", "", "") : readerGuide;
             exhibits = exhibits == null ? List.of() : List.copyOf(exhibits);
+            glossary = glossary == null ? List.of() : List.copyOf(glossary);
         }
     }
+
+    /** Plain-language orientation written for readers without Product expertise. */
+    public record ReaderGuide(String context, String story, String recommendation) {}
 
     public record MarketBridge(String domesticRead, String internationalRead,
                                String vietnamImplication, String decisionQuestion) {}
 
     public record EditorialTakeaway(String number, String title, String body,
-                                    String implication, String citationCodes) {}
+                                    String implication, String citationCodes) {
+        /** Stable links from human synthesis back to every cited source story. */
+        public List<String> getCitationCodeList() {
+            if (citationCodes == null || citationCodes.isBlank()) return List.of();
+            return java.util.Arrays.stream(citationCodes.split("[,;\\s]+"))
+                    .map(String::strip).filter(code -> code.matches("F-\\d+"))
+                    .distinct().toList();
+        }
+    }
 
     public record EditorialChart(String title, String firstLabel, String firstValue, int firstWidth,
                                  String secondLabel, String secondValue, int secondWidth,
@@ -689,6 +777,8 @@ public class ProductReportEditorialService {
     }
 
     public record EditorialDecision(String horizon, String action, String rationale) {}
+
+    public record GlossaryTerm(String term, String definition) {}
 
     public record EditorialReference(String factCode, String title, String url, String publisher,
                                      String marketScope, String geography) {

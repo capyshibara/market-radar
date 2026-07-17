@@ -71,6 +71,46 @@ public enum CurrentProductNewsTopic {
     public String reviewQuestion(boolean vi) { return vi ? reviewQuestionVi : reviewQuestionEn; }
     public String validationStep(boolean vi) { return vi ? validationStepVi : validationStepEn; }
 
+    /** Background a non-Product reader needs before interpreting this kind of source. */
+    public String readerContext(boolean vi) {
+        if (vi) {
+            return switch (this) {
+                case REGULATION -> "Một bài về quy định có thể đồng thời nhắc đến dự thảo, tham vấn, ngày ban hành và ngày hiệu lực. Product cần tách rõ các mốc này, vì một quy định được công bố chưa chắc đã áp dụng ngay hoặc áp dụng cho mọi sản phẩm.";
+                case PRODUCT_AND_BENEFITS -> "Thông báo sản phẩm thường kết hợp lời hứa với khách hàng và cơ chế thực hiện. Tiêu đề cho biết định vị; giá trị thực lại nằm trong quyền lợi, điều kiện tham gia, loại trừ, phí, kênh bán và cách phục vụ.";
+                case MARKET_METRICS -> "Mọi tỷ lệ đều có tử số, mẫu số, nhóm đối tượng và giai đoạn đo. Nếu thiếu các phần đó, con số có thể hữu ích như một tín hiệu định hướng nhưng rất dễ trở thành chuẩn đối chiếu sai.";
+                case DISTRIBUTION -> "Thay đổi kênh không chỉ là câu chuyện bán hàng. Nó có thể thay đổi người giải thích sản phẩm, dữ liệu được thu thập, cách kiểm tra phù hợp, cách phục vụ sau bán và người xử lý ngoại lệ.";
+                case OTHER_PRODUCT_SIGNAL -> "Hồ sơ này không nằm gọn trong một lăng kính Product tiêu chuẩn. Hãy coi nó là điểm bắt đầu để xác định giả định nào cần kiểm tra, không phải là một kết luận sẵn có.";
+            };
+        }
+        return switch (this) {
+            case REGULATION -> "A regulatory article may mention a proposal, consultation, publication date and effective date at once. Product must separate them: an announced rule may not apply immediately, or to every product.";
+            case PRODUCT_AND_BENEFITS -> "Product announcements combine a customer promise with operating mechanics. The headline conveys positioning; the real proposition sits in benefits, eligibility, exclusions, fees, channel and servicing.";
+            case MARKET_METRICS -> "Every percentage has a numerator, denominator, population and measurement period. Without them, a number can be directionally useful yet become a misleading benchmark.";
+            case DISTRIBUTION -> "A channel change is not only a sales story. It can change who explains the product, what data is collected, how suitability is checked, how the policy is serviced and who handles exceptions.";
+            case OTHER_PRODUCT_SIGNAL -> "This record does not fit neatly into a standard Product lens. Treat it as a starting point for identifying an assumption to test, not as a ready-made conclusion.";
+        };
+    }
+
+    /** Plain-language reason this source type can affect a Product decision. */
+    public String productMeaning(boolean vi) {
+        if (vi) {
+            return switch (this) {
+                case REGULATION -> "Nếu thực sự áp dụng, thay đổi này có thể tác động đến điều khoản, định phí, hồ sơ phê duyệt, tài liệu bán hàng, đào tạo kênh, logic hệ thống và lịch ra mắt. Việc đầu tiên là xác minh phạm vi, chưa phải thiết kế lại ngay.";
+                case PRODUCT_AND_BENEFITS -> "Các cơ chế này cho thấy nhu cầu khách hàng mà sản phẩm đang cố giải quyết và gánh nặng vận hành đi kèm. Điều nên so sánh là từng thành phần và điều kiện, không phải câu quảng cáo hoặc thương hiệu.";
+                case MARKET_METRICS -> "Product có thể dùng chỉ số để chọn phân khúc, định giá hoặc điều chỉnh danh mục. Một phép so sánh không tương đương có thể khiến đội ngũ ưu tiên sai nhu cầu hoặc đặt mục tiêu không thực tế.";
+                case DISTRIBUTION -> "Thiết kế sản phẩm chưa hoàn chỉnh nếu hành trình kênh không thể giải thích, bán và phục vụ sản phẩm một cách an toàn. Product vì vậy phải thiết kế cả trải nghiệm và quyền sở hữu vận hành.";
+                case OTHER_PRODUCT_SIGNAL -> "Nguồn này có thể giúp phát hiện một giả định về khách hàng, danh mục hoặc mô hình vận hành. Giá trị của nó đến từ câu hỏi kiểm chứng tiếp theo, không phải từ việc xuất hiện trong báo cáo.";
+            };
+        }
+        return switch (this) {
+            case REGULATION -> "If applicable, the change may affect wording, pricing, filing, sales material, channel training, system logic and launch timing. The first task is to confirm scope—not to redesign immediately.";
+            case PRODUCT_AND_BENEFITS -> "These mechanics reveal the customer need being addressed and the operating burden that travels with it. Compare components and conditions, not advertising language or brand names.";
+            case MARKET_METRICS -> "Product may use metrics to choose segments, price or reshape the portfolio. A non-comparable benchmark can send the team toward the wrong need or an unrealistic target.";
+            case DISTRIBUTION -> "A product is incomplete if the channel journey cannot explain, sell and service it safely. Product therefore has to design both the customer experience and operating ownership.";
+            case OTHER_PRODUCT_SIGNAL -> "The source may expose an assumption about customers, portfolio or operating model. Its value comes from the next validation question, not merely from appearing in the report.";
+        };
+    }
+
     /** Closed classifier labels are the primary routing evidence; fact type is a safe fallback. */
     public static CurrentProductNewsTopic from(Set<String> labels, String factType) {
         Set<String> normalized = labels == null ? Set.of() : labels.stream()

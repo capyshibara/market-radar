@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${lang}">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title th:text="${(vi ? 'Câu chuyện nguồn · ' : 'Source story · ') + story.factCode}">Source story</title>
+  <th:block th:replace="~{fragments/product-report-styles :: styles}"></th:block>
+  <style>
+    .source-story-page { overflow:hidden; }
+    .source-story-page .report-header { padding-bottom:38px; }
+    .source-story-page .report-header h1 { max-width:850px; font-size:46px; }
+    .story-retelling { margin:24px 0 0; padding:24px 27px; border-left:5px solid var(--blue); background:var(--blue-soft); }
+    .story-retelling small, .story-panel small, .source-panel small { display:block; margin-bottom:8px; color:var(--blue-ink); font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .story-retelling p { margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:21px; line-height:1.55; }
+    .story-retelling.unavailable { border-left-color:var(--amber); background:var(--amber-soft); }
+    .story-meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:28px; border-top:2px solid var(--navy-deep); border-bottom:1px solid var(--line); }
+    .story-meta > div { min-width:0; padding:15px 16px; border-left:1px solid var(--line); }
+    .story-meta > div:first-child { border-left:0; padding-left:0; }
+    .story-meta dt { color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .story-meta dd { margin:4px 0 0; color:var(--ink); font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
+    .story-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border:1px solid var(--line-dark); }
+    .story-panel { min-width:0; padding:25px 24px 28px; border-left:1px solid var(--line-dark); }
+    .story-panel:first-child { border-left:0; }
+    .story-panel:nth-child(1) { border-top:4px solid var(--navy-deep); }
+    .story-panel:nth-child(2) { border-top:4px solid #4A9D8E; }
+    .story-panel:nth-child(3) { border-top:4px solid #BA8D46; }
+    .story-panel h3 { margin:0 0 12px; color:var(--navy-deep); font-family:var(--serif); font-size:22px; line-height:1.25; }
+    .story-panel p { margin:0; color:var(--ink-soft); font-size:13.5px; line-height:1.65; }
+    .story-action { display:grid; grid-template-columns:1fr 1fr; margin-top:22px; background:var(--navy-deep); color:#fff; }
+    .story-action > div { padding:23px 25px; }
+    .story-action > div + div { border-left:1px solid rgba(255,255,255,.22); }
+    .story-action small { display:block; margin-bottom:7px; color:#BFC9F5; font-size:9.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
+    .story-action p { margin:0; color:#fff; font-size:14px; line-height:1.55; }
+    .trace-grid { display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:28px; }
+    .source-panel { padding:26px; border:1px solid var(--line-dark); background:#F3F0E8; }
+    .source-panel blockquote { margin:0; padding-left:19px; border-left:4px solid var(--blue); color:var(--ink); font-family:"Lora",var(--serif); font-size:16px; font-style:italic; line-height:1.75; white-space:pre-wrap; }
+    .source-audit { padding:24px; border-top:4px solid var(--navy-deep); background:#fff; }
+    .source-audit dl { margin:0; }
+    .source-audit dt { margin:13px 0 2px; color:var(--muted); font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .source-audit dt:first-child { margin-top:0; }
+    .source-audit dd { margin:0; color:var(--ink); font-size:12px; overflow-wrap:anywhere; }
+    .source-audit a { color:var(--blue-ink); font-weight:600; }
+    .document-intro { display:flex; justify-content:space-between; gap:24px; align-items:flex-end; margin-bottom:20px; }
+    .document-intro h2 { margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:31px; line-height:1.2; }
+    .document-intro p { max-width:620px; margin:8px 0 0; color:var(--ink-soft); }
+    .document-stat { min-width:130px; text-align:right; color:var(--muted); font-size:10px; text-transform:uppercase; }
+    .document-stat strong { display:block; color:var(--blue-ink); font-family:var(--serif); font-size:30px; line-height:1; }
+    .full-source-text { max-height:760px; overflow:auto; padding:31px 34px; border:1px solid var(--line-dark); background:#FFFEFB; color:var(--ink-soft); font-family:"Lora",var(--serif); font-size:15px; line-height:1.85; white-space:pre-wrap; }
+    .full-source-text mark { padding:2px 3px; background:#FFF0A8; color:var(--ink); box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+    .source-boundary { margin:18px 0 0; padding:13px 15px; background:#F1EEE5; color:var(--ink-soft); font-size:11.5px; }
+    .story-footer { margin-top:42px; }
+    @media(max-width:760px) {
+      .source-story-page .report-header h1 { font-size:35px; }
+      .story-meta, .story-grid, .story-action, .trace-grid { grid-template-columns:1fr; }
+      .story-meta > div, .story-panel, .story-action > div + div { border-left:0; }
+      .story-meta > div { border-top:1px solid var(--line); padding-left:0; }
+      .document-intro { display:block; }
+      .document-stat { margin-top:15px; text-align:left; }
+      .full-source-text { padding:22px 19px; }
+    }
+  </style>
+</head>
+<body th:classappend="${vi} ? 'locale-vi'">
+  <div class="report-toolbar no-print">
+    <div class="toolbar-brand"><span class="radar-dot"></span><span>Market Radar</span></div>
+    <div class="toolbar-actions">
+      <a class="toolbar-link" th:href="${cadencePath + '?lang=' + lang}" th:text="${vi ? '← Về báo cáo' : '← Back to report'}">Back</a>
+      <a class="toolbar-link" th:href="${'/report/story/' + story.factCode + '?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=en'}" th:classappend="${!vi} ? ' active' : ''">EN</a>
+      <a class="toolbar-link" th:href="${'/report/story/' + story.factCode + '?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=vi'}" th:classappend="${vi} ? ' active' : ''">VI</a>
+      <a class="toolbar-link" th:if="${story.externalSourceLink}" th:href="${story.sourceUrl}" target="_blank" rel="noopener" th:text="${vi ? 'Mở nguồn gốc ↗' : 'Open original ↗'}">Open original</a>
+    </div>
+  </div>
+
+  <main class="report-page source-story-page">
+    <header class="report-header">
+      <div class="masthead-top"><div class="publication-name">MARKET RADAR · <span th:text="${vi ? 'CÂU CHUYỆN NGUỒN' : 'SOURCE STORY'}">SOURCE STORY</span></div><div class="edition-mark" th:text="${story.factCode + ' · DOC #' + story.rawDocId}">F-001</div></div>
+      <p class="eyebrow" th:text="${vi ? 'ĐỌC SÂU · GIẢI THÍCH · TRUY VẾT' : 'READ DEEPER · EXPLAINED · TRACEABLE'}">Read deeper</p>
+      <h1 th:text="${vi ? 'Toàn bộ câu chuyện đằng sau một tín hiệu' : 'The full story behind one signal'}">The full story behind one signal</h1>
+      <p class="report-deck" th:text="${story.originalTitle}">Original source title</p>
+
+      <div class="story-retelling" th:classappend="${!story.translatedRetellingAvailable} ? ' unavailable' : ''">
+        <small th:text="${vi ? 'CÂU CHUYỆN ĐƯỢC KỂ LẠI BẰNG NGÔN NGỮ BÁO CÁO' : 'THE STORY RETOLD IN THE REPORT LANGUAGE'}">Retelling</small>
+        <p th:text="${story.retelling}">What happened.</p>
+      </div>
+      <dl class="story-meta">
+        <div><dt th:text="${vi ? 'Chủ đề' : 'Reading lens'}">Lens</dt><dd th:text="${story.topicLabel}">Product</dd></div>
+        <div><dt th:text="${vi ? 'Thị trường' : 'Market'}">Market</dt><dd th:text="${story.marketLabel + ' · ' + story.geographyLabel}">Vietnam</dd></div>
+        <div><dt th:text="${vi ? 'Nguồn · ngày' : 'Publisher · date'}">Publisher</dt><dd th:text="${story.sourceName + ' · ' + story.publishedLabel}">Publisher</dd></div>
+        <div><dt th:text="${vi ? 'Ngôn ngữ bằng chứng' : 'Evidence language'}">Language</dt><dd th:text="${story.evidenceLanguageLabel}">English</dd></div>
+      </dl>
+    </header>
+
+    <section class="report-section">
+      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '01 · ĐỌC TRONG BỐI CẢNH' : '01 · READ IT IN CONTEXT'}">Context</div><h2 th:text="${vi ? 'Hiểu câu chuyện trước khi dùng nó' : 'Understand the story before using it'}">Understand the story</h2><p class="section-intro" th:text="${vi ? 'Ba ô dưới đây tách kiến thức nền, ý nghĩa với Product và giới hạn của một nguồn riêng lẻ.' : 'These panels separate the background, Product meaning and the limit of a single source.'}">Reading guide.</p></div></div>
+      <div class="story-grid">
+        <article class="story-panel"><small>01 · <span th:text="${vi ? 'BỐI CẢNH CẦN BIẾT' : 'BACKGROUND YOU NEED'}">Background</span></small><h3 th:text="${vi ? 'Đặt thông tin vào đúng khung' : 'Put the information in the right frame'}">Context</h3><p th:text="${story.context}">Context.</p></article>
+        <article class="story-panel"><small>02 · <span th:text="${vi ? 'Ý NGHĨA VỚI PRODUCT' : 'WHY PRODUCT CARES'}">Meaning</span></small><h3 th:text="${vi ? 'Nó có thể ảnh hưởng đến quyết định nào?' : 'Which decision could it affect?'}">Meaning</h3><p th:text="${story.productMeaning}">Why it matters.</p></article>
+        <article class="story-panel"><small>03 · <span th:text="${vi ? 'KHÔNG ĐƯỢC KẾT LUẬN QUÁ MỨC' : 'DO NOT OVER-READ IT'}">Boundary</span></small><h3 th:text="${vi ? 'Một câu chuyện chưa phải xu hướng' : 'One story is not a trend'}">Boundary</h3><p th:text="${story.limitation}">Limit.</p></article>
+      </div>
+      <div class="story-action">
+        <div><small th:text="${vi ? 'CÂU HỎI PRODUCT CẦN TRẢ LỜI' : 'THE QUESTION PRODUCT SHOULD ASK'}">Question</small><p th:text="${story.reviewQuestion}">Question.</p></div>
+        <div><small th:text="${vi ? 'BƯỚC KIỂM CHỨNG TIẾP THEO' : 'NEXT VALIDATION STEP'}">Next step</small><p th:text="${story.validationStep}">Action.</p></div>
+      </div>
+    </section>
+
+    <section class="report-section">
+      <div class="section-head"><div><div class="section-kicker" th:text="${vi ? '02 · TRUY VẾT VỀ BẰNG CHỨNG' : '02 · TRACE IT TO THE EVIDENCE'}">Trace</div><h2 th:text="${vi ? 'Đoạn nguồn đã tạo ra tín hiệu này' : 'The source passage behind this signal'}">Evidence</h2><p class="section-intro" th:text="${vi ? 'Đoạn dưới đây được giữ nguyên ngôn ngữ nguồn. Đây là phần đã được trích xuất thành fact code, không phải bản dịch hoặc nội dung viết lại.' : 'The passage below remains in its source language. It is the exact text extracted into the fact code—not a translation or rewrite.'}">Verbatim evidence.</p></div></div>
+      <div class="trace-grid">
+        <div class="source-panel"><small th:text="${story.factCode + ' · ' + story.evidenceLanguageLabel + ' · ' + (vi ? 'NGUYÊN VĂN' : 'VERBATIM')}">F-001</small><blockquote th:text="${story.originalEvidence}">Exact evidence.</blockquote></div>
+        <aside class="source-audit"><dl>
+          <dt th:text="${vi ? 'Tài liệu đã lưu' : 'Stored document'}">Document</dt><dd th:text="${'DOC #' + story.rawDocId + ' · ' + story.intakeLabel}">Doc</dd>
+          <dt th:text="${vi ? 'Nguồn hệ thống' : 'Registry source'}">Source</dt><dd th:text="${story.sourceCode + ' · Tier ' + story.sourceTier}">Source</dd>
+          <dt th:text="${vi ? 'Thời điểm thu thập' : 'Crawled / added'}">Fetched</dt><dd th:text="${story.fetchedLabel}">Fetched</dd>
+          <dt th:text="${vi ? 'Liên kết nguồn gốc' : 'Original source'}">Original</dt><dd><a th:if="${story.externalSourceLink}" th:href="${story.sourceUrl}" target="_blank" rel="noopener" th:text="${vi ? 'Đọc tại nhà xuất bản ↗' : 'Read at publisher ↗'}">Publisher</a><span th:unless="${story.externalSourceLink}" th:text="${vi ? 'Tài liệu được tải lên; không có URL công khai.' : 'Uploaded document; no public URL.'}">Uploaded</span></dd>
+        </dl></aside>
+      </div>
+    </section>
+
+    <section class="report-section">
+      <div class="document-intro"><div><div class="section-kicker" th:text="${vi ? '03 · TOÀN VĂN ĐÃ THU THẬP' : '03 · FULL CRAWLED DOCUMENT'}">Full document</div><h2 th:text="${vi ? 'Đọc câu chuyện đầy đủ, với bằng chứng được tô sáng' : 'Read the complete story, with the evidence highlighted'}">Full document</h2><p th:text="${vi ? 'Đây là văn bản hệ thống thực sự lưu khi thu thập hoặc nhập tài liệu. Phần màu vàng là đoạn đã được dùng cho fact code ở trên.' : 'This is the text actually stored when the article or document was collected. The yellow passage is the span used for the fact code above.'}">Stored source.</p></div><div class="document-stat"><strong th:text="${#numbers.formatInteger(story.textCharacters, 1, 'COMMA')}">4,500</strong><span th:text="${vi ? 'ký tự đã lưu' : 'stored characters'}">characters</span></div></div>
+      <div class="full-source-text" th:if="${story.sourceText.matched}"><span th:text="${story.sourceText.before}"></span><mark th:text="${story.sourceText.evidence}"></mark><span th:text="${story.sourceText.after}"></span></div>
+      <div class="full-source-text" th:unless="${story.sourceText.matched}" th:text="${story.sourceText.fullText}">Full source text.</div>
+      <p class="source-boundary" th:text="${vi ? 'Ranh giới: phần kể lại và giải thích giúp người đọc hiểu nguồn, nhưng không thay đổi bằng chứng, trạng thái kiểm chứng hoặc cổng xuất bản. Khi có khác biệt, văn bản nguồn và fact code là hồ sơ kiểm tra.' : 'Boundary: the retelling and explanation help the reader understand the source, but do not change evidence, verification status or publication gates. If anything differs, the source text and fact code remain the audit record.'}">Boundary.</p>
+    </section>
+
+    <footer class="report-footer story-footer"><div class="footer-grid"><div class="footer-title" th:text="${vi ? 'Từ insight về lại câu chuyện' : 'From insight back to the story'}">Source story</div><div class="footer-copy"><p th:text="${vi ? 'Market Radar liên kết từng kết luận biên tập với bằng chứng đã thu thập, đồng thời giữ bản kể lại và nguyên văn ở hai lớp riêng biệt.' : 'Market Radar links editorial conclusions to collected evidence while keeping the retelling and verbatim source in separate, inspectable layers.'}">Method.</p></div></div></footer>
+  </main>
+</body>
+</html>

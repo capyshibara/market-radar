@@ -29,6 +29,15 @@ public class ProductReportContractTest {
                 "human-curated Product takeaways are rendered");
         check(fragment.contains("editorialBrief.decisions"),
                 "report translates analysis into Product decisions");
+        check(fragment.contains("editorialBrief.readerGuide.context")
+                        && fragment.contains("editorialBrief.readerGuide.story")
+                        && fragment.contains("editorialBrief.readerGuide.recommendation"),
+                "report orients non-experts with context, story and recommendation");
+        check(fragment.contains("editorialBrief.glossary"),
+                "report explains specialist terms in a quick glossary");
+        check(fragment.contains("WHAT THE EVIDENCE SAYS")
+                        && fragment.contains("WHY THIS MATTERS"),
+                "editorial insights use explicit plain-language reading labels");
         check(fragment.contains("editorialHeroExhibit")
                         && fragment.contains("editorialDashboardExhibits"),
                 "report includes a lead chart and visual intelligence dashboard");
@@ -75,6 +84,9 @@ public class ProductReportContractTest {
                 "src/main/resources/templates/product-report-editor.html"));
         check(editor.contains("Exhibit Studio") && editor.contains("exhibit."),
                 "human review can edit structured exhibits");
+        check(editor.contains("guide.context") && editor.contains("guide.story")
+                        && editor.contains("guide.recommendation") && editor.contains("glossary."),
+                "human review can edit the non-expert guide and glossary");
         System.out.println("ProductReportContractTest: ALL PASS");
     }
 

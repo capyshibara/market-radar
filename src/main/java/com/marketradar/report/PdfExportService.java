@@ -72,6 +72,19 @@ public class PdfExportService {
             .reference-code { color:#1E38B6 !important; }
             .report-meta, .meta-cell, .report-section,
             .insight-card, .reference-row { border-color:#E3DFD4 !important; }
+            .reader-orientation { page-break-before:always !important; page-break-inside:avoid !important; }
+            .orientation-head { display:block !important; }
+            .orientation-route { display:none !important; }
+            .orientation-grid { display:table !important; width:100% !important; table-layout:fixed !important;
+                                border:1px solid #CFCABB !important; background:#F5F2EB !important; }
+            .orientation-card { display:table-cell !important; width:33.333% !important;
+                                vertical-align:top !important; border-left:1px solid #CFCABB !important;
+                                border-top:4px solid #0E1B6B !important; padding:5mm !important; }
+            .orientation-card:first-child { border-left:0 !important; }
+            .orientation-card.story { border-top-color:#4F9B90 !important; }
+            .orientation-card.recommendation { border-top-color:#B8935A !important; }
+            .orientation-number { display:block !important; color:#CFCABB !important; }
+            .orientation-card h3 { color:#0E1B6B !important; }
             .trust-strip { border:1px solid #CFCABB !important;
                            border-left:4px solid #96600D !important; background:#F7F0DD !important; }
             .trust-strip.watch-mode { border-left-color:#2647E8 !important; background:#EBEEFC !important; }
@@ -98,6 +111,7 @@ public class PdfExportService {
             .exhibit-head > code, .exhibit-bar-label > strong, .exhibit-foot > code { text-align:right !important; }
             .exhibit-card h3, .roadmap-step b, .timeline-item b, .flow-step b { color:#0E1B6B !important; }
             .exhibit-takeaway, .timeline-item p, .flow-step p, .roadmap-step p { color:#3E4147 !important; }
+            .exhibit-explainer-label, .plain-label { color:#1E38B6 !important; }
             .exhibit-track { background:#D9D5CA !important; }
             .exhibit-fill.blue, .timeline-item.blue .timeline-dot { background:#2647E8 !important; }
             .exhibit-fill.teal, .timeline-item.teal .timeline-dot { background:#00BFA6 !important; }
@@ -149,6 +163,16 @@ public class PdfExportService {
             .decision-card { width:33.333% !important; border-left:1px solid #52609A !important; padding:0 5mm !important; }
             .decision-card:first-child { border-left:0 !important; padding-left:0 !important; }
             .decision-card p { color:#D8DEF2 !important; }
+            .decision-explainer { color:#D8DEF2 !important; }
+            .plain-glossary { page-break-before:always !important; page-break-inside:avoid !important;
+                              border:1px solid #CFCABB !important; background:#F5F2EB !important; }
+            .glossary-head { display:block !important; border-bottom:2px solid #0E1B6B !important; }
+            .glossary-head > p { margin-top:2mm !important; }
+            .glossary-grid { display:block !important; width:100% !important; }
+            .glossary-term { display:inline-block !important; width:48% !important; vertical-align:top !important;
+                             padding:4mm 4mm 3mm 0 !important; border-bottom:1px solid #E3DFD4 !important; }
+            .glossary-term:nth-child(2n) { padding-left:4mm !important; border-left:1px solid #E3DFD4 !important; }
+            .glossary-term dt { color:#0E1B6B !important; }
             .news-ledger, .reference-register { border-top:2px solid #0E1B6B !important; }
             .topic-heading { background:#0E1B6B !important; color:#ffffff !important; }
             .topic-heading h3, .topic-heading h4, .topic-heading p, .topic-heading strong { color:#ffffff !important; }

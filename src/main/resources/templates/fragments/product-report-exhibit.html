@@ -8,6 +8,7 @@
     <code th:text="${exhibit.citationCodes}">F-001</code>
   </header>
   <h3 th:text="${exhibit.title}">Exhibit title</h3>
+  <strong class="exhibit-explainer-label" th:text="${vi ? 'CÁCH ĐỌC ĐƠN GIẢN' : 'PLAIN-LANGUAGE READ'}">Plain-language read</strong>
   <p class="exhibit-takeaway" th:text="${exhibit.takeaway}">Evidence-led takeaway.</p>
 
   <div class="exhibit-bars" th:if="${exhibit.type == 'BAR'}">
@@ -49,7 +50,7 @@
     </div>
   </div>
 
-  <footer class="exhibit-foot"><span th:text="${exhibit.note}">Method note.</span><code th:text="${exhibit.citationCodes}">F-001</code></footer>
+  <footer class="exhibit-foot"><span><strong th:text="${vi ? 'Cách sử dụng / giới hạn: ' : 'How to use it / caveat: '}">How to use it: </strong><th:block th:text="${exhibit.note}">Method note.</th:block></span><code th:text="${exhibit.citationCodes}">F-001</code></footer>
 </article>
 </body>
 </html>
