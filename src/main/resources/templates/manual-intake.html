@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
-  <meta charset="UTF-8"/><title>Add document · Market Radar</title>
+  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Thêm tài liệu · Market Radar' : 'Add document · Market Radar'}">Add document · Market Radar</title>
   <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
   <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
   <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
@@ -15,35 +15,45 @@
     .notice.ok { background:var(--green-50); color:var(--green-700); }.notice.err { background:var(--rose-50); color:var(--rose-700); }
     .auto-strip { margin:18px 0; padding:14px 16px; background:var(--slate-50); border-left:3px solid var(--brand-red-500); color:var(--text-secondary); }
     .auto-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }.auto-list span { padding:5px 9px; border-radius:999px; background:white; border:1px solid var(--border-default); font-size:var(--text-xs); }
+    .recent { margin-top:24px; }.doc-title { font-weight:650; color:var(--text-primary); }.doc-meta { margin-top:3px; color:var(--text-secondary); font-size:var(--text-xs); }
+    .state { display:inline-block; padding:4px 8px; border-radius:999px; background:var(--slate-100); color:var(--slate-700); font-size:11px; font-weight:700; letter-spacing:.03em; }
+    .state[data-state="REPORT_ELIGIBLE"],.state[data-state="EVIDENCE_EXTRACTED"] { background:var(--green-50); color:var(--green-700); }
+    .state[data-state="IMPORT_FAILED"],.state[data-state="HELD_FOR_REVIEW"] { background:var(--rose-50); color:var(--rose-700); }
     @media(max-width:850px){.intake-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body><div class="ops-shell">
   <th:block th:replace="~{fragments/ops-sidebar :: sidebar('manualintake', ${null})}"></th:block>
   <div class="ops-main"><div class="ops-content">
-    <div class="page-header"><div><h1>Add a research document</h1><p>Paste one official link or choose one file. Market Radar fills in the rest. <span th:text="${documentCount}">0</span> documents are already stored.</p></div></div>
+    <div class="page-header"><div><h1 th:text="${#locale.language == 'vi' ? 'Thêm tài liệu nghiên cứu' : 'Add a research document'}">Add a research document</h1><p><span th:text="${#locale.language == 'vi' ? 'Dán một liên kết chính thức hoặc chọn một tệp. Market Radar tự nhận diện các trường còn lại.' : 'Paste one official link or choose one file. Market Radar detects the remaining fields.'}">Description</span> <span th:text="${documentCount}">0</span> <span th:text="${#locale.language == 'vi' ? 'tài liệu đang được lưu.' : 'documents are stored.'}">documents are stored.</span></p></div><div class="actions"><a class="btn btn-secondary" href="/corpus" data-role-show="admin" th:text="${#locale.language == 'vi' ? 'Mở kho dữ liệu' : 'Open Corpus Explorer'}">Open Corpus Explorer</a></div></div>
     <p class="notice ok" th:if="${intakeSuccess}" th:text="${intakeSuccess}">Saved.</p>
     <p class="notice err" th:if="${intakeError}" th:text="${intakeError}">Error.</p>
-    <div class="auto-strip"><strong>Extracted automatically</strong><div class="auto-list"><span>Title</span><span>Publisher</span><span>Publication date</span><span>Language</span><span>HTML / PDF</span><span>Full text</span><span>Content hash</span></div></div>
+    <div class="auto-strip"><strong th:text="${#locale.language == 'vi' ? 'Tự động nhận diện' : 'Detected automatically'}">Detected automatically</strong><div class="auto-list"><span th:text="${#locale.language == 'vi' ? 'Tiêu đề' : 'Title'}">Title</span><span th:text="${#locale.language == 'vi' ? 'Nhà xuất bản' : 'Publisher'}">Publisher</span><span th:text="${#locale.language == 'vi' ? 'Ngày công bố' : 'Publication date'}">Publication date</span><span th:text="${#locale.language == 'vi' ? 'Ngôn ngữ' : 'Language'}">Language</span><span>HTML / PDF</span><span th:text="${#locale.language == 'vi' ? 'Toàn văn' : 'Full text'}">Full text</span><span th:text="${#locale.language == 'vi' ? 'Dấu vân tay nội dung' : 'Content fingerprint'}">Content fingerprint</span></div></div>
     <div class="intake-grid">
       <section class="intake-card">
-        <h2>Import from link</h2>
-        <p>Use the original AIA, BCG, Swiss Re, Ministry of Finance or other publisher article/PDF URL. LinkedIn links are discovery links; use the original destination instead.</p>
+        <h2 th:text="${#locale.language == 'vi' ? 'Nhập từ liên kết' : 'Import from link'}">Import from link</h2>
+        <p th:text="${#locale.language == 'vi' ? 'Dùng liên kết bài viết hoặc PDF gốc của nhà xuất bản. Với liên kết từ mạng xã hội, hãy mở và dùng trang đích ban đầu.' : 'Use the publisher’s original article or PDF URL. For a social-media discovery link, open and use the original destination.'}">Description</p>
         <form method="post" action="/documents/intake/url">
-          <div class="intake-control"><label class="lbl" for="sourceUrl">Article or PDF link</label><input id="sourceUrl" class="ops-input" name="sourceUrl" type="url" required autofocus placeholder="https://www.bcg.com/publications/…"/></div>
-          <button class="btn btn-primary" type="submit">Import link</button>
+          <div class="intake-control"><label class="lbl" for="sourceUrl" th:text="${#locale.language == 'vi' ? 'Liên kết bài viết hoặc PDF' : 'Article or PDF link'}">Article or PDF link</label><input id="sourceUrl" class="ops-input" name="sourceUrl" type="url" required autofocus/></div>
+          <button class="btn btn-primary" type="submit" th:text="${#locale.language == 'vi' ? 'Nhập liên kết' : 'Import link'}">Import link</button>
         </form>
       </section>
       <section class="intake-card">
-        <h2>Upload a document</h2>
-        <p>Choose a PDF or TXT file. Text is extracted locally; encrypted and image-only PDFs fail clearly instead of being guessed.</p>
+        <h2 th:text="${#locale.language == 'vi' ? 'Tải tài liệu lên' : 'Upload a document'}">Upload a document</h2>
+        <p th:text="${#locale.language == 'vi' ? 'Chọn tệp PDF hoặc TXT. Văn bản được trích xuất cục bộ; tệp mã hóa hoặc PDF chỉ có ảnh sẽ báo lỗi rõ ràng.' : 'Choose a PDF or TXT file. Text is extracted locally; encrypted and image-only PDFs fail clearly.'}">Description</p>
         <form method="post" action="/documents/intake/upload" enctype="multipart/form-data">
-          <div class="intake-control"><label class="lbl" for="file">PDF or TXT file</label><input id="file" class="ops-input" name="file" type="file" accept="application/pdf,.pdf,text/plain,.txt" required/></div>
-          <button class="btn btn-primary" type="submit">Upload document</button>
+          <div class="intake-control"><label class="lbl" for="file" th:text="${#locale.language == 'vi' ? 'Tệp PDF hoặc TXT' : 'PDF or TXT file'}">PDF or TXT file</label><input id="file" class="ops-input" name="file" type="file" accept="application/pdf,.pdf,text/plain,.txt" required/></div>
+          <button class="btn btn-primary" type="submit" th:text="${#locale.language == 'vi' ? 'Tải tài liệu lên' : 'Upload document'}">Upload document</button>
         </form>
       </section>
     </div>
+    <section class="recent" aria-labelledby="recent-documents">
+      <div class="section-header"><div><h2 id="recent-documents" th:text="${#locale.language == 'vi' ? 'Tài liệu vừa thêm' : 'Recent documents'}">Recent documents</h2><p th:text="${#locale.language == 'vi' ? 'Trạng thái dưới đây cho biết tài liệu đang ở bước nào; việc tải lên không tự động chạy AI.' : 'These states show the next processing step; uploading does not automatically run the AI stages.'}">Status explanation</p></div></div>
+      <div class="empty-state" th:if="${#lists.isEmpty(recentDocuments)}"><div class="title" th:text="${#locale.language == 'vi' ? 'Chưa có tài liệu thêm thủ công' : 'No manual documents yet'}">No documents</div></div>
+      <div class="data-table-wrap" th:unless="${#lists.isEmpty(recentDocuments)}"><table class="data-table"><thead><tr><th>Doc</th><th th:text="${#locale.language == 'vi' ? 'Tài liệu' : 'Document'}">Document</th><th th:text="${#locale.language == 'vi' ? 'Phương thức' : 'Intake'}">Intake</th><th th:text="${#locale.language == 'vi' ? 'Trạng thái' : 'Processing state'}">State</th><th th:text="${#locale.language == 'vi' ? 'Bằng chứng' : 'Evidence'}">Evidence</th><th></th></tr></thead><tbody><tr th:each="doc : ${recentDocuments}"><td><span class="code-chip" th:text="${'#' + doc.id}">#1</span></td><td><div class="doc-title" th:text="${doc.title}">Title</div><div class="doc-meta" th:text="${doc.publisher + ' · ' + doc.textCharacters + (#locale.language == 'vi' ? ' ký tự' : ' characters')}">Meta</div></td><td th:text="${doc.intakeMethod}">FILE_UPLOAD</td><td><span class="state" th:attr="data-state=${doc.state}" th:text="${doc.state}">WAITING</span></td><td th:text="${doc.factCount + (#locale.language == 'vi' ? ' fact · ' : ' facts · ') + doc.claimCount + (#locale.language == 'vi' ? ' claim' : ' claims')}">0 facts</td><td><a class="btn btn-ghost btn-sm" th:href="${'/corpus/' + doc.id}" th:text="${#locale.language == 'vi' ? 'Mở' : 'Open'}">Open</a></td></tr></tbody></table></div>
+    </section>
   </div></div>
 </div>
 <script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+<script src="/js/processing-state-labels.js"></script>
 </body></html>

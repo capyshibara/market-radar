@@ -7,6 +7,7 @@
     <div class="toolbar-actions">
       <a class="toolbar-link" href="?lang=en" th:classappend="${!vi} ? ' active' : ''">EN</a>
       <a class="toolbar-link" href="?lang=vi" th:classappend="${vi} ? ' active' : ''">VI</a>
+      <a class="toolbar-link" th:href="${'/report/' + #strings.toLowerCase(cadence.name()) + '.pdf?lang=' + (vi ? 'vi' : 'en')}" th:text="${vi ? 'Tải PDF' : 'Download PDF'}">Download PDF</a>
       <a class="toolbar-link" href="/pipeline" th:text="${vi ? 'Vận hành' : 'Operations'}">Operations</a>
     </div>
   </div>
@@ -17,8 +18,8 @@
         <div class="publication-name" th:text="${vi ? 'MARKET RADAR · TÌNH BÁO SẢN PHẨM' : 'MARKET RADAR · PRODUCT INTELLIGENCE'}">MARKET RADAR · PRODUCT INTELLIGENCE</div>
         <div class="edition-mark" th:text="${executiveBrief.modeLabel}">Evidence brief</div>
       </div>
-      <p class="eyebrow" th:text="${vi ? 'BẢN TIN DÀNH CHO BỘ PHẬN SẢN PHẨM' : 'A BRIEFING FOR THE PRODUCT DEPARTMENT'}">A briefing for Product</p>
-      <h1 th:text="${vi ? 'Từ tín hiệu thị trường đến quyết định về sản phẩm' : 'From market signals to Product decisions'}">From market signals to Product decisions</h1>
+      <p class="eyebrow" th:text="${vi ? 'TIN MỚI · SẢN PHẨM · ĐỐI THỦ · QUY ĐỊNH' : 'FRESH MOVES · PRODUCTS · COMPETITORS · REGULATION'}">Fresh moves</p>
+      <h1 th:text="${vi ? 'Thị trường vừa chuyển động. Product cần biết điều gì?' : 'The market moved. What should Product know?'}">The market moved. What should Product know?</h1>
       <p class="report-deck" th:text="${executiveBrief.headline}">Verified developments across Product priorities.</p>
 
       <div class="report-meta">
@@ -49,11 +50,54 @@
       <a href="/report/quarterly" th:classappend="${cadence.name() == 'QUARTERLY'} ? ' active' : ''" th:text="${vi ? '90 ngày' : '90 days'}">90 days</a>
     </nav>
 
+    <section class="report-section current-news" th:if="${hasCurrentProductNews}">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker" th:text="${vi ? '01 · DIỄN BIẾN ĐÁNG CHÚ Ý' : '01 · THE MOVES THAT MATTER'}">The moves that matter</div>
+          <h2 th:text="${vi ? 'Tin mới, con số đáng chú ý và động thái cạnh tranh' : 'Fresh news, telling numbers and competitive moves'}">Fresh news</h2>
+          <p class="section-intro" th:text="${vi ? 'Bắt đầu từ những gì vừa xảy ra: sản phẩm, quy định, trải nghiệm khách hàng và mô hình kinh doanh có thể làm thay đổi danh mục hoặc ưu tiên thiết kế.' : 'Start with what actually happened: products, regulation, customer experience and business-model moves that may change the portfolio or design agenda.'}">Fresh developments.</p>
+        </div>
+        <div class="section-stat"><strong th:text="${currentProductNewsCount}">7</strong><span th:text="${vi ? 'diễn biến' : 'developments'}">developments</span></div>
+      </div>
+      <p class="news-disclaimer" th:text="${vi ? 'Các câu hỏi theo chủ đề là khung đọc để Product thảo luận, không phải kết luận do AI tạo ra. Mỗi diễn biến bên dưới giữ nguyên nguồn và bằng chứng gốc.' : 'Topic questions are reading frames, not AI-generated conclusions. Every development below retains its original source and verbatim evidence.'}">Topic questions are reading frames, not AI-generated conclusions.</p>
+
+      <div class="news-topic" th:each="g : ${currentProductNewsGroups}">
+        <div class="topic-heading">
+          <div class="topic-title-row"><h3 th:text="${vi ? g.labelVi : g.labelEn}">Topic</h3><span th:text="${g.itemCount}">2</span></div>
+          <p class="topic-question"><strong th:text="${vi ? 'Câu hỏi cho Bộ phận Sản phẩm: ' : 'Product question: '}">Product question: </strong><span th:text="${vi ? g.reviewQuestionVi : g.reviewQuestionEn}">Question</span></p>
+          <p class="topic-validation"><strong th:text="${vi ? 'Bước kiểm tra: ' : 'Validation move: '}">Validation move: </strong><span th:text="${vi ? g.validationStepVi : g.validationStepEn}">Validation</span></p>
+        </div>
+
+        <div class="news-ledger">
+          <article class="current-news-item" th:each="n : ${g.items}">
+            <div class="news-index"></div>
+            <div class="news-main">
+              <div class="news-meta"><span class="meta-chip" th:text="${vi ? (n.factType == 'EVENT' ? 'SỰ KIỆN' : (n.factType == 'PRODUCT_LAUNCH' ? 'RA MẮT SẢN PHẨM' : (n.factType == 'FEE_CHANGE' ? 'THAY ĐỔI PHÍ' : (n.factType == 'REGULATION' ? 'QUY ĐỊNH' : 'CHỈ SỐ')))) : (n.factType == 'EVENT' ? 'EVENT' : (n.factType == 'PRODUCT_LAUNCH' ? 'PRODUCT LAUNCH' : (n.factType == 'FEE_CHANGE' ? 'FEE CHANGE' : (n.factType == 'REGULATION' ? 'REGULATION' : 'METRIC'))))}">EVENT</span><span class="meta-chip neutral" th:text="${vi ? n.freshnessLabelVi : n.freshnessLabelEn}">Published 2 days ago</span></div>
+              <p class="original-language-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Tiêu đề gốc · tiếng Việt' : (n.evidenceLanguage == 'en' ? 'Tiêu đề gốc · tiếng Anh' : 'Tiêu đề gốc từ nguồn')) : (n.evidenceLanguage == 'vi' ? 'Original source title · Vietnamese' : (n.evidenceLanguage == 'en' ? 'Original source title · English' : 'Original source title'))}">Original source title</p>
+              <h3><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.originalTitle}">Source title</a><span th:unless="${n.externalSourceLink}" th:text="${n.originalTitle}">Uploaded document</span></h3>
+              <p class="display-summary" th:if="${!#strings.isEmpty(vi ? n.displaySummaryVi : n.displaySummaryEn)}"><strong th:text="${vi ? 'Tóm tắt theo ngôn ngữ báo cáo: ' : 'Report-language summary: '}">Report-language summary: </strong><span th:text="${vi ? n.displaySummaryVi : n.displaySummaryEn}">Display summary.</span></p>
+              <p class="display-summary unavailable" th:unless="${!#strings.isEmpty(vi ? n.displaySummaryVi : n.displaySummaryEn)}" th:text="${vi ? 'Chỉ có bằng chứng nguyên văn; chưa có bản tóm tắt an toàn bằng ngôn ngữ báo cáo.' : 'Only verbatim source evidence is available; no safe report-language summary is available.'}">Only verbatim source evidence is available.</p>
+              <p class="evidence-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Bằng chứng gốc · tiếng Việt · trích nguyên văn' : (n.evidenceLanguage == 'en' ? 'Bằng chứng gốc · tiếng Anh · trích nguyên văn' : 'Bằng chứng gốc từ nguồn · trích nguyên văn')) : (n.evidenceLanguage == 'vi' ? 'Original evidence · Vietnamese · verbatim' : (n.evidenceLanguage == 'en' ? 'Original evidence · English · verbatim' : 'Original-language source evidence · verbatim'))}">Original-language source evidence · verbatim</p>
+              <blockquote class="evidence-quote" th:text="${n.originalEvidence}">Verbatim evidence span.</blockquote>
+            </div>
+            <aside class="news-side">
+              <dl>
+                <dt th:text="${vi ? 'Nguồn' : 'Publisher'}">Publisher</dt><dd><a class="source-link" th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.sourceName}">Source</a><span th:unless="${n.externalSourceLink}" th:text="${n.sourceName}">Uploaded source</span></dd>
+                <dt th:text="${vi ? 'Ngày công bố' : 'Published'}">Published</dt><dd th:text="${n.publishedDate}">2026-07-16</dd>
+                <dt th:text="${vi ? 'Cấp nguồn' : 'Source quality'}">Source quality</dt><dd th:text="${vi ? n.sourceTierLabelVi : n.sourceTierLabelEn}">Tier 1 source</dd>
+              </dl>
+              <p class="original-language-label" th:if="${n.manuallySupplied}" th:text="${vi ? 'Tài liệu do người dùng cung cấp · cần đối chiếu với nguồn gốc' : 'Manually supplied document · cross-check against the original source'}">Manually supplied document</p>
+              <span class="citation-code" th:text="${n.factCode + (vi ? ' · hồ sơ đã xác minh' : ' · verified record')}">F-001 · verified record</span>
+            </aside>
+          </article>
+        </div>
+      </div>
+    </section>
     <section class="trust-strip"
              th:classappend="${decisionReady} ? ' ready-mode' : (${watchBrief} ? ' watch-mode' : '')">
       <div class="trust-grid">
         <div class="trust-copy">
-          <p class="section-kicker" th:text="${vi ? 'MỨC ĐỘ SẴN SÀNG' : 'INTELLIGENCE READINESS'}">Intelligence readiness</p>
+          <p class="section-kicker" th:text="${vi ? 'GHI CHÚ BẰNG CHỨNG' : 'EVIDENCE NOTE'}">Evidence note</p>
           <h2 th:text="${executiveBrief.modeLabel}">Evidence brief</h2>
           <p th:text="${executiveBrief.decisionReadiness}">The insight gate remains closed.</p>
           <details class="technical-note">
@@ -72,8 +116,8 @@
     <section class="report-section executive-section">
       <div class="section-head">
         <div>
-          <div class="section-kicker" th:text="${vi ? '01 · TÓM TẮT ĐIỀU HÀNH' : '01 · EXECUTIVE READOUT'}">01 · Executive readout</div>
-          <h2 th:text="${vi ? 'Bộ phận Sản phẩm cần tập trung vào đâu' : 'Where Product should focus'}">Where Product should focus</h2>
+          <div class="section-kicker" th:text="${vi ? '02 · ĐỌC VỊ THỊ TRƯỜNG' : '02 · MARKET READOUT'}">02 · Market readout</div>
+          <h2 th:text="${vi ? 'Những diễn biến này cộng lại nói lên điều gì' : 'What these developments add up to'}">What these developments add up to</h2>
           <p class="section-intro" th:text="${executiveBrief.posture}">Review the evidence and seek corroboration.</p>
         </div>
         <div class="section-stat"><strong th:text="${currentProductNewsTopicCount}">4</strong><span th:text="${vi ? 'vùng bằng chứng cần Bộ phận Sản phẩm chú ý' : 'evidence areas requiring Product attention'}">evidence areas requiring Product attention</span></div>
@@ -103,7 +147,7 @@
     <section class="report-section" th:if="${decisionReady or watchBrief}">
       <div class="section-head">
         <div>
-          <div class="section-kicker" th:text="${vi ? '02 · HÀM Ý SẢN PHẨM' : '02 · PRODUCT IMPLICATIONS'}">02 · Product implications</div>
+          <div class="section-kicker" th:text="${vi ? '03 · HÀM Ý SẢN PHẨM' : '03 · PRODUCT IMPLICATIONS'}">03 · Product implications</div>
           <h2 th:text="${decisionReady ? (vi ? 'Insight sẵn sàng cho quyết định' : 'Decision-ready insights') : (vi ? 'Tín hiệu đã kiểm tra để Bộ phận Sản phẩm xác minh' : 'Validated signals for Product to investigate')}">Product implications</h2>
           <p class="section-intro" th:text="${decisionReady ? (vi ? 'Các insight dưới đây đã vượt qua cổng bằng chứng và xuất bản.' : 'These insights passed the evidence and publication gates.') : (vi ? 'Dùng làm giả thuyết kiểm chứng; chưa diễn giải thành xu hướng toàn thị trường.' : 'Use these as validation hypotheses, not market-wide conclusions.')}">Validated implications.</p>
         </div>
@@ -148,48 +192,6 @@
       </div>
     </section>
 
-    <section class="report-section current-news" th:if="${hasCurrentProductNews}">
-      <div class="section-head">
-        <div>
-          <div class="section-kicker" th:text="${(decisionReady or watchBrief) ? (vi ? '03 · RADAR BẰNG CHỨNG' : '03 · EVIDENCE RADAR') : (vi ? '02 · RADAR BẰNG CHỨNG' : '02 · EVIDENCE RADAR')}">Evidence radar</div>
-          <h2 th:text="${vi ? 'Diễn biến thị trường Bộ phận Sản phẩm nên đọc' : 'Market developments Product should read'}">Market developments Product should read</h2>
-          <p class="section-intro" th:text="${vi ? 'Mỗi mục đều đến từ tài liệu toàn văn hiện tại và giữ nguyên trích dẫn gốc. Câu hỏi cho Bộ phận Sản phẩm là khung đọc, không phải kết luận do AI tạo.' : 'Every item comes from a current full-text source and retains its original citation. The Product questions are reading frames, not AI-generated conclusions.'}">Verified current evidence.</p>
-        </div>
-        <div class="section-stat"><strong th:text="${currentProductNewsCount}">7</strong><span th:text="${vi ? 'diễn biến' : 'developments'}">developments</span></div>
-      </div>
-
-      <div class="news-topic" th:each="g : ${currentProductNewsGroups}">
-        <div class="topic-heading">
-          <div class="topic-title-row"><h3 th:text="${vi ? g.labelVi : g.labelEn}">Topic</h3><span th:text="${g.itemCount}">2</span></div>
-          <p class="topic-question"><strong th:text="${vi ? 'Câu hỏi cho Bộ phận Sản phẩm: ' : 'Product question: '}">Product question: </strong><span th:text="${vi ? g.reviewQuestionVi : g.reviewQuestionEn}">Question</span></p>
-          <p class="topic-validation"><strong th:text="${vi ? 'Bước kiểm tra: ' : 'Validation move: '}">Validation move: </strong><span th:text="${vi ? g.validationStepVi : g.validationStepEn}">Validation</span></p>
-        </div>
-
-        <div class="news-ledger">
-          <article class="current-news-item" th:each="n : ${g.items}">
-            <div class="news-index"></div>
-            <div class="news-main">
-              <div class="news-meta"><span class="meta-chip" th:text="${vi ? (n.factType == 'EVENT' ? 'SỰ KIỆN' : (n.factType == 'PRODUCT_LAUNCH' ? 'RA MẮT SẢN PHẨM' : (n.factType == 'FEE_CHANGE' ? 'THAY ĐỔI PHÍ' : (n.factType == 'REGULATION' ? 'QUY ĐỊNH' : 'CHỈ SỐ')))) : (n.factType == 'EVENT' ? 'EVENT' : (n.factType == 'PRODUCT_LAUNCH' ? 'PRODUCT LAUNCH' : (n.factType == 'FEE_CHANGE' ? 'FEE CHANGE' : (n.factType == 'REGULATION' ? 'REGULATION' : 'METRIC'))))}">EVENT</span><span class="meta-chip neutral" th:text="${vi ? n.freshnessLabelVi : n.freshnessLabelEn}">Published 2 days ago</span></div>
-              <p class="original-language-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Tiêu đề gốc · tiếng Việt' : (n.evidenceLanguage == 'en' ? 'Tiêu đề gốc · tiếng Anh' : 'Tiêu đề gốc từ nguồn')) : (n.evidenceLanguage == 'vi' ? 'Original source title · Vietnamese' : (n.evidenceLanguage == 'en' ? 'Original source title · English' : 'Original source title'))}">Original source title</p>
-              <h3><a th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.originalTitle}">Source title</a><span th:unless="${n.externalSourceLink}" th:text="${n.originalTitle}">Uploaded document</span></h3>
-              <p class="display-summary" th:if="${!#strings.isEmpty(n.displaySummary(vi))}"><strong th:text="${vi ? 'Tóm tắt theo ngôn ngữ báo cáo: ' : 'Report-language summary: '}">Report-language summary: </strong><span th:text="${n.displaySummary(vi)}">Display summary.</span></p>
-              <p class="display-summary unavailable" th:unless="${!#strings.isEmpty(n.displaySummary(vi))}" th:text="${vi ? 'Chỉ có bằng chứng nguyên văn; chưa có bản tóm tắt an toàn bằng ngôn ngữ báo cáo.' : 'Only verbatim source evidence is available; no safe report-language summary is available.'}">Only verbatim source evidence is available.</p>
-              <p class="evidence-label" th:text="${vi ? (n.evidenceLanguage == 'vi' ? 'Bằng chứng gốc · tiếng Việt · trích nguyên văn' : (n.evidenceLanguage == 'en' ? 'Bằng chứng gốc · tiếng Anh · trích nguyên văn' : 'Bằng chứng gốc từ nguồn · trích nguyên văn')) : (n.evidenceLanguage == 'vi' ? 'Original evidence · Vietnamese · verbatim' : (n.evidenceLanguage == 'en' ? 'Original evidence · English · verbatim' : 'Original-language source evidence · verbatim'))}">Original-language source evidence · verbatim</p>
-              <blockquote class="evidence-quote" th:text="${n.originalEvidence}">Verbatim evidence span.</blockquote>
-            </div>
-            <aside class="news-side">
-              <dl>
-                <dt th:text="${vi ? 'Nguồn' : 'Publisher'}">Publisher</dt><dd><a class="source-link" th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.sourceName}">Source</a><span th:unless="${n.externalSourceLink}" th:text="${n.sourceName}">Uploaded source</span></dd>
-                <dt th:text="${vi ? 'Ngày công bố' : 'Published'}">Published</dt><dd th:text="${n.publishedDate}">2026-07-16</dd>
-                <dt th:text="${vi ? 'Cấp nguồn' : 'Source quality'}">Source quality</dt><dd th:text="${vi ? n.sourceTierLabelVi : n.sourceTierLabelEn}">Tier 1 source</dd>
-              </dl>
-              <p class="original-language-label" th:if="${n.manuallySupplied}" th:text="${vi ? 'Tài liệu do người dùng cung cấp · cần đối chiếu với nguồn gốc' : 'Manually supplied document · cross-check against the original source'}">Manually supplied document</p>
-              <span class="citation-code" th:text="${n.factCode + (vi ? ' · hồ sơ đã xác minh' : ' · verified record')}">F-001 · verified record</span>
-            </aside>
-          </article>
-        </div>
-      </div>
-    </section>
 
     <section class="report-section empty-evidence" th:if="${!hasCurrentProductNews}">
       <div class="section-kicker" th:text="${vi ? '02 · KHOẢNG TRỐNG BẰNG CHỨNG' : '02 · EVIDENCE GAP'}">Evidence gap</div>

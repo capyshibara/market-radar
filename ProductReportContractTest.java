@@ -31,7 +31,8 @@ public class ProductReportContractTest {
         check(fragment.contains("productWatchSignals"), "separate WATCH rendering");
         check(fragment.contains("currentProductNews"), "current cited-news layer is rendered independently");
         check(fragment.contains("n.originalEvidence"), "news layer renders exact source evidence, not generated summary");
-        check(fragment.contains("n.displaySummary(vi)"), "news layer renders a report-language summary when safely available");
+        check(fragment.contains("n.displaySummaryVi") && fragment.contains("n.displaySummaryEn"),
+                "news layer renders a report-language summary when safely available");
         check(fragment.contains("Original-language source evidence"), "original evidence is explicitly labelled by language");
         check(fragment.contains("reading frames, not AI-generated conclusions"),
                 "news layer cannot be mistaken for a Product conclusion");

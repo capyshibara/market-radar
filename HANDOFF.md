@@ -1,21 +1,72 @@
-# Market Radar — Engineering Handoff (updated 2026-07-16 quality-remediation session)
+# Market Radar — Engineering Handoff (updated 2026-07-17 quality-remediation session)
 
-## Product Special Issues / Product Academy — 2026-07-16
+> Special Issue design source of truth: `/Users/hanh/Downloads/workspace/hackathon/CLAUDE.md`.
+> The reader/export uses Libre Caslon Text + Work Sans, 1056×816 landscape pages, explicit
+> `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
+> artwork, and sourced exhibits rather than decorative pseudo-data.
+
+## Showcase completion — 2026-07-17
+
+This section supersedes the older “not yet wired”, “weekly restyle not started”, and “Ops nav
+cleanup not started” notes later in this historical handoff.
+
+- **Manual intake is now observable.** `/documents/intake` shows the most recent uploaded/imported
+  documents and a human-readable processing state. Admins can open `/corpus` to inspect all stored
+  documents, full text, classification, evidence facts, interpreted claims and latest verification;
+  filter the 724-document corpus; export CSV; and open a detail page. The browser table paginates
+  50 rows at a time. Targeted Classify and Extract actions are available on the detail page. Upload
+  still does not silently spend AI budget or bypass the evidence gates.
+- **The current Special Issue has a real human-editor workflow.** Admins open
+  `/product/special-issues/wellness-linked-life/edit`, choose EN or VI, edit the cover, executive
+  summary, three key findings, all seven chapters and the complete source register, then preview
+  the reader/PDF. Drafts persist in `special_issue_drafts` by slug and language with editor and
+  update time. The seeded July issue is now a fully written bilingual learning dossier covering
+  the three-layer product architecture, customer mechanics, reward economics, operating model,
+  benefits/evidence limits, exclusions/fairness/data boundaries and a bounded pilot decision.
+- **The 7/30/90-day Product reports are news-first.** Current verified developments, numbers and
+  competitor/regulatory moves now lead the page. Market readout and Product implications follow;
+  technical gate detail is a compact evidence note and methodology furniture is omitted from
+  print when it would create an orphan page. Weekly, monthly and quarterly web pages use the
+  Meridian report system (warm paper, navy/brand blue, Libre Caslon Text + Work Sans; Lora for
+  Vietnamese/multilingual evidence). All three now expose matching `.pdf` downloads.
+- **Ops Console design and language pass.** Topic Lab was returned to the Ops system (Inter + IBM
+  Plex Mono, slate surfaces and red action), sidebar labels and all new workflows are bilingual,
+  manual intake is the intended two-action experience, and the BCG-specific placeholder was
+  removed. Report and Ops palettes are deliberately not mixed.
+- **QA evidence.** The isolated copied-database smoke test returned HTTP 200 for intake, corpus,
+  Topic Lab, both editor languages, and all three Product report cadences. The Special Issue
+  reader had zero overflowing pages across its 11-page stack. English and Vietnamese Special
+  Issue PDFs rendered 11 landscape pages; Product PDFs rendered A4 with embedded Work Sans,
+  Libre Caslon Text and Lora. Visual inspection caught and fixed clipped rich text, an editor
+  template error, two Thymeleaf news accessors, multilingual missing glyphs and an orphaned final
+  PDF page. Maven packaging, `git diff --check`, and every standalone `*Test.java` suite pass.
+
+## Product Special Issues / Product Academy — 2026-07-17
 
 - A new Product Intelligence surface is available at `/product/special-issues`. It is deliberately
   separate from the rolling 7/30/90-day Radar: a Special Issue is a curated, long-form learning
   product rather than an automatic aggregation of current news.
-- The **Topic Lab** ranks seeded concepts by Product score, evidence-document count, independent
-  publisher count and primary-source count. A candidate that does not meet its research-pack
-  requirement cannot be commissioned. This MVP includes one ready, fully cited Wellness-linked
-  Life Insurance Product Academy issue and three explicitly incomplete research candidates.
+- The **Topic Lab** is an Ops Console queue, not a report gallery. It shows one compact row per
+  candidate with Product score, evidence-pack depth, readiness, research gap and next action. A
+  candidate that does not meet its research-pack requirement cannot be commissioned. All Topic
+  Lab and issue content is available in English and Vietnamese via the existing locale switch.
 - `/product/special-issues/wellness-linked-life` is the editorial reader; its `.pdf` companion
   renders the same source-backed teaching content through the existing local HTML-to-PDF renderer.
-  The PDF uses a separate original editorial visual system with local CSS/embedded fonts, so it
-  remains reliable offline and never fetches external cover assets or fonts.
-- The initial issue is a seeded public-evidence demonstration. Future production issues must freeze
-  their selected manual-intake/registry evidence pack, pass editorial review, and persist a
-  commissioned edition before publication; do not treat Topic Lab scores as automatic publication.
+  The reader is a fixed 1056×816 landscape page stack derived from the supplied Meridian Review
+  system and the July 2026 Market Radar PDF reference. The 11-page issue includes contents,
+  executive summary, system diagram, customer journey, reward mechanics and chart, operating-model
+  table, fairness/limits, pilot decisions, and a source/method appendix. Full Work Sans and Lora
+  font binaries are bundled and embedded so Vietnamese works offline in both browser and PDF.
+- PDF rendering strips URL-based `@font-face` rules before registering the bundled fonts. Do not
+  remove this step: failed web-font declarations shadow classpath fonts in OpenHTMLtoPDF and cause
+  missing Vietnamese glyphs. Print CSS also restates colors explicitly because this renderer does
+  not resolve the web template's CSS custom properties reliably.
+- The initial issue is a seeded public-evidence demonstration with persisted manual editorial
+  drafts. Future production issues must additionally freeze their selected manual-intake/registry
+  evidence pack and persist a commissioned edition before publication; do not treat Topic Lab
+  scores as automatic publication. A stronger editorial LLM can structure and synthesize that
+  frozen pack, but model choice must not bypass source traceability or human approval. Automatic
+  Special Issue topic research/generation is not yet wired; the showcase issue is human-curated.
 
 ## Latest report-language and evidence-traceability update — 2026-07-16
 

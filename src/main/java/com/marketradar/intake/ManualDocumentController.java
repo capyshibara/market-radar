@@ -14,15 +14,19 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class ManualDocumentController {
     private final ManualDocumentIntakeService intake;
     private final RawDocRepository rawDocs;
+    private final CorpusExplorerService corpus;
 
-    public ManualDocumentController(ManualDocumentIntakeService intake, RawDocRepository rawDocs) {
+    public ManualDocumentController(ManualDocumentIntakeService intake, RawDocRepository rawDocs,
+                                    CorpusExplorerService corpus) {
         this.intake = intake;
         this.rawDocs = rawDocs;
+        this.corpus = corpus;
     }
 
     @GetMapping("/documents/intake")
     public String page(Model model) {
         model.addAttribute("documentCount", rawDocs.count());
+        model.addAttribute("recentDocuments", corpus.recentManual(10));
         return "manual-intake";
     }
 

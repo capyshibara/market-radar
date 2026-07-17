@@ -33,9 +33,16 @@ public class PdfExportService {
      */
     private static final String PDF_OVERRIDE_CSS = """
             @page { size: A4; margin: 16mm 15mm; }
-            body { background:#fff !important; }
-            body, h1, h2, h3, h4, p, li, td, th, span, div, b, i, a, blockquote, summary, em, strong
-              { font-family:'DejaVu Sans', sans-serif !important; }
+            body { background:#F8F6F1 !important; }
+            body, p, li, td, th, span, div, b, i, a, summary, em, strong
+              { font-family:'Work Sans', 'DejaVu Sans', sans-serif !important; }
+            h1, h2, h3, h4, .report-deck, .meta-value.accent,
+            .priority-number, .section-stat strong, .footer-title
+              { font-family:'Libre Caslon Text', serif !important; }
+            .locale-vi h1, .locale-vi h2, .locale-vi h3, .locale-vi h4,
+            .locale-vi .report-deck, .locale-vi .meta-value.accent,
+            .locale-vi .priority-number, .locale-vi .section-stat strong, .locale-vi .footer-title
+              { font-family:'Lora', serif !important; }
             /* Batch 7 (i18n): .cite-pill hiển thị TÊN NGUỒN thật (có dấu tiếng Việt) —
              * KHÔNG được ép Mono ở đây (từng gây lỗi hiển thị, xem EmailPngExportService).
              * Chỉ ép Mono cho nội dung chắc chắn ascii: tier-dot (chữ số), mã ngôn ngữ 2 ký tự. */
@@ -53,27 +60,32 @@ public class PdfExportService {
             summary::marker { content:'' !important; }
             /* OpenHTMLtoPDF does not resolve CSS custom properties. Re-state the
              * editorial palette with concrete values for a faithful export. */
-            .report-page { background:#fffdfa !important; color:#172033 !important; }
-            .report-header { border-top:6px solid #d7192d !important; }
+            .report-page { background:#F8F6F1 !important; color:#1A1A18 !important; }
+            .report-header { border-top:7px solid #0E1B6B !important; }
             .report-header h1, .section-head h2, .priority-card h3,
             .insight-card h3, .current-news-item h3, .footer-title
-              { color:#172b4d !important; }
+              { color:#0E1B6B !important; }
             .eyebrow, .section-kicker, .priority-number, .section-stat strong,
-            .reference-code { color:#a40f20 !important; }
+            .reference-code { color:#1E38B6 !important; }
             .report-meta, .meta-cell, .report-section, .priority-card,
-            .insight-card, .reference-row { border-color:#dfe3e8 !important; }
-            .trust-strip { border:1px solid #c8ced7 !important;
-                           border-left:4px solid #96600d !important; background:#fff6df !important; }
-            .trust-strip.watch-mode { border-left-color:#315f91 !important; background:#edf4fa !important; }
-            .trust-strip.ready-mode { border-left-color:#176447 !important; background:#eaf6f0 !important; }
-            .priority-card { border:1px solid #dfe3e8 !important; background:#ffffff !important; }
-            .action-horizons, .news-ledger, .reference-register { border-top:2px solid #172033 !important; }
-            .topic-heading { background:#172b4d !important; color:#ffffff !important; }
+            .insight-card, .reference-row { border-color:#E3DFD4 !important; }
+            .trust-strip { border:1px solid #CFCABB !important;
+                           border-left:4px solid #96600D !important; background:#F7F0DD !important; }
+            .trust-strip.watch-mode { border-left-color:#2647E8 !important; background:#EBEEFC !important; }
+            .trust-strip.ready-mode { border-left-color:#2F6B3D !important; background:#EAF1EA !important; }
+            .priority-card { border:1px solid #E3DFD4 !important; background:#ffffff !important; }
+            .priority-card:before { background:#2647E8 !important; }
+            .action-horizons, .news-ledger, .reference-register { border-top:2px solid #0E1B6B !important; }
+            .topic-heading { background:#0E1B6B !important; color:#ffffff !important; }
             .topic-heading h3, .topic-heading p, .topic-heading strong { color:#ffffff !important; }
-            .evidence-quote { border-left:3px solid #315f91 !important; color:#3f4a5f !important; }
-            .meta-chip { background:#edf4fa !important; color:#315f91 !important; }
-            .report-footer { background:#172b4d !important; color:#dfe7f2 !important; }
+            .evidence-quote { border-left:3px solid #2647E8 !important; color:#3E4147 !important; }
+            .evidence-quote { font-family:'Lora', serif !important; }
+            .meta-chip { background:#EBEEFC !important; color:#1E38B6 !important; }
+            .report-footer { background:#0E1B6B !important; color:#D8DEF2 !important; }
             .report-footer .footer-title { color:#ffffff !important; }
+            /* Methodology furniture belongs in the interactive reader. In print it
+               can orphan onto a nearly blank page after a long source register. */
+            .custody-section, .report-footer { display:none !important; }
             """;
 
     private final SpringTemplateEngine templateEngine;
@@ -89,6 +101,10 @@ public class PdfExportService {
         return render("weekly-report", model, locale, PDF_OVERRIDE_CSS);
     }
 
+    public byte[] renderProductReportPdf(String template, Map<String, Object> model, Locale locale) {
+        return render(template, model, locale, PDF_OVERRIDE_CSS);
+    }
+
     /**
      * Shared renderer for editorial exports. Callers supply a Thymeleaf template and any
      * print-only CSS; network resources are still stripped and Vietnamese-capable fonts embedded.
@@ -96,6 +112,10 @@ public class PdfExportService {
     public byte[] render(String template, Map<String, Object> model, Locale locale, String printCss) {
         Context ctx = new Context(locale, model);
         String html = templateEngine.process(template, ctx);
+        // Browser templates may declare URL-based @font-face rules. The PDF renderer is
+        // intentionally offline and receives the same families below from classpath streams;
+        // remove the URL declarations so a failed web-font lookup cannot shadow them.
+        html = html.replaceAll("(?s)@font-face\\s*\\{[^}]*}", "");
 
         // HTML5 → XHTML well-formed + chèn CSS override cho PDF
         Document jdoc = Jsoup.parse(html);
@@ -103,7 +123,7 @@ public class PdfExportService {
         // qua override dưới đây nên không cần font ngoài; giữ lại link sẽ khiến
         // OpenHTMLtoPDF cố fetch mạng ngoài không cần thiết (rủi ro treo/lỗi khi offline).
         jdoc.select("head link").remove();
-        jdoc.head().appendElement("style").text(PDF_OVERRIDE_CSS + "\n" + (printCss == null ? "" : printCss));
+        jdoc.head().appendElement("style").text(printCss == null ? "" : printCss);
         jdoc.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
         org.w3c.dom.Document w3c = new W3CDom().fromJsoup(jdoc);
 
@@ -118,6 +138,30 @@ public class PdfExportService {
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             builder.useFont(() -> PdfExportService.class.getResourceAsStream(
                     "/fonts/DejaVuSansMono.ttf"), "DejaVu Sans Mono", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/LibreCaslonText-Regular.ttf"), "Libre Caslon Text", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/LibreCaslonText-Bold.ttf"), "Libre Caslon Text", 700,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/LibreCaslonText-Italic.ttf"), "Libre Caslon Text", 400,
+                    PdfRendererBuilder.FontStyle.ITALIC, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/Lora-Regular.ttf"), "Lora", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/Lora-Bold.ttf"), "Lora", 700,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/WorkSans-Regular.ttf"), "Work Sans", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/WorkSans-SemiBold.ttf"), "Work Sans", 600,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/WorkSans-Bold.ttf"), "Work Sans", 700,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             builder.withW3cDocument(w3c, "/");
             builder.toStream(out);

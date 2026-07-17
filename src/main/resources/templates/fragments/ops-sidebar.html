@@ -15,8 +15,9 @@
       <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupIntelligence}">Intelligence</div>
       <div class="ops-nav-group">
         <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
-        <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'">Special Issues</a>
-        <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'">The Newsroom ↗</a>
+        <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
+        <a href="/product/special-issues/wellness-linked-life/edit" class="ops-nav-item" data-role-show="admin" th:classappend="${active == 'specialissueeditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Chuyên đề' : 'Special Issue Review'}">Special Issue Review</a>
+        <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tòa soạn ↗' : 'The Newsroom ↗'}">The Newsroom ↗</a>
       </div>
     </div>
 
@@ -35,7 +36,8 @@
       <div class="ops-nav-group">
         <a href="/pipeline" class="ops-nav-item" th:classappend="${active == 'pipelinerun'} ? 'is-active'" th:text="#{ops.sidebar.navPipelineRun}">Pipeline Runner</a>
         <a href="/pipeline/history" class="ops-nav-item" th:classappend="${active == 'pipelinehistory'} ? 'is-active'" th:text="#{ops.sidebar.navRunHistory}">Run History</a>
-        <a href="/documents/intake" class="ops-nav-item" th:classappend="${active == 'manualintake'} ? 'is-active'">Add document</a>
+        <a href="/documents/intake" class="ops-nav-item" th:classappend="${active == 'manualintake'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Thêm tài liệu' : 'Add document'}">Add document</a>
+        <a href="/corpus" class="ops-nav-item" data-role-show="admin" th:classappend="${active == 'corpus'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Kho dữ liệu' : 'Corpus Explorer'}">Corpus Explorer</a>
         <a href="/sources" class="ops-nav-item" th:classappend="${active == 'sources'} ? 'is-active'" th:text="#{ops.sidebar.navSources}">Source Registry</a>
       </div>
     </div>

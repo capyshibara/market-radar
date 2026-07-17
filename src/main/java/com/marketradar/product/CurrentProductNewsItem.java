@@ -74,6 +74,8 @@ public record CurrentProductNewsItem(
     public boolean hasExternalSourceLink() {
         return sourceUrl != null && (sourceUrl.startsWith("https://") || sourceUrl.startsWith("http://"));
     }
+    /** JavaBean boolean accessor used by Thymeleaf's property resolver. */
+    public boolean isExternalSourceLink() { return hasExternalSourceLink(); }
 
     public String getSourceTierLabelEn() { return "Tier " + sourceTier + " source"; }
     public String getSourceTierLabelVi() { return "Nguồn cấp " + sourceTier; }
