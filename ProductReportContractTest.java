@@ -29,8 +29,11 @@ public class ProductReportContractTest {
                 "human-curated Product takeaways are rendered");
         check(fragment.contains("editorialBrief.decisions"),
                 "report translates analysis into Product decisions");
-        check(fragment.contains("editorialBrief.chart"),
-                "report includes evidence-linked visual comparison");
+        check(fragment.contains("editorialHeroExhibit")
+                        && fragment.contains("editorialDashboardExhibits"),
+                "report includes a lead chart and visual intelligence dashboard");
+        check(fragment.contains("product-report-exhibit"),
+                "all exhibits use the shared web/PDF component");
         check(fragment.contains("editorialBrief.marketBridge.domesticRead"),
                 "human editorial separates the domestic read");
         check(fragment.contains("editorialBrief.marketBridge.internationalRead"),
@@ -58,6 +61,20 @@ public class ProductReportContractTest {
         check(!fragment.contains("priority-grid"),
                 "legacy rule-heavy priority cards no longer dominate the report");
         check(fragment.contains("references"), "references derive from rendered adapter snapshot");
+        String exhibit = Files.readString(Path.of(
+                "src/main/resources/templates/fragments/product-report-exhibit.html"));
+        for (String type : new String[]{"BAR", "KPI", "TIMELINE", "FLOW", "MATRIX", "ROADMAP"}) {
+            check(exhibit.contains("exhibit.type == '" + type + "'"),
+                    "shared exhibit component renders " + type);
+        }
+        String styles = Files.readString(Path.of(
+                "src/main/resources/templates/fragments/product-report-styles.html"));
+        check(styles.contains("/assets/meridian/d-monochrome-blue.svg"),
+                "Product report restores the design-system canvas pattern");
+        String editor = Files.readString(Path.of(
+                "src/main/resources/templates/product-report-editor.html"));
+        check(editor.contains("Exhibit Studio") && editor.contains("exhibit."),
+                "human review can edit structured exhibits");
         System.out.println("ProductReportContractTest: ALL PASS");
     }
 

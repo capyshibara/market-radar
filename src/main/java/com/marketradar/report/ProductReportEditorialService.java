@@ -37,6 +37,10 @@ import java.util.stream.Collectors;
 public class ProductReportEditorialService {
     private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String DEFAULT_EDITOR = "Nguyễn Phương Đình · Product SME";
+    private static final Set<String> EXHIBIT_TYPES = Set.of(
+            "BAR", "KPI", "TIMELINE", "FLOW", "MATRIX", "ROADMAP");
+    private static final Set<String> EXHIBIT_TONES = Set.of(
+            "BLUE", "TEAL", "GOLD", "CORAL", "VIOLET");
 
     private final Map<String, EditorialBrief> transientDrafts = new ConcurrentHashMap<>();
     private ProductReportEditorialDraftRepository drafts;
@@ -127,6 +131,32 @@ public class ProductReportEditorialService {
                 value(form, "bridge.internationalRead", oldBridge.internationalRead()),
                 value(form, "bridge.vietnamImplication", oldBridge.vietnamImplication()),
                 value(form, "bridge.decisionQuestion", oldBridge.decisionQuestion()));
+        List<EditorialExhibit> exhibits = new ArrayList<>();
+        for (int i = 0; i < current.exhibits().size(); i++) {
+            EditorialExhibit old = current.exhibits().get(i);
+            List<ExhibitDatum> data = new ArrayList<>();
+            for (int j = 0; j < old.data().size(); j++) {
+                ExhibitDatum datum = old.data().get(j);
+                data.add(new ExhibitDatum(
+                        value(form, "exhibit." + i + ".data." + j + ".label", datum.label()),
+                        value(form, "exhibit." + i + ".data." + j + ".value", datum.value()),
+                        value(form, "exhibit." + i + ".data." + j + ".context", datum.context()),
+                        value(form, "exhibit." + i + ".data." + j + ".detail", datum.detail()),
+                        width(form, "exhibit." + i + ".data." + j + ".width", datum.width()),
+                        tone(value(form, "exhibit." + i + ".data." + j + ".tone", datum.tone()),
+                                datum.tone())));
+            }
+            exhibits.add(new EditorialExhibit(old.number(),
+                    exhibitType(value(form, "exhibit." + i + ".type", old.type()), old.type()),
+                    Boolean.parseBoolean(value(form, "exhibit." + i + ".enabled",
+                            Boolean.toString(old.enabled()))),
+                    value(form, "exhibit." + i + ".title", old.title()),
+                    value(form, "exhibit." + i + ".takeaway", old.takeaway()),
+                    value(form, "exhibit." + i + ".note", old.note()),
+                    safeCitations(value(form, "exhibit." + i + ".citationCodes",
+                                    old.citationCodes()), current.citedFactCodes(), old.citationCodes()),
+                    List.copyOf(data)));
+        }
         EditorialBrief revised = new EditorialBrief(
                 value(form, "title", current.title()),
                 value(form, "deck", current.deck()),
@@ -134,7 +164,7 @@ public class ProductReportEditorialService {
                 value(form, "leadHeadline", current.leadHeadline()),
                 value(form, "leadNarrative", current.leadNarrative()),
                 revisedBridge,
-                List.copyOf(takeaways), current.chart(),
+                List.copyOf(takeaways), current.chart(), List.copyOf(exhibits),
                 value(form, "numbersHeadline", current.numbersHeadline()),
                 List.copyOf(decisions),
                 value(form, "watchlist", current.watchlist()),
@@ -172,14 +202,19 @@ public class ProductReportEditorialService {
         };
     }
 
-    /** Older saved drafts predate the domestic/international bridge; preserve their edits. */
+    /** Older saved drafts predate the domestic/international bridge and Exhibit Studio. */
     private static EditorialBrief completeLegacyDraft(ProductReportCadence cadence, boolean vi,
                                                        EditorialBrief stored) {
-        if (stored.marketBridge() != null) return stored;
         EditorialBrief fallback = defaults(cadence, vi);
+        if (stored.marketBridge() != null && stored.exhibits() != null
+                && !stored.exhibits().isEmpty()) return stored;
         return new EditorialBrief(stored.title(), stored.deck(), stored.leadLabel(),
-                stored.leadHeadline(), stored.leadNarrative(), fallback.marketBridge(),
-                stored.takeaways(), stored.chart(), stored.numbersHeadline(), stored.decisions(),
+                stored.leadHeadline(), stored.leadNarrative(),
+                stored.marketBridge() == null ? fallback.marketBridge() : stored.marketBridge(),
+                stored.takeaways(), stored.chart(),
+                stored.exhibits() == null || stored.exhibits().isEmpty()
+                        ? fallback.exhibits() : stored.exhibits(),
+                stored.numbersHeadline(), stored.decisions(),
                 stored.watchlist(), stored.editorialBoundary(), stored.citedFactCodes(),
                 stored.editor(), stored.reviewedAt(), stored.status());
     }
@@ -225,6 +260,7 @@ public class ProductReportEditorialService {
                         t(vi, "Tổng phí · 6T 2026", "Total premium · H1 2026"), "+19%", 54,
                         t(vi, "Tăng trưởng so với cùng kỳ; dữ liệu một doanh nghiệp tại Đài Loan, không phải chuẩn thị trường Việt Nam.",
                                 "Year-on-year growth; one Taiwan insurer, not a Vietnam market benchmark."), "F-1836"),
+                weeklyExhibits(vi),
                 t(vi, "Ba việc Product có thể làm ngay", "Three moves Product can make now"),
                 List.of(
                         decision(vi, "48 GIỜ", "48 HOURS", "Lập bảng đối chiếu tăng trưởng", "Build the growth comparison",
@@ -279,6 +315,7 @@ public class ProductReportEditorialService {
                         "2025", "3.9%", 100, "2026", "1.3%", 33,
                         t(vi, "Tăng trưởng phí bảo hiểm toàn cầu theo giá thực; dự báo, không phải kết quả thực tế.",
                                 "Global insurance premium growth in real terms; forecast, not actual result."), "F-717"),
+                monthlyExhibits(vi),
                 t(vi, "Ba quyết định cho cuộc họp Product tháng này", "Three decisions for this month’s Product meeting"),
                 List.of(
                         decision(vi, "TUẦN NÀY", "THIS WEEK", "Mở rà soát danh mục", "Open a portfolio review",
@@ -289,7 +326,7 @@ public class ProductReportEditorialService {
                                 "Liên kết thay đổi đề xuất với đào tạo, công cụ giải thích, kiểm tra hiểu biết và giám sát chất lượng tư vấn; dùng tín hiệu Prudential như một điểm đối chiếu.")),
                 t(vi, "Theo dõi: lịch chuyển tiếp đầy đủ của AIA Việt Nam; use case đầu tiên của HIVE dưới chủ sở hữu mới; bằng chứng thực nghiệm về chi phí và tốc độ ra mắt; và tác động của tăng trưởng phí chậm lên mix sản phẩm nhân thọ.",
                         "Watch: AIA Vietnam’s full transition timetable; HIVE’s first use case under its new owner; empirical evidence on launch speed and cost; and the effect of slower premium growth on life product mix."),
-                boundary(vi), codes("F-1843,F-1844,F-1848,F-1849,F-819,F-820,F-821,F-822,F-823,F-717,F-1728,F-1730"),
+                boundary(vi), codes("F-1843,F-1844,F-1848,F-1849,F-819,F-820,F-821,F-822,F-823,F-717,F-1728,F-1730,F-1820"),
                 DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
     }
 
@@ -334,6 +371,7 @@ public class ProductReportEditorialService {
                         t(vi, "Dự báo Care@Home / tháng", "Care@Home projection / month"), "S$3.5k", 100,
                         t(vi, "Chênh lệch xấp xỉ 32%; dữ liệu Singapore, cần nội địa hóa trước khi dùng cho Việt Nam.",
                                 "Approximately 32% gap; Singapore data requiring localisation before Vietnam use."), "F-920"),
+                quarterlyExhibits(vi),
                 t(vi, "Ba quyết định chiến lược cho quý tới", "Three strategic decisions for the next quarter"),
                 List.of(
                         decision(vi, "ĐỀ XUẤT", "PROPOSITION", "Chọn một vấn đề khách hàng để đào sâu", "Choose one customer problem to deepen",
@@ -344,8 +382,154 @@ public class ProductReportEditorialService {
                                 "Kết nối ra mắt, thay đổi, đào tạo kênh và ngừng sản phẩm trong một quy trình có chủ sở hữu, mốc hiệu lực và bằng chứng hoàn tất.")),
                 t(vi, "Theo dõi: mức sử dụng thực tế của các cơ chế Wealth Flexi; tính bền vững kinh tế của dịch vụ chăm sóc tại nhà; use case thương mại đầu tiên của HIVE; và cách AIA Việt Nam thực thi ngừng sản phẩm qua nhiều kênh.",
                         "Watch: actual use of Wealth Flexi’s service mechanics; the economics of home-care support; HIVE’s first commercial use case; and AIA Vietnam’s execution of a multi-channel product exit."),
-                boundary(vi), codes("F-1209,F-1210,F-1211,F-1212,F-1213,F-919,F-920,F-921,F-922,F-924,F-819,F-820,F-821,F-822,F-823,F-1843,F-1844,F-1848,F-1811,F-1812,F-1813"),
+                boundary(vi), codes("F-1209,F-1210,F-1211,F-1212,F-1213,F-919,F-920,F-921,F-922,F-924,F-819,F-820,F-821,F-822,F-823,F-1842,F-1843,F-1844,F-1848,F-1811,F-1812,F-1813,F-1805,F-1820"),
                 DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
+    }
+
+    private static List<EditorialExhibit> weeklyExhibits(boolean vi) {
+        return List.of(
+                exhibit("01", "BAR", vi,
+                        "Tăng trưởng phí năm đầu vượt tổng phí", "First-year premium outpaced total premium",
+                        "Khoảng cách 16 điểm phần trăm đặt câu hỏi về cơ cấu sản phẩm và kênh tạo tăng trưởng.",
+                        "The 16-point gap raises a product-and-channel mix question behind the growth.",
+                        "Tăng trưởng so với cùng kỳ tại Fubon Life; tín hiệu doanh nghiệp Đài Loan, không phải chuẩn Việt Nam.",
+                        "Year-on-year growth at Fubon Life; a Taiwan company signal, not a Vietnam benchmark.",
+                        "F-1836,F-1837", List.of(
+                                datum(vi, "Phí năm đầu · 6T 2026", "First-year premium · H1 2026", "+35%", "+35%", "", "", "", "", 100, "BLUE"),
+                                datum(vi, "Tổng phí · 6T 2026", "Total premium · H1 2026", "+19%", "+19%", "", "", "", "", 54, "TEAL"))),
+                exhibit("02", "TIMELINE", vi,
+                        "Hai tín hiệu, một câu hỏi về khả năng mở rộng", "Two signals, one scalability question",
+                        "Tuần này nối tăng trưởng tại Đài Loan với yêu cầu quản trị kênh tại Nhật Bản.",
+                        "The week links Taiwan growth with Japan’s channel-governance expectations.",
+                        "Trình tự thời gian giúp giữ hai thị trường tách biệt; đây là điểm đối chiếu, không phải một xu hướng chung.",
+                        "The timeline keeps the markets distinct; these are comparisons, not one shared trend.",
+                        "F-1707,F-1711,F-1712,F-1833,F-1836,F-1837", List.of(
+                                datum(vi, "Nhật Bản đặt trọng tâm vào quản trị đại lý", "Japan foregrounds agent governance", "03/07", "3 Jul", "NHẬT BẢN · QUẢN TRỊ", "JAPAN · GOVERNANCE", "FSA nêu khung quản trị và khảo sát thực trạng đại lý bảo hiểm.", "The FSA points to governance frameworks and an agent fact-finding survey.", 50, "GOLD"),
+                                datum(vi, "Fubon công bố kết quả tháng 6", "Fubon reports June performance", "15/07", "15 Jul", "ĐÀI LOAN · TĂNG TRƯỞNG", "TAIWAN · GROWTH", "Lợi nhuận và tăng trưởng phí tạo điểm đối chiếu về chất lượng tăng trưởng.", "Profit and premium growth create a comparison point for growth quality.", 100, "TEAL"))),
+                exhibit("03", "KPI", vi,
+                        "Khoảng trống độ phủ phải được nhìn thấy", "Make the coverage gap visible",
+                        "Không có diễn biến Việt Nam đủ điều kiện trong cửa sổ 7 ngày; không dùng tin yếu để lấp chỗ trống.",
+                        "No eligible Vietnam development appears in the seven-day window; weak news is not used as filler.",
+                        "Các số đếm được suy ra từ chính lớp bằng chứng của kỳ báo cáo, không phải chỉ số thị trường.",
+                        "Counts are derived from this edition’s evidence layer; they are not market metrics.",
+                        "F-1707,F-1833", List.of(
+                                datum(vi, "Diễn biến Việt Nam", "Vietnam developments", "0", "0", "ĐỘ PHỦ", "COVERAGE", "Khoảng trống nguồn cần xử lý", "Source gap to address", 0, "CORAL"),
+                                datum(vi, "Tín hiệu quốc tế", "International signals", "2", "2", "ĐỐI CHIẾU", "COMPARISON", "Nhật Bản và Đài Loan", "Japan and Taiwan", 100, "BLUE"),
+                                datum(vi, "Nguồn độc lập", "Independent sources", "2", "2", "TRUY XUẤT", "TRACEABILITY", "Mỗi tín hiệu giữ nguồn riêng", "Each signal keeps its own source", 100, "VIOLET"))));
+    }
+
+    private static List<EditorialExhibit> monthlyExhibits(boolean vi) {
+        return List.of(
+                exhibit("01", "BAR", vi,
+                        "Tăng trưởng phí thực toàn cầu giảm mạnh", "Real global premium growth resets lower",
+                        "Dự báo 2026 thấp hơn 2,6 điểm phần trăm so với 2025, làm chi phí phức tạp danh mục khó biện minh hơn.",
+                        "The 2026 forecast is 2.6 points below 2025, making portfolio complexity harder to justify.",
+                        "Dự báo tăng trưởng phí bảo hiểm toàn cầu theo giá thực; không phải kết quả thực tế hoặc dự báo riêng Việt Nam.",
+                        "Forecast real global insurance premium growth; not an actual result or Vietnam-specific forecast.",
+                        "F-717", List.of(
+                                datum(vi, "Năm 2025", "2025", "3.9%", "3.9%", "THỰC TẾ/ƯỚC TÍNH", "BASE", "", "", 100, "BLUE"),
+                                datum(vi, "Dự báo 2026", "2026 forecast", "1.3%", "1.3%", "DỰ BÁO", "FORECAST", "Giảm 2,6 điểm phần trăm", "Down 2.6 percentage points", 33, "TEAL"))),
+                exhibit("02", "TIMELINE", vi,
+                        "Danh mục và năng lực kênh cùng dịch chuyển", "Portfolio and channel capability move together",
+                        "AIA Việt Nam tinh gọn danh mục trong khi Prudential đầu tư vào chuẩn tư vấn viên.",
+                        "AIA Vietnam is pruning its portfolio while Prudential invests in advisor standards.",
+                        "Hai diễn biến trong nước có phạm vi khác nhau nhưng cùng tác động đến thực thi vòng đời sản phẩm.",
+                        "The two domestic developments differ in scope but both affect product-lifecycle execution.",
+                        "F-1843,F-1844,F-1848,F-1728,F-1730", List.of(
+                                datum(vi, "AIA Việt Nam thông báo ngừng một số sản phẩm", "AIA Vietnam announces selected product exits", "22/06", "22 Jun", "VIỆT NAM · DANH MỤC", "VIETNAM · PORTFOLIO", "Áp dụng qua kênh Đại lý và Đối tác; cần quản trị chuyển tiếp.", "Agency and Partner channels require a controlled transition.", 45, "CORAL"),
+                                datum(vi, "Prudential triển khai chương trình phát triển tư vấn viên", "Prudential launches advisor-development programme", "02/07", "2 Jul", "VIỆT NAM · KÊNH", "VIETNAM · CHANNEL", "Tín hiệu về tiêu chuẩn tư vấn và trải nghiệm khách hàng.", "A signal on advice standards and customer experience.", 100, "TEAL"))),
+                exhibit("03", "KPI", vi,
+                        "Một lát cắt quy mô thị trường bảo hiểm Việt Nam", "A Vietnam insurance-market pulse",
+                        "PVI dẫn đầu phi nhân thọ trong bốn tháng đầu năm; đây là bối cảnh quy mô, không phải bằng chứng nhu cầu sản phẩm nhân thọ.",
+                        "PVI led non-life in the first four months; this is scale context, not evidence of life-product demand.",
+                        "Số liệu phi nhân thọ lũy kế tháng 1-4/2026 từ cơ quan quản lý Việt Nam.",
+                        "Vietnam regulator data for cumulative non-life performance, January-April 2026.",
+                        "F-1820", List.of(
+                                datum(vi, "Doanh thu phí gốc", "Gross written premium", "6.269 tỷ", "VND 6,269bn", "THÁNG 1-4", "JAN-APR", "PVI", "PVI", 100, "BLUE"),
+                                datum(vi, "Thị phần", "Market share", "18,97%", "18.97%", "PHI NHÂN THỌ", "NON-LIFE", "Dẫn đầu thị trường", "Market leader", 95, "GOLD"),
+                                datum(vi, "Tăng trưởng", "Year-on-year growth", "+14,54%", "+14.54%", "SO VỚI CÙNG KỲ", "YEAR ON YEAR", "Tín hiệu quy mô, không phải nhu cầu nhân thọ", "Scale signal, not life demand", 73, "TEAL"))),
+                exhibit("04", "FLOW", vi,
+                        "HIVE minh họa một hệ thống sản phẩm có thể tái sử dụng", "HIVE illustrates a reusable product system",
+                        "Giá trị nằm ở luồng từ hệ thống lõi đến thành phần sản phẩm và kênh, không chỉ ở một phần mềm riêng lẻ.",
+                        "Value sits in the flow from core systems to reusable product components and channels, not in standalone software.",
+                        "Sơ đồ là tổng hợp biên tập từ mô tả công khai; tốc độ, chi phí và kết quả thương mại vẫn cần bằng chứng thực thi.",
+                        "The diagram is editorial synthesis of public descriptions; speed, cost and commercial outcomes still need execution evidence.",
+                        "F-819,F-820,F-821,F-822,F-823", List.of(
+                                datum(vi, "Hệ thống lõi", "Core systems", "01", "01", "NỀN TẢNG", "FOUNDATION", "Dữ liệu hợp đồng và vận hành", "Policy and operating data", 25, "BLUE"),
+                                datum(vi, "Lớp HIVE ưu tiên API", "API-first HIVE layer", "02", "02", "KẾT NỐI", "CONNECT", "Kết nối hệ thống lõi với phân phối", "Connects core systems to distribution", 50, "VIOLET"),
+                                datum(vi, "Thành phần sản phẩm dùng lại", "Reusable product components", "03", "03", "TÁI SỬ DỤNG", "REUSE", "Mô hình sản phẩm và tri thức vận hành", "Product models and operating knowledge", 75, "TEAL"),
+                                datum(vi, "Kênh và mô hình đề xuất", "Channels and proposition forms", "04", "04", "PHÂN PHỐI", "DISTRIBUTE", "Micro-insurance, thuê bao và theo mức sử dụng", "Micro, subscription and usage-based forms", 100, "GOLD"))));
+    }
+
+    private static List<EditorialExhibit> quarterlyExhibits(boolean vi) {
+        return List.of(
+                exhibit("01", "BAR", vi,
+                        "Người tiêu dùng đánh giá thấp chi phí chăm sóc tại nhà", "Consumers underestimate home-care cost",
+                        "Chênh lệch S$1.1k tương đương khoảng 32% chi phí dự báo, cho thấy quyền lợi tiền mặt có thể chưa đủ.",
+                        "The S$1.1k shortfall is about 32% of projected cost, suggesting cash benefits alone may be insufficient.",
+                        "Dữ liệu Singapore; phải nội địa hóa chi phí, hành vi và năng lực nhà cung cấp trước khi dùng tại Việt Nam.",
+                        "Singapore data; costs, behaviour and provider capacity must be localised before Vietnam use.",
+                        "F-920,F-921,F-922,F-924", List.of(
+                                datum(vi, "Ước tính của người khảo sát / tháng", "Respondent estimate / month", "S$2.4k", "S$2.4k", "NHẬN THỨC", "PERCEPTION", "", "", 69, "BLUE"),
+                                datum(vi, "Dự báo Care@Home / tháng", "Care@Home projection / month", "S$3.5k", "S$3.5k", "CHI PHÍ", "COST", "Khoảng trống S$1.1k", "S$1.1k gap", 100, "TEAL"))),
+                exhibit("02", "MATRIX", vi,
+                        "Nhịp tăng trưởng tăng trong khi thị phần gần như đi ngang", "Growth accelerated while share stayed broadly flat",
+                        "Lát cắt PVI cho thấy doanh thu lũy kế tăng và tốc độ so cùng kỳ cao hơn, nhưng thị phần không mở rộng tương ứng.",
+                        "The PVI snapshot shows higher cumulative premium and faster year-on-year growth without a matching share expansion.",
+                        "Hai kỳ lũy kế khác độ dài; dùng để theo dõi hướng đi, không so sánh như hai quý độc lập.",
+                        "The cumulative periods differ in length; use them directionally, not as two independent quarters.",
+                        "F-1805,F-1820", List.of(
+                                datum(vi, "Quý I/2026", "Q1 2026", "4.698 tỷ đồng", "VND 4,698bn", "19,18% thị phần", "19.18% share", "+5,99% so cùng kỳ", "+5.99% YoY", 75, "BLUE"),
+                                datum(vi, "Tháng 1-4/2026", "Jan-Apr 2026", "6.269 tỷ đồng", "VND 6,269bn", "18,97% thị phần", "18.97% share", "+14,54% so cùng kỳ", "+14.54% YoY", 100, "TEAL"))),
+                exhibit("03", "TIMELINE", vi,
+                        "Ba mốc cho thấy vòng đời sản phẩm đang vận động", "Three milestones show the product lifecycle in motion",
+                        "Quyền lợi thay đổi, thủ tục đại lý được tinh giản và một nhóm sản phẩm ngừng triển khai trong cùng cửa sổ 90 ngày.",
+                        "Benefits changed, an agent procedure was removed and a product set exited within the same 90-day window.",
+                        "Các mốc có chủ thể và phạm vi khác nhau; timeline thể hiện yêu cầu điều phối vòng đời, không khẳng định quan hệ nhân quả.",
+                        "The milestones have different owners and scopes; the timeline shows lifecycle coordination needs, not causality.",
+                        "F-1842,F-1811,F-1843,F-1844,F-1848", List.of(
+                                datum(vi, "AIA điều chỉnh hạn mức và quyền lợi NCI", "AIA adjusts NCI limits and benefits", "06/05", "6 May", "SẢN PHẨM", "PRODUCT", "Thay đổi áp dụng cho hợp đồng có NCI theo phạm vi công bố.", "Change applies to NCI-linked contracts within the published scope.", 33, "BLUE"),
+                                datum(vi, "Bãi bỏ thủ tục chuyển đổi chứng chỉ đại lý", "Agent-certificate conversion procedure abolished", "08/06", "8 Jun", "QUY ĐỊNH", "REGULATION", "Quyết định 1381/QĐ-BTC tinh giản một thủ tục hành chính.", "Decision 1381/QD-BTC removes one administrative procedure.", 66, "GOLD"),
+                                datum(vi, "AIA thông báo ngừng một số sản phẩm", "AIA announces selected product exits", "22/06", "22 Jun", "DANH MỤC", "PORTFOLIO", "Hai kênh phân phối cần kế hoạch chuyển tiếp nhất quán.", "Two distribution channels require a consistent transition plan.", 100, "CORAL"))),
+                exhibit("04", "MATRIX", vi,
+                        "Ba khái niệm quốc tế, ba phép thử khác nhau cho Việt Nam", "Three international concepts, three different Vietnam tests",
+                        "Không sao chép quyền lợi; tách vấn đề khách hàng, cơ chế sản phẩm và năng lực vận hành cần kiểm chứng.",
+                        "Do not copy benefits; separate customer problem, product mechanics and the operating capability to validate.",
+                        "Ma trận là tổng hợp của biên tập viên từ nguồn công khai và phải đi qua nghiên cứu khách hàng, pháp lý và định phí tại Việt Nam.",
+                        "The matrix is human synthesis of public sources and still requires Vietnam customer, legal and actuarial validation.",
+                        "F-1209,F-1210,F-1211,F-1212,F-1213,F-919,F-920,F-921,F-922,F-924,F-819,F-820,F-821,F-822,F-823", List.of(
+                                datum(vi, "Wealth Flexi", "Wealth Flexi", "Chỉ dẫn · chia tách · rút tiền theo lịch", "Instructions · splitting · scheduled withdrawals", "Di sản và chuyển giao tài sản HNW", "HNW legacy and wealth transfer", "Kiểm tra nhu cầu HNW, dịch vụ và phù hợp pháp lý", "Test HNW need, servicing and legal fit", 80, "BLUE"),
+                                datum(vi, "Chăm sóc tại nhà", "Home-based care", "Bảo vệ tiền mặt + điều phối dịch vụ", "Cash protection + service coordination", "Chi phí chăm sóc và gánh nặng người chăm sóc", "Care cost and caregiver burden", "Nội địa hóa chi phí, mạng lưới và khả năng chi trả", "Localise costs, network and affordability", 90, "TEAL"),
+                                datum(vi, "HIVE", "HIVE", "API + thành phần sản phẩm tái sử dụng", "APIs + reusable product components", "Ra mắt chậm và hành trình đối tác phân mảnh", "Slow launches and fragmented partner journeys", "Chọn một use case có kinh tế đơn vị đo được", "Choose one use case with measurable unit economics", 100, "VIOLET"))),
+                exhibit("05", "ROADMAP", vi,
+                        "Từ tín hiệu quốc tế đến một thử nghiệm có trách nhiệm", "From international signal to responsible experiment",
+                        "Ba cổng trong 90 ngày giữ ý tưởng gắn với vấn đề Việt Nam, kinh tế và khả năng vận hành.",
+                        "Three gates over 90 days keep the idea tied to a Vietnam problem, economics and operability.",
+                        "Roadmap là khuyến nghị biên tập, không phải cam kết triển khai hoặc phê duyệt sản phẩm.",
+                        "The roadmap is an editorial recommendation, not a launch commitment or product approval.",
+                        "F-1209,F-919,F-920,F-819,F-820,F-1843", List.of(
+                                datum(vi, "Chọn một vấn đề khách hàng", "Choose one customer problem", "30 NGÀY", "30 DAYS", "CỔNG 1", "GATE 1", "Định nghĩa phân khúc, job-to-be-done và bằng chứng nhu cầu Việt Nam.", "Define segment, job-to-be-done and Vietnam demand evidence.", 33, "BLUE"),
+                                datum(vi, "Kiểm tra ranh giới", "Test the boundaries", "60 NGÀY", "60 DAYS", "CỔNG 2", "GATE 2", "Đánh giá pháp lý, định phí, dịch vụ, dữ liệu và đối tác.", "Assess legal, actuarial, service, data and partner constraints.", 66, "GOLD"),
+                                datum(vi, "Tạo prototype có thể đo", "Build a measurable prototype", "90 NGÀY", "90 DAYS", "CỔNG 3", "GATE 3", "Thử cơ chế sản phẩm và mô hình vận hành với chỉ số dừng/tiếp tục.", "Test product mechanics and operating model with stop/go measures.", 100, "TEAL"))));
+    }
+
+    private static EditorialExhibit exhibit(String number, String type, boolean vi,
+                                             String viTitle, String enTitle,
+                                             String viTakeaway, String enTakeaway,
+                                             String viNote, String enNote,
+                                             String citations, List<ExhibitDatum> data) {
+        return new EditorialExhibit(number, type, true, t(vi, viTitle, enTitle),
+                t(vi, viTakeaway, enTakeaway), t(vi, viNote, enNote), citations, data);
+    }
+
+    private static ExhibitDatum datum(boolean vi,
+                                      String viLabel, String enLabel,
+                                      String viValue, String enValue,
+                                      String viContext, String enContext,
+                                      String viDetail, String enDetail,
+                                      int width, String tone) {
+        return new ExhibitDatum(t(vi, viLabel, enLabel), t(vi, viValue, enValue),
+                t(vi, viContext, enContext), t(vi, viDetail, enDetail), width, tone);
     }
 
     private static EditorialTakeaway takeaway(String number, boolean vi, String viTitle, String enTitle,
@@ -403,6 +587,34 @@ public class ProductReportEditorialService {
         return value == null || value.isBlank() ? fallback : value.strip();
     }
 
+    private static int width(MultiValueMap<String, String> form, String key, int fallback) {
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(value(form, key,
+                    Integer.toString(fallback)))));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static String exhibitType(String requested, String fallback) {
+        String normalized = requested == null ? "" : requested.strip().toUpperCase(Locale.ROOT);
+        return EXHIBIT_TYPES.contains(normalized) ? normalized : fallback;
+    }
+
+    private static String tone(String requested, String fallback) {
+        String normalized = requested == null ? "" : requested.strip().toUpperCase(Locale.ROOT);
+        return EXHIBIT_TONES.contains(normalized) ? normalized : fallback;
+    }
+
+    /** An exhibit may cite only evidence already present in the locked editorial register. */
+    private static String safeCitations(String requested, List<String> allowed, String fallback) {
+        if (requested == null || requested.isBlank() || allowed == null) return fallback;
+        Set<String> allowedSet = Set.copyOf(allowed);
+        List<String> safe = Arrays.stream(requested.split("[,·]"))
+                .map(String::strip).filter(allowedSet::contains).distinct().toList();
+        return safe.isEmpty() ? fallback : String.join(",", safe);
+    }
+
     private static boolean isVi(Locale locale) {
         return locale != null && "vi".equals(locale.getLanguage());
     }
@@ -412,10 +624,15 @@ public class ProductReportEditorialService {
     public record EditorialBrief(String title, String deck, String leadLabel, String leadHeadline,
                                  String leadNarrative, MarketBridge marketBridge,
                                  List<EditorialTakeaway> takeaways,
-                                 EditorialChart chart, String numbersHeadline,
+                                 EditorialChart chart, List<EditorialExhibit> exhibits,
+                                 String numbersHeadline,
                                  List<EditorialDecision> decisions, String watchlist,
                                  String editorialBoundary, List<String> citedFactCodes,
-                                 String editor, String reviewedAt, String status) {}
+                                 String editor, String reviewedAt, String status) {
+        public EditorialBrief {
+            exhibits = exhibits == null ? List.of() : List.copyOf(exhibits);
+        }
+    }
 
     public record MarketBridge(String domesticRead, String internationalRead,
                                String vietnamImplication, String decisionQuestion) {}
@@ -426,6 +643,50 @@ public class ProductReportEditorialService {
     public record EditorialChart(String title, String firstLabel, String firstValue, int firstWidth,
                                  String secondLabel, String secondValue, int secondWidth,
                                  String note, String citationCode) {}
+
+    /** Structured, human-editable exhibit rendered consistently in web and PDF. */
+    public record EditorialExhibit(String number, String type, boolean enabled,
+                                   String title, String takeaway, String note,
+                                   String citationCodes, List<ExhibitDatum> data) {
+        public EditorialExhibit {
+            type = exhibitType(type, "KPI");
+            data = data == null ? List.of() : List.copyOf(data);
+        }
+
+        public String getTypeLabelEn() {
+            return switch (type) {
+                case "BAR" -> "Comparison";
+                case "KPI" -> "Market pulse";
+                case "TIMELINE" -> "Timeline";
+                case "FLOW" -> "Capability flow";
+                case "MATRIX" -> "Decision matrix";
+                case "ROADMAP" -> "Roadmap";
+                default -> "Exhibit";
+            };
+        }
+
+        public String getTypeLabelVi() {
+            return switch (type) {
+                case "BAR" -> "So sánh";
+                case "KPI" -> "Nhịp thị trường";
+                case "TIMELINE" -> "Dòng thời gian";
+                case "FLOW" -> "Luồng năng lực";
+                case "MATRIX" -> "Ma trận quyết định";
+                case "ROADMAP" -> "Lộ trình";
+                default -> "Biểu đồ";
+            };
+        }
+    }
+
+    public record ExhibitDatum(String label, String value, String context, String detail,
+                               int width, String tone) {
+        public ExhibitDatum {
+            width = Math.max(0, Math.min(100, width));
+            tone = ProductReportEditorialService.tone(tone, "BLUE");
+        }
+
+        public String getToneClass() { return tone.toLowerCase(Locale.ROOT); }
+    }
 
     public record EditorialDecision(String horizon, String action, String rationale) {}
 

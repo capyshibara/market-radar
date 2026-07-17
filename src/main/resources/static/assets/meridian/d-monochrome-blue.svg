@@ -1,0 +1,37 @@
+<svg viewBox="0 0 680 380" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="2.4" fill="#0E1B6B"/></pattern>
+    <pattern id="check" width="28" height="28" patternUnits="userSpaceOnUse"><rect width="14" height="14" fill="#3B5BDB"/><rect x="14" y="14" width="14" height="14" fill="#3B5BDB"/><rect x="14" width="14" height="14" fill="#0E1B6B"/><rect y="14" width="14" height="14" fill="#0E1B6B"/></pattern>
+    <pattern id="stripe" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="18" fill="#1531B8"/><rect x="9" width="9" height="18" fill="#0E1B6B"/></pattern>
+    <clipPath id="left"><circle cx="177" cy="190" r="464"/></clipPath>
+    <clipPath id="right"><circle cx="503" cy="190" r="464"/></clipPath>
+    <clipPath id="canvas"><rect width="680" height="380"/></clipPath>
+  </defs>
+  <rect width="680" height="380" fill="#0E1B6B"/>
+  <circle cx="177" cy="190" r="464" fill="#1531B8" stroke="#0B1226" stroke-width="2"/>
+  <circle cx="503" cy="190" r="464" fill="#3B5BDB" stroke="#0B1226" stroke-width="2"/>
+  <g clip-path="url(#left)"><rect width="123" height="380" fill="url(#stripe)"/></g>
+  <g clip-path="url(#right)"><rect x="571" width="109" height="380" fill="url(#check)"/></g>
+  <path d="M340-244A464 464 0 0 1 340 624A464 464 0 0 1 340-244Z" fill="#F2EFE8" stroke="#0B1226" stroke-width="2.5"/>
+  <circle cx="340" cy="190" r="175" fill="#2647E8" stroke="#0B1226" stroke-width="2"/>
+  <circle cx="340" cy="190" r="175" fill="url(#dots)"/>
+  <circle cx="340" cy="190" r="137" fill="#8FA6FF" stroke="#0B1226" stroke-width="2"/>
+  <circle cx="340" cy="190" r="103" fill="#0E1B6B" stroke="#0B1226" stroke-width="2"/>
+  <circle cx="340" cy="190" r="68" fill="#F2EFE8" stroke="#0B1226" stroke-width="2"/>
+  <circle cx="340" cy="190" r="30" fill="#1531B8" stroke="#0B1226" stroke-width="2"/>
+  <g clip-path="url(#canvas)" fill="none" stroke="#0B1226" stroke-width="2">
+    <circle cx="0" cy="0" r="85"/><circle cx="0" cy="0" r="52"/><circle cx="0" cy="0" r="145"/><circle cx="0" cy="0" r="113"/><circle cx="0" cy="0" r="206"/><circle cx="0" cy="0" r="174"/>
+    <circle cx="680" cy="380" r="85"/><circle cx="680" cy="380" r="52"/><circle cx="680" cy="380" r="145"/><circle cx="680" cy="380" r="113"/><circle cx="680" cy="380" r="206"/><circle cx="680" cy="380" r="174"/>
+  </g>
+  <g clip-path="url(#canvas)" opacity=".94" stroke="#0B1226" stroke-width="1.6">
+    <path d="M422 0H631A209 209 0 0 1 625 47Z" fill="#F2EFE8"/><path d="M422 0L610 91A209 209 0 0 1 585 130Z" fill="#3B5BDB"/>
+    <path d="M422 0L552 163A209 209 0 0 1 512 188Z" fill="#F2EFE8"/><path d="M422 0L468 204A209 209 0 0 1 422 209Z" fill="#3B5BDB"/>
+    <path d="M422 0L375 204A209 209 0 0 1 331 188Z" fill="#F2EFE8"/><path d="M422 0L291 163A209 209 0 0 1 258 130Z" fill="#3B5BDB"/>
+    <path d="M422 0L233 91A209 209 0 0 1 218 47Z" fill="#F2EFE8"/><path d="M422 0H213A209 209 0 0 1 218-47Z" fill="#3B5BDB"/>
+    <circle cx="422" cy="0" r="38" fill="#F2EFE8" stroke-width="2"/>
+  </g>
+  <circle cx="613" cy="31" r="7" fill="#F2EFE8" stroke="#0B1226" stroke-width="2"/><circle cx="613" cy="349" r="7" fill="#F2EFE8" stroke="#0B1226" stroke-width="2"/>
+  <rect x="54" y="53" width="12" height="12" fill="#8FA6FF" stroke="#0B1226" stroke-width="1.5" transform="rotate(45 60 59)"/>
+  <rect x="612" y="274" width="10" height="10" fill="#F2EFE8" stroke="#0B1226" stroke-width="1.5" transform="rotate(45 617 279)"/>
+  <path d="M117 209A49 49 0 0 0 117 308A69 69 0 0 1 117 209Z" fill="#8FA6FF" stroke="#0B1226" stroke-width="2"/>
+</svg>

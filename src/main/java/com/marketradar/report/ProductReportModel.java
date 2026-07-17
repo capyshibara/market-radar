@@ -74,6 +74,13 @@ public class ProductReportModel {
         model.put("executiveBrief", ProductExecutiveBrief.from(snapshot, vi));
         ProductReportEditorialService.EditorialBrief editorialBrief = editorial.current(cadence, locale);
         model.put("editorialBrief", editorialBrief);
+        java.util.List<ProductReportEditorialService.EditorialExhibit> activeExhibits =
+                editorialBrief.exhibits().stream()
+                        .filter(ProductReportEditorialService.EditorialExhibit::enabled).toList();
+        model.put("editorialExhibits", activeExhibits);
+        model.put("editorialHeroExhibit", activeExhibits.isEmpty() ? null : activeExhibits.get(0));
+        model.put("editorialDashboardExhibits", activeExhibits.size() <= 1
+                ? java.util.List.of() : activeExhibits.subList(1, activeExhibits.size()));
         java.util.Set<String> currentCodes = snapshot.currentNews().stream()
                 .map(item -> item.factCode()).collect(java.util.stream.Collectors.toSet());
         model.put("editorialReferences", editorial.references(editorialBrief, currentCodes));

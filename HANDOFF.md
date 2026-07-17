@@ -5,6 +5,37 @@
 > `data-content-type` catalog metadata, restrained editorial accents, cover/back-cover pattern
 > artwork, and sourced exhibits rather than decorative pseudo-data.
 
+## Product Report Exhibit Studio + Meridian canvas — 2026-07-17
+
+- **Weekly, Monthly and Quarterly now contain a real visual-intelligence layer, not a decorative
+  chart slot.** The bilingual human editorial draft stores structured exhibits and renders the
+  same component in the browser and PDF. Supported forms are comparison bars, KPI strips,
+  timelines, capability flows, decision matrices and 30/60/90 roadmaps. The seeded current
+  briefs contain 3, 4 and 5 reviewed exhibits respectively, including Fubon growth, Swiss Re's
+  premium-growth reset, PVI's Vietnam market pulse, AIA's portfolio timeline, the HIVE capability
+  flow, product-concept matrices and a bounded 90-day experiment plan.
+- **Product Report Review now includes an Exhibit Studio.** For each cadence and language, a human
+  editor can change the exhibit type, headline, takeaway, caveat, visibility, data rows, labels,
+  values, annotations, bar width and data colour. Every citation is constrained to that edition's
+  locked fact-code register. Computed comparisons must remain explained in the exhibit note. This
+  adds editorial control without letting a reviewer rewrite or bypass source evidence.
+- **The missing report-frame artwork is restored.** The interactive Product Report canvas uses
+  the supplied design system's monochrome-blue Meridian D pattern around the warm-paper report,
+  at the same 1400px top-centre scale and luminosity treatment as the official ProductReport kit.
+  Print keeps pattern art on covers/section dividers and not behind body copy, matching the design
+  rule in `CLAUDE.md`.
+- **Backward compatibility is deliberate.** Existing saved EN/VI editorial drafts automatically
+  inherit the new cadence-specific exhibit set if their old JSON predates Exhibit Studio; existing
+  human-written narrative is retained. No pipeline or report regeneration is needed to obtain the
+  new visuals after rebuilding and restarting the app.
+- **Verification used only an isolated copied H2 database on port 8098.** All six EN/VI Product
+  readers, the editor and pattern asset returned HTTP 200. The rendered PDFs are landscape Letter:
+  Weekly 10 pages, Monthly 15 pages and Quarterly 20 pages in the QA corpus. Monthly and Quarterly
+  visual pages were rendered to PNG and visually inspected; a roadmap-label spacing issue found in
+  the first proof was fixed and re-rendered. An isolated editorial POST persisted and immediately
+  appeared in the reader. Maven packaging and the focused Product-report/market regression suites
+  pass. The user's live port-8081 database and pipeline were not touched by this QA run.
+
 ## Vietnam / international Product intelligence split — 2026-07-17
 
 - **The rolling Product reports are now domestic-first without becoming inward-looking.** Weekly,

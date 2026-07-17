@@ -62,13 +62,8 @@
           <p class="editorial-byline"><span th:text="${vi ? 'Biên tập và rà soát bởi ' : 'Curated and reviewed by '}">Reviewed by </span><strong th:text="${editorialBrief.editor}">Product SME</strong><span th:text="${' · ' + editorialBrief.reviewedAt}">Date</span></p>
           <p class="lead-narrative" th:text="${editorialBrief.leadNarrative}">Narrative</p>
         </article>
-        <aside class="editorial-chart" th:if="${editorialBrief.chart != null}">
-          <p class="chart-label" th:text="${vi ? 'DỮ LIỆU ĐÁNG NHỚ' : 'DATA TO REMEMBER'}">Data to remember</p>
-          <h3 th:text="${editorialBrief.chart.title}">Chart title</h3>
-          <div class="compare-row"><div class="compare-name"><span th:text="${editorialBrief.chart.firstLabel}">First</span><strong th:text="${editorialBrief.chart.firstValue}">35%</strong></div><div class="compare-track"><span class="compare-bar first" th:style="${'width:' + editorialBrief.chart.firstWidth + '%'}"></span></div></div>
-          <div class="compare-row"><div class="compare-name"><span th:text="${editorialBrief.chart.secondLabel}">Second</span><strong th:text="${editorialBrief.chart.secondValue}">19%</strong></div><div class="compare-track"><span class="compare-bar second" th:style="${'width:' + editorialBrief.chart.secondWidth + '%'}"></span></div></div>
-          <p class="chart-note" th:text="${editorialBrief.chart.note}">Chart note</p>
-          <code th:text="${editorialBrief.chart.citationCode}">F-001</code>
+        <aside class="editorial-chart exhibit-hero-shell" th:if="${editorialHeroExhibit != null}">
+          <th:block th:replace="~{fragments/product-report-exhibit :: card(${editorialHeroExhibit},${vi},true)}"></th:block>
         </aside>
       </div>
 
@@ -80,6 +75,11 @@
           <article class="bridge-column implication"><span class="scope-pill implication" th:text="${vi ? 'CẦU NỐI · KHẢ NĂNG ÁP DỤNG' : 'BRIDGE · VIETNAM APPLICABILITY'}">Bridge</span><p th:text="${editorialBrief.marketBridge.vietnamImplication}">Vietnam implication</p></article>
         </div>
         <div class="bridge-question"><strong th:text="${vi ? 'Câu hỏi cho Product' : 'The Product question'}">The Product question</strong><p th:text="${editorialBrief.marketBridge.decisionQuestion}">Decision question</p></div>
+      </section>
+
+      <section class="visual-intelligence" th:if="${!#lists.isEmpty(editorialDashboardExhibits)}">
+        <div class="section-head visual-head"><div><div class="section-kicker" th:text="${vi ? '02 · TÌNH BÁO TRỰC QUAN' : '02 · VISUAL INTELLIGENCE'}">Visual intelligence</div><h2 th:text="${vi ? 'Nhìn thấy chuyển động trước khi đọc hồ sơ' : 'See the movement before reading the ledger'}">Visual intelligence</h2><p class="section-intro" th:text="${vi ? 'Biểu đồ định lượng khi nguồn có số liệu; timeline, ma trận và luồng năng lực khi bằng chứng mang tính cấu trúc. Mọi exhibit đều giữ fact code và giới hạn diễn giải.' : 'Quantitative charts where sources contain numbers; timelines, matrices and capability flows where evidence is structural. Every exhibit keeps its fact codes and interpretation boundary.'}">Evidence-linked visual synthesis.</p></div><div class="section-stat"><strong th:text="${#lists.size(editorialExhibits)}">4</strong><span th:text="${vi ? 'exhibit đã rà soát' : 'reviewed exhibits'}">reviewed exhibits</span></div></div>
+        <div class="visual-grid"><th:block th:each="exhibit:${editorialDashboardExhibits}"><th:block th:replace="~{fragments/product-report-exhibit :: card(${exhibit},${vi},false)}"></th:block></th:block></div>
       </section>
 
       <div class="editorial-takeaways">
@@ -106,7 +106,7 @@
     <section class="report-section current-news" th:if="${hasCurrentProductNews}">
       <div class="section-head">
         <div>
-          <div class="section-kicker" th:text="${vi ? '02 · BẰNG CHỨNG ĐẰNG SAU BẢN TIN' : '02 · EVIDENCE BEHIND THE BRIEF'}">Evidence behind the brief</div>
+          <div class="section-kicker" th:text="${vi ? '03 · BẰNG CHỨNG ĐẰNG SAU BẢN TIN' : '03 · EVIDENCE BEHIND THE BRIEF'}">Evidence behind the brief</div>
           <h2 th:text="${vi ? 'Diễn biến nguồn để Product tự kiểm tra' : 'Source developments Product can inspect'}">Fresh news</h2>
           <p class="section-intro" th:text="${vi ? 'Mỗi mục giữ liên kết nguồn, bản tóm tắt theo ngôn ngữ báo cáo và trích dẫn nguyên văn để người đọc có thể đi từ insight trở lại bằng chứng.' : 'Each item keeps the source link, a report-language summary and verbatim evidence so the reader can move from insight back to proof.'}">Fresh developments.</p>
         </div>
@@ -155,7 +155,7 @@
     <section class="report-section" th:if="${decisionReady or watchBrief}">
       <div class="section-head">
         <div>
-          <div class="section-kicker" th:text="${vi ? '03 · TÍN HIỆU DO AI SOẠN VÀ ĐÃ QUA CỔNG' : '03 · GATE-PASSED MACHINE SIGNALS'}">03 · Gate-passed signals</div>
+          <div class="section-kicker" th:text="${vi ? '04 · TÍN HIỆU DO AI SOẠN VÀ ĐÃ QUA CỔNG' : '04 · GATE-PASSED MACHINE SIGNALS'}">04 · Gate-passed signals</div>
           <h2 th:text="${decisionReady ? (vi ? 'Insight sẵn sàng cho quyết định' : 'Decision-ready insights') : (vi ? 'Tín hiệu đã kiểm tra để Bộ phận Sản phẩm xác minh' : 'Validated signals for Product to investigate')}">Product implications</h2>
           <p class="section-intro" th:text="${decisionReady ? (vi ? 'Các insight dưới đây đã vượt qua cổng bằng chứng và xuất bản.' : 'These insights passed the evidence and publication gates.') : (vi ? 'Dùng làm giả thuyết kiểm chứng; chưa diễn giải thành xu hướng toàn thị trường.' : 'Use these as validation hypotheses, not market-wide conclusions.')}">Validated implications.</p>
         </div>
@@ -207,7 +207,7 @@
 
 
     <section class="report-section empty-evidence" th:if="${!hasCurrentProductNews}">
-      <div class="section-kicker" th:text="${vi ? '02 · KHOẢNG TRỐNG BẰNG CHỨNG' : '02 · EVIDENCE GAP'}">Evidence gap</div>
+      <div class="section-kicker" th:text="${vi ? '03 · KHOẢNG TRỐNG BẰNG CHỨNG' : '03 · EVIDENCE GAP'}">Evidence gap</div>
       <h2 th:text="${vi ? 'Chưa có dữ kiện hiện tại đủ điều kiện cho Bộ phận Sản phẩm' : 'No current Product evidence met the source gate'}">No current Product evidence.</h2>
       <p th:text="${executiveBrief.posture}">Expand current source coverage.</p>
     </section>

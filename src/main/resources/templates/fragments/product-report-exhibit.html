@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<article th:fragment="card(exhibit,vi,compact)" class="exhibit-card"
+         th:classappend="${' type-' + #strings.toLowerCase(exhibit.type) + (compact ? ' compact' : '')}">
+  <header class="exhibit-head">
+    <div><span class="exhibit-number" th:text="${'EXHIBIT ' + exhibit.number}">EXHIBIT 01</span><span class="exhibit-kind" th:text="${vi ? exhibit.typeLabelVi : exhibit.typeLabelEn}">Comparison</span></div>
+    <code th:text="${exhibit.citationCodes}">F-001</code>
+  </header>
+  <h3 th:text="${exhibit.title}">Exhibit title</h3>
+  <p class="exhibit-takeaway" th:text="${exhibit.takeaway}">Evidence-led takeaway.</p>
+
+  <div class="exhibit-bars" th:if="${exhibit.type == 'BAR'}">
+    <div class="exhibit-bar-row" th:each="datum:${exhibit.data}">
+      <div class="exhibit-bar-label"><span><small th:if="${!#strings.isEmpty(datum.context)}" th:text="${datum.context}">Context</small><b th:text="${datum.label}">Label</b></span><strong th:text="${datum.value}">35%</strong></div>
+      <div class="exhibit-track"><span class="exhibit-fill" th:classappend="${datum.toneClass}" th:style="${'width:' + datum.width + '%'}"></span></div>
+      <p th:if="${!#strings.isEmpty(datum.detail)}" th:text="${datum.detail}">Detail</p>
+    </div>
+  </div>
+
+  <div class="exhibit-kpis" th:if="${exhibit.type == 'KPI'}">
+    <div class="exhibit-kpi" th:each="datum:${exhibit.data}" th:classappend="${datum.toneClass}">
+      <small th:text="${datum.context}">Context</small><strong th:text="${datum.value}">0</strong><b th:text="${datum.label}">Metric</b><p th:text="${datum.detail}">Detail</p>
+    </div>
+  </div>
+
+  <div class="exhibit-timeline" th:if="${exhibit.type == 'TIMELINE'}">
+    <div class="timeline-item" th:each="datum:${exhibit.data}" th:classappend="${datum.toneClass}">
+      <span class="timeline-date" th:text="${datum.value}">15 Jul</span><span class="timeline-dot"></span>
+      <small th:text="${datum.context}">Market</small><b th:text="${datum.label}">Milestone</b><p th:text="${datum.detail}">Detail</p>
+    </div>
+  </div>
+
+  <div class="exhibit-flow" th:if="${exhibit.type == 'FLOW'}">
+    <th:block th:each="datum,stat:${exhibit.data}">
+      <div class="flow-step" th:classappend="${datum.toneClass}"><span th:text="${datum.value}">01</span><small th:text="${datum.context}">Layer</small><b th:text="${datum.label}">Step</b><p th:text="${datum.detail}">Detail</p></div>
+      <span class="flow-arrow" th:unless="${stat.last}">→</span>
+    </th:block>
+  </div>
+
+  <div class="exhibit-matrix-wrap" th:if="${exhibit.type == 'MATRIX'}">
+    <table class="exhibit-matrix"><thead><tr><th th:text="${vi ? 'Mục / khái niệm' : 'Item / concept'}">Item</th><th th:text="${vi ? 'Giá trị / cơ chế' : 'Value / mechanism'}">Value</th><th th:text="${vi ? 'Bối cảnh / nhu cầu' : 'Context / need'}">Context</th><th th:text="${vi ? 'Góc đọc quyết định' : 'Decision read'}">Decision read</th></tr></thead>
+      <tbody><tr th:each="datum:${exhibit.data}"><th th:text="${datum.label}">Concept</th><td th:text="${datum.value}">Value</td><td th:text="${datum.context}">Context</td><td th:text="${datum.detail}">Decision read</td></tr></tbody></table>
+  </div>
+
+  <div class="exhibit-roadmap" th:if="${exhibit.type == 'ROADMAP'}">
+    <div class="roadmap-step" th:each="datum,stat:${exhibit.data}" th:classappend="${datum.toneClass}">
+      <div class="roadmap-top"><span th:text="${datum.value}">30 DAYS</span><small th:text="${datum.context}">Gate 1</small></div><b th:text="${datum.label}">Action</b><p th:text="${datum.detail}">Detail</p>
+    </div>
+  </div>
+
+  <footer class="exhibit-foot"><span th:text="${exhibit.note}">Method note.</span><code th:text="${exhibit.citationCodes}">F-001</code></footer>
+</article>
+</body>
+</html>

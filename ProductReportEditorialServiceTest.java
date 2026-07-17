@@ -15,6 +15,21 @@ public class ProductReportEditorialServiceTest {
             check(en.decisions().size() == 3, cadence + " has three decision prompts");
             check(en.chart() != null && en.chart().citationCode().startsWith("F-"),
                     cadence + " chart is evidence-linked");
+            int expectedExhibits = switch (cadence) {
+                case WEEKLY -> 3;
+                case MONTHLY -> 4;
+                case QUARTERLY -> 5;
+            };
+            check(en.exhibits().size() == expectedExhibits,
+                    cadence + " has the expected visual intelligence depth");
+            check(vi.exhibits().size() == expectedExhibits,
+                    cadence + " has matching Vietnamese exhibits");
+            check(en.exhibits().stream().allMatch(exhibit -> exhibit.enabled()
+                            && !exhibit.data().isEmpty()
+                            && exhibit.citationCodes().startsWith("F-")),
+                    cadence + " exhibits are enabled, structured and evidence-linked");
+            check("BAR".equals(en.exhibits().get(0).type()),
+                    cadence + " lead exhibit is a quantitative comparison");
             check(en.leadNarrative().length() > 300, cadence + " English analysis is substantive");
             check(vi.leadNarrative().length() > 250, cadence + " Vietnamese analysis is substantive");
             check(en.marketBridge() != null, cadence + " has a domestic/international bridge");

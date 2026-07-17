@@ -86,6 +86,42 @@ public class PdfExportService {
             .compare-track { background:#D9D5CA !important; }
             .compare-bar.first { background:#2647E8 !important; }
             .compare-bar.second { background:#00BFA6 !important; }
+            .exhibit-hero-shell { padding:0 !important; }
+            .exhibit-card { display:block !important; background:#F4F1E9 !important;
+                            border:1px solid #CFCABB !important; border-top:3px solid #2647E8 !important;
+                            page-break-inside:avoid !important; margin-bottom:5mm !important; }
+            .exhibit-card.compact { border:0 !important; margin:0 !important; background:#F1EEE5 !important; }
+            .exhibit-head, .exhibit-bar-label, .exhibit-foot { display:table !important; width:100% !important; }
+            .exhibit-head > div, .exhibit-head > code,
+            .exhibit-bar-label > span, .exhibit-bar-label > strong,
+            .exhibit-foot > span, .exhibit-foot > code { display:table-cell !important; vertical-align:bottom !important; }
+            .exhibit-head > code, .exhibit-bar-label > strong, .exhibit-foot > code { text-align:right !important; }
+            .exhibit-card h3, .roadmap-step b, .timeline-item b, .flow-step b { color:#0E1B6B !important; }
+            .exhibit-takeaway, .timeline-item p, .flow-step p, .roadmap-step p { color:#3E4147 !important; }
+            .exhibit-track { background:#D9D5CA !important; }
+            .exhibit-fill.blue, .timeline-item.blue .timeline-dot { background:#2647E8 !important; }
+            .exhibit-fill.teal, .timeline-item.teal .timeline-dot { background:#00BFA6 !important; }
+            .exhibit-fill.gold, .timeline-item.gold .timeline-dot { background:#F5A623 !important; }
+            .exhibit-fill.coral, .timeline-item.coral .timeline-dot { background:#FF5A36 !important; }
+            .exhibit-fill.violet, .timeline-item.violet .timeline-dot { background:#8B5CF6 !important; }
+            .visual-intelligence { page-break-before:always !important; }
+            .visual-grid { display:block !important; }
+            .exhibit-kpis, .exhibit-timeline, .exhibit-flow, .exhibit-roadmap { display:table !important; width:100% !important; table-layout:fixed !important; }
+            .exhibit-kpi, .timeline-item, .flow-step, .flow-arrow, .roadmap-step { display:table-cell !important; vertical-align:top !important; }
+            .exhibit-kpi, .roadmap-step { border-left:1px solid #CFCABB !important; }
+            .exhibit-kpi:first-child, .roadmap-step:first-child { border-left:0 !important; }
+            .roadmap-top span, .roadmap-top small { display:block !important; }
+            .roadmap-top small { margin-top:1.5mm !important; }
+            .exhibit-kpi.blue { border-top:5px solid #2647E8 !important; }
+            .exhibit-kpi.teal { border-top:5px solid #00BFA6 !important; }
+            .exhibit-kpi.gold { border-top:5px solid #F5A623 !important; }
+            .exhibit-kpi.coral { border-top:5px solid #FF5A36 !important; }
+            .exhibit-kpi.violet { border-top:5px solid #8B5CF6 !important; }
+            .flow-step { background:#ffffff !important; border:1px solid #CFCABB !important; }
+            .flow-arrow { width:6% !important; text-align:center !important; color:#1E38B6 !important; }
+            .exhibit-matrix th, .exhibit-matrix td { border-color:#CFCABB !important; }
+            .exhibit-matrix thead th { background:#0E1B6B !important; color:#ffffff !important; }
+            .exhibit-matrix tbody th { background:#EBEEFC !important; color:#0E1B6B !important; }
             .editorial-takeaways { border-top:2px solid #0E1B6B !important; border-bottom:1px solid #E3DFD4 !important; }
             .editorial-takeaway { width:33.333% !important; border-left:1px solid #E3DFD4 !important; padding:5mm !important; }
             .editorial-takeaway:first-child { border-left:0 !important; padding-left:0 !important; }
