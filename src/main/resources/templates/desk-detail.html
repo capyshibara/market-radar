@@ -12,12 +12,47 @@
 <link rel="stylesheet" href="/css/ops-components.css"/>
 <link rel="stylesheet" href="/css/ops-sidebar.css"/>
 <style>
-  .desk-banner { display:inline-block; margin-bottom:6px; padding:4px 11px; border-radius:6px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
-  .desk-banner[data-dept="PRODUCT"] { background:#EAF0FB; color:#274B8F; }
-  .desk-banner[data-dept="SALES"] { background:#FAF0DC; color:#7A5518; }
-  .desk-banner[data-dept="COMPLIANCE"] { background:#EAF3EE; color:#1F5A50; }
-  .routing-chip { display:inline-block; margin:2px 4px 0 0; padding:2px 8px; border:1px solid var(--border, #E1DDD2); border-radius:9px; font-size:11px; color:var(--text-secondary, #6b6a63); background:var(--surface, #fff); }
-  .desk-note { font-size:11.5px; color:var(--text-secondary, #6b6a63); }
+  .dk-banner { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    letter-spacing: .05em; text-transform: uppercase; }
+  .dk-banner.dk-PRODUCT { background: var(--blue-50, #EAF1FE); color: var(--blue-700, #2255BB); }
+  .dk-banner.dk-SALES { background: var(--amber-50, #FDF3E3); color: var(--amber-700, #92600C); }
+  .dk-banner.dk-COMPLIANCE { background: var(--green-50, #EAF7EF); color: var(--green-700, #1C6B3C); }
+
+  .batch-label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+    margin: 20px 6px 10px; display: flex; align-items: center; gap: 10px; color: var(--text-secondary); }
+  .batch-label:first-of-type { margin-top: 2px; }
+  .batch-label::after { content: ""; flex: 1; height: 1px; background: var(--border-default); }
+  .batch-label a { font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--blue-700, #2255BB); }
+  .batch-label .untracked { color: var(--text-tertiary); font-weight: 600; letter-spacing: .02em; text-transform: none; }
+
+  .report-row { background: var(--surface-card); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); padding: 16px 18px; display: flex; align-items: center;
+    justify-content: space-between; gap: 14px; }
+  .report-row + .report-row { margin-top: 10px; }
+  .report-row.superseded { opacity: .72; }
+  .report-name { font-weight: 700; font-size: 14.5px; color: var(--text-primary); }
+  .report-name .code { font-family: monospace; font-weight: 500; font-size: 11.5px;
+    color: var(--text-tertiary); margin-left: 8px; }
+  .report-meta { font-size: 11.5px; color: var(--text-tertiary); margin-top: 4px; }
+  .current-chip { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 9px;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    background: var(--blue-50, #EAF1FE); color: var(--blue-700, #2255BB); }
+  .superseded-chip { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 9px;
+    font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+    background: var(--surface-card-sunk); border: 1px solid var(--border-subtle); color: var(--text-tertiary); }
+
+  .audit-details { margin-top: 26px; }
+  .audit-details > summary { cursor: pointer; font-size: 12px; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary);
+    padding: 10px 6px; border-top: 1px solid var(--border-default); }
+  .audit-details > summary:hover { color: var(--text-primary); }
+  .batch-card { background: var(--surface-card); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); overflow: hidden; }
+  .routing-chip { display: inline-block; margin: 1px 4px 1px 0; padding: 2px 8px; border-radius: 9px;
+    font-family: monospace; font-size: 10px; background: var(--surface-card-sunk);
+    border: 1px solid var(--border-default); color: var(--text-secondary); }
+  .desk-note { font-size: 11px; color: var(--text-tertiary); margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -27,46 +62,96 @@
 <div class="ops-content">
   <div class="page-header">
     <div>
-      <span class="desk-banner" th:attr="data-dept=${dept.name()}" th:text="#{'ops.desks.dept.' + ${dept.name()}}">Desk</span>
-      <h1 th:text="#{ops.desks.detailTitle}">Routed stories</h1>
-      <p th:text="#{ops.desks.detailDescription}">Every story below was routed here by the deterministic rule table.</p>
+      <span class="dk-banner" th:classappend="'dk-' + ${dept.name()}" th:text="#{'ops.desks.dept.' + ${dept.name()}}">Desk</span>
+      <h1 th:text="#{ops.desks.detailTitle}">Reports</h1>
+      <p th:text="#{ops.desks.detailDescription}">Every report this desk has published, grouped by the pipeline batch it was built from.</p>
     </div>
-    <a class="btn btn-ghost" href="/desks" th:text="#{ops.desks.backToDesks}">← All desks</a>
+    <a class="btn btn-ghost btn-sm" href="/desks" th:text="#{ops.desks.backToDesks}">← All desks</a>
   </div>
 
-  <div class="empty-state" th:if="${items.isEmpty()}">
-    <div class="title" th:text="#{ops.desks.empty}">Nothing routed yet.</div>
+  <!-- ═══════ Reports (the entry points) ═══════ -->
+  <div class="empty-state" th:if="${feed.reportBatches.isEmpty()}">
+    <div class="title" th:text="#{ops.desks.noReports}">No reports published for this desk yet.</div>
+    <p th:text="#{ops.desks.noReportsHint}">Routed stories are already feeding this desk — reports launch here next.</p>
   </div>
 
-  <div class="data-table-wrap" th:unless="${items.isEmpty()}"><div class="data-table-scroll">
-    <table class="data-table">
-      <thead><tr>
-        <th th:text="#{ops.desks.colStory}">Story</th>
-        <th th:text="#{ops.desks.colPublished}">Published</th>
-        <th th:text="#{ops.desks.colRouting}">Routing</th>
-        <th th:text="#{ops.desks.colLinks}">Links</th>
-      </tr></thead>
-      <tbody>
-        <tr th:each="item : ${items}">
-          <td>
-            <div th:text="${item.title}">Title</div>
-            <div class="desk-note" th:text="${item.sourceName}">Source</div>
-          </td>
-          <td th:text="${item.publishedLabel}">01/07/2026</td>
-          <td>
-            <span class="routing-chip" th:each="label : ${item.labels}" th:text="${label}">LABEL</span>
-            <div class="desk-note" th:text="${item.routingNote}">Route note</div>
-          </td>
-          <td>
-            <a th:if="${item.factCode != null}" th:href="${'/report/story/' + item.factCode}"
-               th:text="${item.factCode}">F-001</a>
-            <a th:if="${item.externalLink}" th:href="${item.url}" target="_blank" rel="noopener"
-               th:text="#{ops.desks.openSource}">Source ↗</a>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div></div>
+  <th:block th:each="rb : ${feed.reportBatches}">
+    <div class="batch-label">
+      <span th:if="${rb.tracked}">
+        <span th:text="${#messages.msg('ops.desks.batch') + ' ' + rb.batchId}">Batch 7</span>
+        · <span th:text="${rb.startedLabel}">15/07/2026 09:00</span>
+        · <span th:text="${rb.runState}">SUCCESS</span>
+        · <a th:href="${'/pipeline/history#batch-' + rb.batchId}" th:text="#{ops.desks.viewRun}">View pipeline run ↗</a>
+      </span>
+      <span class="untracked" th:unless="${rb.tracked}" th:text="#{ops.desks.batchUntracked}">Before pipeline run tracking</span>
+    </div>
+    <div class="report-row" th:each="r : ${rb.reports}" th:classappend="${!r.current} ? 'superseded'">
+      <div>
+        <div class="report-name">
+          <span th:text="${r.cadence != null ? r.cadence.label(#locale.language == 'vi') : (r.windowDays + ' ' + #messages.msg('ops.desks.dayWindow'))}">7-DAY BRIEF</span>
+          <span class="code" th:text="${r.editionCode}">PROD-20260716-XXXX</span>
+          <span class="current-chip" th:if="${r.current}" th:text="#{ops.desks.current}">Current</span>
+          <span class="superseded-chip" th:unless="${r.current}" th:text="#{ops.desks.superseded}">Superseded</span>
+        </div>
+        <div class="report-meta"
+             th:text="${r.windowLabel + ' · ' + r.insightCount + ' ' + #messages.msg('ops.desks.insights') + ' · ' + r.createdLabel}">
+          19/04/2026 – 17/07/2026 · 3 insights · 17/07/2026 18:53</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="badge badge-sm" th:classappend="${r.status == 'READY'} ? 'badge-success' : (${r.status == 'WATCH_BRIEF'} ? 'badge-info' : 'badge-neutral')">
+          <span class="dot"></span><span th:text="${r.status}">READY</span>
+        </span>
+        <a class="btn btn-secondary btn-sm" th:href="${r.readerUrl}" th:text="#{ops.desks.openReport}">Open report →</a>
+      </div>
+    </div>
+  </th:block>
+
+  <!-- ═══════ Routed-story audit (collapsed; read-only provenance) ═══════ -->
+  <details class="audit-details" th:if="${!feed.batches.isEmpty()}">
+    <summary th:text="${#messages.msg('ops.desks.auditTitle') + ' (' + #aggregates.sum(feed.batches.![items.size()]) + ')'}">Routed stories — audit trail (12)</summary>
+    <th:block th:each="b : ${feed.batches}">
+      <div class="batch-label">
+        <span th:if="${b.tracked}">
+          <span th:text="${#messages.msg('ops.desks.batch') + ' ' + b.batchId}">Batch 7</span>
+          · <span th:text="${b.startedLabel}">15/07/2026 09:00</span>
+          · <span th:text="${b.runState}">SUCCESS</span>
+          · <a th:href="${'/pipeline/history#batch-' + b.batchId}" th:text="#{ops.desks.viewRun}">View pipeline run ↗</a>
+        </span>
+        <span class="untracked" th:unless="${b.tracked}" th:text="#{ops.desks.batchUntracked}">Before pipeline run tracking</span>
+      </div>
+      <div class="batch-card">
+        <div class="data-table-wrap"><div class="data-table-scroll">
+          <table class="data-table">
+            <thead><tr>
+              <th th:text="#{ops.desks.colStory}">Story</th>
+              <th th:text="#{ops.desks.colPublished}">Published</th>
+              <th th:text="#{ops.desks.colRouting}">Routing</th>
+              <th th:text="#{ops.desks.colLinks}">Links</th>
+            </tr></thead>
+            <tbody>
+              <tr th:each="item : ${b.items}">
+                <td>
+                  <div th:text="${item.title}">Title</div>
+                  <div class="desk-note" th:text="${item.sourceName}">Source</div>
+                </td>
+                <td th:text="${item.publishedLabel}">01/07/2026</td>
+                <td>
+                  <span class="routing-chip" th:each="label : ${item.labels}" th:text="${label}">LABEL</span>
+                  <div class="desk-note" th:text="${item.routingNote}">Route note</div>
+                </td>
+                <td>
+                  <a th:if="${item.factCode != null}" th:href="${'/report/story/' + item.factCode}"
+                     th:text="${item.factCode}">F-001</a>
+                  <a th:if="${item.externalLink}" th:href="${item.url}" target="_blank" rel="noopener"
+                     th:text="#{ops.desks.openSource}">Source ↗</a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div></div>
+      </div>
+    </th:block>
+  </details>
 </div>
 </div>
 </div>

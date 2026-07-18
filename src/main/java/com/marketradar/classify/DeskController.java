@@ -35,7 +35,7 @@ public class DeskController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown desk: " + dept);
         }
         model.addAttribute("dept", department);
-        model.addAttribute("items", desks.deskItems(department));
+        model.addAttribute("feed", desks.deskFeed(department));
         return "desk-detail";
     }
 }

@@ -14,12 +14,8 @@
     <div>
       <div class="ops-nav-group-label" th:text="#{ops.sidebar.groupIntelligence}">Intelligence</div>
       <div class="ops-nav-group">
-        <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
-        <a href="/report/product/edit?cadence=monthly" class="ops-nav-item" data-role-show="admin,maker" th:classappend="${active == 'productreporteditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Báo cáo Product' : 'Product Report Review'}">Product Report Review</a>
-        <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
-        <a href="/product/special-issues/wellness-linked-life/edit" class="ops-nav-item" data-role-show="admin" th:classappend="${active == 'specialissueeditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Chuyên đề' : 'Special Issue Review'}">Special Issue Review</a>
-        <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tòa soạn ↗' : 'The Newsroom ↗'}">The Newsroom ↗</a>
         <a href="/desks" class="ops-nav-item" th:classappend="${active == 'desks'} ? 'is-active'" th:text="#{ops.sidebar.navDesks}">Department Desks</a>
+        <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
       </div>
     </div>
 
@@ -30,6 +26,8 @@
           <span th:text="#{ops.sidebar.navReview}">Reviewer Queue</span>
           <span class="nav-badge" th:if="${queueCount != null and queueCount > 0}" th:text="${queueCount}">3</span>
         </a>
+        <a href="/report/product/edit?cadence=monthly" class="ops-nav-item" data-role-show="admin,maker" th:classappend="${active == 'productreporteditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Báo cáo' : 'Report Review'}">Report Review</a>
+        <a href="/product/special-issues/wellness-linked-life/edit" class="ops-nav-item" data-role-show="admin" th:classappend="${active == 'specialissueeditor'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Biên tập Chuyên đề' : 'Special Issue Review'}">Special Issue Review</a>
       </div>
     </div>
 
@@ -48,6 +46,8 @@
              th:attr="open=${active == 'claims' or active == 'labels' or active == 'alerts' or active == 'llmsettings' or active == 'prompts' or active == 'classifications' or active == 'dedup' or active == 'rolematrix'} ? 'open' : null">
       <summary th:text="#{ops.sidebar.groupAdvanced}">Advanced</summary>
       <div class="ops-nav-group ops-nav-advanced-items">
+        <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
+        <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tòa soạn ↗' : 'The Newsroom ↗'}">The Newsroom ↗</a>
         <a href="/claims" class="ops-nav-item" th:classappend="${active == 'claims'} ? 'is-active'" th:text="#{ops.sidebar.navClaims}">Claim Audit</a>
         <a href="/labels" class="ops-nav-item" th:classappend="${active == 'labels'} ? 'is-active'" th:text="#{ops.sidebar.navLabels}">Label Log</a>
         <a href="/alerts" class="ops-nav-item" th:classappend="${active == 'alerts'} ? 'is-active'" th:text="#{ops.sidebar.navAlerts}">Hot Alert Log</a>

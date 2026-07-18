@@ -8,6 +8,7 @@ import java.time.LocalDate;
 
 public interface ProductBriefEditionRepository extends JpaRepository<ProductBriefEdition, Long> {
     Optional<ProductBriefEdition> findTopByDepartmentOrderByCreatedAtDesc(Department department);
+    java.util.List<ProductBriefEdition> findByDepartmentOrderByCreatedAtDesc(Department department);
     Optional<ProductBriefEdition> findTopByDepartmentAndWindowStartAndWindowEndOrderByCreatedAtDesc(
             Department department, LocalDate windowStart, LocalDate windowEnd);
     Optional<ProductBriefEdition> findByEditionCode(String editionCode);

@@ -68,7 +68,7 @@
           <table class="data-table ph-cycle-table" id="ph-cycle-table">
             <thead><tr><th>Cycle</th><th>Started</th><th>Stage runs</th><th>Progress</th></tr></thead>
             <tbody>
-              <tr th:each="b : ${batches}" th:attr="data-cycle-row=${b.batchId}">
+              <tr th:each="b : ${batches}" th:id="'batch-' + ${b.batchId}" th:attr="data-cycle-row=${b.batchId}">
                 <td><span class="code-chip code-chip-sm" th:text="'Cycle ' + ${b.batchId}">Cycle 1</span></td>
                 <td class="cycle-meta" th:text="${#temporals.format(b.runs[0].startedAt.atZone(T(java.time.ZoneId).systemDefault()), 'MMM d, yyyy HH:mm')}">Jul 16, 2026 12:00</td>
                 <td>

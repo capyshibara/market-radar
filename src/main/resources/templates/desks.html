@@ -12,20 +12,34 @@
 <link rel="stylesheet" href="/css/ops-components.css"/>
 <link rel="stylesheet" href="/css/ops-sidebar.css"/>
 <style>
-  .desk-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-top:20px; }
-  .desk-card { border:1px solid var(--border, #E1DDD2); border-radius:10px; background:var(--surface, #fff); overflow:hidden; }
-  .desk-card-head { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border, #E1DDD2); }
-  .desk-card-head strong { font-size:var(--text-md, 15px); }
-  .desk-card[data-dept="PRODUCT"] .desk-card-head { background:#EAF0FB; }
-  .desk-card[data-dept="SALES"] .desk-card-head { background:#FAF0DC; }
-  .desk-card[data-dept="COMPLIANCE"] .desk-card-head { background:#EAF3EE; }
-  .desk-stats { display:flex; gap:22px; padding:12px 16px; }
-  .desk-stats dt { font-size:11px; color:var(--text-secondary, #6b6a63); text-transform:uppercase; letter-spacing:.05em; }
-  .desk-stats dd { margin:2px 0 0; font-size:20px; font-weight:600; }
-  .desk-recent { padding:0 16px 8px; }
-  .desk-recent li { margin:0 0 9px; font-size:13px; line-height:1.45; list-style:none; }
-  .desk-recent li small { display:block; color:var(--text-secondary, #6b6a63); }
-  .desk-card-foot { padding:10px 16px 14px; }
+  .pl-board { background: var(--surface-card-sunk); border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg, 14px); padding: 20px 20px 24px; }
+  .pl-board-head { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; padding: 2px 6px 14px; border-bottom: 1px solid var(--border-default); margin-bottom: 6px; }
+  .pl-board-title { font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-primary); }
+  .pl-board-sub { font-family: monospace; font-size: 11px; color: var(--text-tertiary); }
+
+  .desk-row { background: var(--surface-card); border: 1px solid var(--border-default);
+    border-radius: var(--radius-md); padding: 16px 18px; position: relative; }
+  .desk-row + .desk-row { margin-top: 14px; }
+  .dk-top { display: flex; align-items: flex-start; gap: 16px; }
+  .dk-emblem { flex: none; width: 52px; height: 52px; border-radius: 12px; display: flex;
+    align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+    letter-spacing: .02em; }
+  .dk-emblem.dk-PRODUCT { background: var(--blue-50, #EAF1FE); color: var(--blue-700, #2255BB); }
+  .dk-emblem.dk-SALES { background: var(--amber-50, #FDF3E3); color: var(--amber-700, #92600C); }
+  .dk-emblem.dk-COMPLIANCE { background: var(--green-50, #EAF7EF); color: var(--green-700, #1C6B3C); }
+  .dk-meta { flex: 1; min-width: 0; }
+  .dk-name { font-weight: 700; font-size: 15px; color: var(--text-primary); }
+  .dk-desc { font-size: 11.5px; color: var(--text-tertiary); margin-top: 3px; }
+  .dk-context { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 11px; }
+  .dk-preview { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+  .dk-preview-item { font-size: 12.5px; color: var(--text-secondary); padding: 3px 0; }
+  .dk-preview-item small { display: block; color: var(--text-tertiary); font-size: 11px; }
+  .dk-right { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+
+  @media (max-width: 860px) { .dk-top { flex-wrap: wrap; } .dk-right { flex-direction: row; width: 100%; justify-content: space-between; } }
 </style>
 </head>
 <body>
@@ -40,27 +54,41 @@
     </div>
   </div>
 
-  <div class="desk-grid">
-    <div class="desk-card" th:each="d : ${desks}" th:attr="data-dept=${d.dept.name()}">
-      <div class="desk-card-head">
-        <strong th:text="#{'ops.desks.dept.' + ${d.dept.name()}}">Department</strong>
-        <span class="badge badge-info" th:if="${d.newThisWeek > 0}"
-              th:text="${d.newThisWeek + ' ' + #messages.msg('ops.desks.newBadge')}">new</span>
-      </div>
-      <dl class="desk-stats">
-        <div><dt th:text="#{ops.desks.statRouted}">Routed stories</dt><dd th:text="${d.total}">0</dd></div>
-        <div><dt th:text="#{ops.desks.statWeek}">Last 7 days</dt><dd th:text="${d.newThisWeek}">0</dd></div>
-      </dl>
-      <ul class="desk-recent">
-        <li th:each="item : ${d.recent}">
-          <span th:text="${item.title}">Title</span>
-          <small th:text="${item.sourceName + ' · ' + item.publishedLabel}">Source</small>
-        </li>
-        <li th:if="${d.recent.isEmpty()}"><small th:text="#{ops.desks.empty}">Nothing routed yet.</small></li>
-      </ul>
-      <div class="desk-card-foot">
-        <a class="btn btn-secondary" th:href="${'/desks/' + #strings.toLowerCase(d.dept.name())}"
-           th:text="#{ops.desks.openDesk}">Open desk</a>
+  <div class="pl-board">
+    <div class="pl-board-head">
+      <span class="pl-board-title" th:text="#{ops.desks.board.title}">Routing board — 3 desks, 1 deterministic table</span>
+      <span class="pl-board-sub" th:text="#{ops.desks.board.sub}">Every assignment traces to a routing rule</span>
+    </div>
+
+    <div th:each="d, iter : ${desks}" class="desk-row" th:classappend="${iter.index > 0} ? '' : ''">
+      <div class="dk-top">
+        <div class="dk-emblem" th:classappend="'dk-' + ${d.dept.name()}" th:text="${#strings.substring(d.dept.name(),0,2)}">PR</div>
+        <div class="dk-meta">
+          <div class="dk-name" th:text="#{'ops.desks.dept.' + ${d.dept.name()}}">Product desk</div>
+          <div class="dk-desc" th:text="#{'ops.desks.dept.' + ${d.dept.name()} + '.desc'}">What this desk covers.</div>
+          <div class="dk-context">
+            <span class="badge badge-sm" th:classappend="${d.reportCount > 0} ? 'badge-success' : 'badge-neutral'">
+              <span class="dot"></span><span th:text="${d.reportCount + ' ' + #messages.msg('ops.desks.statReports')}">6 reports</span>
+            </span>
+            <span class="code-chip" th:text="${d.total + ' ' + #messages.msg('ops.desks.statRouted')}">97 routed</span>
+            <span class="badge badge-sm" th:classappend="${d.newThisWeek > 0} ? 'badge-info' : 'badge-neutral'">
+              <span class="dot"></span><span th:text="${d.newThisWeek + ' ' + #messages.msg('ops.desks.statWeek')}">3 new this week</span>
+            </span>
+          </div>
+          <div class="dk-preview" th:if="${!d.recent.isEmpty()}">
+            <div class="dk-preview-item" th:each="item : ${d.recent}">
+              <span th:text="${item.title}">Title</span>
+              <small th:text="${item.sourceName + ' · ' + item.publishedLabel}">Source · date</small>
+            </div>
+          </div>
+          <div class="dk-preview" th:if="${d.recent.isEmpty()}">
+            <div class="dk-preview-item"><small th:text="#{ops.desks.empty}">Nothing routed yet.</small></div>
+          </div>
+        </div>
+        <div class="dk-right">
+          <a class="btn btn-primary" th:href="${'/desks/' + #strings.toLowerCase(d.dept.name())}"
+             th:text="#{ops.desks.openReports}">Reports →</a>
+        </div>
       </div>
     </div>
   </div>
