@@ -1,0 +1,92 @@
+package com.marketradar.report.bi;
+
+import com.marketradar.product.ProductReportCadence;
+import com.marketradar.repo.RawDocRepository;
+import com.marketradar.report.PdfExportService;
+import com.marketradar.report.ProductReportAdapter;
+import com.marketradar.report.ProductReportModel;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.time.LocalDate;
+import java.util.Map;
+
+/**
+ * Bản BI report (Meridian design) của report định kỳ đang có — KHÔNG phải nguồn dữ liệu mới,
+ * chỉ là cách trình bày khác của đúng Snapshot report tuần/tháng/quý đang publish (xem
+ * PeriodicalBiAdapter). Cùng cadence param với report tuần/tháng hiện có.
+ */
+@Controller
+public class BiReportController {
+
+    private final ProductReportAdapter reports;
+    private final PeriodicalBiAdapter biAdapter;
+    private final PdfExportService pdfExport;
+    private final BiReportDocxService docxExport;
+    private final RawDocRepository rawDocs;
+
+    public BiReportController(ProductReportAdapter reports, PeriodicalBiAdapter biAdapter,
+                              PdfExportService pdfExport, BiReportDocxService docxExport,
+                              RawDocRepository rawDocs) {
+        this.reports = reports;
+        this.biAdapter = biAdapter;
+        this.pdfExport = pdfExport;
+        this.docxExport = docxExport;
+        this.rawDocs = rawDocs;
+    }
+
+    @GetMapping("/report/bi")
+    public String biReport(@RequestParam(defaultValue = "weekly") String cadence, Model model) {
+        model.addAllAttributes(buildModel(parseCadence(cadence), cadence));
+        return "bi-report";
+    }
+
+    @GetMapping("/report/bi.pdf")
+    public ResponseEntity<byte[]> biReportPdf(@RequestParam(defaultValue = "weekly") String cadence) {
+        byte[] pdf = pdfExport.renderBiReportPdf(buildModel(parseCadence(cadence), cadence));
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"market-radar-bi-report-" + cadence + ".pdf\"")
+                .body(pdf);
+    }
+
+    @GetMapping("/report/bi.docx")
+    public ResponseEntity<byte[]> biReportDocx(@RequestParam(defaultValue = "weekly") String cadence) {
+        ProductReportCadence c = parseCadence(cadence);
+        var content = biAdapter.adapt("Business Intelligence Report — " + c.label(true),
+                c.periodLabel(LocalDate.now(ProductReportModel.REPORT_ZONE), true),
+                reports.current(c, LocalDate.now(ProductReportModel.REPORT_ZONE)),
+                rawDocs.count());
+        byte[] docx = docxExport.render(content);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"market-radar-bi-report-" + cadence + ".docx\"")
+                .body(docx);
+    }
+
+    private Map<String, Object> buildModel(ProductReportCadence cadence, String cadenceParam) {
+        LocalDate asOf = LocalDate.now(ProductReportModel.REPORT_ZONE);
+        ProductReportAdapter.Snapshot snapshot = reports.current(cadence, asOf);
+        var content = biAdapter.adapt("Business Intelligence Report — " + cadence.label(true),
+                cadence.periodLabel(asOf, true), snapshot, rawDocs.count());
+        Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content);
+        model.put("pdfHref", "/report/bi.pdf?cadence=" + cadenceParam);
+        model.put("docxHref", "/report/bi.docx?cadence=" + cadenceParam);
+        return model;
+    }
+
+    private static ProductReportCadence parseCadence(String value) {
+        return switch (value.toLowerCase()) {
+            case "monthly" -> ProductReportCadence.MONTHLY;
+            case "quarterly" -> ProductReportCadence.QUARTERLY;
+            default -> ProductReportCadence.WEEKLY;
+        };
+    }
+}

@@ -199,6 +199,24 @@ public class PdfExportService {
             .custody-section, .report-footer { display:none !important; }
             """;
 
+    /**
+     * BI report dùng canvas cố định 1056x816px (trang "tạp chí"), KHÁC hẳn report tuần/tháng
+     * (flowing A4) — @page phải khớp đúng kích thước thật của nội dung, lệch sẽ khiến
+     * OpenHTMLtoPDF âm thầm gộp nhiều trang logic vào ít trang PDF hơn (đã từng bắt lỗi này
+     * qua render-to-PNG). Mọi màu/class khác đã nằm sẵn trong <style> riêng của bi-report.html
+     * nên không cần lặp lại ở đây — chỉ cần @page + ẩn thanh công cụ no-print.
+     *
+     * .report-page có margin-bottom:34px cho bản HTML (khoảng cách cuộn giữa các "trang tạp
+     * chí" trên màn hình) — trong PDF, margin này CỘNG DỒN qua từng trang và cuối cùng vượt quá
+     * một page height, đẩy ra 1 TRANG TRẮNG THỪA ở cuối tài liệu (bắt được qua render-to-PNG với
+     * báo cáo đủ 7 bucket: 12 trang logic nhưng PDF ra 13 trang). Ép về 0 riêng cho bản in.
+     */
+    private static final String BI_REPORT_PRINT_CSS = """
+            @page { size: 1056px 816px; margin: 0; }
+            .no-print { display:none !important; }
+            .report-page { margin:0 auto !important; }
+            """;
+
     private final SpringTemplateEngine templateEngine;
 
     public PdfExportService(SpringTemplateEngine templateEngine) {
@@ -214,6 +232,11 @@ public class PdfExportService {
 
     public byte[] renderProductReportPdf(String template, Map<String, Object> model, Locale locale) {
         return render(template, model, locale, PDF_OVERRIDE_CSS);
+    }
+
+    /** BI Report (Meridian design) — chỉ tiếng Việt hiện tại (xem ghi chú trong bi-report.html). */
+    public byte[] renderBiReportPdf(Map<String, Object> model) {
+        return render("bi-report", model, Locale.forLanguageTag("vi"), BI_REPORT_PRINT_CSS);
     }
 
     /**

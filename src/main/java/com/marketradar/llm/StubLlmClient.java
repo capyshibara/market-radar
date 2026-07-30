@@ -30,6 +30,31 @@ public class StubLlmClient implements LlmClient {
                  + "\"text_en\":\"[STUB] This week saw developments within the tracked scope.\","
                  + "\"fact_codes\":[\"" + code + "\"]}]}";
         }
+        // Deep Research (agent lặp): planner KHÔNG có state riêng, phải đọc lại "Số nguồn đã thu
+        // thập: N" mà DeepResearchService tự in vào userPrompt để biết đang ở bước nào — tìm 1
+        // vòng cho đủ nguồn demo rồi dừng, tránh vòng lặp vô hạn khi offline.
+        if (systemPrompt != null && systemPrompt.contains("MODE:DEEP_RESEARCH_PLAN")) {
+            java.util.regex.Matcher gm = java.util.regex.Pattern.compile("Số nguồn đã thu thập: (\\d+)").matcher(userPrompt);
+            int gatheredCount = gm.find() ? Integer.parseInt(gm.group(1)) : 0;
+            if (gatheredCount == 0) {
+                java.util.regex.Matcher qm = java.util.regex.Pattern.compile("YÊU CẦU GỐC: (.*?)\\n---", java.util.regex.Pattern.DOTALL).matcher(userPrompt);
+                String query = qm.find() ? qm.group(1).strip() : "thông tin thị trường";
+                return "{\"action\":\"SEARCH\",\"target\":\"" + escapeJson(query)
+                     + "\",\"reason\":\"[STUB] tìm nguồn mở cho yêu cầu ban đầu\"}";
+            }
+            return "{\"action\":\"STOP\",\"target\":\"\",\"reason\":\"[STUB] đã có nguồn tham khảo, dừng vòng lặp demo\"}";
+        }
+        if (systemPrompt != null && systemPrompt.contains("MODE:DEEP_RESEARCH_SYNTHESIS")) {
+            java.util.regex.Matcher cm = java.util.regex.Pattern.compile("\\((\\d+) nguồn\\)").matcher(userPrompt);
+            int n = cm.find() ? Integer.parseInt(cm.group(1)) : 0;
+            if (n == 0) return "{\"title\":\"[STUB] Deep Research\",\"findings\":[]}";
+            StringBuilder refs = new StringBuilder();
+            for (int i = 1; i <= n; i++) refs.append(i).append(i < n ? "," : "");
+            return "{\"title\":\"[STUB] Deep Research\",\"findings\":[{\"bucket\":\"COMPETITIVE_THEME\","
+                 + "\"subject_key\":null,\"text_vi\":\"[STUB] Tổng hợp demo từ " + n
+                 + " nguồn đã thu thập — không phải phân tích AI thật.\",\"highlight\":true,"
+                 + "\"source_refs\":[" + refs + "]}]}";
+        }
         String t = userPrompt.toLowerCase(Locale.ROOT);
         List<String> labels = new ArrayList<>();
         if (containsAny(t, "获批", "推出", "ra mắt", "phê duyệt sản phẩm", "launch"))
@@ -51,6 +76,11 @@ public class StubLlmClient implements LlmClient {
     private static String firstFactCode(String text) {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("F-\\d{3}").matcher(text);
         return m.find() ? m.group() : "F-000";
+    }
+
+    /** Escape tối thiểu cho chuỗi chèn vào JSON stub (query người dùng gõ có thể chứa " hoặc \). */
+    private static String escapeJson(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ");
     }
 
     private static boolean containsAny(String text, String... keys) {

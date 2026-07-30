@@ -8,6 +8,7 @@
       <a class="toolbar-link" href="?lang=en" th:classappend="${!vi} ? ' active' : ''">EN</a>
       <a class="toolbar-link" href="?lang=vi" th:classappend="${vi} ? ' active' : ''">VI</a>
       <a class="toolbar-link" th:href="${'/report/' + #strings.toLowerCase(cadence.name()) + '.pdf?lang=' + (vi ? 'vi' : 'en')}" th:text="${vi ? 'Tải PDF' : 'Download PDF'}">Download PDF</a>
+      <a class="toolbar-link" th:href="${'/report/bi?cadence=' + #strings.toLowerCase(cadence.name())}" th:text="${vi ? 'Xem bản BI Report' : 'View BI Report'}">View BI Report</a>
       <a class="toolbar-link" th:href="${'/report/product/edit?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=' + (vi ? 'vi' : 'en')}" th:text="${vi ? 'Biên tập' : 'Edit report'}">Edit report</a>
       <a class="toolbar-link" href="/pipeline" th:text="${vi ? 'Vận hành' : 'Operations'}">Operations</a>
     </div>

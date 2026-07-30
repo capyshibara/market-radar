@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="${reportTitle}">Market Radar BI Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&amp;family=Lora:ital,wght@0,400;0,600;0,700;1,500&amp;display=swap" rel="stylesheet"/>
+<style>
+  /*
+   * Business Intelligence Report — dựng trên ĐÚNG Meridian Review Design System đang chạy
+   * trong hệ thống (xem special-issue.html — "Product Academy" — nguồn gốc thật của hệ thống
+   * này, không phải bản dựng riêng). Cover/back-cover art, khối "findings", exhibit
+   * MATRIX/TIMELINE/KPI đều tái dùng cấu trúc + fragment (fragments/product-report-exhibit.html)
+   * đã chạy production cho report tuần/tháng — chỉ khác data nguồn (BiFinding thay vì
+   * EditorialExhibit do report tuần tự build).
+   *
+   * Chỉ tiếng Việt (pipeline hiện tại 100% tiếng Việt) nên dùng Lora cho mọi display heading
+   * (không cần nhánh locale-vi như special-issue.html vốn hỗ trợ cả EN/VI).
+   * KHÔNG dùng CSS custom properties (var()) — literal hex trực tiếp — để PDF render tin cậy
+   * (OpenHTMLtoPDF không resolve var() nên special-issue.html cần PDF_CSS riêng phục hồi giá
+   * trị; viết thẳng hex ở đây tránh phải song song 2 bộ CSS).
+   */
+  html,body{margin:0;background:#edeae2;color:#33322e;font-family:'Work Sans',"Segoe UI",Arial,sans-serif}
+  .report-page{position:relative;width:1056px;height:816px;margin:0 auto 34px;background:#f8f6f1;
+    overflow:hidden;box-shadow:0 24px 64px rgba(20,20,30,.2);padding:58px 72px 52px;box-sizing:border-box}
+  .page-dark{background:#0e1b6b;color:#f2efe8}
+  .kicker{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#8a8878}
+  .page-dark .kicker{color:#9aa5d9}
+  .display{font-family:'Lora',serif;font-weight:700;line-height:1.08;letter-spacing:-.015em;color:#2647e8}
+  .page-title{font-size:30px;margin:12px 0 16px;max-width:850px}
+  .page-rule{height:2px;background:#2647e8;margin-top:10px;margin-bottom:20px}
+  .folio{position:absolute;left:72px;right:72px;bottom:26px;font-size:10px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;color:#8a8878}
+  .body-copy{font-size:13.5px;line-height:1.65;color:#33322e}
+  .lede{font-family:'Lora',serif;font-size:17px;line-height:1.55;color:#33322e}
+  .muted{color:#8a8878;font-size:12px}
+  .two-col{display:table;width:100%;table-layout:fixed;border-spacing:0}
+  .two-col>.col{display:table-cell;vertical-align:top;padding-right:24px}
+  .two-col>.col:last-child{padding-right:0;padding-left:24px}
+  .card{border:1px solid #e1ddd2;padding:16px;margin-bottom:14px}
+  .card h4{margin:0 0 8px;font-size:14.5px;font-family:'Lora',serif;color:#0e1b6b}
+  .card p{margin:0 0 8px;font-size:13px;line-height:1.6;color:#4a4a45}
+
+  /* ===== Cover / TOC / back-cover — Meridian orb art, reused from special-issue.html ===== */
+  .cover{padding:56px}
+  .cover h1{position:relative;z-index:2;width:820px;margin:36px 0 16px;font-size:52px;color:#f2efe8}
+  .cover .deck{position:relative;z-index:2;width:640px;font-size:16px;line-height:1.55;color:#c7c3b8}
+  .cover-meta{position:relative;z-index:2;margin-top:30px;font-size:12px;font-weight:600;letter-spacing:.06em;color:#9aa5d9}
+  .cover-meta div{margin-top:4px}
+  .cover-art{position:absolute;left:56px;right:56px;bottom:46px;height:210px;overflow:hidden;background:#1531b8;border:2px solid #0b1226}
+  .art-orb{position:absolute;border:2px solid #0b1226;border-radius:50%}
+  .art-left{width:420px;height:420px;left:-70px;top:-105px;background:#2647e8}
+  .art-right{width:420px;height:420px;right:-70px;top:-105px;background:#8477b0}
+  .art-lens{width:210px;height:360px;left:350px;top:-78px;background:#f2efe8}
+  .art-core1{width:160px;height:160px;left:375px;top:24px;background:#2647e8}
+  .art-core2{width:112px;height:112px;left:399px;top:48px;background:#7fe0d2}
+  .art-core3{width:64px;height:64px;left:423px;top:72px;background:#f5a623}
+  .art-dot{position:absolute;width:14px;height:14px;border:2px solid #0b1226;border-radius:50%;background:#f2efe8;left:120px;top:48px}
+  .art-dot.two{left:auto;right:105px;top:142px;background:#f5a623}
+
+  .toc-list{margin-top:10px}
+  .toc-row{display:table;width:100%;border-spacing:0;border-bottom:1px solid #e1ddd2;padding:8px 0}
+  .toc-num{display:table-cell;width:40px;font-weight:700;color:#2647e8;font-size:13px;padding:8px 0;font-family:'Lora',serif}
+  .toc-label{display:table-cell;font-size:13px;padding:8px 0}
+
+  .back-cover{padding:72px 60px}
+  .back-cover h2{font-size:52px;line-height:1.1;color:#f2efe8;margin:36px 0 18px}
+  .back-cover .back-copy{font-size:15px;line-height:1.65;color:#c7c3b8;max-width:560px;position:relative;z-index:2}
+  .back-art{position:absolute;left:0;right:0;bottom:0;height:250px;background:#00bfa6;overflow:hidden;border-top:2px solid #0b1226}
+  .back-circle{position:absolute;border-radius:50%;border:2px solid #0b1226}
+  .back-circle.one{width:330px;height:330px;right:-60px;top:-165px;background:#0e8e7d}
+  .back-circle.two{width:280px;height:280px;left:-125px;bottom:-155px;background:#f2efe8;border:24px solid #f5a623}
+  .back-circle.three{width:190px;height:190px;left:-80px;bottom:-110px;background:#0e1b6b}
+  .back-dot{position:absolute;width:14px;height:14px;border:2px solid #0b1226;border-radius:50%;background:#f2efe8;left:530px;top:55px}
+  .back-dot.two{left:auto;right:90px;top:170px;background:#f5a623}
+
+  /* ===== EXEC — metric-row + findings grid (Meridian executive-summary vocabulary) ===== */
+  .metric-row{display:table;width:100%;margin-top:8px;border-top:1px solid #e1ddd2;border-bottom:1px solid #e1ddd2}
+  .metric{display:table-cell;width:33.33%;padding:15px;border-right:1px solid #e1ddd2}
+  .metric:last-child{border-right:0}
+  .metric b{display:block;font:700 31px 'Lora',serif;color:#2647e8}
+  .metric span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8a8878}
+  .summary-box{margin-top:20px;background:#0e1b6b;color:#f2efe8;padding:22px 26px;font:400 18px/1.45 'Lora',serif;font-style:italic}
+  .findings{display:table;width:100%;table-layout:fixed;margin-top:22px;border-spacing:14px 0}
+  .finding{display:table-cell;width:33.33%;vertical-align:top;padding:0 16px;border-left:4px solid #2647e8}
+  .finding:first-child{padding-left:0}
+  .finding-no{font:700 34px 'Lora',serif;color:#2647e8}
+  .finding h4{font:700 15px 'Lora',serif;margin:5px 0;color:#0e1b6b}
+  .finding p{font-size:12.5px;line-height:1.5;color:#4a4a45}
+
+  /* ===== cite pill (kept from the earlier version — used outside the exhibit fragment) ===== */
+  .cite-pill{display:inline-block;border:1px solid #d8d3c4;border-radius:12px;padding:2px 9px;
+    margin:2px 4px 2px 0;font-size:11px;text-decoration:none;color:#33322e;background:#f2efe8}
+  .cite-pill .tier-dot{font-weight:700;margin-left:4px;color:#2647e8}
+
+  /* ===== STRATEGIC_COMPARISON — pull-quote callout, one page per pair ===== */
+  .callout{background:#152a8c;color:#f2efe8;padding:20px 24px;font-family:'Lora',serif;
+    font-style:italic;font-size:16px;line-height:1.5;margin-bottom:14px}
+
+  /* ===== SOURCES — evidence-spectrum + source-list (verbatim Meridian vocabulary) ===== */
+  .evidence-spectrum{display:table;width:100%;table-layout:fixed;margin:12px 0 20px;border-spacing:0}
+  .evidence-tier{display:table-cell;padding:12px 16px;border-left:4px solid #2647e8;background:#ebeefc}
+  .evidence-tier:nth-child(2){border-color:#4f9b90;background:#e5f2ef}
+  .evidence-tier:nth-child(3){border-color:#8477b0;background:#eeeaf5}
+  .evidence-tier b{display:block;font:700 22px 'Lora',serif;color:#2647e8}
+  .evidence-tier span{display:block;font-size:10.5px;line-height:1.3;color:#4a4a45}
+  .source-list{display:table;width:100%;table-layout:fixed;margin-top:14px;border-spacing:0}
+  .source-column{display:table-cell;width:50%;vertical-align:top}
+  .source-column:first-child{padding-right:25px}
+  .source-column:last-child{padding-left:25px}
+  .source-item{padding:11px 0;border-top:1px solid #e1ddd2;font-size:12.5px;color:#33322e}
+
+  /* ===== Exhibit fragment CSS (fragments/product-report-exhibit.html) — literal-hex port of
+     fragments/product-report-styles.html's tokenised version, sized for the 1056x816 canvas. ===== */
+  .exhibit-card{padding:22px;border:1px solid #cfcabb;border-top:3px solid #2647e8;background:#f4f1e9}
+  .exhibit-head{display:table;width:100%;border-bottom:1px solid #cfcabb;padding-bottom:9px}
+  .exhibit-head>div{display:table-cell}
+  .exhibit-head>code{display:table-cell;text-align:right;color:#1e38b6;font-family:'DejaVu Sans Mono',monospace;font-size:9px}
+  .exhibit-number,.exhibit-kind{font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+  .exhibit-number{color:#1e38b6}
+  .exhibit-kind{padding-left:8px;margin-left:8px;border-left:1px solid #cfcabb;color:#8a8878}
+  .exhibit-card>h3{margin:16px 0 8px;color:#0e1b6b;font-family:'Lora',serif;font-size:22px;line-height:1.25}
+  .exhibit-explainer-label{display:block;margin:2px 0 4px;color:#1e38b6;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+  .exhibit-takeaway{margin:0 0 18px;color:#3e4147;font-size:13px;line-height:1.55}
+  .exhibit-foot{display:table;width:100%;margin-top:16px;padding-top:11px;border-top:1px solid #cfcabb;color:#8a8878;font-size:10px;line-height:1.4}
+  .exhibit-foot>span{display:table-cell}
+  .exhibit-foot>code{display:table-cell;text-align:right;color:#1e38b6;font-family:'DejaVu Sans Mono',monospace;font-size:9px}
+  .exhibit-foot span>strong{color:#3e4147}
+
+  .exhibit-kpis{display:table;width:100%;table-layout:fixed;border-top:2px solid #0e1b6b;border-bottom:1px solid #cfcabb;border-spacing:0}
+  .exhibit-kpi{display:table-cell;width:33.33%;padding:14px 13px;border-left:1px solid #cfcabb;vertical-align:top}
+  .exhibit-kpi:first-child{border-left:0}
+  .exhibit-kpi small{display:block;min-height:20px;color:#8a8878;font-size:8.5px;font-weight:700;letter-spacing:.07em}
+  .exhibit-kpi strong{display:block;margin:4px 0;color:#0e1b6b;font-family:'Lora',serif;font-size:19px;line-height:1.25}
+  .exhibit-kpi b{display:block;color:#33322e;font-size:10.5px;line-height:1.3}
+  .exhibit-kpi p{margin:6px 0 0;color:#8a8878;font-size:9px;line-height:1.35}
+
+  .exhibit-timeline{display:table;width:100%;table-layout:fixed;padding-top:16px;border-spacing:14px 0}
+  .timeline-item{display:table-cell;position:relative;padding:19px 12px 0 0;border-top:2px solid #0e1b6b;vertical-align:top}
+  .timeline-item small{display:block;color:#8a8878;font-size:8.5px;font-weight:700;letter-spacing:.07em}
+  .timeline-item b{display:block;margin:5px 0;color:#0e1b6b;font-family:'Lora',serif;font-size:14px;line-height:1.25}
+  .timeline-item p{margin:0;color:#3e4147;font-size:10px;line-height:1.42}
+
+  .exhibit-matrix-wrap{overflow-x:auto}
+  .exhibit-matrix{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}
+  .exhibit-matrix th,.exhibit-matrix td{padding:10px;border:1px solid #cfcabb;text-align:left;vertical-align:top;line-height:1.42}
+  .exhibit-matrix thead th{background:#0e1b6b;color:#fff;font-size:9px;letter-spacing:.05em;text-transform:uppercase}
+  .exhibit-matrix tbody th{color:#0e1b6b;font-family:'Lora',serif;font-size:14px;background:#ebeefc}
+  .exhibit-matrix tbody tr:nth-child(2n) td{background:#fff}
+
+  .no-print{}
+  @media print{ .no-print{display:none} }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="position:sticky;top:0;background:#fff;border-bottom:1px solid #e1ddd2;padding:10px 20px;font-family:'Work Sans',sans-serif;font-size:13px">
+  <span th:text="${reportTitle}">Market Radar — Business Intelligence Report</span> ·
+  <a th:href="${pdfHref}">Tải PDF</a> ·
+  <a th:href="${docxHref}">Tải .docx</a> ·
+  <a href="/pipeline">Vận hành</a>
+</div>
+
+<main>
+<section class="report-page" th:each="p : ${pages}" th:switch="${p.type}">
+
+  <!-- ============ COVER ============ -->
+  <div th:case="'COVER'" class="cover page-dark" style="position:absolute;top:0;left:0;right:0;bottom:0">
+    <div class="kicker">Market Radar · Business Intelligence Report</div>
+    <h1 class="display" th:text="${reportTitle}">Tiêu đề</h1>
+    <p class="deck" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="'Chuẩn bị cho: ' + ${homeCompany}">Home company</p>
+    <div class="cover-meta">
+      <div th:text="'Kỳ: ' + ${reportPeriod}">Kỳ</div>
+      <div th:text="'Tạo lúc ' + ${generatedAt}">Tạo lúc</div>
+    </div>
+    <div class="cover-art" aria-hidden="true">
+      <div class="art-orb art-left"></div><div class="art-orb art-right"></div>
+      <div class="art-orb art-lens"></div><div class="art-orb art-core1"></div>
+      <div class="art-orb art-core2"></div><div class="art-orb art-core3"></div>
+      <div class="art-dot"></div><div class="art-dot two"></div>
+    </div>
+  </div>
+
+  <!-- ============ TOC ============ -->
+  <div th:case="'TOC'">
+    <div class="kicker">Mục lục</div>
+    <h2 class="display page-title">Nội dung báo cáo</h2>
+    <div class="page-rule"></div>
+    <div class="toc-list">
+      <div class="toc-row" th:each="entry : ${pages}" th:if="${entry.type != 'COVER' and entry.type != 'TOC'}">
+        <div class="toc-num" th:text="${entry.number}">1</div>
+        <div class="toc-label" th:text="${entry.label}">Mục</div>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ EXEC SUMMARY ============ -->
+  <div th:case="'EXEC'">
+    <div class="kicker">Tóm tắt điều hành</div>
+    <h2 class="display page-title">Điểm chính kỳ này</h2>
+    <div class="page-rule"></div>
+    <div th:if="${!hasAnyContent}" class="body-copy muted">
+      Chưa có nhận định nào đủ căn cứ trong kỳ này.
+    </div>
+    <div th:if="${hasAnyContent}">
+      <div class="metric-row">
+        <div class="metric"><b th:text="${findingsTotal}">0</b><span>Nhận định</span></div>
+        <div class="metric"><b th:text="${bucketsCovered}">0</b><span>Nhóm chủ đề</span></div>
+        <div class="metric"><b th:text="${sourceLines.size()}">0</b><span>Nguồn tham khảo</span></div>
+      </div>
+      <div class="summary-box" th:if="${!keyFindings.isEmpty()}" th:text="${keyFindings[0].textVi}">Nhận định quan trọng nhất</div>
+      <div class="findings">
+        <div class="finding" th:each="f, iter : ${keyFindings}">
+          <div class="finding-no" th:text="${iter.index + 1}">1</div>
+          <h4 th:text="${f.bucket}">Bucket</h4>
+          <p th:text="${f.textVi}">Nội dung</p>
+          <div>
+            <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+              <span th:text="${cit.label}">Nguồn</span>
+              <span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ MACRO ECONOMIC (textual — no exhibit fit, plain cards) ============ -->
+  <div th:case="'MACRO'">
+    <div class="kicker">Vĩ mô ngành</div>
+    <h2 class="display page-title">Bối cảnh kinh tế vĩ mô liên quan</h2>
+    <div class="page-rule"></div>
+    <div class="card" th:each="f : ${macroFindings}">
+      <p th:text="${f.textVi}">Nội dung</p>
+      <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+        <span th:text="${cit.label}">Nguồn</span>
+        <span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+      </a>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ COMPETITIVE THEME — exhibit MATRIX ============ -->
+  <div th:case="'THEME'">
+    <div class="kicker">Xu hướng cạnh tranh</div>
+    <h2 class="display page-title">Chủ đề lặp lại giữa nhiều đối thủ</h2>
+    <div class="page-rule"></div>
+    <th:block th:replace="~{fragments/product-report-exhibit :: card(${themeExhibit}, true, false)}"></th:block>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ SCHEDULED — exhibit TIMELINE ============ -->
+  <div th:case="'SCHEDULED'">
+    <div class="kicker">Lịch sắp tới</div>
+    <h2 class="display page-title">Mốc / sự kiện sắp diễn ra</h2>
+    <div class="page-rule"></div>
+    <th:block th:replace="~{fragments/product-report-exhibit :: card(${scheduledExhibit}, true, false)}"></th:block>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ COMPANY EVENTS — exhibit TIMELINE ============ -->
+  <div th:case="'COMPANY_TIMELINE'">
+    <div class="kicker">Diễn biến theo công ty</div>
+    <h2 class="display page-title">Sự kiện theo mốc thời gian</h2>
+    <div class="page-rule"></div>
+    <th:block th:replace="~{fragments/product-report-exhibit :: card(${companyEventExhibit}, true, false)}"></th:block>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ MARKET SHARE / AWARD — exhibit MATRIX ============ -->
+  <div th:case="'MARKET_SHARE'">
+    <div class="kicker">Thị phần / Giải thưởng</div>
+    <h2 class="display page-title">So sánh số liệu giữa các công ty</h2>
+    <div class="page-rule"></div>
+    <th:block th:replace="~{fragments/product-report-exhibit :: card(${marketShareExhibit}, true, false)}"></th:block>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ THREATMAP (TECH/AI) — exhibit KPI ============ -->
+  <div th:case="'THREATMAP'">
+    <div class="kicker">Tech / AI / Insurtech</div>
+    <h2 class="display page-title">Tín hiệu công nghệ theo công ty</h2>
+    <div class="page-rule"></div>
+    <th:block th:replace="~{fragments/product-report-exhibit :: card(${techSignalExhibit}, true, false)}"></th:block>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ STRATEGIC COMPARISON (lặp động, 1 trang / cặp) ============ -->
+  <div th:case="'COMPARISON'">
+    <div class="kicker">So sánh chiến lược</div>
+    <h2 class="display page-title" th:text="${p.subjectKey}">Cặp so sánh</h2>
+    <div class="page-rule"></div>
+    <div class="callout" th:each="f : ${comparisonPages.get(p.subjectKey)}" th:text="${f.textVi}">Nội dung</div>
+    <div th:each="f : ${comparisonPages.get(p.subjectKey)}">
+      <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+        <span th:text="${cit.label}">Nguồn</span>
+        <span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+      </a>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ SOURCES & METHOD ============ -->
+  <div th:case="'SOURCES'">
+    <div class="kicker">Nguồn &amp; Phương pháp</div>
+    <h2 class="display page-title">Minh bạch nguồn dữ liệu</h2>
+    <div class="page-rule"></div>
+    <div class="evidence-spectrum">
+      <div class="evidence-tier"><b th:text="${findingsTotal}">0</b><span>Nhận định trong báo cáo này</span></div>
+      <div class="evidence-tier"><b th:text="${bucketsCovered}">0</b><span>Trong 7 nhóm chủ đề BI được phủ dữ liệu</span></div>
+      <div class="evidence-tier"><b th:text="${sourceLines.size()}">0</b><span>Nguồn tham khảo riêng biệt</span></div>
+    </div>
+    <div class="source-list">
+      <div class="source-column">
+        <div class="source-item" th:each="s, iter : ${sourceLines}" th:if="${iter.index % 2 == 0}" th:text="${s}">nguồn</div>
+      </div>
+      <div class="source-column">
+        <div class="source-item" th:each="s, iter : ${sourceLines}" th:if="${iter.index % 2 == 1}" th:text="${s}">nguồn</div>
+      </div>
+    </div>
+    <div class="two-col" style="margin-top:18px">
+      <div class="col">
+        <h4 style="margin:0 0 8px;font-size:13px;font-family:'Lora',serif;color:#0e1b6b">Khoảng trống dữ liệu đã ghi nhận</h4>
+        <ul class="body-copy" style="padding-left:18px;margin:0">
+          <li th:each="g : ${openGaps}" th:text="${g}">gap</li>
+        </ul>
+      </div>
+      <div class="col">
+        <p class="muted" th:text="'Tổng số tài liệu đã crawl: ' + ${docCount}">doc count</p>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ BACK COVER ============ -->
+  <div th:case="'BACK'" class="back-cover page-dark" style="position:absolute;top:0;left:0;right:0;bottom:0">
+    <div class="kicker">Market Radar · Business Intelligence Report</div>
+    <h2 class="display">Cảm ơn bạn<br/><span style="color:#8fa6ff">đã đọc.</span></h2>
+    <p class="back-copy">Business Intelligence Report tổng hợp bằng chứng từ kho dữ liệu và/hoặc Deep Research thành một tài liệu có cấu trúc cho C-Level. Mọi nhận định đều dẫn về nguồn thực tế.</p>
+    <div class="back-art" aria-hidden="true">
+      <div class="back-circle one"></div><div class="back-circle two"></div><div class="back-circle three"></div>
+      <div class="back-dot"></div><div class="back-dot two"></div>
+    </div>
+  </div>
+
+</section>
+</main>
+</body>
+</html>

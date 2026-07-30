@@ -27,6 +27,7 @@
   .dk-emblem { flex: none; width: 52px; height: 52px; border-radius: 12px; display: flex;
     align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
     letter-spacing: .02em; }
+  .dk-emblem.dk-STRATEGY { background: #EBEEFC; color: #0E1B6B; }
   .dk-emblem.dk-PRODUCT { background: var(--blue-50, #EAF1FE); color: var(--blue-700, #2255BB); }
   .dk-emblem.dk-SALES { background: var(--amber-50, #FDF3E3); color: var(--amber-700, #92600C); }
   .dk-emblem.dk-COMPLIANCE { background: var(--green-50, #EAF7EF); color: var(--green-700, #1C6B3C); }
@@ -85,7 +86,11 @@
             <div class="dk-preview-item"><small th:text="#{ops.desks.empty}">Nothing routed yet.</small></div>
           </div>
         </div>
-        <div class="dk-right">
+        <div class="dk-right" th:if="${d.dept.name() == 'STRATEGY'}">
+          <a class="btn btn-primary" href="/report/bi" th:text="${#locale.language == 'vi' ? 'BI Report →' : 'BI Report →'}">BI Report →</a>
+          <a class="btn btn-secondary" href="/research" th:text="${#locale.language == 'vi' ? 'Nghiên cứu →' : 'Research →'}">Research →</a>
+        </div>
+        <div class="dk-right" th:unless="${d.dept.name() == 'STRATEGY'}">
           <a class="btn btn-primary" th:href="${'/desks/' + #strings.toLowerCase(d.dept.name())}"
              th:text="#{ops.desks.openReports}">Reports →</a>
         </div>

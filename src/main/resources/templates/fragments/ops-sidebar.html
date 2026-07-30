@@ -16,6 +16,7 @@
       <div class="ops-nav-group">
         <a href="/desks" class="ops-nav-item" th:classappend="${active == 'desks'} ? 'is-active'" th:text="#{ops.sidebar.navDesks}">Department Desks</a>
         <a href="/product/special-issues" class="ops-nav-item" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
+        <a href="/research" class="ops-nav-item" th:classappend="${active == 'research'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Nghiên cứu (Web Search / Deep Research)' : 'Research (Web Search / Deep Research)'}">Research</a>
       </div>
     </div>
 
@@ -47,6 +48,7 @@
       <summary th:text="#{ops.sidebar.groupAdvanced}">Advanced</summary>
       <div class="ops-nav-group ops-nav-advanced-items">
         <a href="/report/weekly" class="ops-nav-item" th:text="#{ops.sidebar.navProductReports}">Product Reports ↗</a>
+        <a href="/report/bi" class="ops-nav-item" th:text="${#locale.language == 'vi' ? 'BI Report (bản Meridian) ↗' : 'BI Report (Meridian) ↗'}">BI Report ↗</a>
         <a href="/agents" class="ops-nav-item" th:classappend="${active == 'agents'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tòa soạn ↗' : 'The Newsroom ↗'}">The Newsroom ↗</a>
         <a href="/claims" class="ops-nav-item" th:classappend="${active == 'claims'} ? 'is-active'" th:text="#{ops.sidebar.navClaims}">Claim Audit</a>
         <a href="/labels" class="ops-nav-item" th:classappend="${active == 'labels'} ? 'is-active'" th:text="#{ops.sidebar.navLabels}">Label Log</a>

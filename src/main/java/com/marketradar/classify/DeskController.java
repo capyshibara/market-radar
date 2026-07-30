@@ -34,6 +34,12 @@ public class DeskController {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown desk: " + dept);
         }
+        // Strategy tổng hợp xuyên phòng ban — không có quy tắc routing gán tin cho nó nên
+        // feed routed-stories luôn rỗng; "report" thật của bàn này là BI Report/Deep Research,
+        // không phải trang audit trail rỗng của 3 bàn kia.
+        if (department == Department.STRATEGY) {
+            return "redirect:/report/bi";
+        }
         model.addAttribute("dept", department);
         model.addAttribute("feed", desks.deskFeed(department));
         return "desk-detail";
