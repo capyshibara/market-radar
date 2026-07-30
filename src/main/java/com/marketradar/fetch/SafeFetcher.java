@@ -117,6 +117,46 @@ public class SafeFetcher {
     }
 
     /**
+     * Kiểm scheme (#1) + SSRF guard (#3) cho MỌI đường lấy dữ liệu ra ngoài — kể cả đường KHÔNG
+     * đi qua HttpClient của lớp này (BrowserRenderService/Playwright tự follow redirect nên phải
+     * chặn từng request thật qua page.route(), không chỉ URL ban đầu). Không nhân đôi luật SSRF:
+     * fetch() nội bộ cũng gọi đúng hàm này.
+     */
+    public void assertSafeUrl(String url) throws FetchRejectedException {
+        final URI uri;
+        try {
+            uri = URI.create(url);
+        } catch (IllegalArgumentException e) {
+            throw new FetchRejectedException("Invalid URL: " + url);
+        }
+        assertSafeUri(uri);
+    }
+
+    private void assertSafeUri(URI uri) throws FetchRejectedException {
+        String url = uri.toString();
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (httpsOnly && !"https".equals(scheme)) {
+            throw new FetchRejectedException("Rejected scheme '" + scheme + "' (https only): " + url);
+        }
+        if (!"https".equals(scheme) && !"http".equals(scheme)) {
+            throw new FetchRejectedException("Unsupported scheme: " + scheme);
+        }
+        String host = uri.getHost();
+        try {
+            for (InetAddress addr : InetAddress.getAllByName(host)) {
+                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress()
+                        || addr.isLinkLocalAddress() || addr.isMulticastAddress()
+                        || addr.isAnyLocalAddress()) {
+                    throw new FetchRejectedException(
+                            "Host resolved to an internal IP (" + addr.getHostAddress() + ") — SSRF blocked");
+                }
+            }
+        } catch (UnknownHostException e) {
+            throw new FetchRejectedException("Could not resolve host: " + host);
+        }
+    }
+
+    /**
      * Fetch một URL với đầy đủ kiểm tra. Trả về FetchResult (bytes + content type),
      * hoặc ném FetchRejectedException với LÝ DO RÕ RÀNG (fail loud, phục vụ audit log).
      */
@@ -159,34 +199,14 @@ public class SafeFetcher {
             throw new FetchRejectedException("Invalid URL: " + url);
         }
 
-        // #1 scheme
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-        if (httpsOnly && !"https".equals(scheme)) {
-            throw new FetchRejectedException("Rejected scheme '" + scheme + "' (https only): " + url);
-        }
-        if (!"https".equals(scheme) && !"http".equals(scheme)) {
-            throw new FetchRejectedException("Unsupported scheme: " + scheme);
-        }
+        // #1 scheme + #3 SSRF (dùng chung với assertSafeUrl — một nơi giữ luật duy nhất)
+        assertSafeUri(uri);
 
         // #2 host whitelist — exact match
         String host = uri.getHost();
         if (host == null || !host.equalsIgnoreCase(allowedHost)) {
             throw new FetchRejectedException(
                     "Host '" + host + "' does not match whitelist '" + allowedHost + "'");
-        }
-
-        // #3 SSRF guard — chặn IP nội bộ sau khi resolve DNS
-        try {
-            for (InetAddress addr : InetAddress.getAllByName(host)) {
-                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress()
-                        || addr.isLinkLocalAddress() || addr.isMulticastAddress()
-                        || addr.isAnyLocalAddress()) {
-                    throw new FetchRejectedException(
-                            "Host resolved to an internal IP (" + addr.getHostAddress() + ") — SSRF blocked");
-                }
-            }
-        } catch (UnknownHostException e) {
-            throw new FetchRejectedException("Could not resolve host: " + host);
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)

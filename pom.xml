@@ -63,6 +63,22 @@
       <artifactId>openhtmltopdf-pdfbox</artifactId>
       <version>1.0.10</version>
     </dependency>
+
+    <!-- Open research (nguồn 3 — render JS thật cho SPA/lazy-load mà fetch tĩnh không đọc được).
+         Version PHẢI khớp browser build đã cài trong môi trường deploy (PLAYWRIGHT_BROWSERS_PATH)
+         — Playwright kiểm tra strict, lệch version là launch lỗi. -->
+    <dependency>
+      <groupId>com.microsoft.playwright</groupId>
+      <artifactId>playwright</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+
+    <!-- Ad-hoc research note — xuất .docx trực tiếp, KHÔNG ghi DB (xem AdhocDocxService) -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.5.1</version>
+    </dependency>
   </dependencies>
 
   <build>

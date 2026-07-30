@@ -96,6 +96,12 @@ marketradar:
     retry-backoff-millis: 400
     max-body-bytes: 5242880   # 5 MB — chống tải payload quá cỡ
     https-only: true          # nguồn http thuần sẽ bị từ chối (fail loud, log rõ)
+  browser:                    # Open research — BrowserRenderService (Playwright, render JS thật)
+    executable-path: ""       # để trống ở production: Playwright tự quản lý Chromium (cài 1 lần lúc
+                               # deploy: java -cp <cp> com.microsoft.playwright.CLI install chromium).
+                               # Chỉ set khi môi trường có sẵn Chromium ở đường dẫn riêng.
+    headless: true
+    timeout-seconds: 20
 
 logging:
   level:

@@ -15,8 +15,11 @@ import java.time.Instant;
 public class RawDoc {
 
     public enum ParseStatus { OK, PARSE_ERROR, FETCH_REJECTED, EMPTY_CONTENT }
-    /** How the original content entered the evidence store; never inferred from the URL. */
-    public enum IntakeMethod { CRAWLED, MANUAL_TEXT, FILE_UPLOAD }
+    /** How the original content entered the evidence store; never inferred from the URL.
+     * OPEN_SEARCH = operator-triggered open-web discovery (news-search RSS, host outside the
+     * registry whitelist). BROWSER_RENDER = fetched through a real headless browser because the
+     * page needs JS to render. Both are manual-trigger only and carry no extra credibility. */
+    public enum IntakeMethod { CRAWLED, MANUAL_TEXT, FILE_UPLOAD, OPEN_SEARCH, BROWSER_RENDER }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

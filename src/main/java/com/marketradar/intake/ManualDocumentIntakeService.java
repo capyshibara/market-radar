@@ -32,6 +32,12 @@ public class ManualDocumentIntakeService {
     }
 
     public Result importUrl(String sourceUrl) {
+        return importUrl(sourceUrl, RawDoc.IntakeMethod.MANUAL_TEXT, "URL_IMPORT");
+    }
+
+    /** Open-research variant: same fetch/parse/metadata/validation/dedup path, only the
+     * provenance label differs (OPEN_SEARCH + audit prefix naming the query that found it). */
+    public Result importUrl(String sourceUrl, RawDoc.IntakeMethod method, String auditLabel) {
         String url = ManualDocumentRules.directImportUrl(sourceUrl);
         try {
             SafeFetcher.FetchResult fetched = fetcher.fetchDocument(url);
@@ -45,12 +51,31 @@ public class ManualDocumentIntakeService {
             ManualDocumentRules.Submission input = ManualDocumentRules.validateDetected(
                     metadata.title(), metadata.publisher(), url, metadata.publishedDate(),
                     metadata.language(), parsed.text());
-            return store(input, RawDoc.IntakeMethod.MANUAL_TEXT, filename,
-                    "URL_IMPORT | contentType=" + fetched.contentType(), pdf ? "PDF" : "article");
+            return store(input, method, filename,
+                    auditLabel + " | contentType=" + fetched.contentType(), pdf ? "PDF" : "article");
         } catch (SafeFetcher.FetchRejectedException rejected) {
             throw new ManualDocumentRules.ValidationException("Could not import this URL: " + rejected.getMessage());
         } catch (ContentParsers.ParseFailedException parseError) {
             throw new ManualDocumentRules.ValidationException("The linked document could not be read: " + parseError.getMessage());
+        }
+    }
+
+    /** Browser-render variant (BROWSER_RENDER): the HTML was produced by a real headless browser
+     * (BrowserRenderService) because the page needs JS to render — fetching is already done, so
+     * this only runs the parse/metadata/validation/dedup half of importUrl on the rendered bytes. */
+    public Result importRenderedHtml(String sourceUrl, byte[] renderedHtml) {
+        String url = ManualDocumentRules.directImportUrl(sourceUrl);
+        try {
+            ContentParsers.ParsedText parsed = parsers.parseArticleHtml(renderedHtml);
+            DocumentMetadataDetector.Metadata metadata =
+                    DocumentMetadataDetector.html(renderedHtml, parsed.text(), parsed.title(), url);
+            ManualDocumentRules.Submission input = ManualDocumentRules.validateDetected(
+                    metadata.title(), metadata.publisher(), url, metadata.publishedDate(),
+                    metadata.language(), parsed.text());
+            return store(input, RawDoc.IntakeMethod.BROWSER_RENDER, filenameFromUrl(url, null),
+                    "BROWSER_RENDER | js-rendered page", "article");
+        } catch (ContentParsers.ParseFailedException parseError) {
+            throw new ManualDocumentRules.ValidationException("The rendered page could not be read: " + parseError.getMessage());
         }
     }
 

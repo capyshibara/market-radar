@@ -185,12 +185,16 @@ public class ProductSourceStoryService {
                 case CRAWLED -> "Thu thập tự động";
                 case MANUAL_TEXT -> "Văn bản nhập thủ công";
                 case FILE_UPLOAD -> "Tệp tải lên";
+                case OPEN_SEARCH -> "Tìm kiếm mở (kích hoạt thủ công)";
+                case BROWSER_RENDER -> "Trình duyệt render JS";
             };
         }
         return switch (safe) {
             case CRAWLED -> "Automatically crawled";
             case MANUAL_TEXT -> "Manually pasted text";
             case FILE_UPLOAD -> "Uploaded file";
+            case OPEN_SEARCH -> "Open-web search (operator-triggered)";
+            case BROWSER_RENDER -> "Headless-browser rendered";
         };
     }
 

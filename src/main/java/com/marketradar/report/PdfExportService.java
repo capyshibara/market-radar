@@ -36,20 +36,27 @@ public class PdfExportService {
     private static final String PDF_OVERRIDE_CSS = """
             @page { size: letter landscape; margin: 11mm 12mm; }
             body { background:#F8F6F1 !important; }
+            /* 'WenQuanYi Zen Hei' đứng CUỐI mọi stack: Work Sans/Lora/Libre Caslon/DejaVu đều
+             * KHÔNG có glyph Hán → fact/tên nguồn tiếng Trung (vd 国家金融监督管理总局) in ra
+             * thành ô '#' trong PDF (bắt qua render-to-PNG, không phải giả định). OpenHTMLtoPDF
+             * fallback theo TỪNG glyph nên chỉ ký tự Hán rơi xuống WQY, chữ Latin giữ font chính. */
             body, p, li, td, th, span, div, b, i, a, summary, em, strong
-              { font-family:'Work Sans', 'DejaVu Sans', sans-serif !important; }
+              { font-family:'Work Sans', 'DejaVu Sans', 'WenQuanYi Zen Hei', sans-serif !important; }
             h1, h2, h3, h4, .report-deck, .meta-value.accent,
             .section-stat strong, .footer-title
-              { font-family:'Libre Caslon Text', serif !important; }
+              { font-family:'Libre Caslon Text', 'WenQuanYi Zen Hei', serif !important; }
             .locale-vi h1, .locale-vi h2, .locale-vi h3, .locale-vi h4,
             .locale-vi .report-deck, .locale-vi .meta-value.accent,
             .locale-vi .section-stat strong, .locale-vi .footer-title
-              { font-family:'Lora', serif !important; }
+              { font-family:'Lora', 'WenQuanYi Zen Hei', serif !important; }
             /* Batch 7 (i18n): .cite-pill hiển thị TÊN NGUỒN thật (có dấu tiếng Việt) —
              * KHÔNG được ép Mono ở đây (từng gây lỗi hiển thị, xem EmailPngExportService).
              * Chỉ ép Mono cho nội dung chắc chắn ascii: tier-dot (chữ số), mã ngôn ngữ 2 ký tự. */
             .tier-dot, .code, .span-orig .lang, .orig-span .lang, pre, code
               { font-family:'DejaVu Sans Mono', monospace !important; }
+            /* Span nguyên văn tiếng Trung (invariant "luôn hiện nguyên văn gốc") */
+            .span-orig, .orig-span
+              { font-family:'DejaVu Sans', 'WenQuanYi Zen Hei', sans-serif !important; }
             .page { box-shadow:none !important; margin:0 !important;
                     max-width:100% !important; padding:0 !important; }
             .no-print { display:none !important; }
@@ -267,6 +274,11 @@ public class PdfExportService {
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             builder.useFont(() -> PdfExportService.class.getResourceAsStream(
                     "/fonts/WorkSans-Bold.ttf"), "Work Sans", 700,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            // Han-glyph fallback (GPL-2 with Font Embedding Exception — nhúng PDF tự do).
+            // Tách sẵn thành .ttf đơn từ .ttc gốc vì PDFBox/OpenHTMLtoPDF không load font collection.
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/WenQuanYiZenHei.ttf"), "WenQuanYi Zen Hei", 400,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             builder.withW3cDocument(w3c, "/");
             builder.toStream(out);

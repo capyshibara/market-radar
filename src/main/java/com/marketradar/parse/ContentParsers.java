@@ -179,6 +179,7 @@ public class ContentParsers {
                         entry.getTitle() == null ? "(không tiêu đề)" : entry.getTitle(),
                         entry.getLink(),
                         descText,
+                        descHtml,
                         published));
             }
             if (items.isEmpty()) throw new ParseFailedException("Feed không có entry nào");
@@ -1805,7 +1806,11 @@ public class ContentParsers {
     }
 
     public record ParsedText(String title, String text, String note) {}
-    public record RssItem(String title, String link, String descriptionText, Instant publishedAt) {}
+    /** descriptionHtml giữ NGUYÊN markup của mô tả (khác descriptionText đã text-hoá) — cần cho
+     * NewsDiscoveryService trích URL nhà-xuất-bản gốc từ thẻ &lt;a&gt; trong feed Google News
+     * (link của item là link trung gian news.google.com, không phải bài viết thật). */
+    public record RssItem(String title, String link, String descriptionText, String descriptionHtml,
+                          Instant publishedAt) {}
     public record ListingItem(String title, String link, Instant publishedAt) {}
     public record MofArticle(String title, String url, String slug, Instant publishedAt, String description) {}
 

@@ -43,7 +43,7 @@ public class EmailPngExportService {
     private static final String PDF_OVERRIDE_CSS = """
             @page { size: %fmm %fmm; margin: 0; }
             body, h1, h2, h3, h4, p, li, td, th, span, div, b, i, a, strong
-              { font-family:'DejaVu Sans', sans-serif !important; }
+              { font-family:'DejaVu Sans', 'WenQuanYi Zen Hei', sans-serif !important; }
             .report-page { background:#fffdfa !important; color:#172033 !important; }
             .report-header { border-top:6px solid #d7192d !important; }
             .report-header h1, .section-head h2, .priority-card h3,
@@ -95,6 +95,9 @@ public class EmailPngExportService {
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             builder.useFont(() -> EmailPngExportService.class.getResourceAsStream(
                     "/fonts/DejaVuSansMono.ttf"), "DejaVu Sans Mono", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> EmailPngExportService.class.getResourceAsStream(
+                    "/fonts/WenQuanYiZenHei.ttf"), "WenQuanYi Zen Hei", 400,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
             builder.withW3cDocument(w3c, "/");
             builder.toStream(pdfOut);
