@@ -13,6 +13,7 @@ import com.marketradar.domain.InterpretedClaim.Slot;
 import com.marketradar.interpret.GroundingGateL1;
 import com.marketradar.interpret.InterpretationJob;
 import com.marketradar.review.RiskTierRouter;
+import com.marketradar.synthesize.SynthesisJob;
 import com.marketradar.verify.VerificationJob;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
@@ -40,16 +41,26 @@ public class ClaimController {
     private final GroundingGateL1 gate;
     private final VerificationJob verifyJob;
     private final RiskTierRouter tierRouter;
+    private final SynthesisJob synthesisJob;
 
     public ClaimController(InterpretedClaimRepository claims, EvidenceFactRepository facts,
                            InterpretationJob job, GroundingGateL1 gate,
-                           VerificationJob verifyJob, RiskTierRouter tierRouter) {
+                           VerificationJob verifyJob, RiskTierRouter tierRouter,
+                           SynthesisJob synthesisJob) {
         this.claims = claims;
         this.facts = facts;
         this.job = job;
         this.gate = gate;
         this.verifyJob = verifyJob;
         this.tierRouter = tierRouter;
+        this.synthesisJob = synthesisJob;
+    }
+
+    /** Phase 3: gom fact xuyên tài liệu theo bucket BI report + AI viết nhận định + Gate L1. */
+    @PostMapping("/synthesize/run")
+    @ResponseBody
+    public String runSynthesize() {
+        return "Kết quả synthesize:\n" + synthesisJob.runOnce();
     }
 
     /** Batch 4: chạy Gate L2 (entailment độc lập) cho mọi claim PENDING_VERIFICATION. */

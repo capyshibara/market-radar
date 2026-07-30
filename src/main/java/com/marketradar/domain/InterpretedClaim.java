@@ -13,10 +13,22 @@ import java.time.Instant;
 @Table(name = "interpreted_claims")
 public class InterpretedClaim {
 
-    /** Slot template mà câu này điền vào (template-first — AI chỉ điền slot). */
-    public enum Slot { WHY_MATTERS, IMPLICATION, EXEC_SUMMARY }
+    /** Slot template mà câu này điền vào (template-first — AI chỉ điền slot).
+     * SYNTHESIS (Phase 3+) = câu tổng hợp xuyên nhiều RawDoc cho BI report — Bucket bên dưới
+     * mới là phân loại nội dung thật; Slot=SYNTHESIS chỉ đánh dấu "đây là claim loại này". */
+    public enum Slot { WHY_MATTERS, IMPLICATION, EXEC_SUMMARY, SYNTHESIS }
 
     public enum Origin { PIPELINE, DEMO_INJECT }
+
+    /**
+     * Nhóm nội dung cho BI report (Phase 3+) — null cho claim report tuần (Slot cũ đã đủ dùng).
+     * Đây KHÔNG thay thế Slot: Slot vẫn là "câu này điền vào ô nào", Bucket là "câu này (thường
+     * tổng hợp xuyên nhiều RawDoc) thuộc chủ đề nào" — dùng để định tuyến trang trong BI template.
+     */
+    public enum Bucket {
+        MACRO_ECONOMIC, COMPETITIVE_THEME, SCHEDULED_EVENT, COMPANY_EVENT,
+        MARKET_SHARE_OR_AWARD, TECH_AI_SIGNAL, STRATEGIC_COMPARISON
+    }
 
     /**
      * Trạng thái review (Batch 4). Report CHỈ nhận 4 trạng thái *_APPROVED.
@@ -88,6 +100,15 @@ public class InterpretedClaim {
     @Enumerated(EnumType.STRING) @Column(nullable = false)
     private ReviewStatus reviewStatus = ReviewStatus.PENDING_REVIEW;
 
+    /** Chỉ set cho claim BI report (Phase 3+); null cho claim report tuần (WHY_MATTERS/IMPLICATION/EXEC_SUMMARY). */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 32)
+    private Bucket bucket;
+
+    /** Khoá nhóm/lặp trang cho BI report — tên đối thủ hoặc tên xu hướng. Null cho claim report tuần. */
+    @Column(length = 256)
+    private String subjectKey;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -120,6 +141,23 @@ public class InterpretedClaim {
     public Instant getCreatedAt() { return createdAt; }
     public String getRiskTier() { return riskTier; }
     public ReviewStatus getReviewStatus() { return reviewStatus; }
+    public Bucket getBucket() { return bucket; }
+    public String getSubjectKey() { return subjectKey; }
+
+    // ---- Chỉ dùng khi tạo claim BI report (Phase 3+) ----
+    public InterpretedClaim bucket(Bucket bucket) { this.bucket = bucket; return this; }
+    public InterpretedClaim subjectKey(String subjectKey) { this.subjectKey = subjectKey; return this; }
+
+    /** Phase 4 (BI report — THREATMAP exhibit): suy mức độ HIGH/MEDIUM/LOW từ riskTier đã có sẵn
+     * (RiskTierRouter, code thuần) — KHÔNG để AI tự chấm mức độ nghiêm trọng (sẽ là bịa đặt không
+     * căn cứ, vi phạm invariant "zero claim không nguồn"). T3/T4 → HIGH, T2 → MEDIUM, còn lại → LOW. */
+    public String getThreatSeverityLabel() {
+        return switch (riskTier) {
+            case "T3", "T4" -> "HIGH";
+            case "T2" -> "MEDIUM";
+            default -> "LOW";
+        };
+    }
 
     // ---- Setters CHỈ cho luồng review (Batch 4) ----
     // Text gốc trước mọi lần sửa được giữ verbatim trong LabelLog — đó là audit trail.

@@ -335,6 +335,25 @@ public class SeedData implements CommandLineRunner {
         sources.save(new Source("INS_BIZ_ASIA", "Insurance Business Asia",
                 "https://www.insurancebusinessmag.com/asia/", "www.insurancebusinessmag.com",
                 Source.SourceType.HTML, 3, "en"));
+
+        // Phase 2 (nguồn 2 — dynamic search): "nguồn giả" gắn cho RawDoc lấy qua NewsDiscoveryService,
+        // KHÔNG phải whitelist thật — fetchUrl/allowedHost rỗng vì không dùng qua SafeFetcher.fetch()
+        // (IngestionJob), chỉ dùng fetchOpen() qua NewsDiscoveryService. active=false để findByActiveTrue()
+        // không bao giờ trả về đây (IngestionJob sẽ throw nếu lỡ chạm phải — xem IngestionJob.ingestSource).
+        Source openResearch = new Source("OPEN_RESEARCH", "Nghiên cứu mở (dynamic search)",
+                "", "", Source.SourceType.HTML, 4, "vi");
+        openResearch.setActive(false);
+        openResearch.setUrlUnverified(false); // không áp dụng — không fetch qua registry URL
+        sources.save(openResearch);
+
+        // Phase 2 (kênh 4 — upload tay): "nguồn giả" cho tài liệu Strategy Expert dán/tải tay.
+        // KHÔNG xếp chung tier với nguồn công khai — độ tin cậy ở đây do CON NGƯỜI tự chịu trách
+        // nhiệm khi upload, không phải uy tín một trang web. active=false, type=UPLOAD.
+        Source manualUpload = new Source("MANUAL_UPLOAD", "Tài liệu nộp tay (Strategy Expert)",
+                "", "", Source.SourceType.UPLOAD, 4, "vi");
+        manualUpload.setActive(false);
+        manualUpload.setUrlUnverified(false);
+        sources.save(manualUpload);
     }
 
     private void seedSampleFacts() {
@@ -380,6 +399,104 @@ public class SeedData implements CommandLineRunner {
                 .productName("An Phát Đầu Tư (unit-linked)")
                 .category("Thay đổi phí")
                 .summaryVi("Giảm phí quản lý quỹ ULP từ 2,0% xuống 1,75%/năm, hiệu lực 01/08/2026, áp dụng cả hợp đồng hiện hữu."));
+
+        // Phase 4 (BI report): thêm fact mẫu để kích hoạt đủ 6 bucket buildable của Phase 3
+        // (2 fact gốc F-001/F-002 chỉ đủ cho COMPANY_EVENT). Vẫn HƯ CẤU, cùng quy ước công ty
+        // dùng lại ở F-001/F-002 cho 2 fact đầu (để cùng category → COMPETITIVE_THEME/
+        // MARKET_SHARE_OR_AWARD bắt cặp đúng công ty đã có), 2 công ty mới cho SCHEDULED_EVENT/
+        // TECH_AI_SIGNAL — tổng 4 công ty phân biệt để test trang Competitor Highlight lặp động.
+        RawDoc docVi2 = new RawDoc(mofIsa, "https://mof.gov.vn/SAMPLE/demo-doc-3",
+                "[MẪU] Doanh nghiệp bảo hiểm mở rộng hợp tác kênh ngân hàng",
+                Instant.now().minusSeconds(86400 * 8), Instant.now(), "sample-hash-vi-003",
+                "[DỮ LIỆU MẪU] Công ty TNHH Bảo hiểm Nhân thọ Hoa Sen (hư cấu) công bố ký kết hợp tác "
+                + "phân phối độc quyền qua kênh ngân hàng với Ngân hàng Sen Việt (hư cấu), thời hạn 10 năm.",
+                "vi", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
+        docVi2.setSampleData(true);
+        rawDocs.save(docVi2);
+        facts.save(new EvidenceFact("F-003", docVi2, FactType.EVENT,
+                "ký kết hợp tác phân phối độc quyền qua kênh ngân hàng với Ngân hàng Sen Việt (hư cấu), thời hạn 10 năm.",
+                "vi")
+                .eventDate(LocalDate.now().minusDays(8))
+                .company("BHNT Hoa Sen (mẫu — hư cấu)")
+                .productName("Hợp tác Bancassurance — Ngân hàng Sen Việt")
+                .category("Bancassurance")
+                .summaryVi("Ký hợp tác phân phối độc quyền qua kênh ngân hàng, thời hạn 10 năm."));
+
+        RawDoc docZh2 = new RawDoc(nfra, "https://www.nfra.gov.cn/SAMPLE/demo-doc-4",
+                "[MẪU] 某人寿保险公司扩大银保渠道合作",
+                Instant.now().minusSeconds(86400 * 6), Instant.now(), "sample-hash-zh-004",
+                "[DỮ LIỆU MẪU] 华晟人寿保险股份有限公司（示例）与晟越银行（示例）签署为期10年的银保独家分销合作协议。",
+                "zh", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
+        docZh2.setSampleData(true);
+        rawDocs.save(docZh2);
+        facts.save(new EvidenceFact("F-004", docZh2, FactType.EVENT,
+                "与晟越银行（示例）签署为期10年的银保独家分销合作协议。", "zh")
+                .eventDate(LocalDate.now().minusDays(6))
+                .company("Huasheng Life (mẫu — hư cấu)")
+                .productName("Hợp tác Bancassurance — Ngân hàng Thịnh Việt")
+                .category("Bancassurance")
+                .summaryVi("Ký hợp tác phân phối độc quyền qua kênh ngân hàng, thời hạn 10 năm."));
+
+        RawDoc docVi3 = new RawDoc(mofIsa, "https://mof.gov.vn/SAMPLE/demo-doc-5",
+                "[MẪU] Số liệu APE công bố quý gần nhất",
+                Instant.now().minusSeconds(86400 * 4), Instant.now(), "sample-hash-vi-005",
+                "[DỮ LIỆU MẪU] Công ty TNHH Bảo hiểm Nhân thọ Hoa Sen (hư cấu) công bố APE quý đạt "
+                + "1.200 tỷ đồng, tăng 12% so với quý trước.",
+                "vi", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
+        docVi3.setSampleData(true);
+        rawDocs.save(docVi3);
+        facts.save(new EvidenceFact("F-005", docVi3, FactType.METRIC,
+                "APE quý đạt 1.200 tỷ đồng, tăng 12% so với quý trước.", "vi")
+                .eventDate(LocalDate.now().minusDays(4))
+                .company("BHNT Hoa Sen (mẫu — hư cấu)")
+                .category("Thị phần APE")
+                .summaryVi("APE quý đạt 1.200 tỷ đồng, tăng 12% so với quý trước."));
+
+        RawDoc docZh3 = new RawDoc(nfra, "https://www.nfra.gov.cn/SAMPLE/demo-doc-6",
+                "[MẪU] 某人寿保险公司季度保费数据",
+                Instant.now().minusSeconds(86400 * 3), Instant.now(), "sample-hash-zh-006",
+                "[DỮ LIỆU MẪU] 华晟人寿保险股份有限公司（示例）季度APE达人民币9.8亿元，环比增长8%。",
+                "zh", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
+        docZh3.setSampleData(true);
+        rawDocs.save(docZh3);
+        facts.save(new EvidenceFact("F-006", docZh3, FactType.METRIC,
+                "季度APE达人民币9.8亿元，环比增长8%。", "zh")
+                .eventDate(LocalDate.now().minusDays(3))
+                .company("Huasheng Life (mẫu — hư cấu)")
+                .category("Thị phần APE")
+                .summaryVi("APE quý đạt 980 triệu NDT, tăng 8% so với quý trước."));
+
+        RawDoc docVi4 = new RawDoc(mofIsa, "https://mof.gov.vn/SAMPLE/demo-doc-7",
+                "[MẪU] Doanh nghiệp bảo hiểm công bố lịch công bố kết quả kinh doanh",
+                Instant.now().minusSeconds(86400 * 2), Instant.now(), "sample-hash-vi-007",
+                "[DỮ LIỆU MẪU] Công ty TNHH Bảo hiểm Nhân thọ Sen Vàng (hư cấu) thông báo sẽ công bố "
+                + "kết quả kinh doanh quý vào ngày cụ thể sắp tới.",
+                "vi", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
+        docVi4.setSampleData(true);
+        rawDocs.save(docVi4);
+        facts.save(new EvidenceFact("F-007", docVi4, FactType.EVENT,
+                "sẽ công bố kết quả kinh doanh quý vào ngày cụ thể sắp tới.", "vi")
+                .eventDate(LocalDate.now().plusDays(20))
+                .company("BHNT Sen Vàng (mẫu — hư cấu)")
+                .category("Lịch công bố")
+                .summaryVi("Dự kiến công bố kết quả kinh doanh quý trong 20 ngày tới."));
+
+        RawDoc docVi5 = new RawDoc(mofIsa, "https://mof.gov.vn/SAMPLE/demo-doc-8",
+                "[MẪU] Doanh nghiệp bảo hiểm triển khai ứng dụng AI chăm sóc khách hàng",
+                Instant.now().minusSeconds(86400 * 1), Instant.now(), "sample-hash-vi-008",
+                "[DỮ LIỆU MẪU] Công ty TNHH Bảo hiểm Nhân thọ Số Việt (hư cấu) công bố triển khai "
+                + "chatbot AI chăm sóc khách hàng trên toàn bộ kênh số, giảm 50% thời gian xử lý yêu cầu.",
+                "vi", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
+        docVi5.setSampleData(true);
+        rawDocs.save(docVi5);
+        facts.save(new EvidenceFact("F-008", docVi5, FactType.EVENT,
+                "triển khai chatbot AI chăm sóc khách hàng trên toàn bộ kênh số, giảm 50% thời gian xử lý yêu cầu.",
+                "vi")
+                .eventDate(LocalDate.now().minusDays(1))
+                .company("BHNT Số Việt (mẫu — hư cấu)")
+                .productName("Chatbot AI chăm sóc khách hàng")
+                .category("Ứng dụng AI / số hoá")
+                .summaryVi("Triển khai chatbot AI chăm sóc khách hàng, giảm 50% thời gian xử lý yêu cầu."));
     }
 
     /**

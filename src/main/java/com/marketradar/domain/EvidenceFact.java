@@ -15,6 +15,12 @@ public class EvidenceFact {
 
     public enum FactType { EVENT, PRODUCT_LAUNCH, FEE_CHANGE, REGULATION, METRIC }
 
+    /** Fact đã được xác nhận hay còn là ước tính/chưa kiểm chứng — trục ĐỘC LẬP với Source.tier và với
+     * RawDoc.acquisition (một fact từ nguồn tier 1 vẫn có thể là ESTIMATE nếu bản thân số liệu là dự báo).
+     * (acquisition — cách có được TÀI LIỆU — nằm ở RawDoc, vì nó xác định được ngay lúc fetch, trước khi
+     * có fact nào; confidence thì gắn với từng CÂU/SỐ LIỆU cụ thể nên ở cấp fact.) */
+    public enum Confidence { CONFIRMED, ESTIMATE, UNCONFIRMED }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -45,6 +51,10 @@ public class EvidenceFact {
     @Column(length = 256) private String category;
     @Lob @Column(columnDefinition = "CLOB") private String summaryVi; // tóm tắt tiếng Việt, gắn nhãn bản dịch/tóm tắt
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private Confidence confidence = Confidence.CONFIRMED;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -70,6 +80,7 @@ public class EvidenceFact {
     public String getProductName() { return productName; }
     public String getCategory() { return category; }
     public String getSummaryVi() { return summaryVi; }
+    public Confidence getConfidence() { return confidence; }
     public Instant getCreatedAt() { return createdAt; }
 
     /** Batch 6 (report redesign): tên ngôn ngữ hiển thị cho dòng "nguyên văn tiếng X" —
@@ -91,4 +102,5 @@ public class EvidenceFact {
     public EvidenceFact productName(String p) { this.productName = p; return this; }
     public EvidenceFact category(String c) { this.category = c; return this; }
     public EvidenceFact summaryVi(String s) { this.summaryVi = s; return this; }
+    public EvidenceFact confidence(Confidence c) { this.confidence = c; return this; }
 }

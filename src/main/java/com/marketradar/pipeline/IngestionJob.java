@@ -83,6 +83,10 @@ public class IngestionJob {
             case HTML -> ingestHtml(source);
             case RSS -> ingestRss(source);
             case PDF -> ingestPdf(source);
+            // UPLOAD = nguồn giả cho tài liệu nộp tay (Phase 2) — luôn active=false nên
+            // findByActiveTrue() không bao giờ trả về đây; fail loud nếu giả định đó bị phá.
+            case UPLOAD -> throw new IllegalStateException(
+                    "UPLOAD source không được ingest qua IngestionJob (source.active phải = false): " + source.getCode());
         };
     }
 

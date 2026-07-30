@@ -76,14 +76,47 @@ public class SafeFetcher {
     public FetchResult fetch(String url, String allowedHost, ExpectedKind kind)
             throws FetchRejectedException {
 
-        final URI uri;
+        final URI uri = parseUri(url);
+
+        // #2 host whitelist — exact match (CHỈ áp dụng cho fetch() whitelist; fetchOpen() bỏ qua bước này)
+        String host = uri.getHost();
+        if (host == null || !host.equalsIgnoreCase(allowedHost)) {
+            throw new FetchRejectedException(
+                    "Host '" + host + "' không khớp whitelist '" + allowedHost + "'");
+        }
+
+        return doFetch(uri, kind);
+    }
+
+    /**
+     * Batch — Phase 2 (nguồn 2, dynamic search): fetch KHÔNG whitelist host — dùng cho URL
+     * do NewsDiscoveryService tìm ra, không biết trước domain. Vẫn giữ NGUYÊN mọi lớp phòng thủ
+     * còn lại (scheme/SSRF/no-redirect/content-type/size cap) — chỉ bỏ riêng bước #2.
+     * Gọi hàm này KHÔNG được gắn vào Source có allowedHost thật — chỉ dùng cho luồng nghiên cứu mở.
+     */
+    public FetchResult fetchOpen(String url, ExpectedKind kind) throws FetchRejectedException {
+        return doFetch(parseUri(url), kind);
+    }
+
+    private URI parseUri(String url) throws FetchRejectedException {
         try {
-            uri = URI.create(url);
+            return URI.create(url);
         } catch (IllegalArgumentException e) {
             throw new FetchRejectedException("URL không hợp lệ: " + url);
         }
+    }
 
-        // #1 scheme
+    /**
+     * Kiểm scheme (#1) + SSRF guard (#3) — tách riêng để dùng cho MỌI đường lấy dữ liệu ra ngoài,
+     * kể cả đường KHÔNG qua HttpClient của lớp này (VD Playwright ở BrowserRenderService, nguồn 3).
+     * Đây là "cổng an toàn" duy nhất — không được có đường lấy dữ liệu ngoài nào bỏ qua hàm này.
+     */
+    public void assertSafeUrl(String url) throws FetchRejectedException {
+        assertSafeUrl(parseUri(url));
+    }
+
+    private void assertSafeUrl(URI uri) throws FetchRejectedException {
+        String url = uri.toString();
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
         if (httpsOnly && !"https".equals(scheme)) {
             throw new FetchRejectedException("Từ chối scheme '" + scheme + "' (chỉ cho phép https): " + url);
@@ -91,15 +124,7 @@ public class SafeFetcher {
         if (!"https".equals(scheme) && !"http".equals(scheme)) {
             throw new FetchRejectedException("Scheme không được hỗ trợ: " + scheme);
         }
-
-        // #2 host whitelist — exact match
         String host = uri.getHost();
-        if (host == null || !host.equalsIgnoreCase(allowedHost)) {
-            throw new FetchRejectedException(
-                    "Host '" + host + "' không khớp whitelist '" + allowedHost + "'");
-        }
-
-        // #3 SSRF guard — chặn IP nội bộ sau khi resolve DNS
         try {
             for (InetAddress addr : InetAddress.getAllByName(host)) {
                 if (addr.isLoopbackAddress() || addr.isSiteLocalAddress()
@@ -112,6 +137,12 @@ public class SafeFetcher {
         } catch (UnknownHostException e) {
             throw new FetchRejectedException("Không resolve được host: " + host);
         }
+    }
+
+    /** Lõi dùng chung cho fetch() và fetchOpen(): #1, #3-#6 (mọi phòng thủ TRỪ host whitelist #2). */
+    private FetchResult doFetch(URI uri, ExpectedKind kind) throws FetchRejectedException {
+        String url = uri.toString();
+        assertSafeUrl(uri); // #1 scheme + #3 SSRF
 
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(requestTimeout)

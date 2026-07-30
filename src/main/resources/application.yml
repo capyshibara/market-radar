@@ -13,6 +13,10 @@ spring:
       enabled: true   # /h2-console — chỉ dùng dev/demo, tắt khi deploy thật
 
 marketradar:
+  # Tên công ty nhà dùng làm một vế cố định trong so sánh chiến lược (bucket STRATEGIC_COMPARISON
+  # của BI report, Phase 3+). Để trống nếu chưa cấu hình — Phase 3/4 phải bỏ qua bucket này khi rỗng,
+  # không được hardcode tên công ty vào code/prompt (đã gỡ "Techcom Life" khỏi codebase — không tái lập).
+  home-company: ""
   ingest:
     enabled: false          # bật true khi muốn cron chạy thật; demo dùng nút chạy tay /ingest/run
     fixed-delay-ms: 900000  # 15 phút
@@ -36,6 +40,8 @@ marketradar:
     webhook-url: ${SLACK_WEBHOOK_URL:}
     min-tier: T3                   # chỉ tin T3-T4 mới "sốt dẻo"
     base-url: http://localhost:8080  # gốc link "hành động" trong alert
+  synthesis:                       # Phase 3 — gom fact xuyên tài liệu theo bucket BI report
+    recency-days: 120               # bỏ qua fact có eventDate cũ hơn N ngày (null eventDate luôn qua)
   dedup:                           # Batch 5 — Dedup/Conflict (bước 9)
     window-hours: 72               # chỉ so cặp tài liệu trong cửa sổ 72h
     jaccard-same: 0.90             # >= ngưỡng này → trùng deterministic (không cần LLM)
@@ -45,6 +51,14 @@ marketradar:
     request-timeout-seconds: 15
     max-body-bytes: 5242880   # 5 MB — chống tải payload quá cỡ
     https-only: true          # nguồn http thuần sẽ bị từ chối (fail loud, log rõ)
+  browser:                    # Nguồn 3 — Playwright tự host (render JS thật)
+    executable-path: ""       # để trống ở production thật: Playwright tự quản lý browser (chạy
+                               # 1 lần `mvn -q dependency:build-classpath` rồi
+                               # `java -cp <cp> com.microsoft.playwright.CLI install chromium` lúc
+                               # deploy). Chỉ set khi môi trường đã có sẵn Chromium ở đường dẫn
+                               # riêng (VD sandbox dev dùng /opt/pw-browsers/chromium).
+    headless: true
+    timeout-seconds: 20
 
 logging:
   level:

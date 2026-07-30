@@ -47,6 +47,87 @@ public class ContentParsers {
     private static final java.util.regex.Pattern AIA_MONTH_ARCHIVE_LINK = java.util.regex.Pattern.compile("/\\d{4}/\\d{2}\\.html$");
     private static final java.util.regex.Pattern DDMMYYYY = java.util.regex.Pattern.compile("(\\d{2}/\\d{2}/\\d{4})");
 
+    private static final java.util.Set<String> GENERIC_NOISE_TAGS = java.util.Set.of(
+            "script", "style", "noscript", "iframe", "form", "svg", "button",
+            "nav", "header", "footer", "aside");
+    private static final java.util.regex.Pattern GENERIC_NOISE_CLASS = java.util.regex.Pattern.compile(
+            "(?i)nav|menu|sidebar|footer|header|comment|cookie|subscribe|related|share|social|advert|breadcrumb|popup|banner");
+
+    /**
+     * HTML → bài viết chính, cho trang KHÔNG biết trước cấu trúc (nguồn 2 — dynamic search).
+     * Khác parseHtml() (dump nguyên trang, dựa vào parser riêng-theo-site để lọc nhiễu): ở đây
+     * KHÔNG có parser riêng vì site lạ, nên tự lọc nav/header/footer/quảng cáo trước, rồi chọn
+     * nhóm đoạn <p> có mật độ chữ cao nhất làm nội dung chính — heuristic kiểu Readability,
+     * viết tay bằng jsoup sẵn có (không thêm thư viện ngoài, nhất quán với việc tự host font
+     * thay vì phụ thuộc CDN). Không hoàn hảo bằng parser riêng-theo-site, nhưng site lạ thì
+     * không có lựa chọn nào khác ngoài heuristic tổng quát.
+     */
+    public ParsedText parseGenericArticle(byte[] body) throws ParseFailedException {
+        Document doc;
+        try {
+            doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new ParseFailedException("Jsoup lỗi: " + e.getMessage());
+        }
+
+        doc.select(String.join(",", GENERIC_NOISE_TAGS)).remove();
+        for (Element el : doc.select("[class],[id]")) {
+            if (GENERIC_NOISE_CLASS.matcher(el.className() + " " + el.id()).find()) el.remove();
+        }
+
+        String ogTitle = doc.selectFirst("meta[property=og:title]") == null ? null
+                : doc.selectFirst("meta[property=og:title]").attr("content");
+        String h1 = doc.selectFirst("h1") == null ? null : doc.selectFirst("h1").text();
+        String title = firstNonBlank(ogTitle, h1, doc.title());
+
+        // Nhóm đoạn <p> theo container cha trực tiếp (xấp xỉ đơn giản cho "cùng 1 khối bài viết"),
+        // bỏ đoạn quá ngắn (caption/nút "Đọc thêm") và đoạn có mật độ link cao (menu/related box).
+        java.util.Map<Element, StringBuilder> byContainer = new java.util.LinkedHashMap<>();
+        java.util.Map<Element, Integer> countByContainer = new java.util.HashMap<>();
+        for (Element p : doc.select("p")) {
+            String text = p.text().trim();
+            if (text.length() < 40 || linkDensity(p) > 0.5) continue;
+            Element container = p.parent() == null ? p : p.parent();
+            byContainer.computeIfAbsent(container, k -> new StringBuilder()).append(text).append("\n\n");
+            countByContainer.merge(container, 1, Integer::sum);
+        }
+
+        Element best = null;
+        int bestScore = -1;
+        for (var entry : byContainer.entrySet()) {
+            if (countByContainer.get(entry.getKey()) < 2) continue; // 1 đoạn lẻ dễ là box phụ, không phải bài viết
+            int score = entry.getValue().length();
+            if (score > bestScore) { bestScore = score; best = entry.getKey(); }
+        }
+
+        String text;
+        String note = null;
+        if (best != null) {
+            text = byContainer.get(best).toString().trim();
+        } else {
+            text = doc.body() == null ? doc.text() : doc.body().text();
+            note = "Không xác định được khối bài viết rõ ràng sau khi lọc noise — lấy toàn bộ nội dung còn lại, cần người kiểm tra trước khi dùng làm căn cứ";
+        }
+
+        if (text.isBlank()) {
+            throw new ParseFailedException("Không trích được nội dung bài viết (rỗng sau khi lọc noise)");
+        }
+        return new ParsedText(title, text, note);
+    }
+
+    private static double linkDensity(Element el) {
+        int totalLen = el.text().length();
+        if (totalLen == 0) return 0;
+        int linkLen = 0;
+        for (Element a : el.select("a")) linkLen += a.text().length();
+        return (double) linkLen / totalLen;
+    }
+
+    private static String firstNonBlank(String... vals) {
+        for (String v : vals) if (v != null && !v.isBlank()) return v;
+        return "(không có tiêu đề)";
+    }
+
     /** HTML → text thuần + title. */
     public ParsedText parseHtml(byte[] body) throws ParseFailedException {
         try {

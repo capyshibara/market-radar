@@ -56,6 +56,21 @@
       <artifactId>pdfbox</artifactId>
       <version>2.0.31</version>
     </dependency>
+    <!-- Nguồn 3 (dynamic search — render JS thật): version PHẢI khớp browser build đã cài
+         trong môi trường deploy (PLAYWRIGHT_BROWSERS_PATH) — Playwright kiểm tra strict, lệch
+         version là launch lỗi. -->
+    <dependency>
+      <groupId>com.microsoft.playwright</groupId>
+      <artifactId>playwright</artifactId>
+      <version>1.56.0</version>
+    </dependency>
+
+    <!-- Phase 6: chế độ ad-hoc nhanh — xuất .docx trực tiếp, KHÔNG ghi DB (xem AdhocDocxService). -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.5.1</version>
+    </dependency>
 
     <!-- Batch 5: PDF export cho tuần san (dùng chung pdfbox 2.0.x với parser ở trên) -->
     <dependency>

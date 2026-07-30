@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.marketradar.domain.EvidenceFact;
+import com.marketradar.domain.InterpretedClaim.Bucket;
 import com.marketradar.domain.InterpretedClaim.Slot;
 import com.marketradar.domain.LlmCallLog;
 import com.marketradar.llm.LlmClient;
@@ -17,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AI#3 — Interpreter, giai đoạn TEMPLATE-FIRST (theo lộ trình D1 3 giai đoạn).
@@ -96,6 +98,47 @@ public class Interpreter {
            Không markdown, không giải thích ngoài JSON.
         """;
 
+    private static final String SYSTEM_SYNTHESIS_TEMPLATE = """
+        ### MODE:SYNTHESIZE_%s
+        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ (Việt Nam), viết cho báo cáo
+        Business Intelligence cấp quản lý (BI report), KHÔNG phải tuần san evidence thông thường.
+        Bạn nhận một EVIDENCE PACK gồm các fact liên quan đến chủ đề: "%s".
+        Loại tổng hợp này là: %s
+
+        Nhiệm vụ: viết 1-3 câu tiếng Việt tổng hợp NHẬN ĐỊNH xuyên các fact trong pack (không phải
+        liệt kê lại từng fact riêng lẻ). CHỈ viết nếu các fact THỰC SỰ đủ ý nghĩa quyết định
+        (decision-relevant) cho người đọc cấp quản lý — nếu evidence quá mỏng/không tạo thành một
+        nhận định có giá trị, trả về mảng rỗng, TUYỆT ĐỐI không cố viết cho có.
+
+        RÀNG BUỘC TUYỆT ĐỐI (giống hệt các mode khác):
+        1. Chỉ được dùng thông tin CÓ TRONG evidence pack. Không thêm con số, ngày tháng,
+           tên sản phẩm/công ty nào không có trong pack.
+        2. Mọi tên sản phẩm/công ty khi nhắc đến phải đặt trong ngoặc kép "…" và chép
+           NGUYÊN VĂN đúng script gốc trong evidence.
+        3. Mỗi câu phải kèm danh sách fact_codes là các mã fact làm căn cứ cho câu đó.
+        4. Trả về DUY NHẤT một JSON object đúng dạng:
+           {"sentences":[{"text":"...","fact_codes":["F-001"]}]}
+           Không markdown, không giải thích ngoài JSON.
+        """;
+
+    /** Mô tả ngắn cho từng Bucket — chèn vào prompt để model hiểu ĐÚNG loại tổng hợp đang làm. */
+    private static final Map<Bucket, String> BUCKET_INSTRUCTION = Map.of(
+        Bucket.COMPANY_EVENT,
+            "các sự kiện rời rạc của MỘT công ty (ra mắt, giải thưởng, hợp tác, nhân sự...) — chỉ viết nếu có mẫu hình đáng chú ý hơn từng tin đơn lẻ.",
+        Bucket.COMPETITIVE_THEME,
+            "một xu hướng LẶP LẠI ở NHIỀU công ty khác nhau — chỉ tính là xu hướng thật nếu evidence cho thấy rõ ≥2 công ty cùng làm.",
+        Bucket.STRATEGIC_COMPARISON,
+            "so sánh trực tiếp giữa 2 công ty cùng làm một việc tương tự — nêu rõ điểm khác biệt chiến lược, không chỉ liệt kê song song.",
+        Bucket.MARKET_SHARE_OR_AWARD,
+            "so sánh số liệu/xếp hạng giữa nhiều công ty (thị phần, giải thưởng) — chỉ viết nếu có ít nhất 2 công ty có số liệu so sánh được.",
+        Bucket.SCHEDULED_EVENT,
+            "một mốc/sự kiện SẮP DIỄN RA (chưa xảy ra) — nêu rõ đây là lịch trình, không phải việc đã xảy ra.",
+        Bucket.TECH_AI_SIGNAL,
+            "tín hiệu về AI/insurtech/số hoá của công ty — chỉ viết nếu evidence cho thấy mức độ đầu tư/triển khai cụ thể, không phải nhắc tên công nghệ chung chung.",
+        Bucket.MACRO_ECONOMIC,
+            "chỉ số vĩ mô ngành/thị trường — LƯU Ý: bucket này hiện CHƯA có nguồn dữ liệu vĩ mô thật trong EvidenceFact, không nên được gọi trong MVP hiện tại."
+    );
+
     // ================= public API =================
 
     public InterpretOutput interpretDoc(EvidencePack pack) {
@@ -122,6 +165,27 @@ public class Interpreter {
             parseSentences(root.get("sentences"), Slot.EXEC_SUMMARY, out);
             if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
             return new InterpretOutput(false, out, raw);
+        } catch (Exception e) {
+            return new InterpretOutput(true, List.of(), raw);
+        }
+    }
+
+    /**
+     * Phase 3 (synthesize): 1 call cho 1 candidate (bucket, subjectKey, pack đã gom xuyên nhiều
+     * RawDoc). Model tự đánh giá "đủ decision-relevant hay không" NGAY trong lúc viết — trả mảng
+     * rỗng nếu không đủ, thay vì tách riêng 1 lệnh gọi "chấm điểm liên quan" (Verifier ≠ Writer
+     * vẫn giữ nguyên: Gate L1 sau đó vẫn kiểm citation/tên/ngày/số y hệt các mode khác).
+     */
+    public InterpretOutput interpretSynthesis(EvidencePack pack, Bucket bucket, String subjectKey) {
+        String system = SYSTEM_SYNTHESIS_TEMPLATE.formatted(
+                bucket.name(), subjectKey, BUCKET_INSTRUCTION.get(bucket));
+        String raw = call("SYNTHESIZE_" + bucket.name(), system, pack.renderForPrompt(), null);
+        if (raw == null) return new InterpretOutput(true, List.of(), "(LLM_ERROR)");
+        List<Sentence> out = new ArrayList<>();
+        try {
+            JsonNode root = mapper.readTree(cleanFences(raw));
+            parseSentences(root.get("sentences"), Slot.SYNTHESIS, out);
+            return new InterpretOutput(false, out, raw); // mảng rỗng ở đây là HỢP LỆ (model tự đánh giá không đủ liên quan), không phải reject
         } catch (Exception e) {
             return new InterpretOutput(true, List.of(), raw);
         }

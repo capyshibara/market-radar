@@ -16,6 +16,10 @@ public class RawDoc {
 
     public enum ParseStatus { OK, PARSE_ERROR, FETCH_REJECTED, EMPTY_CONTENT }
 
+    /** Cách có được tài liệu này — biết ngay lúc fetch, độc lập với Source.tier (tier = nguồn uy tín
+     * cỡ nào, acquisition = ta lấy nó bằng cách nào). Mặc định WHITELIST_HTTP cho pipeline hiện có. */
+    public enum Acquisition { WHITELIST_HTTP, RESEARCH_HTTP, RESEARCH_BROWSER, MANUAL_UPLOAD }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -54,6 +58,10 @@ public class RawDoc {
 
     @Column(nullable = false)
     private boolean sampleData = false; // true = dữ liệu mẫu đặt tay cho demo template
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 24)
+    private Acquisition acquisition = Acquisition.WHITELIST_HTTP;
 
     /**
      * Batch 5 (dedup): != null nghĩa là doc này là BẢN TRÙNG của doc id kia
@@ -95,4 +103,6 @@ public class RawDoc {
     public void setSampleData(boolean sampleData) { this.sampleData = sampleData; }
     public Long getDuplicateOfId() { return duplicateOfId; }
     public void setDuplicateOfId(Long duplicateOfId) { this.duplicateOfId = duplicateOfId; }
+    public Acquisition getAcquisition() { return acquisition; }
+    public void setAcquisition(Acquisition acquisition) { this.acquisition = acquisition; }
 }

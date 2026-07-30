@@ -23,6 +23,9 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
 
     boolean existsBySlotAndOrigin(InterpretedClaim.Slot slot, InterpretedClaim.Origin origin);
 
+    /** Phase 3 (synthesize): tránh tổng hợp lại candidate đã có claim (kể cả SCHEMA_REJECTED). */
+    boolean existsByBucketAndSubjectKey(InterpretedClaim.Bucket bucket, String subjectKey);
+
     // ---- Batch 4 ----
 
     /**

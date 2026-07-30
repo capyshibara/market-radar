@@ -11,7 +11,8 @@ import jakarta.persistence.*;
 @Table(name = "source_registry")
 public class Source {
 
-    public enum SourceType { RSS, HTML, PDF }
+    /** UPLOAD = "nguồn giả" cho tài liệu do Strategy Expert nộp tay (Phase 2) — active=false, SafeFetcher không bao giờ fetch. */
+    public enum SourceType { RSS, HTML, PDF, UPLOAD }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="'Market Radar — Business Intelligence Report'">Market Radar BI Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&amp;family=Lora:ital,wght@0,400;0,600;0,700;1,500&amp;display=swap" rel="stylesheet"/>
+<style>
+  /*
+   * Phase 4 — Business Intelligence Report. Thiết kế theo tinh thần "Meridian Review" đã chốt
+   * (navy/blue/gold, serif display, Work Sans body) nhưng KHÔNG dựng lại special-issue.html /
+   * fragments/product-report-exhibit.html — 2 file đó không tồn tại sẵn trong repo, xây mới từ
+   * spec theo quyết định đã chọn ("xây mới, không lấy lại bản cũ").
+   *
+   * Đơn giản hoá có chủ đích so với spec gốc (nói rõ, không giấu):
+   *  - CHỈ tiếng Việt (không dựng toggle EN/VI) — content pipeline hiện tại 100% tiếng Việt.
+   *    Vì vậy dùng Lora cho MỌI display heading (đúng quy tắc "Lora cho VI"), Libre Caslon Text
+   *    không dùng tới (không có nhánh EN nào cần nó).
+   *  - Không có nghệ thuật trang bìa (orb/SVG trang trí) — chỉ typographic, giảm rủi ro PDF
+   *    render sai mà không thêm giá trị nội dung.
+   *  - THEME/MARKET_SHARE hiển thị dạng bảng liệt kê (MATRIX), KHÔNG vẽ bar-chart tỷ lệ px thật —
+   *    dữ liệu hiện tại là câu văn tổng hợp, không phải số liệu structured để vẽ đúng tỷ lệ; vẽ
+   *    bar giả sẽ là bịa đặt hình ảnh không có căn cứ.
+   *  - Không dùng CSS custom properties (var()) — renderer PDF không resolve tin cậy trong bản in
+   *    (đã ghi trong spec). Mọi màu viết thẳng giá trị hex.
+   *  - Không dùng display:grid — OpenHTMLtoPDF không hỗ trợ (đã kiểm chứng ở report tuần: inline-
+   *    block/float đều gây đè chữ). THREATMAP dùng display:table 2 cột (đã chốt, an toàn).
+   */
+  html,body{margin:0;background:#edeae2;color:#33322e;font-family:'Work Sans',"Segoe UI",Arial,sans-serif}
+  .report-page{position:relative;width:1056px;height:816px;margin:0 auto 34px;background:#f8f6f1;
+    overflow:hidden;box-shadow:0 24px 64px rgba(20,20,30,.2);padding:58px 72px 52px;box-sizing:border-box}
+  .page-dark{background:#0e1b6b;color:#f2efe8}
+  .kicker{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#8a8878}
+  .page-dark .kicker{color:#9aa5d9}
+  .display{font-family:'Lora',serif;font-weight:700;line-height:1.08;letter-spacing:-.01em;color:#2647e8}
+  .page-dark .display{color:#f2efe8}
+  .page-title{font-size:30px;margin:12px 0 16px;max-width:850px}
+  .page-rule{height:2px;background:#2647e8;margin-top:10px;margin-bottom:20px}
+  .folio{position:absolute;left:72px;right:72px;bottom:26px;font-size:10px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;color:#8a8878}
+  .page-dark .folio{color:#9aa5d9}
+
+  .body-copy{font-size:13.5px;line-height:1.65;color:#33322e}
+  .lede{font-family:'Lora',serif;font-size:17px;line-height:1.55;color:#33322e}
+  .muted{color:#8a8878;font-size:12px}
+
+  /* 2 cột an toàn cho PDF: display:table, KHÔNG dùng flex/grid (đã kiểm chứng ở report tuần) */
+  .two-col{display:table;width:100%;table-layout:fixed;border-spacing:0}
+  .two-col > .col{display:table-cell;vertical-align:top;padding-right:24px}
+  .two-col > .col:last-child{padding-right:0;padding-left:24px}
+
+  .summary-box{background:#0e1b6b;color:#f2efe8;padding:24px 28px;border-radius:2px}
+  .summary-box .lede{color:#f2efe8;font-style:italic}
+
+  .findings{display:table;width:100%;table-layout:fixed;border-spacing:14px 0;margin-top:20px}
+  .finding{display:table-cell;vertical-align:top;border-left:3px solid #2647e8;padding:4px 0 4px 14px;width:33%}
+  .finding h4{margin:0 0 6px;font-size:14px}
+  .finding p{margin:0;font-size:12.5px;color:#4a4a45}
+
+  table.data-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.data-table th{background:#0e1b6b;color:#f2efe8;text-align:left;padding:9px 10px;font-size:11px;
+    letter-spacing:.04em;text-transform:uppercase}
+  table.data-table td{border-bottom:1px solid #e1ddd2;padding:10px;vertical-align:top}
+
+  .timeline-list{display:table;width:100%;border-spacing:0}
+  .timeline-row{display:table-row}
+  .timeline-date{display:table-cell;width:110px;padding:10px 14px 10px 0;font-size:11.5px;
+    font-weight:600;color:#2647e8;white-space:nowrap;border-bottom:1px solid #e1ddd2}
+  .timeline-body{display:table-cell;padding:10px 0;border-bottom:1px solid #e1ddd2;font-size:13px}
+
+  .card{border:1px solid #e1ddd2;padding:16px;margin-bottom:14px}
+  .card h4{margin:0 0 8px;font-size:14.5px}
+  .card p{margin:0 0 8px;font-size:13px;line-height:1.6}
+
+  .callout{background:#152a8c;color:#f2efe8;padding:18px 22px;font-family:'Lora',serif;
+    font-style:italic;font-size:15px;line-height:1.5}
+
+  .exhibit-threatmap{display:table;width:100%;table-layout:fixed;border-spacing:14px 0}
+  .threat-card{display:table-cell;vertical-align:top;width:50%;border:1px solid #e1ddd2;
+    border-left:4px solid #8a8878;padding:16px}
+  .threat-badge{display:inline-block;padding:2px 8px;font-size:10.5px;font-weight:700;
+    letter-spacing:.04em;border:1px solid;border-radius:2px;margin-bottom:8px}
+  .threat-badge.high{border-color:#d7192d;color:#d7192d;background:#fdecec}
+  .threat-badge.medium{border-color:#c9a15a;color:#96600d;background:#fff7e6}
+  .threat-badge.low{border-color:#8a8878;color:#4a4a45;background:#f1eee5}
+
+  .cite-pill{display:inline-block;border:1px solid #d8d3c4;border-radius:12px;padding:2px 9px;
+    margin:2px 4px 2px 0;font-size:11px;text-decoration:none;color:#33322e;background:#f2efe8}
+  .cite-pill .tier-dot{font-family:'Work Sans',sans-serif;font-weight:700;margin-left:4px;
+    color:#2647e8}
+
+  .override-note{font-size:11.5px;color:#8a8878;font-style:italic;margin-top:6px}
+
+  .cover{color:#f2efe8}
+  .cover h1{font-size:44px;margin:20px 0 10px;max-width:820px}
+  .cover .meta{font-size:13px;color:#9aa5d9;margin-top:40px}
+
+  .toc-list{margin-top:10px}
+  .toc-row{display:table;width:100%;border-spacing:0;border-bottom:1px solid #e1ddd2;padding:8px 0}
+  .toc-num{display:table-cell;width:40px;font-weight:700;color:#2647e8;font-size:13px;padding:8px 0}
+  .toc-label{display:table-cell;font-size:13px;padding:8px 0}
+
+  .back-cover{color:#f2efe8}
+
+  .no-print{}
+  @media print{ .no-print{display:none} }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="position:sticky;top:0;background:#fff;border-bottom:1px solid #e1ddd2;padding:10px 20px;font-family:'Work Sans',sans-serif;font-size:13px">
+  Market Radar — Business Intelligence Report ·
+  <a th:href="'/report/bi.pdf'">Tải PDF</a>
+</div>
+
+<main>
+<section class="report-page" th:each="p : ${pages}" th:switch="${p.type}">
+
+  <!-- ============ COVER ============ -->
+  <div th:case="'COVER'" class="cover" style="background:#0e1b6b;position:absolute;inset:0;padding:58px 72px">
+    <div class="kicker">Market Radar · Business Intelligence Report</div>
+    <h1 class="display" th:text="'Báo cáo tình báo cạnh tranh — ' + ${reportPeriod}">Tiêu đề</h1>
+    <div class="meta">
+      <div th:text="'Tạo lúc ' + ${generatedAt}">Tạo lúc</div>
+      <div th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}"
+           th:text="'Chuẩn bị cho: ' + ${homeCompany}">Home company</div>
+    </div>
+  </div>
+
+  <!-- ============ TOC ============ -->
+  <div th:case="'TOC'">
+    <div class="kicker">Mục lục</div>
+    <h2 class="display page-title">Nội dung báo cáo</h2>
+    <div class="page-rule"></div>
+    <div class="toc-list">
+      <div class="toc-row" th:each="entry : ${pages}" th:if="${entry.type != 'COVER' and entry.type != 'TOC'}">
+        <div class="toc-num" th:text="${entry.number}">1</div>
+        <div class="toc-label" th:text="${entry.label}">Mục</div>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ EXEC SUMMARY ============ -->
+  <div th:case="'EXEC'">
+    <div class="kicker">Tóm tắt điều hành</div>
+    <h2 class="display page-title">Điểm chính kỳ này</h2>
+    <div class="page-rule"></div>
+    <div th:if="${!hasAnyContent}" class="body-copy muted">
+      Chưa có nhận định nào đã qua review được xuất bản trong kỳ này.
+    </div>
+    <div th:if="${hasAnyContent}">
+      <div class="summary-box" th:if="${!keyFindings.isEmpty()}">
+        <div class="lede" th:text="${keyFindings[0].textVi}">Nhận định quan trọng nhất</div>
+      </div>
+      <div class="findings">
+        <div class="finding" th:each="c : ${keyFindings}">
+          <h4 th:text="${c.bucket}">Bucket</h4>
+          <p th:text="${c.textVi}">Nội dung</p>
+          <div>
+            <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+               th:if="${factByCode.get(#strings.trim(code)) != null}"
+               th:href="'/claims'" target="_blank">
+              <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+              <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ COMPETITIVE THEME (MATRIX) ============ -->
+  <div th:case="'THEME'">
+    <div class="kicker">Xu hướng cạnh tranh</div>
+    <h2 class="display page-title">Chủ đề lặp lại giữa nhiều đối thủ</h2>
+    <div class="page-rule"></div>
+    <table class="data-table">
+      <tr><th>Chủ đề</th><th>Nhận định</th><th>Căn cứ</th></tr>
+      <tr th:each="c : ${themeClaims}">
+        <td th:text="${c.subjectKey}">Chủ đề</td>
+        <td>
+          <div th:text="${c.textVi}">Nội dung</div>
+          <p class="override-note" th:if="${forceApproveNotes.get(c.claimCode) != null}"
+             th:text="'Đã duyệt tay bởi ' + ${forceApproveNotes.get(c.claimCode).reviewerName} + ' — ' + ${forceApproveNotes.get(c.claimCode).reason}">override</p>
+        </td>
+        <td>
+          <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+             th:if="${factByCode.get(#strings.trim(code)) != null}"
+             th:href="'/claims'" target="_blank">
+            <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+            <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+          </a>
+        </td>
+      </tr>
+    </table>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ SCHEDULED (TIMELINE) ============ -->
+  <div th:case="'SCHEDULED'">
+    <div class="kicker">Lịch sắp tới</div>
+    <h2 class="display page-title">Mốc / sự kiện sắp diễn ra</h2>
+    <div class="page-rule"></div>
+    <div class="timeline-list">
+      <div class="timeline-row" th:each="c : ${scheduledClaims}">
+        <div class="timeline-date" th:text="${c.subjectKey}">Công ty</div>
+        <div class="timeline-body">
+          <div th:text="${c.textVi}">Nội dung</div>
+          <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+             th:if="${factByCode.get(#strings.trim(code)) != null}"
+             th:href="'/claims'" target="_blank">
+            <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+            <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ COMPANY EVENTS TIMELINE ============ -->
+  <div th:case="'COMPANY_TIMELINE'">
+    <div class="kicker">Diễn biến theo công ty</div>
+    <h2 class="display page-title">Sự kiện theo mốc thời gian</h2>
+    <div class="page-rule"></div>
+    <div class="timeline-list">
+      <div class="timeline-row" th:each="c : ${companyEventClaims}">
+        <div class="timeline-date" th:text="${c.subjectKey}">Công ty</div>
+        <div class="timeline-body">
+          <div th:text="${c.textVi}">Nội dung</div>
+          <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+             th:if="${factByCode.get(#strings.trim(code)) != null}"
+             th:href="'/claims'" target="_blank">
+            <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+            <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ MARKET SHARE / AWARD ============ -->
+  <div th:case="'MARKET_SHARE'">
+    <div class="kicker">Thị phần / Giải thưởng</div>
+    <h2 class="display page-title">So sánh số liệu giữa các công ty</h2>
+    <div class="page-rule"></div>
+    <table class="data-table">
+      <tr><th>Hạng mục</th><th>Nhận định</th><th>Căn cứ</th></tr>
+      <tr th:each="c : ${marketShareClaims}">
+        <td th:text="${c.subjectKey}">Hạng mục</td>
+        <td th:text="${c.textVi}">Nội dung</td>
+        <td>
+          <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+             th:if="${factByCode.get(#strings.trim(code)) != null}"
+             th:href="'/claims'" target="_blank">
+            <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+            <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+          </a>
+        </td>
+      </tr>
+    </table>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ THREATMAP ============ -->
+  <div th:case="'THREATMAP'">
+    <div class="kicker">AI / Insurtech</div>
+    <h2 class="display page-title">Bản đồ tín hiệu theo công ty</h2>
+    <p class="muted" style="margin-top:-8px">Mức độ suy từ risk-tier đã gán ở Gate review (code, không phải AI tự chấm).</p>
+    <div class="page-rule"></div>
+    <div class="exhibit-threatmap">
+      <div class="threat-card" th:each="c : ${techSignalClaims}">
+        <span class="threat-badge"
+              th:classappend="${c.threatSeverityLabel == 'HIGH'} ? 'high' : (${c.threatSeverityLabel == 'MEDIUM'} ? 'medium' : 'low')"
+              th:text="${c.threatSeverityLabel}">MEDIUM</span>
+        <h4 th:text="${c.subjectKey}">Công ty</h4>
+        <p th:text="${c.textVi}">Nội dung</p>
+        <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+           th:if="${factByCode.get(#strings.trim(code)) != null}"
+           th:href="'/claims'" target="_blank">
+          <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+          <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+        </a>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ COMPETITOR HIGHLIGHT (lặp động, 1 trang / công ty) ============ -->
+  <div th:case="'COMPETITOR'">
+    <div class="kicker">Điểm nổi bật đối thủ</div>
+    <h2 class="display page-title" th:text="${p.subjectKey}">Tên công ty</h2>
+    <div class="page-rule"></div>
+    <div class="card" th:each="c : ${competitorPages.get(p.subjectKey)}">
+      <p th:text="${c.textVi}">Nội dung</p>
+      <p class="override-note" th:if="${forceApproveNotes.get(c.claimCode) != null}"
+         th:text="'Đã duyệt tay bởi ' + ${forceApproveNotes.get(c.claimCode).reviewer} + ' — ' + ${forceApproveNotes.get(c.claimCode).reason}">override</p>
+      <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+         th:if="${factByCode.get(#strings.trim(code)) != null}"
+         th:href="'/claims'" target="_blank">
+        <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+        <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+      </a>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ STRATEGIC COMPARISON (lặp động, 1 trang / cặp) ============ -->
+  <div th:case="'COMPARISON'">
+    <div class="kicker">So sánh chiến lược</div>
+    <h2 class="display page-title" th:text="${p.subjectKey}">Cặp so sánh</h2>
+    <div class="page-rule"></div>
+    <p class="muted">Nhận định tổng hợp từ AI (viết theo evidence pack) — không phải bảng so sánh thuộc tính cố định, vì dữ liệu hiện tại là câu văn, không phải bảng cấu trúc theo hàng.</p>
+    <div class="callout" th:each="c : ${comparisonPages.get(p.subjectKey)}" style="margin-bottom:14px">
+      <div th:text="${c.textVi}">Nội dung</div>
+    </div>
+    <div th:each="c : ${comparisonPages.get(p.subjectKey)}">
+      <a class="cite-pill" th:each="code : ${#strings.arraySplit(c.factCodesCsv,',')}"
+         th:if="${factByCode.get(#strings.trim(code)) != null}"
+         th:href="'/claims'" target="_blank">
+        <span th:text="${factByCode.get(#strings.trim(code)).rawDoc.source.name}">Nguồn</span>
+        <span class="tier-dot" th:text="'T' + ${factByCode.get(#strings.trim(code)).rawDoc.source.tier}">T1</span>
+      </a>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ SOURCES & METHOD ============ -->
+  <div th:case="'SOURCES'">
+    <div class="kicker">Nguồn & Phương pháp</div>
+    <h2 class="display page-title">Minh bạch nguồn dữ liệu</h2>
+    <div class="page-rule"></div>
+    <div class="two-col">
+      <div class="col">
+        <h4 style="margin:0 0 8px;font-size:13px">Nguồn được trích dẫn trong báo cáo này</h4>
+        <table class="data-table">
+          <tr><th>Mã</th><th>Tên</th><th>Tier</th></tr>
+          <tr th:each="s : ${sources}">
+            <td th:text="${s.code}">MA</td>
+            <td th:text="${s.name}">Tên</td>
+            <td th:text="'T' + ${s.tier}">T1</td>
+          </tr>
+        </table>
+      </div>
+      <div class="col">
+        <h4 style="margin:0 0 8px;font-size:13px">Khoảng trống dữ liệu đã ghi nhận</h4>
+        <ul class="body-copy" style="padding-left:18px;margin:0">
+          <li th:each="g : ${openGaps}" th:text="${g}">gap</li>
+        </ul>
+        <p class="muted" style="margin-top:14px" th:text="'Tổng số tài liệu đã crawl: ' + ${docCount}">doc count</p>
+      </div>
+    </div>
+    <div class="folio" th:text="'Market Radar BI · Trang ' + ${p.number}">folio</div>
+  </div>
+
+  <!-- ============ BACK COVER ============ -->
+  <div th:case="'BACK'" class="back-cover" style="background:#0e1b6b;position:absolute;inset:0;padding:58px 72px">
+    <div class="kicker">Market Radar · Business Intelligence Report</div>
+    <p class="display" style="font-size:22px;margin-top:60px">Market Radar MVP (nội bộ)</p>
+    <p class="muted" th:text="'Tạo lúc ' + ${generatedAt}">meta</p>
+  </div>
+
+</section>
+</main>
+</body>
+</html>

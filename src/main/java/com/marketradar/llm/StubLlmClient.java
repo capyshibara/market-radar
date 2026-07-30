@@ -24,6 +24,12 @@ public class StubLlmClient implements LlmClient {
             String code = firstFactCode(userPrompt);
             return "{\"sentences\":[{\"text\":\"[STUB] Tuần qua ghi nhận các diễn biến trong phạm vi theo dõi.\",\"fact_codes\":[\"" + code + "\"]}]}";
         }
+        // Phase 3 (synthesize) — text stub cố tình KHÔNG chứa số/ngày/tên → luôn qua Gate L1
+        // (chỉ để test luồng gom bucket + Gate L1 offline, không phải đánh giá decision-relevance thật).
+        if (systemPrompt != null && systemPrompt.contains("MODE:SYNTHESIZE_")) {
+            String code = firstFactCode(userPrompt);
+            return "{\"sentences\":[{\"text\":\"[STUB] Nhóm bằng chứng này cho thấy một mẫu hình đáng chú ý cần theo dõi thêm.\",\"fact_codes\":[\"" + code + "\"]}]}";
+        }
         String t = userPrompt.toLowerCase(Locale.ROOT);
         List<String> labels = new ArrayList<>();
         if (containsAny(t, "获批", "推出", "ra mắt", "phê duyệt sản phẩm", "launch"))
