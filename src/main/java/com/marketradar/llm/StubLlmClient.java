@@ -52,7 +52,8 @@ public class StubLlmClient implements LlmClient {
             for (int i = 1; i <= n; i++) refs.append(i).append(i < n ? "," : "");
             return "{\"title\":\"[STUB] Deep Research\",\"findings\":[{\"bucket\":\"COMPETITIVE_THEME\","
                  + "\"subject_key\":null,\"text_vi\":\"[STUB] Tổng hợp demo từ " + n
-                 + " nguồn đã thu thập — không phải phân tích AI thật.\",\"highlight\":true,"
+                 + " nguồn đã thu thập — không phải phân tích AI thật.\",\"text_en\":\"[STUB] Demo synthesis from " + n
+                 + " gathered sources — not real AI analysis.\",\"highlight\":true,\"severity\":null,"
                  + "\"source_refs\":[" + refs + "]}]}";
         }
         String t = userPrompt.toLowerCase(Locale.ROOT);

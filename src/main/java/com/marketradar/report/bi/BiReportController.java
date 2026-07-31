@@ -41,14 +41,16 @@ public class BiReportController {
     }
 
     @GetMapping("/report/bi")
-    public String biReport(@RequestParam(defaultValue = "weekly") String cadence, Model model) {
-        model.addAllAttributes(buildModel(parseCadence(cadence), cadence));
+    public String biReport(@RequestParam(defaultValue = "weekly") String cadence,
+                           @RequestParam(defaultValue = "vi") String lang, Model model) {
+        model.addAllAttributes(buildModel(parseCadence(cadence), cadence, isVi(lang)));
         return "bi-report";
     }
 
     @GetMapping("/report/bi.pdf")
-    public ResponseEntity<byte[]> biReportPdf(@RequestParam(defaultValue = "weekly") String cadence) {
-        byte[] pdf = pdfExport.renderBiReportPdf(buildModel(parseCadence(cadence), cadence));
+    public ResponseEntity<byte[]> biReportPdf(@RequestParam(defaultValue = "weekly") String cadence,
+                                              @RequestParam(defaultValue = "vi") String lang) {
+        byte[] pdf = pdfExport.renderBiReportPdf(buildModel(parseCadence(cadence), cadence, isVi(lang)));
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"market-radar-bi-report-" + cadence + ".pdf\"")
@@ -71,15 +73,22 @@ public class BiReportController {
                 .body(docx);
     }
 
-    private Map<String, Object> buildModel(ProductReportCadence cadence, String cadenceParam) {
+    private Map<String, Object> buildModel(ProductReportCadence cadence, String cadenceParam, boolean vi) {
         LocalDate asOf = LocalDate.now(ProductReportModel.REPORT_ZONE);
         ProductReportAdapter.Snapshot snapshot = reports.current(cadence, asOf);
         var content = biAdapter.adapt("Business Intelligence Report — " + cadence.label(true),
                 cadence.periodLabel(asOf, true), snapshot, rawDocs.count());
-        Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content);
-        model.put("pdfHref", "/report/bi.pdf?cadence=" + cadenceParam);
+        Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content, vi);
+        String langParam = vi ? "vi" : "en";
+        model.put("pdfHref", "/report/bi.pdf?cadence=" + cadenceParam + "&lang=" + langParam);
         model.put("docxHref", "/report/bi.docx?cadence=" + cadenceParam);
+        model.put("langHrefVi", "/report/bi?cadence=" + cadenceParam + "&lang=vi");
+        model.put("langHrefEn", "/report/bi?cadence=" + cadenceParam + "&lang=en");
         return model;
+    }
+
+    private static boolean isVi(String lang) {
+        return !"en".equalsIgnoreCase(lang);
     }
 
     private static ProductReportCadence parseCadence(String value) {

@@ -48,6 +48,8 @@ public class PeriodicalBiAdapter {
             findings.add(new BiFinding(BiFinding.COMPANY_EVENT, item.getTopicLabelVi(),
                     item.title() + (item.getDisplaySummaryVi() != null && !item.getDisplaySummaryVi().isBlank()
                             ? " — " + item.getDisplaySummaryVi() : ""),
+                    item.title() + (item.getDisplaySummaryEn() != null && !item.getDisplaySummaryEn().isBlank()
+                            ? " — " + item.getDisplaySummaryEn() : ""),
                     false,
                     List.of(new BiCitation(item.sourceName(), "T" + item.sourceTier(),
                             item.hasExternalSourceLink() ? item.sourceUrl() : null))));
@@ -78,8 +80,10 @@ public class PeriodicalBiAdapter {
                         "T" + f.getRawDoc().getSource().getTier(), null))
                 .distinct()
                 .toList();
-        String text = insight.getHeadlineVi()
+        String textVi = insight.getHeadlineVi()
                 + (insight.getSoWhatVi() != null && !insight.getSoWhatVi().isBlank() ? " " + insight.getSoWhatVi() : "");
-        return new BiFinding(BiFinding.COMPETITIVE_THEME, insight.getThemeCode(), text, highlight, citations);
+        String textEn = insight.getHeadlineEn()
+                + (insight.getSoWhatEn() != null && !insight.getSoWhatEn().isBlank() ? " " + insight.getSoWhatEn() : "");
+        return new BiFinding(BiFinding.COMPETITIVE_THEME, insight.getThemeCode(), textVi, textEn, highlight, citations);
     }
 }

@@ -211,10 +211,28 @@ public class DeepResearchService {
                 .append("TECH_AI_SIGNAL, STRATEGIC_COMPARISON.\n");
         user.append("Trả về ĐÚNG 1 JSON object, không thêm chữ nào khác:\n");
         user.append("{\"title\":\"...\",\"findings\":[{\"bucket\":\"...\",\"subject_key\":\"...\",")
-                .append("\"text_vi\":\"...\",\"highlight\":true,\"source_refs\":[1,2]}]}\n");
+                .append("\"text_vi\":\"...\",\"text_en\":\"...\",\"highlight\":true,\"severity\":null,")
+                .append("\"metric_percent\":null,\"source_refs\":[1,2]}]}\n");
+        user.append("- text_vi và text_en PHẢI cùng mức độ cụ thể/hedging (số liệu ước tính phải hedge ở CẢ hai bản, không chỉ 1 bản).\n");
         user.append("- source_refs: BẮT BUỘC ít nhất 1 số thứ tự nguồn ở trên làm căn cứ cho finding này.\n");
         user.append("- highlight=true cho tối đa 3 finding quan trọng nhất (lên trang Tóm tắt điều hành).\n");
-        user.append("- Không bịa: nếu không đủ dữ liệu cho bucket nào thì bỏ qua bucket đó hoàn toàn.");
+        user.append("- severity: CHỈ set khi bucket=TECH_AI_SIGNAL và finding là đánh giá rủi ro AI theo 1 công ty cụ thể ")
+                .append("(subject_key=tên công ty) — HIGH nếu công ty đã triển khai AI tại thị trường này VÀ có bằng chứng ")
+                .append("tác động vận hành đo được VÀ đã công bố đầu tư/tuyển dụng thêm; MEDIUM nếu có năng lực AI toàn cầu/")
+                .append("khu vực nhưng chưa tập trung vào thị trường này, hoặc đang triển khai dở kết quả chưa rõ; LOW nếu ")
+                .append("có năng lực AI ở nơi khác trong tổ chức nhưng đang bị phân tán ưu tiên (tái cấu trúc, thoái vốn) hoặc ")
+                .append("chưa có tín hiệu ý định cho thị trường này. Nếu finding chỉ là số liệu định cỡ thị trường AI/insurtech ")
+                .append("(market size, CAGR) — không phải đánh giá theo công ty — để severity=null.\n");
+        user.append("- Mọi số liệu/ngày/nhận định phải phản ánh đúng độ tin cậy của nguồn qua CÁCH VIẾT: nguồn chính thức/")
+                .append("báo chí uy tín → nêu thẳng; ước tính/nghiên cứu bên thứ 3 → hedge (\"theo ước tính của X\"); ")
+                .append("ghi chú/chưa xác thực → nêu rõ \"chưa xác nhận\"/\"cần kiểm chứng\" — KHÔNG được nâng cấp một ước ")
+                .append("tính thành như thể là số liệu chính thức.\n");
+        user.append("- Với STRATEGIC_COMPARISON: nếu bằng chứng đủ rõ để có một nhận định, hãy nêu rõ và gắn nhãn \"Our read:\"/")
+                .append("\"Góc nhìn của chúng tôi:\" ở đầu câu để tách biệt phân tích khỏi sự thật quan sát được — đừng trung lập hoá một cách vô ích.\n");
+        user.append("- metric_percent: CHỈ set khi bucket=MARKET_SHARE_OR_AWARD và nguồn nêu RÕ một con số 0-100 dùng để vẽ ")
+                .append("thanh bar (vd thị phần APE %); để null nếu không có số liệu thật — trang đó sẽ tự hiển thị dạng bảng thay vì bar.\n");
+        user.append("- Không bịa: nếu không đủ dữ liệu cho bucket nào thì bỏ qua bucket đó hoàn toàn. Một câu ngắn nêu rõ ")
+                .append("khoảng trống còn hơn là làm dày nội dung bằng dữ kiện yếu.");
 
         String raw = safeComplete("MODE:DEEP_RESEARCH_SYNTHESIS\nBạn tổng hợp tài liệu nghiên cứu thành nhận định BI có căn cứ.",
                 user.toString());
@@ -233,6 +251,7 @@ public class DeepResearchService {
                     if (!VALID_BUCKETS.contains(bucket)) continue; // schema đóng — bucket lạ bị loại, không đoán
                     String textVi = f.path("text_vi").asText("");
                     if (textVi.isBlank()) continue;
+                    String textEn = f.path("text_en").isNull() ? null : f.path("text_en").asText(null);
                     List<BiCitation> citations = new ArrayList<>();
                     for (JsonNode refNode : f.path("source_refs")) {
                         int idx = refNode.asInt(-1) - 1;
@@ -243,7 +262,10 @@ public class DeepResearchService {
                     }
                     findings.add(new BiFinding(bucket,
                             f.path("subject_key").isNull() ? null : f.path("subject_key").asText(null),
-                            textVi, f.path("highlight").asBoolean(false), citations));
+                            textVi, textEn, f.path("highlight").asBoolean(false), citations,
+                            f.path("severity").isNull() ? null : f.path("severity").asText(null),
+                            f.path("metric_percent").isNull() || !f.path("metric_percent").isNumber() ? null
+                                    : f.path("metric_percent").asInt()));
                 }
             } catch (Exception e) {
                 log.warn("Deep Research: synthesis JSON không đọc được, dùng bản dự phòng nguyên văn: {}", e.getMessage());

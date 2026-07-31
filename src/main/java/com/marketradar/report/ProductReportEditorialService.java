@@ -38,9 +38,11 @@ public class ProductReportEditorialService {
     private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String DEFAULT_EDITOR = "Nguyễn Phương Đình · Product SME";
     private static final Set<String> EXHIBIT_TYPES = Set.of(
-            "BAR", "KPI", "TIMELINE", "FLOW", "MATRIX", "ROADMAP");
+            "BAR", "KPI", "TIMELINE", "FLOW", "MATRIX", "ROADMAP", "THREATMAP");
+    /** HIGH/MEDIUM/LOW are a dedicated severity palette for THREATMAP only — not mixed with the
+     *  5-tone chart palette above, per the BI report design guidance. */
     private static final Set<String> EXHIBIT_TONES = Set.of(
-            "BLUE", "TEAL", "GOLD", "CORAL", "VIOLET");
+            "BLUE", "TEAL", "GOLD", "CORAL", "VIOLET", "HIGH", "MEDIUM", "LOW");
 
     private final Map<String, EditorialBrief> transientDrafts = new ConcurrentHashMap<>();
     private ProductReportEditorialDraftRepository drafts;
@@ -758,6 +760,7 @@ public class ProductReportEditorialService {
                 case "FLOW" -> "Capability flow";
                 case "MATRIX" -> "Decision matrix";
                 case "ROADMAP" -> "Roadmap";
+                case "THREATMAP" -> "Threat map";
                 default -> "Exhibit";
             };
         }
@@ -770,6 +773,7 @@ public class ProductReportEditorialService {
                 case "FLOW" -> "Luồng năng lực";
                 case "MATRIX" -> "Ma trận quyết định";
                 case "ROADMAP" -> "Lộ trình";
+                case "THREATMAP" -> "Bản đồ rủi ro";
                 default -> "Biểu đồ";
             };
         }

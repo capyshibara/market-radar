@@ -50,6 +50,14 @@
     </div>
   </div>
 
+  <div class="exhibit-threatmap" th:if="${exhibit.type == 'THREATMAP'}">
+    <div class="threat-card" th:each="datum:${exhibit.data}" th:classappend="${datum.toneClass}">
+      <div class="threat-head"><b th:text="${datum.label}">Company</b><span class="threat-badge" th:classappend="${datum.toneClass}" th:text="${datum.value}">MEDIUM</span></div>
+      <p class="threat-reason" th:text="${datum.context}">Reason</p>
+      <p class="threat-detail" th:text="${datum.detail}">Rationale</p>
+    </div>
+  </div>
+
   <footer class="exhibit-foot"><span><strong th:text="${vi ? 'Cách sử dụng / giới hạn: ' : 'How to use it / caveat: '}">How to use it: </strong><th:block th:text="${exhibit.note}">Method note.</th:block></span><code th:text="${exhibit.citationCodes}">F-001</code></footer>
 </article>
 </body>

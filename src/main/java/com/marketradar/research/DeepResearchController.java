@@ -71,9 +71,11 @@ public class DeepResearchController {
         }
         BiReportContent content = deepResearch.research(prompt.strip());
         String id = cache.put(content);
-        Map<String, Object> reportModel = BiReportPageBuilder.toTemplateModel(content);
+        Map<String, Object> reportModel = BiReportPageBuilder.toTemplateModel(content, true);
         reportModel.put("pdfHref", "/research/deep/" + id + ".pdf");
         reportModel.put("docxHref", "/research/deep/" + id + ".docx");
+        reportModel.put("langHrefVi", "/research/deep/view/" + id + "?lang=vi");
+        reportModel.put("langHrefEn", "/research/deep/view/" + id + "?lang=en");
         model.addAllAttributes(reportModel);
         return "bi-report";
     }
@@ -112,28 +114,34 @@ public class DeepResearchController {
 
     /** Điểm đến sau khi SSE báo "done" — render đúng report đã cache, không chạy lại agent. */
     @GetMapping("/research/deep/view/{id}")
-    public String view(@PathVariable String id, Model model) {
+    public String view(@PathVariable String id, @RequestParam(defaultValue = "vi") String lang, Model model) {
         BiReportContent content = cache.get(id);
         if (content == null) {
             model.addAttribute("promptError", "Không tìm thấy kết quả (cache đã hết hạn hoặc app vừa khởi động lại) — hãy chạy lại yêu cầu.");
             return "research";
         }
-        Map<String, Object> reportModel = BiReportPageBuilder.toTemplateModel(content);
-        reportModel.put("pdfHref", "/research/deep/" + id + ".pdf");
+        Map<String, Object> reportModel = BiReportPageBuilder.toTemplateModel(content, isVi(lang));
+        reportModel.put("pdfHref", "/research/deep/" + id + ".pdf?lang=" + (isVi(lang) ? "vi" : "en"));
         reportModel.put("docxHref", "/research/deep/" + id + ".docx");
+        reportModel.put("langHrefVi", "/research/deep/view/" + id + "?lang=vi");
+        reportModel.put("langHrefEn", "/research/deep/view/" + id + "?lang=en");
         model.addAllAttributes(reportModel);
         return "bi-report";
     }
 
     @GetMapping("/research/deep/{id}.pdf")
-    public ResponseEntity<byte[]> pdf(@PathVariable String id) {
+    public ResponseEntity<byte[]> pdf(@PathVariable String id, @RequestParam(defaultValue = "vi") String lang) {
         BiReportContent content = cache.get(id);
         if (content == null) return notFound();
-        Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content);
+        Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content, isVi(lang));
         byte[] pdf = pdfExport.renderBiReportPdf(model);
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"deep-research.pdf\"")
                 .body(pdf);
+    }
+
+    private static boolean isVi(String lang) {
+        return !"en".equalsIgnoreCase(lang);
     }
 
     @GetMapping("/research/deep/{id}.docx")

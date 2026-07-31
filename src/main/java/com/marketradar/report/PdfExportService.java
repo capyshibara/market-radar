@@ -140,6 +140,16 @@ public class PdfExportService {
             .exhibit-kpi.violet { border-top:5px solid #8B5CF6 !important; }
             .flow-step { background:#ffffff !important; border:1px solid #CFCABB !important; }
             .flow-arrow { width:6% !important; text-align:center !important; color:#1E38B6 !important; }
+            .exhibit-threatmap { display:block !important; }
+            .threat-card { display:inline-block !important; width:48% !important; vertical-align:top !important;
+                           margin:0 0 4mm 0 !important; box-sizing:border-box !important; }
+            .threat-card:nth-child(odd) { margin-right:4% !important; }
+            .threat-card.high { border-left-color:#D7192D !important; }
+            .threat-badge.high { border-color:#D7192D !important; color:#D7192D !important; background:#FDECEC !important; }
+            .threat-card.medium { border-left-color:#C9A15A !important; }
+            .threat-badge.medium { border-color:#C9A15A !important; color:#96600D !important; background:#FFF7E6 !important; }
+            .threat-card.low { border-left-color:#8A8878 !important; }
+            .threat-badge.low { border-color:#8A8878 !important; color:#4A4A45 !important; background:#F1EEE5 !important; }
             .exhibit-matrix th, .exhibit-matrix td { border-color:#CFCABB !important; }
             .exhibit-matrix thead th { background:#0E1B6B !important; color:#ffffff !important; }
             .exhibit-matrix tbody th { background:#EBEEFC !important; color:#0E1B6B !important; }
@@ -215,6 +225,7 @@ public class PdfExportService {
             @page { size: 1056px 816px; margin: 0; }
             .no-print { display:none !important; }
             .report-page { margin:0 auto !important; }
+            .report-canvas { padding:0 !important; }
             """;
 
     private final SpringTemplateEngine templateEngine;
@@ -234,9 +245,12 @@ public class PdfExportService {
         return render(template, model, locale, PDF_OVERRIDE_CSS);
     }
 
-    /** BI Report (Meridian design) — chỉ tiếng Việt hiện tại (xem ghi chú trong bi-report.html). */
+    /** BI Report (Meridian design) — model đã tự chọn ngôn ngữ nội dung qua "vi" (xem
+     *  BiReportPageBuilder.toTemplateModel); Locale ở đây chỉ ảnh hưởng #temporals/#{...} nếu
+     *  template có dùng, template hiện dùng th:text 3 ngôi nên theo đúng cờ "vi" là đủ. */
     public byte[] renderBiReportPdf(Map<String, Object> model) {
-        return render("bi-report", model, Locale.forLanguageTag("vi"), BI_REPORT_PRINT_CSS);
+        boolean vi = !Boolean.FALSE.equals(model.get("vi"));
+        return render("bi-report", model, Locale.forLanguageTag(vi ? "vi" : "en"), BI_REPORT_PRINT_CSS);
     }
 
     /**

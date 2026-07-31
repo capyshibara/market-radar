@@ -12,14 +12,52 @@ import java.util.List;
  * @param subjectKey khoá nhóm cho bucket cần gộp theo chủ thể (STRATEGIC_COMPARISON: tên cặp
  *                   so sánh; SCHEDULED_EVENT/COMPANY_EVENT: tên công ty/mốc) — null nếu bucket
  *                   không cần nhóm (MACRO_ECONOMIC, TECH_AI_SIGNAL dùng ngay 1 finding/thẻ)
- * @param textVi     nội dung nhận định, tiếng Việt (pipeline hiện tại 100% tiếng Việt)
+ * @param textVi     nội dung nhận định, tiếng Việt
+ * @param textEn     bản tiếng Anh — null khi nguồn gốc chưa có bản dịch (fallback về textVi khi
+ *                   render bản EN, xem {@link #text(boolean)}); không bao giờ tự dịch máy ở tầng
+ *                   trình bày, chỉ dùng bản đã có sẵn từ nguồn dữ liệu (insight/LLM synthesis)
  * @param highlight  true nếu đủ quan trọng để lên trang Tóm tắt điều hành (EXEC)
+ * @param severity      HIGH/MEDIUM/LOW — CHỈ áp dụng cho TECH_AI_SIGNAL: có giá trị nghĩa là đây
+ *                      là 1 dòng AI Threat Map (đánh giá rủi ro theo công ty, trang riêng); null
+ *                      nghĩa là đây là 1 số liệu định cỡ thị trường AI/insurtech (trang KPI
+ *                      riêng). Null với mọi bucket khác.
+ * @param metricPercent 0-100, CHỈ áp dụng cho MARKET_SHARE_OR_AWARD khi có số liệu thật để vẽ
+ *                      thanh bar (vd thị phần APE %) — null thì trang đó tự chuyển sang trình bày
+ *                      dạng bảng (MATRIX) thay vì bịa % để vẽ bar.
  */
-public record BiFinding(String bucket, String subjectKey, String textVi,
-                        boolean highlight, List<BiCitation> citations) {
+public record BiFinding(String bucket, String subjectKey, String textVi, String textEn,
+                        boolean highlight, List<BiCitation> citations, String severity,
+                        Integer metricPercent) {
 
     public BiFinding {
         citations = citations == null ? List.of() : List.copyOf(citations);
+        if (severity != null) {
+            String normalized = severity.strip().toUpperCase(java.util.Locale.ROOT);
+            severity = switch (normalized) {
+                case "HIGH", "MEDIUM", "LOW" -> normalized;
+                default -> null;
+            };
+        }
+        if (metricPercent != null) metricPercent = Math.max(0, Math.min(100, metricPercent));
+    }
+
+    /** Convenience constructor for the common case of no severity/metric. */
+    public BiFinding(String bucket, String subjectKey, String textVi, String textEn,
+                     boolean highlight, List<BiCitation> citations) {
+        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null);
+    }
+
+    /** Convenience constructor for VI-only content (no English translation available yet). */
+    public BiFinding(String bucket, String subjectKey, String textVi,
+                     boolean highlight, List<BiCitation> citations) {
+        this(bucket, subjectKey, textVi, null, highlight, citations, null, null);
+    }
+
+    /** The finding text in the requested language — falls back to Vietnamese rather than
+     *  rendering blank when no English variant exists yet. */
+    public String text(boolean vi) {
+        if (vi) return textVi;
+        return textEn != null && !textEn.isBlank() ? textEn : textVi;
     }
 
     public static final String MACRO_ECONOMIC = "MACRO_ECONOMIC";

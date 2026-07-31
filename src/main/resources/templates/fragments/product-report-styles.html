@@ -270,6 +270,22 @@
   .roadmap-step b { display:block; color:var(--navy-deep); font-family:var(--serif); font-size:15px; line-height:1.3; }
   .roadmap-step p { margin:7px 0 0; color:var(--ink-soft); font-size:9.5px; line-height:1.45; }
 
+  /* THREATMAP: dedicated severity palette (HIGH/MEDIUM/LOW) — deliberately NOT the 5-tone
+     chart palette above, so a reader can never confuse a chart color with a risk rating. */
+  .exhibit-threatmap { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .threat-card { min-width:0; padding:16px; border:1px solid var(--line-dark); border-left:4px solid var(--muted); }
+  .threat-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .threat-head b { color:var(--navy-deep); font-family:var(--serif); font-size:16px; }
+  .threat-badge { display:inline-block; padding:3px 10px; border:1px solid; border-radius:3px; font-size:9.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; white-space:nowrap; }
+  .threat-reason { margin:9px 0 0; color:var(--ink); font-size:11.5px; line-height:1.4; }
+  .threat-detail { margin:6px 0 0; color:var(--muted); font-size:10px; line-height:1.4; }
+  .threat-card.high { border-left-color:#D7192D; }
+  .threat-badge.high { border-color:#D7192D; color:#D7192D; background:#FDECEC; }
+  .threat-card.medium { border-left-color:#C9A15A; }
+  .threat-badge.medium { border-color:#C9A15A; color:#96600D; background:#FFF7E6; }
+  .threat-card.low { border-left-color:#8A8878; }
+  .threat-badge.low { border-color:#8A8878; color:#4A4A45; background:#F1EEE5; }
+
   .market-bridge { margin-top:42px; border:1px solid var(--line-dark); border-top:4px solid var(--navy-deep); background:#F8F5EE; page-break-inside:avoid; }
   .bridge-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding:22px 24px 18px; }
   .bridge-head h3 { max-width:720px; margin:0; color:var(--navy-deep); font-family:var(--serif); font-size:23px; line-height:1.3; }
