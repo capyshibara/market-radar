@@ -68,9 +68,16 @@
       <div class="editorial-lead-grid">
         <article class="editorial-lead">
           <div class="section-kicker" th:text="${vi ? '01 · GÓC NHÌN CỦA BIÊN TẬP VIÊN' : '01 · THE EDITOR’S READ'}">The editor’s read</div>
-          <h2 th:text="${editorialBrief.leadHeadline}">Lead argument</h2>
-          <p class="editorial-byline"><span th:text="${vi ? 'Biên tập và rà soát bởi ' : 'Curated and reviewed by '}">Reviewed by </span><strong th:text="${editorialBrief.editor}">Product SME</strong><span th:text="${' · ' + editorialBrief.reviewedAt}">Date</span></p>
-          <p class="lead-narrative" th:text="${editorialBrief.leadNarrative}">Narrative</p>
+          <th:block th:if="${editorialIsPlaceholder}">
+            <h2 th:text="${vi ? 'Chưa có bài biên tập cho kỳ này' : 'No editorial read for this period yet'}">No editorial read yet</h2>
+            <p class="lead-narrative" th:text="${vi ? 'Chưa có Product SME nào biên tập và duyệt góc nhìn cho ' + period + '. Xem Tình báo trực quan, Diễn biến hiện tại và Nguồn tham khảo bên dưới cho dữ liệu đã xác minh của kỳ này.' : 'No Product SME has curated and reviewed a read for ' + period + ' yet. See Visual Intelligence, Current developments and Sources below for this period’s verified data.'}">Placeholder.</p>
+            <p class="editorial-byline"><a th:href="${'/report/product/edit?cadence=' + #strings.toLowerCase(cadence.name()) + '&lang=' + (vi ? 'vi' : 'en')}" th:text="${vi ? 'Biên tập góc nhìn cho kỳ này →' : 'Write the read for this period →'}">Edit</a></p>
+          </th:block>
+          <th:block th:unless="${editorialIsPlaceholder}">
+            <h2 th:text="${editorialBrief.leadHeadline}">Lead argument</h2>
+            <p class="editorial-byline"><span th:text="${vi ? 'Biên tập và rà soát bởi ' : 'Curated and reviewed by '}">Reviewed by </span><strong th:text="${editorialBrief.editor}">Product SME</strong><span th:text="${' · ' + editorialBrief.reviewedAt}">Date</span></p>
+            <p class="lead-narrative" th:text="${editorialBrief.leadNarrative}">Narrative</p>
+          </th:block>
         </article>
         <aside class="editorial-chart exhibit-hero-shell" th:if="${editorialHeroExhibit != null}">
           <th:block th:replace="~{fragments/product-report-exhibit :: card(${editorialHeroExhibit},${vi},true)}"></th:block>

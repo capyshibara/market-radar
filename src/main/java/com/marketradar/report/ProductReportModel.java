@@ -74,6 +74,7 @@ public class ProductReportModel {
         model.put("executiveBrief", ProductExecutiveBrief.from(snapshot, vi));
         ProductReportEditorialService.EditorialBrief editorialBrief = editorial.current(cadence, locale);
         model.put("editorialBrief", editorialBrief);
+        model.put("editorialIsPlaceholder", !editorial.hasCuratedDraft(cadence, locale));
         java.util.List<ProductReportEditorialService.EditorialExhibit> activeExhibits =
                 editorialBrief.exhibits().stream()
                         .filter(ProductReportEditorialService.EditorialExhibit::enabled).toList();

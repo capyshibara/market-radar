@@ -71,6 +71,15 @@ public class ProductReportEditorialService {
         return defaults(cadence, vi);
     }
 
+    /** False when {@link #current} is about to fall back to the static sample copy —
+     *  no human has ever saved a draft for this cadence/language via the editor. */
+    public boolean hasCuratedDraft(ProductReportCadence cadence, Locale locale) {
+        boolean vi = isVi(locale);
+        String language = vi ? "vi" : "en";
+        if (transientDrafts.containsKey(key(cadence, language))) return true;
+        return drafts != null && drafts.findByCadenceAndLanguage(cadence, language).isPresent();
+    }
+
     @Transactional(readOnly = true)
     public List<EditorialReference> references(EditorialBrief brief) {
         return references(brief, Set.of());
