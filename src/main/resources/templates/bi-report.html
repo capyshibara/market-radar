@@ -319,7 +319,7 @@
       <div class="metric-row">
         <div class="metric"><b th:text="${findingsTotal}">0</b><span th:text="${vi ? 'Nhận định' : 'Findings'}">Findings</span></div>
         <div class="metric"><b th:text="${bucketsCovered}">0</b><span th:text="${vi ? 'Nhóm chủ đề' : 'Categories covered'}">Categories</span></div>
-        <div class="metric"><b th:text="${sourceLines.size()}">0</b><span th:text="${vi ? 'Nguồn tham khảo' : 'Sources'}">Sources</span></div>
+        <div class="metric"><b th:text="${sourcesTotal}">0</b><span th:text="${vi ? 'Nguồn tham khảo' : 'Sources'}">Sources</span></div>
       </div>
       <div class="summary-box" th:if="${!keyFindings.isEmpty()}" th:text="${keyFindings[0].text(vi)}">Lead finding</div>
       <div class="findings">

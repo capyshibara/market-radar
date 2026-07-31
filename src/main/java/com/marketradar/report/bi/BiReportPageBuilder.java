@@ -130,6 +130,7 @@ public final class BiReportPageBuilder {
                 .filter(c -> !isPrimaryTier(c.tierNote())).toList();
         model.put("sourcesPrimary", tierPrimary);
         model.put("sourcesSecondary", tierSecondary);
+        model.put("sourcesTotal", allCitations.size());
 
         model.put("pages", plan(vi, macro, theme, pressCalendar, companyEvents, marketShare,
                 aiSizing, aiThreat, highlightGroups, comparisonPages));
