@@ -120,6 +120,29 @@
           </div>
         </section>
 
+        <section class="batch-audit" aria-labelledby="health-check-title">
+          <h2 id="health-check-title" th:text="#{ops.sources.healthTitle}">Check all sources</h2>
+          <p th:text="#{ops.sources.healthDescription}">Try HTTP for every active source; fall back to a headless browser when HTTP fails. Nothing is saved.</p>
+          <div class="batch-audit-actions">
+            <button id="health-check-run" class="btn btn-secondary" type="button" th:text="#{ops.sources.healthAction}">Check all sources</button>
+            <span id="health-check-feedback" class="batch-audit-feedback" aria-live="polite"></span>
+          </div>
+          <div id="health-check-results" class="batch-audit-results">
+            <div class="data-table-wrap"><div class="data-table-scroll">
+              <table class="data-table">
+                <thead><tr>
+                  <th th:text="#{ops.sources.colTier}">Tier</th>
+                  <th th:text="#{ops.sources.colCode}">Code</th>
+                  <th th:text="#{ops.sources.healthColMethod}">Method</th>
+                  <th th:text="#{ops.sources.healthColStatus}">Status</th>
+                  <th th:text="#{ops.sources.healthColDetail}">Detail</th>
+                </tr></thead>
+                <tbody id="health-check-body"></tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+
         <div class="data-table-wrap"><div class="data-table-scroll">
           <table class="data-table">
             <thead><tr>
@@ -263,7 +286,12 @@
      th:data-audit-advice-already-registered="#{ops.sources.auditAdvice.ALREADY_REGISTERED}"
      th:data-audit-advice-import-as-document="#{ops.sources.auditAdvice.IMPORT_AS_DOCUMENT}"
      th:data-audit-advice-review-for-recurring-source="#{ops.sources.auditAdvice.REVIEW_FOR_RECURRING_SOURCE}"
-     th:data-audit-advice-needs-dedicated-parser="#{ops.sources.auditAdvice.NEEDS_DEDICATED_PARSER}"></div>
+     th:data-audit-advice-needs-dedicated-parser="#{ops.sources.auditAdvice.NEEDS_DEDICATED_PARSER}"
+     th:data-health-action="#{ops.sources.healthAction}" th:data-health-running-label="#{ops.sources.healthRunningLabel}"
+     th:data-health-running="#{ops.sources.healthRunning}" th:data-health-complete="#{ops.sources.healthComplete}"
+     th:data-health-ok="#{ops.sources.healthOk}" th:data-health-failed="#{ops.sources.healthFailed}"
+     th:data-health-method-http="#{ops.sources.healthMethodHttp}" th:data-health-method-browser="#{ops.sources.healthMethodBrowser}"
+     th:data-health-method-none="#{ops.sources.healthMethodNone}"></div>
 <script src="/js/ops-session.js"></script>
 <script src="/js/ops-sidebar.js"></script>
 <script src="/js/ops-pipeline-guard.js"></script>
@@ -391,6 +419,54 @@
     } catch (error) { batchFeedback.textContent = words.requestError; }
     finally { batchButton.disabled = false; batchButton.textContent = words.batchAction; }
   });
+
+  var healthButton = document.getElementById('health-check-run');
+  var healthFeedback = document.getElementById('health-check-feedback');
+  var healthBody = document.getElementById('health-check-body');
+  var healthPollTimer = null;
+  var methodLabel = { HTTP: words.healthMethodHttp, BROWSER: words.healthMethodBrowser, NONE: words.healthMethodNone };
+  function renderHealthRow(result) {
+    var row = document.createElement('tr');
+    var tier = document.createElement('td');
+    var tierBadge = document.createElement('span'); tierBadge.className = 'badge ' + (result.tier === 1 ? 'badge-success' : result.tier === 2 ? 'badge-info' : result.tier === 3 ? 'badge-warn' : 'badge-neutral');
+    tierBadge.textContent = 'Tier ' + result.tier; tier.appendChild(tierBadge); row.appendChild(tier);
+    var code = document.createElement('td'); var chip = document.createElement('span'); chip.className = 'code-chip code-chip-sm'; chip.textContent = result.code; code.appendChild(chip); row.appendChild(code);
+    row.appendChild(cell(methodLabel[result.method] || result.method));
+    var statusTd = document.createElement('td'); var statusBadge = document.createElement('span');
+    statusBadge.className = 'badge ' + (result.ok ? 'badge-success' : 'badge-danger') ; statusBadge.textContent = result.ok ? words.healthOk : words.healthFailed;
+    statusTd.appendChild(statusBadge); row.appendChild(statusTd);
+    row.appendChild(cell(result.detail));
+    return row;
+  }
+  function pollHealth() {
+    fetch('/sources/health-check/status.json').then(function (r) { return r.json(); }).then(function (status) {
+      healthBody.replaceChildren();
+      status.results.forEach(function (result) { healthBody.appendChild(renderHealthRow(result)); });
+      if (status.running) {
+        healthFeedback.textContent = words.healthRunning.replace('{0}', status.completed).replace('{1}', status.total);
+        healthPollTimer = setTimeout(pollHealth, 1500);
+      } else if (status.total > 0) {
+        var okCount = status.results.filter(function (r) { return r.ok; }).length;
+        healthFeedback.textContent = words.healthComplete.replace('{0}', okCount).replace('{1}', status.total);
+        healthButton.disabled = false; healthButton.textContent = words.healthAction;
+      } else {
+        healthButton.disabled = false; healthButton.textContent = words.healthAction;
+      }
+    }).catch(function () { healthFeedback.textContent = words.requestError; healthButton.disabled = false; healthButton.textContent = words.healthAction; });
+  }
+  if (healthButton) healthButton.addEventListener('click', async function () {
+    healthButton.disabled = true; healthButton.textContent = words.healthRunningLabel; healthFeedback.textContent = '';
+    if (healthPollTimer) clearTimeout(healthPollTimer);
+    try {
+      var response = await fetch('/sources/health-check', { method: 'POST' });
+      if (!response.ok && response.status !== 302 && !response.redirected) { healthFeedback.textContent = words.requestError; healthButton.disabled = false; healthButton.textContent = words.healthAction; return; }
+      pollHealth();
+    } catch (error) { healthFeedback.textContent = words.requestError; healthButton.disabled = false; healthButton.textContent = words.healthAction; }
+  });
+  // Resume polling on page load in case a check is already running (e.g. left mid-run).
+  fetch('/sources/health-check/status.json').then(function (r) { return r.json(); }).then(function (status) {
+    if (status.total > 0) { healthButton.disabled = true; pollHealth(); }
+  }).catch(function () {});
 })();
 </script>
 </body>
