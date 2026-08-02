@@ -159,7 +159,7 @@
               <tr th:each="s : ${sources}">
                 <td><span class="badge" th:classappend="${s.tier == 1} ? 'badge-success' : (${s.tier == 2} ? 'badge-info' : (${s.tier == 3} ? 'badge-warn' : 'badge-neutral'))"
                           th:text="'Tier ' + ${s.tier}">Tier 1</span></td>
-                <td><a class="code-chip code-chip-sm" th:href="${s.fetchUrl}" th:title="${s.fetchUrl}" th:text="${s.code}" target="_blank" rel="noopener noreferrer">MOF_ISA</a></td>
+                <td><a class="code-chip code-chip-sm" th:href="${s.displayUrl}" th:title="${s.displayUrl}" th:text="${s.code}" target="_blank" rel="noopener noreferrer">MOF_ISA</a></td>
                 <td th:text="${s.name}">Name</td>
                 <td th:text="${s.type}">HTML</td>
                 <td th:text="${s.language}">vi</td>

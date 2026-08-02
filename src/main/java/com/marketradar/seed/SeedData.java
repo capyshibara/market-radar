@@ -63,9 +63,16 @@ public class SeedData implements CommandLineRunner {
         // POST /api/article/reads (body {"rootCategoryId":<id chuyên mục BH>}), chi tiết qua
         // GET /api/article/getbyslug. fetchUrl = endpoint danh sách; rootCategoryId + endpoint
         // chi tiết nằm trong ingestMofIsa/parseMofList (đặc thù site, như các parser riêng khác).
-        mofIsa = sources.save(new Source("MOF_ISA", "Cục Quản lý, giám sát bảo hiểm — Bộ Tài chính",
+        mofIsa = new Source("MOF_ISA", "Cục Quản lý, giám sát bảo hiểm — Bộ Tài chính",
                 "https://www.mof.gov.vn/api/article/reads?offset=0&limit=25", "www.mof.gov.vn",
-                Source.SourceType.JSON, 1, "vi"));
+                Source.SourceType.JSON, 1, "vi");
+        // browseUrl = trang chủ: fetchUrl là API POST (cần body rootCategoryId) — bấm trực tiếp
+        // trên trình duyệt (luôn GET, không body) sẽ trông như hỏng. Portal là Vue SPA nên trang
+        // chủ RENDER BÌNH THƯỜNG cho người dùng thật (khác với SafeFetcher tĩnh không chạy JS) —
+        // chưa xác định được URL sâu hơn tới đúng chuyên mục "Quản lý giám sát bảo hiểm" vì môi
+        // trường này không có mạng để dò; cập nhật nếu tìm được link chính xác hơn.
+        mofIsa.setBrowseUrl("https://www.mof.gov.vn/");
+        mofIsa = sources.save(mofIsa);
         // Collision check 2026-07-05: registry's "root" URL is a meta-refresh redirect TO this exact
         // deep path — current seed is already the real target. No change.
         // Fix 2026-07-14 (3 lần dò): homepage là Vue SPA rỗng. Lần 1 (itemId=914 "时政要闻") ra
@@ -222,9 +229,16 @@ public class SeedData implements CommandLineRunner {
         // field is a nested JSON string ({"vi_VN":{"title":...}}, like MOF's articleContent),
         // posted_at is clean "yyyy-MM-dd". Detail link = /cathay/news-detail?news_id={id} (Vue
         // Router route name, confirmed live 200). Verified server-side with crawler UA: 15 items.
-        sources.save(new Source("CATHAY_VN", "Cathay Life Việt Nam",
-                "https://www.cathaylife.com.vn/cathay/api/graphql", "www.cathaylife.com.vn",
-                Source.SourceType.JSON, 1, "vi"));
+        {
+            Source cathayVn = new Source("CATHAY_VN", "Cathay Life Việt Nam",
+                    "https://www.cathaylife.com.vn/cathay/api/graphql", "www.cathaylife.com.vn",
+                    Source.SourceType.JSON, 1, "vi");
+            // browseUrl: fetchUrl là GraphQL API (cần POST body) — trang người dùng thật đọc tin
+            // là /cathay/news (chính trang này được dùng để bắt query GraphQL thật, xem
+            // CATHAY_VN_GRAPHQL_BODY trong IngestionJob).
+            cathayVn.setBrowseUrl("https://www.cathaylife.com.vn/cathay/news");
+            sources.save(cathayVn);
+        }
         // Track 2 recheck 2026-07-14: 403 with our UA and with a full browser UA alike — genuine
         // bot-protection WAF. Deactivate (bypassing bot detection is out of scope).
         Source sunlifeVn = new Source("SUNLIFE_VN", "Sun Life Việt Nam",
@@ -258,9 +272,15 @@ public class SeedData implements CommandLineRunner {
         // is a JSON envelope wrapping pre-rendered HTML (parseDaiichiVn). Article links point to
         // a different subdomain (kh.dai-ichi-life.com.vn) — falls back to title+real-date, same
         // pattern as Chubb.
-        sources.save(new Source("DAIICHI_VN", "Dai-ichi Life Việt Nam",
-                "https://dai-ichi-life.com.vn/api/news/home", "dai-ichi-life.com.vn",
-                Source.SourceType.JSON, 1, "vi"));
+        {
+            Source daiichiVn = new Source("DAIICHI_VN", "Dai-ichi Life Việt Nam",
+                    "https://dai-ichi-life.com.vn/api/news/home", "dai-ichi-life.com.vn",
+                    Source.SourceType.JSON, 1, "vi");
+            // browseUrl: fetchUrl là API POST (body rỗng "{}" là đủ, nhưng vẫn khác GET của
+            // trình duyệt) — trang chủ là nơi widget tin tức thật sự hiển thị cho người dùng.
+            daiichiVn.setBrowseUrl("https://dai-ichi-life.com.vn/");
+            sources.save(daiichiVn);
+        }
         // Track 2 fix 2026-07-05: root 301 → /vi/ (same host).
         // Fix 2026-07-14: root/homepage has no articles — site routes ENTIRELY client-side
         // (every path, even nonexistent ones, returns the same HTTP 200 app-shell; confirmed
@@ -330,9 +350,16 @@ public class SeedData implements CommandLineRunner {
         // empty jQuery shell (4.4KB) whose content loads via POST /en/infocenter/press_releases.php
         // with an EMPTY body (confirmed live + server-side with crawler UA). Response: 490 releases,
         // newest-first, sorted, confirmed through July 2026. parseHkia().
-        sources.save(new Source("HKIA", "Insurance Authority (Hong Kong)",
-                "https://www.ia.org.hk/en/infocenter/press_releases.php", "www.ia.org.hk",
-                Source.SourceType.JSON, 3, "en"));
+        {
+            Source hkia = new Source("HKIA", "Insurance Authority (Hong Kong)",
+                    "https://www.ia.org.hk/en/infocenter/press_releases.php", "www.ia.org.hk",
+                    Source.SourceType.JSON, 3, "en");
+            // browseUrl: fetchUrl là .php POST endpoint (body rỗng) — trang HTML thật con người
+            // đọc là press_releases.html (IngestionJob dùng chính URL này làm HKIA_PAGE_URL để
+            // resolve link tương đối trong response).
+            hkia.setBrowseUrl("https://www.ia.org.hk/en/infocenter/press_releases.html");
+            sources.save(hkia);
+        }
         // Parser added 2026-07-14 (parseAiaHk): AEM server-rendered (cmp-promotioncard, same
         // platform as AIA_VN), but unlike AIA_VN the date IS in the static HTML here — no year-
         // from-URL fallback needed. Verified live: 314 items, real dates through July 2026.

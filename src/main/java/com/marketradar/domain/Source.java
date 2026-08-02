@@ -26,6 +26,14 @@ public class Source {
     @Column(nullable = false, length = 1000)
     private String fetchUrl;      // URL fetch trực tiếp (RSS feed / trang danh sách / PDF) — 1000: một số nguồn (vd MUNICHRE) dùng query string dài (AEM/GraphQL search params)
 
+    /** Trang con người bấm vào xem được — null nghĩa là fetchUrl cũng dùng được cho việc đó
+     *  (đa số nguồn HTML/RSS/PDF: đúng là cùng 1 URL). Cần khác fetchUrl khi fetchUrl là API
+     *  POST/GraphQL (vd MOF_ISA cần body rootCategoryId, CATHAY_VN cần GraphQL body) — bấm
+     *  thẳng fetchUrl trên trình duyệt (luôn là GET, không có body) sẽ trông như hỏng dù nguồn
+     *  hoàn toàn sống; xem SourceHealthCheckService/IngestionJob để biết method/body thật. */
+    @Column(length = 1000)
+    private String browseUrl;
+
     @Column(nullable = false)
     private String allowedHost;   // host whitelist, exact match
 
@@ -67,6 +75,9 @@ public class Source {
     public String getCode() { return code; }
     public String getName() { return name; }
     public String getFetchUrl() { return fetchUrl; }
+    public String getBrowseUrl() { return browseUrl; }
+    /** URL để hiển thị làm hyperlink cho người — browseUrl nếu có, không thì fetchUrl. */
+    public String getDisplayUrl() { return browseUrl != null && !browseUrl.isBlank() ? browseUrl : fetchUrl; }
     public String getAllowedHost() { return allowedHost; }
     public SourceType getType() { return type; }
     public int getTier() { return tier; }
@@ -103,4 +114,5 @@ public class Source {
     public void setActive(boolean active) { this.active = active; }
     public void setUrlUnverified(boolean urlUnverified) { this.urlUnverified = urlUnverified; }
     public void setTier(int tier) { this.tier = tier; }
+    public void setBrowseUrl(String browseUrl) { this.browseUrl = browseUrl; }
 }
