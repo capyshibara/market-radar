@@ -10,16 +10,13 @@ import com.marketradar.domain.RawDoc;
  * Rule tối thiểu, deterministic, auditable:
  *
  *   1. Doc từ nguồn tier 1 (chính phủ/regulator) → T3
- *      — chính là hard-override "văn bản pháp lý chính thức → tối thiểu T3"
- *        trong kiến trúc đầy đủ, nên rule này SỐNG SÓT qua cả Impact Scorer thật.
  *   2. EXEC_SUMMARY (rawDoc null) → T3 — câu cấp report, consequence cao.
- *   3. DEMO_INJECT → T3 — đảm bảo demo claim vào Reviewer Console.
+ *   3. DEMO_INJECT → T3 — đảm bảo demo claim dễ nhận diện trong audit.
  *   4. Còn lại (tin sản phẩm từ media, scope MVP) → T1
- *      — diện "sample" theo E1: ENTAILED thì tự xuất bản.
  *
- * Ánh xạ tier → review theo E1: T0-T1 sample · T2 một reviewer ·
- * T3 functional owner (+legal) · T4 dual approval. MVP chỉ có MỘT hàng đợi
- * review chung — phân biệt reviewer theo vai trò là việc của bản pilot.
+ * 2026-08-02: tier KHÔNG còn quyết định auto-publish hay bắt buộc review (xem
+ * ReviewRules.autoPublishable — giờ chỉ dựa verdict Gate L2). Tier vẫn được gán và lưu trên
+ * claim, dùng để hiển thị/sắp ưu tiên trong Reviewer Queue — thuần thông tin, không còn là gate.
  */
 @Service
 public class RiskTierRouter {
@@ -30,9 +27,5 @@ public class RiskTierRouter {
         boolean exec = doc == null;
         int sourceTier = (doc != null && doc.getSource() != null) ? doc.getSource().getTier() : 3;
         return ReviewRules.assignTier(demo, exec, sourceTier);
-    }
-
-    public boolean requiresHumanReview(String tier) {
-        return ReviewRules.requiresHumanReview(tier);
     }
 }

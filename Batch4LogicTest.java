@@ -21,19 +21,14 @@ public class Batch4LogicTest {
         check("nguồn media (tier 2) → T1", "T1", ReviewRules.assignTier(false, false, 2));
         check("nguồn blog (tier 4) → T1", "T1", ReviewRules.assignTier(false, false, 4));
 
-        // ---- requiresHumanReview ----
-        check("T0 diện sample", false, ReviewRules.requiresHumanReview("T0"));
-        check("T1 diện sample", false, ReviewRules.requiresHumanReview("T1"));
-        check("T2 bắt buộc người", true, ReviewRules.requiresHumanReview("T2"));
-        check("T3 bắt buộc người", true, ReviewRules.requiresHumanReview("T3"));
-
-        // ---- autoPublishable: CHỈ ENTAILED + tier sample ----
-        check("ENTAILED + T1 → auto", true, ReviewRules.autoPublishable("ENTAILED", "T1"));
-        check("ENTAILED + T3 → review", false, ReviewRules.autoPublishable("ENTAILED", "T3"));
-        check("NEUTRAL + T1 → review", false, ReviewRules.autoPublishable("NEUTRAL", "T1"));
-        check("CONTRADICTED + T1 → review", false, ReviewRules.autoPublishable("CONTRADICTED", "T1"));
-        check("VERIFIER_ERROR + T1 → review (lỗi không bao giờ = pass)",
-                false, ReviewRules.autoPublishable("VERIFIER_ERROR", "T1"));
+        // ---- autoPublishable: CHỈ dựa verdict Gate L2 (2026-08-02: bỏ điều kiện tier —
+        // claim đã qua Gate L1 + Gate L2 là đủ 2 lớp kiểm, tier giờ chỉ để hiển thị/sắp xếp) ----
+        check("ENTAILED + T1 → auto", true, ReviewRules.autoPublishable("ENTAILED"));
+        check("ENTAILED + T3 → auto (tier không còn chặn)", true, ReviewRules.autoPublishable("ENTAILED"));
+        check("NEUTRAL → review", false, ReviewRules.autoPublishable("NEUTRAL"));
+        check("CONTRADICTED → review", false, ReviewRules.autoPublishable("CONTRADICTED"));
+        check("VERIFIER_ERROR → review (lỗi không bao giờ = pass)",
+                false, ReviewRules.autoPublishable("VERIFIER_ERROR"));
 
         // ---- Precondition approve/edit (chống rubber-stamp) ----
         check("approve chưa mở evidence → chặn", true, ReviewRules.validateApprove(false) != null);

@@ -31,21 +31,22 @@ public final class ReviewRules {
         return sourceTier == 1 ? "T3" : "T1";
     }
 
-    /** T0/T1 = diện sample theo E1 (ENTAILED → tự xuất bản); T2+ = bắt buộc người. */
-    public static boolean requiresHumanReview(String tier) {
-        return !("T0".equals(tier) || "T1".equals(tier));
-    }
-
     // ---------- Quyết định route sau Gate L2 ----------
 
     /**
      * @param verdictName tên verdict Gate L2 (ENTAILED/CONTRADICTED/NEUTRAL/VERIFIER_ERROR)
      * @return true = tự xuất bản (AUTO_APPROVED); false = vào review.
-     *         CHỈ ENTAILED + tier diện sample mới auto — mọi verdict khác,
-     *         kể cả VERIFIER_ERROR, đều route review (không bao giờ quy lỗi về pass).
+     *         2026-08-02 (feedback Hanh): bỏ điều kiện risk tier khỏi quyết định này — claim
+     *         đã qua Gate L1 (exact-match) rồi tới Gate L2 (verifier độc lập, khác họ model
+     *         với writer) là đã qua 2 lớp kiểm nghiêm ngặt; gắn thêm điều kiện "nguồn Tier 1
+     *         luôn cần người" phía trên 2 lớp gate đó không còn hợp lý — Verifier ENTAILED là
+     *         đủ để tự xuất bản, bất kể risk tier. Risk tier (RiskTierRouter) vẫn được tính và
+     *         lưu để hiển thị/sắp ưu tiên trong Reviewer Queue, chỉ không còn ép buộc review nữa.
+     *         Mọi verdict khác ENTAILED — kể cả VERIFIER_ERROR — vẫn luôn route review (không
+     *         bao giờ quy lỗi kỹ thuật của verifier thành pass).
      */
-    public static boolean autoPublishable(String verdictName, String tier) {
-        return "ENTAILED".equals(verdictName) && !requiresHumanReview(tier);
+    public static boolean autoPublishable(String verdictName) {
+        return "ENTAILED".equals(verdictName);
     }
 
     // ---------- Precondition từng hành động review ----------

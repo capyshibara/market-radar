@@ -25,10 +25,13 @@ import java.util.stream.Collectors;
  * Bước 6 pipeline (Gate L2): với mỗi claim PENDING_VERIFICATION
  * → entailment độc lập → quyết định route:
  *
- *   ENTAILED  + tier T0/T1  → AUTO_APPROVED (diện sample theo E1)
- *   ENTAILED  + tier >= T2  → PENDING_REVIEW (một người trở lên phải nhìn)
+ *   ENTAILED                                → AUTO_APPROVED
  *   CONTRADICTED / NEUTRAL / VERIFIER_ERROR → PENDING_REVIEW (fail loud —
  *     không bao giờ silent-default sang publish)
+ *
+ * Risk tier (RiskTierRouter) không còn tham gia quyết định route — claim đã qua Gate L1
+ * (exact-match) rồi Gate L2 (verifier độc lập khác họ model) là đủ 2 lớp kiểm; tier vẫn được
+ * lưu trên claim để hiển thị/sắp ưu tiên trong Reviewer Queue (xem ReviewRules.autoPublishable).
  *
  * Mọi verdict được LƯU append-only vào claim_verifications (audit).
  */
@@ -83,7 +86,7 @@ public class VerificationJob {
             verifications.save(new ClaimVerification(
                     c, r.verdict(), r.rationale(), verifier.providerName(), r.rawResponse()));
 
-            boolean autoOk = ReviewRules.autoPublishable(r.verdict().name(), c.getRiskTier());
+            boolean autoOk = ReviewRules.autoPublishable(r.verdict().name());
             c.setReviewStatus(autoOk ? ReviewStatus.AUTO_APPROVED : ReviewStatus.PENDING_REVIEW);
             claims.save(c);
             if (autoOk) auto++; else toReview++;
