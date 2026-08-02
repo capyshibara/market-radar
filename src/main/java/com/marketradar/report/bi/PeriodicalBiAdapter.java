@@ -2,9 +2,11 @@ package com.marketradar.report.bi;
 
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.InterpretedClaim;
+import com.marketradar.domain.Source;
 import com.marketradar.intelligence.CompetitorRegistry;
 import com.marketradar.product.CurrentProductNewsItem;
 import com.marketradar.product.ProductBriefInsight;
+import com.marketradar.product.ProductMarketScopeClassifier;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
 import com.marketradar.report.ProductReportAdapter;
@@ -84,12 +86,26 @@ public class PeriodicalBiAdapter {
                     .orElse(null);
             boolean reportLevel = claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY
                     || claim.getSlot() == InterpretedClaim.Slot.NARRATIVE;
+            // "company" KHÔNG được truyền = subject (tên đối thủ ĐÃ CHUẨN HOÁ theo registry, vd
+            // "Prudential Việt Nam" cho mọi claim nhắc "Prudential"): làm vậy sẽ khiến MỌI claim
+            // về một đối thủ đã đăng ký bị gắn "Việt Nam" bất kể bằng chứng thực nói về công ty
+            // nào — tái tạo đúng lỗi CFO nêu (Prudential plc bị lẫn với Prudential Financial Inc.)
+            // ngay trong chính tính năng được xây để hiển thị rủi ro đó minh bạch hơn. Chỉ dùng
+            // tín hiệu khách quan: ngôn ngữ/host của NGUỒN đăng ký + host của URL tài liệu.
+            Source claimSource = claim.getRawDoc() != null ? claim.getRawDoc().getSource() : null;
+            ProductMarketScopeClassifier.MarketPosition market = ProductMarketScopeClassifier.classify(
+                    claimSource == null ? null : claimSource.getCode(),
+                    claimSource == null ? null : claimSource.getLanguage(),
+                    claimSource == null ? null : claimSource.getAllowedHost(),
+                    claim.getRawDoc() == null ? null : claim.getRawDoc().getUrl(),
+                    claim.getRawDoc() == null ? null : claim.getRawDoc().getPublisherName(),
+                    null);
             findings.add(new BiFinding(
                     reportLevel ? BiFinding.COMPETITIVE_THEME : BiFinding.COMPANY_EVENT,
                     subject,
                     claim.getTextVi(), claim.getTextEn(),
                     claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY,
-                    citations));
+                    citations, market.scope(), market.geography()));
         }
 
         // ---- Kênh 2: insight tổng hợp của Product brief (giữ fail-closed cũ) ----
@@ -113,7 +129,8 @@ public class PeriodicalBiAdapter {
                             ? " — " + item.getDisplaySummaryEn() : ""),
                     false,
                     List.of(new BiCitation(item.sourceName(), "T" + item.sourceTier(),
-                            item.hasExternalSourceLink() ? item.sourceUrl() : null))));
+                            item.hasExternalSourceLink() ? item.sourceUrl() : null)),
+                    item.marketScope(), item.geography()));
         }
 
         for (EvidenceFact f : snapshot.references()) {
@@ -185,8 +202,8 @@ public class PeriodicalBiAdapter {
     }
 
     private BiFinding toFinding(ProductBriefInsight insight, ProductReportAdapter.Snapshot snapshot, boolean highlight) {
-        List<BiCitation> citations = snapshot.evidenceByInsight()
-                .getOrDefault(insight.getId(), List.of()).stream()
+        List<EvidenceFact> evidence = snapshot.evidenceByInsight().getOrDefault(insight.getId(), List.of());
+        List<BiCitation> citations = evidence.stream()
                 .map(f -> new BiCitation(f.getRawDoc().getSource().getName(),
                         "T" + f.getRawDoc().getSource().getTier(), null))
                 .distinct()
@@ -195,6 +212,9 @@ public class PeriodicalBiAdapter {
                 + (insight.getSoWhatVi() != null && !insight.getSoWhatVi().isBlank() ? " " + insight.getSoWhatVi() : "");
         String textEn = insight.getHeadlineEn()
                 + (insight.getSoWhatEn() != null && !insight.getSoWhatEn().isBlank() ? " " + insight.getSoWhatEn() : "");
-        return new BiFinding(BiFinding.COMPETITIVE_THEME, insight.getThemeCode(), textVi, textEn, highlight, citations);
+        ProductMarketScopeClassifier.MarketPosition market = ProductMarketScopeClassifier.classify(
+                evidence.isEmpty() ? null : evidence.get(0));
+        return new BiFinding(BiFinding.COMPETITIVE_THEME, insight.getThemeCode(), textVi, textEn, highlight, citations,
+                market.scope(), market.geography());
     }
 }

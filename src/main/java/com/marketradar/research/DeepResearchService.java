@@ -7,6 +7,7 @@ import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
 import com.marketradar.parse.ContentParsers;
+import com.marketradar.product.ProductMarketScopeClassifier;
 import com.marketradar.report.bi.BiCitation;
 import com.marketradar.report.bi.BiFinding;
 import com.marketradar.report.bi.BiReportContent;
@@ -252,20 +253,32 @@ public class DeepResearchService {
                     String textVi = f.path("text_vi").asText("");
                     if (textVi.isBlank()) continue;
                     String textEn = f.path("text_en").isNull() ? null : f.path("text_en").asText(null);
+                    String subjectKey = f.path("subject_key").isNull() ? null : f.path("subject_key").asText(null);
                     List<BiCitation> citations = new ArrayList<>();
+                    GatheredSource primarySource = null;
                     for (JsonNode refNode : f.path("source_refs")) {
                         int idx = refNode.asInt(-1) - 1;
                         if (idx >= 0 && idx < gathered.size()) {
                             GatheredSource g = gathered.get(idx);
                             citations.add(new BiCitation(g.label(), g.acquisition(), g.url()));
+                            if (primarySource == null) primarySource = g;
                         }
                     }
-                    findings.add(new BiFinding(bucket,
-                            f.path("subject_key").isNull() ? null : f.path("subject_key").asText(null),
+                    // company=null có chủ đích: subjectKey ở đây do LLM gán tự do, không đi qua
+                    // CompetitorRegistry, nhưng vẫn có thể trùng tên hiển thị VN của một đối thủ
+                    // dù bằng chứng thật nói về pháp nhân khác cùng thương hiệu — chỉ dùng host
+                    // của URL nguồn thật (khách quan hơn tên thực thể) để phân loại thị trường.
+                    ProductMarketScopeClassifier.MarketPosition market = ProductMarketScopeClassifier.classify(
+                            null, null, null,
+                            primarySource == null ? null : primarySource.url(),
+                            primarySource == null ? null : primarySource.label(),
+                            null);
+                    findings.add(new BiFinding(bucket, subjectKey,
                             textVi, textEn, f.path("highlight").asBoolean(false), citations,
                             f.path("severity").isNull() ? null : f.path("severity").asText(null),
                             f.path("metric_percent").isNull() || !f.path("metric_percent").isNumber() ? null
-                                    : f.path("metric_percent").asInt()));
+                                    : f.path("metric_percent").asInt(),
+                            market.scope(), market.geography()));
                 }
             } catch (Exception e) {
                 log.warn("Deep Research: synthesis JSON không đọc được, dùng bản dự phòng nguyên văn: {}", e.getMessage());
@@ -277,8 +290,11 @@ public class DeepResearchService {
             // thay vì mất trắng (đúng tinh thần AdhocDocxService: giữ nguyên liệu thô khi AI lỗi).
             openGaps.add("Tổng hợp AI không tạo được nhận định có cấu trúc — dưới đây là tài liệu thô đã thu thập.");
             for (GatheredSource g : gathered) {
+                ProductMarketScopeClassifier.MarketPosition market = ProductMarketScopeClassifier.classify(
+                        null, null, null, g.url(), g.label(), null);
                 findings.add(new BiFinding(BiFinding.COMPETITIVE_THEME, null, g.excerpt(), false,
-                        List.of(new BiCitation(g.label(), g.acquisition(), g.url()))));
+                        List.of(new BiCitation(g.label(), g.acquisition(), g.url())),
+                        market.scope(), market.geography()));
             }
         }
 

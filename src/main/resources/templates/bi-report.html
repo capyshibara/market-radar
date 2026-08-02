@@ -136,6 +136,15 @@
     margin:4px 4px 0 0;font-size:9.5pt;text-decoration:none;color:#3D3D3D;background:#FAFAFA}
   .cite-pill .tier-dot{font-weight:700;margin-left:4px;color:#C00000}
 
+  /* ===== Market badge — VIETNAM vs INTERNATIONAL, shown on every finding rather than
+     filtering international sources out silently. Deterministic (ProductMarketScopeClassifier,
+     not an LLM guess); exists so a Munich Re/NAIC/Swiss Re signal can never be misread as a
+     Vietnam-market competitor move — the exact entity-confusion risk the CFO raised. ===== */
+  .bi-market-badge{display:inline-block;font-size:7.5pt;font-weight:700;text-transform:uppercase;
+    letter-spacing:.03em;padding:2px 7px;border-radius:2px;margin-left:7px;vertical-align:middle;white-space:nowrap}
+  .bi-market-badge.vn{background:#FFEBEB;color:#C00000}
+  .bi-market-badge.intl{background:#F1F1F1;color:#6B6B6B}
+
   /* ===== Sources page ===== */
   .bi-source-item{font-size:10.5pt;margin-bottom:6px}
   .bi-source-tier{color:#C00000;font-weight:700;margin-right:10px}
@@ -244,7 +253,7 @@
         <div class="bi-section-bar" style="margin-bottom:16px" th:text="${vi ? 'Nhận định chính' : 'Executive takeaway'}">Executive takeaway</div>
         <div class="bi-exec-row" th:each="f, iter : ${keyFindings}">
           <div class="bi-exec-num-cell"><span class="bi-exec-num" th:text="${iter.index + 1}">1</span></div>
-          <div class="bi-exec-text-cell"><span class="bi-exec-text" th:text="${f.text(vi)}">Content</span></div>
+          <div class="bi-exec-text-cell"><span class="bi-exec-text" th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></div>
         </div>
       </div>
     </div>
@@ -263,7 +272,7 @@
     </div>
     <div class="bi-body">
       <div th:each="f : ${macroFindings}" class="bi-finding-block">
-        <span th:text="${f.text(vi)}">Content</span>
+        <span th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
         <div th:if="${!f.citations.isEmpty()}">
           <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
             <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
@@ -289,7 +298,7 @@
         <thead><tr><th th:text="${vi ? 'Chủ đề' : 'Theme'}">Theme</th><th th:text="${vi ? 'Tín hiệu' : 'Signal'}">Signal</th></tr></thead>
         <tbody>
           <tr th:each="f : ${themeFindings}">
-            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Theme</td>
+            <td class="subject"><span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Theme</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></td>
             <td>
               <span th:text="${f.text(vi)}">Signal text</span>
               <div th:if="${!f.citations.isEmpty()}">
@@ -320,7 +329,7 @@
         <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Nội dung' : 'Upcoming'}">Upcoming</th></tr></thead>
         <tbody>
           <tr th:each="f : ${pressCalendarFindings}">
-            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</td>
+            <td class="subject"><span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></td>
             <td>
               <span th:text="${f.text(vi)}">Event text</span>
               <div th:if="${!f.citations.isEmpty()}">
@@ -352,7 +361,7 @@
         <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Sự kiện' : 'Event'}">Event</th></tr></thead>
         <tbody>
           <tr th:each="f : ${eventsTimelineFindings}">
-            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</td>
+            <td class="subject"><span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></td>
             <td>
               <span th:text="${f.text(vi)}">Event text</span>
               <div th:if="${!f.citations.isEmpty()}">
@@ -381,8 +390,10 @@
     <div class="bi-body">
       <div th:if="${marketShareHasMetrics}">
         <div class="bi-bar-row" th:each="f : ${marketShareFindings}">
-          <div th:class="${homeCompany != null and #strings.equalsIgnoreCase(f.subjectKey(), homeCompany)} ? 'bi-bar-label-cell home' : 'bi-bar-label-cell'"
-               th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</div>
+          <div th:class="${homeCompany != null and #strings.equalsIgnoreCase(f.subjectKey(), homeCompany)} ? 'bi-bar-label-cell home' : 'bi-bar-label-cell'">
+            <span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</span>
+            <span th:if="${!f.isVietnamMarket()}" class="bi-market-badge intl" th:text="${f.marketLabel(vi)}">Intl</span>
+          </div>
           <div class="bi-bar-track-cell">
             <div class="bi-bar-track">
               <span th:class="${homeCompany != null and #strings.equalsIgnoreCase(f.subjectKey(), homeCompany)} ? 'bi-bar-fill home' : 'bi-bar-fill'"
@@ -396,7 +407,7 @@
         <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Nội dung' : 'Detail'}">Detail</th></tr></thead>
         <tbody>
           <tr th:each="f : ${marketShareFindings}">
-            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</td>
+            <td class="subject"><span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></td>
             <td th:text="${f.text(vi)}">Detail</td>
           </tr>
         </tbody>
@@ -417,7 +428,7 @@
     </div>
     <div class="bi-body">
       <div th:each="f : ${aiSizingFindings}" class="bi-finding-block">
-        <span th:text="${f.text(vi)}">Content</span>
+        <span th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
         <div th:if="${!f.citations.isEmpty()}">
           <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
             <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
@@ -444,7 +455,7 @@
         <tbody>
           <tr th:each="f : ${aiThreatFindings}">
             <td><span th:class="'bi-badge ' + ${#strings.toLowerCase(f.severity())}" th:text="${f.severity()}">HIGH</span></td>
-            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Competitor</td>
+            <td class="subject"><span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Competitor</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></td>
             <td>
               <span th:text="${f.text(vi)}">Why</span>
               <div th:if="${!f.citations.isEmpty()}">
@@ -474,8 +485,9 @@
       <div class="bi-card-row" th:each="row : ${highlightRows.get(p.subjectKey)}">
         <div class="bi-card-cell" th:each="f : ${row}">
           <div class="bi-highlight-card" th:style="'border-top:3px solid ' + ${highlightAccents.get(p.subjectKey)}">
-            <div class="bi-highlight-card-label" th:style="'color:' + ${highlightAccents.get(p.subjectKey)}"
-                 th:text="${#strings.abbreviate(f.text(vi), 40)}">Label</div>
+            <div class="bi-highlight-card-label" th:style="'color:' + ${highlightAccents.get(p.subjectKey)}">
+              <span th:text="${#strings.abbreviate(f.text(vi), 40)}">Label</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
+            </div>
             <div class="bi-highlight-card-text" th:text="${f.text(vi)}">Content</div>
             <div th:if="${!f.citations.isEmpty()}">
               <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
@@ -501,7 +513,7 @@
     </div>
     <div class="bi-body">
       <div class="bi-quote" th:each="f : ${comparisonPages.get(p.subjectKey)}">
-        <span th:text="${f.text(vi)}">Content</span>
+        <span th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
         <div th:if="${!f.citations.isEmpty()}">
           <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
             <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>

@@ -51,7 +51,11 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
      * chưa verify thành evidence-backed content. Subquery dùng createdAt rồi id làm
      * tie-break, đúng cùng định nghĩa "latest" của ClaimVerificationRepository.
      */
-    @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
+    /** join fetch rawDoc.source (chained qua alias rd) — không chỉ rawDoc: BI report cần
+     *  source.language/allowedHost để phân loại thị trường VN/quốc tế (BiFinding.scope),
+     *  và adapt() chạy ngoài transaction (không OSIV) nên không fetch trước sẽ ném
+     *  LazyInitializationException khi chạm rawDoc.getSource(). */
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc rd left join fetch rd.source " +
            "where c.reviewStatus in :statuses and c.gateStatus = :gateStatus " +
            "and c.superseded = false " +
            "and exists (select v.id from ClaimVerification v where v.claim = c " +
@@ -87,7 +91,8 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
      * origin lọc ở tham số (PIPELINE — DEMO_INJECT không bao giờ vào báo cáo thật).
      * Weekly/monthly report KHÔNG đổi — vẫn đi findPublishable (ENTAILED bắt buộc).
      */
-    @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
+    /** join fetch rawDoc.source — cùng lý do với findPublishableVerified ở trên. */
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc rd left join fetch rd.source " +
            "where c.reviewStatus in :statuses and c.gateStatus = :gateStatus " +
            "and c.origin = :origin and c.superseded = false " +
            "and not exists (select v.id from ClaimVerification v where v.claim = c " +

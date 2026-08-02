@@ -1,5 +1,7 @@
 package com.marketradar.report.bi;
 
+import com.marketradar.product.ProductMarketScope;
+
 import java.util.List;
 
 /**
@@ -24,10 +26,16 @@ import java.util.List;
  * @param metricPercent 0-100, CHỈ áp dụng cho MARKET_SHARE_OR_AWARD khi có số liệu thật để vẽ
  *                      thanh bar (vd thị phần APE %) — null thì trang đó tự chuyển sang trình bày
  *                      dạng bảng (MATRIX) thay vì bịa % để vẽ bar.
+ * @param scope      VIETNAM hay INTERNATIONAL — suy ra DETERMINISTIC từ nguồn của bằng chứng
+ *                   (ProductMarketScopeClassifier, KHÔNG phải LLM đoán). Hiển thị công khai trên
+ *                   từng finding trong report thay vì ẩn/lọc cứng nguồn quốc tế — đúng tinh thần
+ *                   CFO nêu (đừng để một tin quốc tế bị đọc nhầm thành đối thủ tại Việt Nam).
+ * @param geography  nhãn địa lý cụ thể hơn khi INTERNATIONAL (vd "Japan", "Hong Kong"); "Vietnam"
+ *                   khi VIETNAM; "Global / regional" khi không xác định được quốc gia cụ thể.
  */
 public record BiFinding(String bucket, String subjectKey, String textVi, String textEn,
                         boolean highlight, List<BiCitation> citations, String severity,
-                        Integer metricPercent) {
+                        Integer metricPercent, ProductMarketScope scope, String geography) {
 
     public BiFinding {
         citations = citations == null ? List.of() : List.copyOf(citations);
@@ -39,18 +47,22 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
             };
         }
         if (metricPercent != null) metricPercent = Math.max(0, Math.min(100, metricPercent));
+        scope = scope == null ? ProductMarketScope.INTERNATIONAL : scope;
+        geography = geography == null || geography.isBlank() ? "Global / regional" : geography.strip();
     }
 
     /** Convenience constructor for the common case of no severity/metric. */
     public BiFinding(String bucket, String subjectKey, String textVi, String textEn,
-                     boolean highlight, List<BiCitation> citations) {
-        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null);
+                     boolean highlight, List<BiCitation> citations,
+                     ProductMarketScope scope, String geography) {
+        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null, scope, geography);
     }
 
     /** Convenience constructor for VI-only content (no English translation available yet). */
     public BiFinding(String bucket, String subjectKey, String textVi,
-                     boolean highlight, List<BiCitation> citations) {
-        this(bucket, subjectKey, textVi, null, highlight, citations, null, null);
+                     boolean highlight, List<BiCitation> citations,
+                     ProductMarketScope scope, String geography) {
+        this(bucket, subjectKey, textVi, null, highlight, citations, null, null, scope, geography);
     }
 
     /** The finding text in the requested language — falls back to Vietnamese rather than
@@ -58,6 +70,29 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
     public String text(boolean vi) {
         if (vi) return textVi;
         return textEn != null && !textEn.isBlank() ? textEn : textVi;
+    }
+
+    public boolean isVietnamMarket() { return scope == ProductMarketScope.VIETNAM; }
+
+    /** Short badge label for the report — "Việt Nam"/"Vietnam" or the specific international
+     *  geography (falls back to "Global / regional" when no country could be determined). */
+    public String marketLabel(boolean vi) {
+        if (isVietnamMarket()) return vi ? "Việt Nam" : "Vietnam";
+        if (!vi) return geography;
+        return switch (geography) {
+            case "Hong Kong" -> "Hồng Kông";
+            case "Singapore" -> "Singapore";
+            case "Taiwan" -> "Đài Loan";
+            case "South Korea" -> "Hàn Quốc";
+            case "Japan" -> "Nhật Bản";
+            case "China" -> "Trung Quốc";
+            case "Indonesia" -> "Indonesia";
+            case "Malaysia" -> "Malaysia";
+            case "Philippines" -> "Philippines";
+            case "Thailand" -> "Thái Lan";
+            case "Global / regional" -> "Toàn cầu / khu vực";
+            default -> geography;
+        };
     }
 
     public static final String MACRO_ECONOMIC = "MACRO_ECONOMIC";
