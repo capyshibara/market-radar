@@ -49,9 +49,12 @@ import java.util.function.Consumer;
 public class DeepResearchService {
 
     private static final Logger log = LoggerFactory.getLogger(DeepResearchService.class);
-    private static final int MAX_ITERATIONS = 5;
-    private static final int MAX_SOURCES = 8;
-    private static final int MAX_NEW_SOURCES_PER_SEARCH = 3;
+    // 2026-08-02 (feedback Hanh): 5/8/3 → quá ít cho yêu cầu nhiều khía cạnh (vd so sánh
+    // 4-5 đối thủ). Nâng lên để agent có đủ vòng lặp + nguồn cho câu hỏi rộng hơn — vẫn có
+    // trần cứng (không chạy vô hạn), chỉ dời trần lên.
+    private static final int MAX_ITERATIONS = 12;
+    private static final int MAX_SOURCES = 25;
+    private static final int MAX_NEW_SOURCES_PER_SEARCH = 5;
     private static final int EXCERPT_CHARS_FOR_SYNTHESIS = 1500;
     private static final int EXCERPT_CHARS_FOR_PLANNER = 200;
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");

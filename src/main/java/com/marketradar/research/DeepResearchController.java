@@ -88,7 +88,10 @@ public class DeepResearchController {
      */
     @GetMapping(value = "/research/deep/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@RequestParam String prompt) {
-        SseEmitter emitter = new SseEmitter(180_000L);
+        // 2026-08-02: 180s → 30 phút. Nâng MAX_ITERATIONS/MAX_SOURCES ở DeepResearchService
+        // kéo dài thời gian chạy thật (nhiều vòng tìm + fetch + giờ còn thêm bước nạp pipeline
+        // xác thực) — timeout cũ ngắt kết nối SSE giữa chừng dù agent vẫn đang chạy nền tốt.
+        SseEmitter emitter = new SseEmitter(1_800_000L);
         streamExecutor.execute(() -> {
             try {
                 BiReportContent content = deepResearch.research(prompt.strip(), step -> {
