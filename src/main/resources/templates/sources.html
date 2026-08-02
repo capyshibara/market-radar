@@ -167,6 +167,9 @@
                 <td>
                   <span th:if="${s.active}" class="badge badge-success" th:text="#{ops.sources.active}">Active</span>
                   <span th:unless="${s.active}" class="badge badge-neutral" th:text="#{ops.sources.inactive}">Inactive</span>
+                  <form method="post" th:action="@{'/sources/' + ${s.id} + '/toggle-active'}" style="display:inline" data-role-show="admin">
+                    <button type="submit" class="btn btn-ghost btn-sm" th:text="${s.active} ? #{ops.sources.toggleOff} : #{ops.sources.toggleOn}">Toggle</button>
+                  </form>
                 </td>
                 <td>
                   <span th:if="${s.urlUnverified}" class="badge badge-warn" th:text="#{ops.sources.unverified}">Unverified</span>

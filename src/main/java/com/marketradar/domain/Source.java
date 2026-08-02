@@ -33,7 +33,10 @@ public class Source {
     @Column(nullable = false)
     private SourceType type;
 
-    /** 1 = chính phủ/regulator, 2 = báo chính thống, 3 = báo thứ cấp, 4 = blog/MXH */
+    /** 1 = Bộ Tài chính + trang chính thức của đối thủ tại Việt Nam, 2 = báo mạng Việt Nam,
+     *  3 = nguồn nước ngoài, 4 = khác/chưa phân loại. Đổi định nghĩa 2026-08-02 theo yêu cầu
+     *  Strategy: trục chính giờ là trong nước/quốc tế (đúng thứ CFO quan tâm — không lẫn tin
+     *  quốc tế vào phần "đối thủ tại Việt Nam"), không còn là độ tin cậy nguồn thuần tuý. */
     @Column(nullable = false)
     private int tier;
 
@@ -99,4 +102,5 @@ public class Source {
 
     public void setActive(boolean active) { this.active = active; }
     public void setUrlUnverified(boolean urlUnverified) { this.urlUnverified = urlUnverified; }
+    public void setTier(int tier) { this.tier = tier; }
 }

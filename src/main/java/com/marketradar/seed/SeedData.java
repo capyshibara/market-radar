@@ -78,12 +78,12 @@ public class SeedData implements CommandLineRunner {
         // parseNfraCn(). Verified server-side: 18/4855 items, real dates through July 2026.
         nfra = sources.save(new Source("NFRA_CN", "国家金融监督管理总局 (NFRA)",
                 "https://www.nfra.gov.cn/cn/static/data/DocInfo/SelectDocByItemIdAndChild/data_itemId=915,pageIndex=1,pageSize=18.json",
-                "www.nfra.gov.cn", Source.SourceType.JSON, 1, "zh"));
+                "www.nfra.gov.cn", Source.SourceType.JSON, 3, "zh"));
         // Collision check 2026-07-05: registry's URL differs only by trailing slash, both live,
         // identical content. No functional difference — no change.
         sources.save(new Source("IAV_VN", "Hiệp hội Bảo hiểm Việt Nam",
                 "https://iav.vn", "iav.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Track 2 recheck 2026-07-11: /bao-hiem/rss VÀ mọi biến thể /rss đều 302 → trang 404;
         // homepage không còn nhắc RSS ở đâu — site đã BỎ RSS. Deactivate (bật lại nếu viết
         // parser HTML cho chuyên mục /bao-hiem/ — Batch 6b).
@@ -109,29 +109,29 @@ public class SeedData implements CommandLineRunner {
         // ---- GROUP A: https + RSS ----
         sources.save(new Source("FSA_JP", "Financial Services Agency (Japan)",
                 "https://www.fsa.go.jp/fsaEnNewsList_rss2.xml", "www.fsa.go.jp",
-                Source.SourceType.RSS, 1, "en"));
+                Source.SourceType.RSS, 3, "en"));
         // Track 2 fix 2026-07-11: language=english trả channel RỖNG (0 item), nhưng
         // language=chinese CÙNG serno trả ~800 item (xác nhận live) — đổi sang bản Chinese,
         // language field "zh" (pipeline đã xử lý nguồn tiếng Trung: NFRA_CN, CBIRC_NEWS).
         sources.save(new Source("FSC_TW", "Financial Supervisory Commission (Taiwan)",
                 "https://www.fsc.gov.tw/RSS/Messages?serno=201202290001&language=chinese",
-                "www.fsc.gov.tw", Source.SourceType.RSS, 1, "zh"));
+                "www.fsc.gov.tw", Source.SourceType.RSS, 3, "zh"));
         sources.save(new Source("HKMA", "Hong Kong Monetary Authority",
                 "https://www.hkma.gov.hk/eng/other-information/rss/rss_press-release.xml",
-                "www.hkma.gov.hk", Source.SourceType.RSS, 1, "en"));
+                "www.hkma.gov.hk", Source.SourceType.RSS, 3, "en"));
         // Track 2 recheck 2026-07-11: backend feed CHẾT phía server — /desktopmodules/rssedaily
         // 302 → trang 404 (status=500), /RSS.aspx trả channel rỗng. Mọi biến thể đều hỏng.
         // Deactivate (trang HTML /News vẫn sống — cần parser riêng nếu muốn bật lại).
         Source air = new Source("AIR", "Asia Insurance Review (eDaily)",
                 "https://www.asiainsurancereview.com/desktopmodules/rssedaily/",
-                "www.asiainsurancereview.com", Source.SourceType.RSS, 2, "en");
+                "www.asiainsurancereview.com", Source.SourceType.RSS, 3, "en");
         air.setActive(false);
         sources.save(air);
         // Track 2 fix 2026-07-11: /rss là index HTML, nhưng site có feed XML thật theo chuyên mục —
         // /rss/banking-finance xác nhận live 200 text/xml (sát ngành bảo hiểm nhất trong danh sách feed).
         sources.save(new Source("BT_SG", "The Business Times (Singapore) — Banking & Finance",
                 "https://www.businesstimes.com.sg/rss/banking-finance", "www.businesstimes.com.sg",
-                Source.SourceType.RSS, 2, "en"));
+                Source.SourceType.RSS, 3, "en"));
 
         // ---- GROUP B: https, HTML-only — needs Batch 6b per-site parser ----
         // Vietnam life insurers
@@ -139,21 +139,21 @@ public class SeedData implements CommandLineRunner {
         // automated fetch. Deactivate (không lách bot-protection; cần kênh khác, vd RSS/API chính thức).
         Source bvnt = new Source("BVNT", "Bảo Việt Nhân thọ",
                 "https://www.baovietnhantho.com.vn/", "www.baovietnhantho.com.vn",
-                Source.SourceType.HTML, 2, "vi");
+                Source.SourceType.HTML, 1, "vi");
         bvnt.setActive(false);
         sources.save(bvnt);
         // Track 2 fix + Batch 6b (2026-07-05): root 301 → /vi.html, then found the real news listing
         // page from that page's own nav (confirmed live, real press-release cards — see parseAia).
         sources.save(new Source("AIA_VN", "AIA Việt Nam",
                 "https://www.aia.com.vn/vi/ve-chung-toi/truyen-thong/su-kien-noi-bat.html", "www.aia.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Batch 6b (2026-07-05): root was homepage only — found real news listing page from its nav
         // (confirmed live, real press-release teasers — see parseManulife).
         // Track 2 recheck 2026-07-11: giờ trả 403 với CẢ UA browser lẫn UA MarketRadar — site đã bật
         // WAF/bot-protection sau 07-05. Deactivate (parser parseManulife GIỮ NGUYÊN — bật lại nếu hết chặn).
         Source manulife = new Source("MANULIFE_VN", "Manulife Việt Nam",
                 "https://www.manulife.com.vn/vi/ve-chung-toi/tin-tuc-va-su-kien/thong-cao-bao-chi.html",
-                "www.manulife.com.vn", Source.SourceType.HTML, 2, "vi");
+                "www.manulife.com.vn", Source.SourceType.HTML, 1, "vi");
         manulife.setActive(false);
         sources.save(manulife);
         // Track 2 fix + Batch 6b (2026-07-05): root 301 → /vi/, but that's the homepage (blog teasers
@@ -161,7 +161,7 @@ public class SeedData implements CommandLineRunner {
         // (confirmed live — see parsePrudential).
         sources.save(new Source("PRUDENTIAL_VN", "Prudential Việt Nam",
                 "https://www.prudential.com.vn/vi/ve-chung-toi/thong-cao-bao-chi/", "www.prudential.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Fix 2026-07-05: old domain www.mbalife.com.vn was DNS NXDOMAIN — wrong domain entirely.
         // Real domain confirmed by user + live-checked: mblife.vn (200 text/html).
         // Fix 2026-07-14: root "/" homepage has no articles — moved fetchUrl to the actual press
@@ -170,7 +170,7 @@ public class SeedData implements CommandLineRunner {
         // call needed — unlike BIDV). Verified live: 20 dated items, current 2026 press releases.
         sources.save(new Source("MB_AGEAS", "MB Ageas Life",
                 "https://mblife.vn/goc-bao-chi", "mblife.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Fix 2026-07-05: old domain www.phuhunglife.vn timed out — wrong TLD. Real domain confirmed
         // by user + live-checked: www.phuhunglife.com (200 text/html).
         // Fix 2026-07-14 (Case: find-the-news-URL): homepage has no articles; nav "Tin Tức - Sự
@@ -182,7 +182,7 @@ public class SeedData implements CommandLineRunner {
         // query param) of 41 total — still real dated content each run.
         sources.save(new Source("PHU_HUNG_LIFE", "Phú Hưng Life",
                 "https://www.phuhunglife.com/vn/tin-tuc/?currentPage=1&year=all&categoryId=2907",
-                "www.phuhunglife.com", Source.SourceType.HTML, 2, "vi"));
+                "www.phuhunglife.com", Source.SourceType.HTML, 1, "vi"));
         // Added 2026-07-05, confirmed live (200 text/html) — was missing entirely from registry.
         // Batch 6b note 2026-07-05: news listing (/about-us/news/) ships an EMPTY
         // <div class="row article-list-wrapper"></div> — AJAX-populated (global MetLife platform),
@@ -196,14 +196,14 @@ public class SeedData implements CommandLineRunner {
                 "https://www.bidvmetlife.com.vn/bin/MLApp/globalMarketingPlatform/fetchArticleColumnGridArticleListing"
                         + "?articleDataConfig=taxonomy&articleDataTaxonomy=/content/metlife/vn/homepage/about-us/news"
                         + "&startArticleNum=0&endArticleNum=25&sortby=date&dateSort=desc",
-                "www.bidvmetlife.com.vn", Source.SourceType.JSON, 2, "vi"));
+                "www.bidvmetlife.com.vn", Source.SourceType.JSON, 1, "vi"));
         // Added 2026-07-05, confirmed live then. Track 2 recheck 2026-07-14: now fails TLS
         // handshake — "unable to get local issuer certificate" (their server stopped sending the
         // intermediate cert in the chain). This is a misconfiguration on MAP Life's own server,
         // not our fetchUrl — nothing to fix on this end. Deactivate until they repair their cert.
         Source mapLife = new Source("MAP_LIFE", "Mirae Asset Prévoir (MAP Life)",
                 "https://www.map-life.com.vn/news", "www.map-life.com.vn",
-                Source.SourceType.HTML, 2, "vi");
+                Source.SourceType.HTML, 1, "vi");
         mapLife.setActive(false);
         sources.save(mapLife);
         // Added 2026-07-05, confirmed live (200 text/html) — Vietnam entity, was missing entirely.
@@ -211,7 +211,7 @@ public class SeedData implements CommandLineRunner {
         // Batch 6b (same day): pointed at the real news listing page — see parseFubonVn.
         sources.save(new Source("FUBON_VN", "Fubon Việt Nam",
                 "https://www.fubonlife.com.vn/tin-tuc.html?tab=5", "www.fubonlife.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Fix 2026-07-14 (Case: find-the-news-URL): root "/" is just a meta-refresh stub
         // (474 bytes) to /cathay/ (Vue SPA, same host — no allowedHost change needed). The
         // TSPD scripts on this site are perf-monitoring, NOT a hard bot-block (confirmed: page
@@ -224,12 +224,12 @@ public class SeedData implements CommandLineRunner {
         // Router route name, confirmed live 200). Verified server-side with crawler UA: 15 items.
         sources.save(new Source("CATHAY_VN", "Cathay Life Việt Nam",
                 "https://www.cathaylife.com.vn/cathay/api/graphql", "www.cathaylife.com.vn",
-                Source.SourceType.JSON, 2, "vi"));
+                Source.SourceType.JSON, 1, "vi"));
         // Track 2 recheck 2026-07-14: 403 with our UA and with a full browser UA alike — genuine
         // bot-protection WAF. Deactivate (bypassing bot detection is out of scope).
         Source sunlifeVn = new Source("SUNLIFE_VN", "Sun Life Việt Nam",
                 "https://www.sunlife.com.vn/", "www.sunlife.com.vn",
-                Source.SourceType.HTML, 2, "vi");
+                Source.SourceType.HTML, 1, "vi");
         sunlifeVn.setActive(false);
         sources.save(sunlifeVn);
         // Fix 2026-07-14 (Case: find-the-news-URL): homepage has no articles; nav "Tin Tức" ->
@@ -241,7 +241,7 @@ public class SeedData implements CommandLineRunner {
         // is a stale/duplicated slug per their CMS). Verified live: 67 items, real 2026 dates.
         sources.save(new Source("SHINHAN_VN", "Shinhan Life Việt Nam",
                 "https://www.shinhanlifevn.com.vn/api/v1/application/getContent/press-release",
-                "www.shinhanlifevn.com.vn", Source.SourceType.JSON, 2, "vi"));
+                "www.shinhanlifevn.com.vn", Source.SourceType.JSON, 1, "vi"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // press-release page found live: chubb.com/vn-en/media-centre/press-release.html.
         // Parser added same day (parseChubbVn): server-rendered li.news-list, MM/dd/yyyy dates
@@ -249,7 +249,7 @@ public class SeedData implements CommandLineRunner {
         // ingestListing falls back to title-only, still carries the real publish date.
         sources.save(new Source("CHUBB_VN", "Chubb Life Việt Nam",
                 "https://www.chubb.com/vn-en/media-centre/press-release.html", "www.chubb.com",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Fix 2026-07-14 (first pass): old fetchUrl (www, https) 301-redirects to http+non-www
         // (blocked by https-only + host whitelist). Root cause was just the "www." — bare domain
         // serves the same site directly on https, confirmed live 200, no redirect.
@@ -260,7 +260,7 @@ public class SeedData implements CommandLineRunner {
         // pattern as Chubb.
         sources.save(new Source("DAIICHI_VN", "Dai-ichi Life Việt Nam",
                 "https://dai-ichi-life.com.vn/api/news/home", "dai-ichi-life.com.vn",
-                Source.SourceType.JSON, 2, "vi"));
+                Source.SourceType.JSON, 1, "vi"));
         // Track 2 fix 2026-07-05: root 301 → /vi/ (same host).
         // Fix 2026-07-14: root/homepage has no articles — site routes ENTIRELY client-side
         // (every path, even nonexistent ones, returns the same HTTP 200 app-shell; confirmed
@@ -270,7 +270,7 @@ public class SeedData implements CommandLineRunner {
         // maxBytesOverride — see IngestionJob.FWD_VN_MAX_BYTES). Verified live, real 2026 dates.
         sources.save(new Source("FWD_VN", "FWD Việt Nam",
                 "https://www.fwd.com.vn/vi/blog/", "www.fwd.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
         // Fix 2026-07-05 (user decision): old www.generali.vn 301'd to this exact URL (host drops
         // www) — switched fetchUrl+allowedHost directly to the redirect target, confirmed live 200.
         // Fix 2026-07-14 (Case: find-the-news-URL): homepage has no articles. Real page
@@ -284,14 +284,14 @@ public class SeedData implements CommandLineRunner {
                         + "?fields%5B0%5D=title&fields%5B1%5D=slug&fields%5B2%5D=published_date"
                         + "&pagination%5Bpage%5D=1&pagination%5BpageSize%5D=25"
                         + "&sort%5B0%5D=published_date%3Adesc",
-                "generali.vn", Source.SourceType.JSON, 2, "vi"));
+                "generali.vn", Source.SourceType.JSON, 1, "vi"));
         // Track 2 fix 2026-07-05: root 301 → /vi (same host, path only).
         // Fix 2026-07-14 (Case: find-the-news-URL): /vi homepage has no articles — moved fetchUrl
         // to /vi/news, server-rendered (no API needed, unlike Generali/Shinhan). parseHanwhaVn:
         // div.thumb / p.time (dd/MM/yyyy) / h3.title a. Verified live: 6 items, dated July 2026.
         sources.save(new Source("HANWHA_VN", "Hanwha Life Việt Nam",
                 "https://hanwhalife.com.vn/vi/news", "hanwhalife.com.vn",
-                Source.SourceType.HTML, 2, "vi"));
+                Source.SourceType.HTML, 1, "vi"));
 
         // Vietnam finance media (RSS unconfirmed as of registry write — seeded as HTML/Group B;
         // Track 2 may promote to Group A/RSS if a feed is confirmed — that's a separate seed edit)
@@ -310,19 +310,19 @@ public class SeedData implements CommandLineRunner {
         // needs a CafeF-specific listing parser (Batch 6b), not parseRss.
         sources.save(new Source("CAFEF", "CafeF",
                 "https://cafef.vn/", "cafef.vn",
-                Source.SourceType.HTML, 3, "vi"));
+                Source.SourceType.HTML, 2, "vi"));
 
         // China (NFRA already seeded above as NFRA_CN — not repeated)
         sources.save(new Source("PINGAN_MEDIA", "Ping An (media)",
                 "https://group.pingan.com/media.html", "group.pingan.com",
-                Source.SourceType.HTML, 2, "zh"));
+                Source.SourceType.HTML, 3, "zh"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // news center found live at /about-us/news-center.
         // Parser added same day (parseChinaLifeHk): Drupal server-rendered (div.views-row), no API
         // needed. Verified live: 10 items, real dates through July 2026.
         sources.save(new Source("CHINALIFE_HK", "China Life (HK/overseas)",
                 "https://www.chinalife.com.hk/about-us/news-center", "www.chinalife.com.hk",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 3, "en"));
 
         // Hong Kong
         // Fix 2026-07-14 (Hanh: mở rộng khu vực — regulator T1): homepage has no articles; found
@@ -332,13 +332,13 @@ public class SeedData implements CommandLineRunner {
         // newest-first, sorted, confirmed through July 2026. parseHkia().
         sources.save(new Source("HKIA", "Insurance Authority (Hong Kong)",
                 "https://www.ia.org.hk/en/infocenter/press_releases.php", "www.ia.org.hk",
-                Source.SourceType.JSON, 1, "en"));
+                Source.SourceType.JSON, 3, "en"));
         // Parser added 2026-07-14 (parseAiaHk): AEM server-rendered (cmp-promotioncard, same
         // platform as AIA_VN), but unlike AIA_VN the date IS in the static HTML here — no year-
         // from-URL fallback needed. Verified live: 314 items, real dates through July 2026.
         sources.save(new Source("AIA_HK", "AIA Group HK",
                 "https://www.aia.com.hk/en/about-aia/about-us/media-centre/press-releases",
-                "www.aia.com.hk", Source.SourceType.HTML, 2, "en"));
+                "www.aia.com.hk", Source.SourceType.HTML, 3, "en"));
         // Fix 2026-07-14: old path 404 (site restructured since the 2026-07-05 trailing-slash
         // fix) — real newsroom found live at /en/about-us/newsroom/.
         // Parser added same day (parsePruHk): AEM server-rendered, article.article-card[data-date]
@@ -346,7 +346,7 @@ public class SeedData implements CommandLineRunner {
         // freshness window correctly keeps only the ~26 2025-2026 items, by design not a bug.
         sources.save(new Source("PRU_HK", "Prudential HK",
                 "https://www.prudential.com.hk/en/about-us/newsroom/", "www.prudential.com.hk",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 3, "en"));
 
         // Taiwan
         // Fix 2026-07-14: news.fubon.com never resolved (Track 2 2026-07-05, DNS NXDOMAIN) — that
@@ -357,13 +357,13 @@ public class SeedData implements CommandLineRunner {
         // item ("yyyy.MM.dd"). Verified live: 42 items, real dates through June 2026.
         sources.save(new Source("FUBON_TW", "Fubon Financial Holdings (incl. Fubon Life)",
                 "https://www.fubon.com/Fubon_Portal/financialholdings/en/news/list.jsp", "www.fubon.com",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 3, "en"));
         // Track 2 recheck 2026-07-14: still behind the same auth-gateway/WAF (BigIP load balancer,
         // response has no Content-Type header at all) — confirmed structural block, not our URL.
         // Deactivate.
         Source cathayTw = new Source("CATHAY_TW", "Cathay Life (Taiwan)",
                 "https://www.cathaylife.com.tw/cathaylife_en/news_detail.aspx?type=8",
-                "www.cathaylife.com.tw", Source.SourceType.HTML, 2, "en");
+                "www.cathaylife.com.tw", Source.SourceType.HTML, 3, "en");
         cathayTw.setActive(false);
         sources.save(cathayTw);
 
@@ -377,7 +377,7 @@ public class SeedData implements CommandLineRunner {
         // includes FULL article text inline (no separate detail fetch needed). parseFscKr().
         sources.save(new Source("FSC_KR", "Financial Services Commission (Korea)",
                 "https://www.fsc.go.kr/humanframe-cms/getMiniBBS.json?bbsNo=2&bbsListId=1",
-                "www.fsc.go.kr", Source.SourceType.JSON, 1, "en"));
+                "www.fsc.go.kr", Source.SourceType.JSON, 3, "en"));
         // Fix 2026-07-14: old host redirected (english.fss.or.kr → www.fss.or.kr) — Track 2
         // 2026-07-05 flagged the host change but left it unfixed. Switched fetchUrl+allowedHost
         // directly to the redirect target, confirmed live 200 with no further redirect.
@@ -387,7 +387,7 @@ public class SeedData implements CommandLineRunner {
         // tr:has(td.title), date via regex over row text (no dedicated date column class).
         sources.save(new Source("FSS_KR", "Financial Supervisory Service (Korea)",
                 "https://www.fss.or.kr/eng/bbs/B0000211/list.do?menuNo=400010", "www.fss.or.kr",
-                Source.SourceType.HTML, 1, "en"));
+                Source.SourceType.HTML, 3, "en"));
         // Track 2 fix 2026-07-05: 302 → /static/CM_CC00001_P10000.html (same host).
         // Track 2 recheck 2026-07-14: TLS handshake fails — "unsafe legacy renegotiation
         // disabled" (server requires legacy TLS renegotiation, which modern clients correctly
@@ -396,7 +396,7 @@ public class SeedData implements CommandLineRunner {
         // accommodate it. Deactivate.
         Source hanwhaGlobal = new Source("HANWHA_GLOBAL", "Hanwha Life (global)",
                 "https://www.hanwhalife.com/static/CM_CC00001_P10000.html", "www.hanwhalife.com",
-                Source.SourceType.HTML, 2, "en");
+                Source.SourceType.HTML, 3, "en");
         hanwhaGlobal.setActive(false);
         sources.save(hanwhaGlobal);
 
@@ -410,13 +410,13 @@ public class SeedData implements CommandLineRunner {
         // stores title+description from the feed entry itself, no full-text fetch).
         sources.save(new Source("TOKIO_MARINE", "Tokio Marine Holdings",
                 "https://www.tokiomarinehd.com/en/feed/release.xml", "www.tokiomarinehd.com",
-                Source.SourceType.RSS, 2, "en"));
+                Source.SourceType.RSS, 3, "en"));
         // Track 2 recheck 2026-07-14: still 403 with both our UA and a full browser UA — genuine
         // bot-protection WAF, not a UA-string issue. Deactivate (bypassing bot detection is out of
         // scope — see market-radar's own safety policy).
         Source msad = new Source("MSAD", "MS&AD Insurance Group",
                 "https://www.ms-ad-hd.com/en/news/", "www.ms-ad-hd.com",
-                Source.SourceType.HTML, 2, "en");
+                Source.SourceType.HTML, 3, "en");
         msad.setActive(false);
         sources.save(msad);
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
@@ -428,7 +428,7 @@ public class SeedData implements CommandLineRunner {
         // parseNipponLife(). Verified server-side: 264 items, dates through June 2026.
         sources.save(new Source("NIPPON_LIFE", "Nippon Life",
                 "https://www.nissay.co.jp/global/news/json/index.json", "www.nissay.co.jp",
-                Source.SourceType.JSON, 2, "en"));
+                Source.SourceType.JSON, 3, "en"));
 
         // Singapore
         // Track 2 recheck 2026-07-14: /news is a clean, real REST API (GET /api/v1/search, Solr
@@ -439,7 +439,7 @@ public class SeedData implements CommandLineRunner {
         // BNM_MY notes below): NOT spoofing a browser UA to bypass detection. Deactivate.
         Source masSg = new Source("MAS_SG", "Monetary Authority of Singapore",
                 "https://www.mas.gov.sg/", "www.mas.gov.sg",
-                Source.SourceType.HTML, 1, "en");
+                Source.SourceType.HTML, 3, "en");
         masSg.setActive(false);
         sources.save(masSg);
         // Fix 2026-07-14: old path redirected to the site's own 404 error page (Track 2 2026-07-05
@@ -451,18 +451,18 @@ public class SeedData implements CommandLineRunner {
         // real dates through June 2026.
         sources.save(new Source("GREAT_EASTERN", "Great Eastern",
                 "https://www.greateasternlife.com/sg/en/about-us/media-centre/media-releases.html",
-                "www.greateasternlife.com", Source.SourceType.HTML, 2, "en"));
+                "www.greateasternlife.com", Source.SourceType.HTML, 3, "en"));
         // Parser added 2026-07-14 (parseIncomeSg): server-rendered, no API needed.
         // div.press-release-item, date+title as sibling <p>, link as sibling <a>.
         // Verified live: 10 items, real dates through June 2026.
         sources.save(new Source("INCOME_SG", "Income (NTUC)",
                 "https://www.income.com.sg/about-us/corporate-information/press-releases",
-                "www.income.com.sg", Source.SourceType.HTML, 2, "en"));
+                "www.income.com.sg", Source.SourceType.HTML, 3, "en"));
         // Track 2 recheck 2026-07-14: connection reset (RST_STREAM) even forcing HTTP/1.1 — looks
         // like network/regional-level blocking, not a URL problem. Deactivate.
         Source aiaSg = new Source("AIA_SG", "AIA Singapore",
                 "https://www.aia.com.sg/en/about-aia/press-releases.html", "www.aia.com.sg",
-                Source.SourceType.HTML, 2, "en");
+                Source.SourceType.HTML, 3, "en");
         aiaSg.setActive(false);
         sources.save(aiaSg);
 
@@ -471,7 +471,7 @@ public class SeedData implements CommandLineRunner {
         // response) — not a URL issue, looks like network/regional reachability. Deactivate.
         Source ojkId = new Source("OJK_ID", "OJK (Indonesia)",
                 "https://www.ojk.go.id/", "www.ojk.go.id",
-                Source.SourceType.HTML, 1, "id");
+                Source.SourceType.HTML, 3, "id");
         ojkId.setActive(false);
         sources.save(ojkId);
         // Track 2 recheck 2026-07-14: 403 with our UA, 202 (challenge page) with a full browser
@@ -479,14 +479,14 @@ public class SeedData implements CommandLineRunner {
         // without executing JS. Deactivate (bypassing bot detection is out of scope).
         Source bnmMy = new Source("BNM_MY", "Bank Negara Malaysia",
                 "https://www.bnm.gov.my/", "www.bnm.gov.my",
-                Source.SourceType.HTML, 1, "en");
+                Source.SourceType.HTML, 3, "en");
         bnmMy.setActive(false);
         sources.save(bnmMy);
         // Track 2 recheck 2026-07-14: still 403 regardless of UA — genuine bot-protection WAF.
         // Deactivate.
         Source icPh = new Source("IC_PH", "Insurance Commission (Philippines)",
                 "https://www.insurance.gov.ph/", "www.insurance.gov.ph",
-                Source.SourceType.HTML, 1, "en");
+                Source.SourceType.HTML, 3, "en");
         icPh.setActive(false);
         sources.save(icPh);
         // Track 2 recheck 2026-07-14: Incapsula WAF block ("This page can't be displayed... WAF 1")
@@ -494,7 +494,7 @@ public class SeedData implements CommandLineRunner {
         // MAS_SG). Deactivate.
         Source thailifeTh = new Source("THAILIFE_TH", "Thai Life",
                 "https://www.thailife.com/en/media-centre/news/", "www.thailife.com",
-                Source.SourceType.HTML, 2, "en");
+                Source.SourceType.HTML, 3, "en");
         thailifeTh.setActive(false);
         sources.save(thailifeTh);
         // Fix 2026-07-14: old path 404, redirects to /en/about-us/newsroom/ (Track 2 2026-07-05
@@ -503,12 +503,12 @@ public class SeedData implements CommandLineRunner {
         // parsePruHk() directly, no new parser needed. Verified live: 211 items, ~50 from 2025-2026.
         sources.save(new Source("PRULIFE_PH", "Pru Life UK (Philippines)",
                 "https://www.prulifeuk.com.ph/en/about-us/newsroom/", "www.prulifeuk.com.ph",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 3, "en"));
         // Track 2 recheck 2026-07-14: consistent 20s connect timeout — not a URL issue, looks like
         // network/regional reachability. Deactivate.
         Source philamPh = new Source("PHILAM_PH", "AIA Philippines (Philam)",
                 "https://www.philamlife.com/our-company/press-center", "www.philamlife.com",
-                Source.SourceType.HTML, 2, "en");
+                Source.SourceType.HTML, 3, "en");
         philamPh.setActive(false);
         sources.save(philamPh);
 
@@ -520,7 +520,7 @@ public class SeedData implements CommandLineRunner {
         // June 2026.
         sources.save(new Source("NAIC", "NAIC",
                 "https://content.naic.org/newsroom", "content.naic.org",
-                Source.SourceType.HTML, 1, "en"));
+                Source.SourceType.HTML, 3, "en"));
         // Fix 2026-07-14: old path 404 (Track 2 2026-07-05 flagged, not yet fixed then) — real
         // sigma research hub found live at /institute/research/sigma-research.html.
         // Parser added same day (parseSwissReInstitute): AEM server-rendered, article.ArticleTeaser
@@ -528,7 +528,7 @@ public class SeedData implements CommandLineRunner {
         // 54 items, real dates through July 2026 (e.g. "World insurance in 2026" sigma report).
         sources.save(new Source("SWISSRE_INST", "Swiss Re Institute (Sigma)",
                 "https://www.swissre.com/institute/research/sigma-research.html", "www.swissre.com",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 3, "en"));
         // Fix 2026-07-14 (Case: find-the-news-URL): old fetchUrl was the homepage (no articles).
         // Found the real media-information page via its nav, but even THAT page's HTML is nearly
         // empty (nav only) — content loads via GET .../_jcr_content.fulltextsearch.json (AEM
@@ -539,15 +539,15 @@ public class SeedData implements CommandLineRunner {
                         + "?result_type=pages&start=0&sorting=publicationDateDesc"
                         + "&contentPaths=/content/munichre/mrwebsites/corporate/en/company/media-relations/media-information-and-corporate-news/media-information"
                         + "&pageCategoryTag=munichre-apps:page-type-press-release&pdfviewer=false&rows=25&ispcs=true",
-                "www.munichre.com", Source.SourceType.JSON, 2, "en"));
+                "www.munichre.com", Source.SourceType.JSON, 3, "en"));
         sources.save(new Source("LIMRA", "LIMRA",
                 "https://www.limra.com/", "www.limra.com",
-                Source.SourceType.HTML, 2, "en"));
+                Source.SourceType.HTML, 3, "en"));
         // Track 2 recheck 2026-07-14: connection reset (RST_STREAM) even forcing HTTP/1.1 —
         // consistent with edge/CDN-level bot mitigation, not a URL problem. Deactivate.
         Source mckinsey = new Source("MCKINSEY_INS", "McKinsey (Insurance)",
                 "https://www.mckinsey.com/industries/financial-services/our-insights",
-                "www.mckinsey.com", Source.SourceType.HTML, 2, "en");
+                "www.mckinsey.com", Source.SourceType.HTML, 3, "en");
         mckinsey.setActive(false);
         sources.save(mckinsey);
 
