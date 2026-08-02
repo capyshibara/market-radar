@@ -2,6 +2,7 @@ package com.marketradar.source;
 
 import com.marketradar.domain.Source;
 import com.marketradar.fetch.SafeFetcher;
+import com.marketradar.fetch.SourceFetchOverrides;
 import com.marketradar.repo.SourceRepository;
 import com.marketradar.research.BrowserRenderService;
 import com.marketradar.research.BrowserRenderService.BrowserRenderException;
@@ -116,24 +117,24 @@ public class SourceHealthCheckService {
         return true;
     }
 
-    /**
-     * FWD_VN /vi/blog/ trả về ~7-8MB (nội dung thật, đã xác nhận thủ công — xem
-     * IngestionJob.FWD_VN_MAX_BYTES) — vượt cap mặc định 5MB của SafeFetcher.fetch() 3 tham số.
-     * IngestionJob đã tự nâng cap cho đúng nguồn này khi crawl thật; health check gọi
-     * fetch() 3 tham số (cap mặc định) nên trước khi có dòng này, FWD_VN LUÔN báo "Not
-     * reachable" qua HTTP dù nguồn thật sự sống — hai nơi phải khớp cap, không thể chỉ sửa
-     * IngestionJob. Giữ đồng bộ nếu IngestionJob.FWD_VN_MAX_BYTES đổi.
-     */
-    private static final long FWD_VN_MAX_BYTES = 12L * 1024 * 1024;
-
     private Result checkOne(Source source) {
         long t0 = System.currentTimeMillis();
         try {
-            SafeFetcher.FetchResult r = "FWD_VN".equals(source.getCode())
+            // Một số nguồn cần POST kèm body cụ thể (MOF_ISA/CATHAY_VN/DAIICHI_VN/HKIA) hoặc cap
+            // byte cao hơn mặc định (FWD_VN) để khớp đúng cách IngestionJob thật sự fetch —
+            // SourceFetchOverrides là nguồn sự thật DUY NHẤT cho cả 2 nơi, tránh lệch nhau (đã
+            // từng lệch: health check luôn báo "Not reachable" cho các nguồn này dù crawl thật
+            // vẫn sống, vì trước đây health check chỉ gọi GET trơn không kèm body/cap riêng).
+            String postBody = SourceFetchOverrides.postBodyFor(source.getCode());
+            long maxBytesOverride = SourceFetchOverrides.maxBytesOverrideFor(source.getCode());
+            SafeFetcher.FetchResult r = postBody != null
                     ? fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                            expectedKind(source.getType()), null, FWD_VN_MAX_BYTES)
-                    : fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                            expectedKind(source.getType()));
+                            expectedKind(source.getType()), postBody)
+                    : maxBytesOverride > 0
+                        ? fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                                expectedKind(source.getType()), null, maxBytesOverride)
+                        : fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                                expectedKind(source.getType()));
             markVerified(source);
             return new Result(source.getCode(), source.getName(), source.getTier(), Method.HTTP, true,
                     "OK — " + r.body().length + " bytes, " + r.contentType(),

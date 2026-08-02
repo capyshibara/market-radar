@@ -10,6 +10,7 @@ import com.marketradar.domain.PipelineItemLog;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
 import com.marketradar.fetch.SafeFetcher;
+import com.marketradar.fetch.SourceFetchOverrides;
 import com.marketradar.parse.ContentParsers;
 import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.repo.RawDocRepository;
@@ -131,7 +132,7 @@ public class IngestionJob {
             case "DAIICHI_VN" -> {
                 // POST rỗng "{}" là đủ — xác nhận thủ công response giống hệt request không body.
                 var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                        SafeFetcher.ExpectedKind.JSON, "{}");
+                        SafeFetcher.ExpectedKind.JSON, SourceFetchOverrides.postBodyFor("DAIICHI_VN"));
                 yield ingestListing(source, parsers.parseDaiichiVn(result.body(), source.getFetchUrl()));
             }
             case "GENERALI_VN" -> {
@@ -146,15 +147,15 @@ public class IngestionJob {
             }
             case "CATHAY_VN" -> {
                 var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                        SafeFetcher.ExpectedKind.JSON, CATHAY_VN_GRAPHQL_BODY);
+                        SafeFetcher.ExpectedKind.JSON, SourceFetchOverrides.postBodyFor("CATHAY_VN"));
                 yield ingestListing(source, parsers.parseCathayVn(result.body(), source.getFetchUrl()));
             }
             case "HKIA" -> {
                 // Body rỗng là đủ — xác nhận thủ công. baseUrl truyền cho parser là TRANG HTML
                 // (không phải endpoint .php) vì url trả về tương đối theo "../../" tính từ đó.
                 var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                        SafeFetcher.ExpectedKind.JSON, "");
-                yield ingestListing(source, parsers.parseHkia(result.body(), HKIA_PAGE_URL));
+                        SafeFetcher.ExpectedKind.JSON, SourceFetchOverrides.postBodyFor("HKIA"));
+                yield ingestListing(source, parsers.parseHkia(result.body(), SourceFetchOverrides.HKIA_PAGE_URL));
             }
             case "FSC_KR" -> {
                 var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
@@ -182,21 +183,6 @@ public class IngestionJob {
     }
 
     /**
-     * Query GraphQL THẬT của Cathay Life, bắt được bằng cách vá window.fetch trên trang
-     * /cathay/news rồi bấm tab chuyên mục thật (không đoán schema). ncategory_id="1" =
-     * "Hoạt động kinh doanh" — chuyên mục tin công ty/PR, sát nghĩa insurance news nhất.
-     */
-    private static final String CATHAY_VN_GRAPHQL_BODY = """
-            {"variables":{"condition":{"ncategory_id":"1","start":1,"end":15},"ncategory_id":"1"},\
-            "query":"query news($condition: NewsParams!, $ncategory_id: Int) {\\n    news(condition: $condition) {\\n        news_id\\n        images\\n        images_name\\n        content\\n        featured\\n        ncategory_id\\n        posted_at\\n    }\\n    count(ncategory_id: $ncategory_id)\\n}"}""";
-
-    /** rootCategoryId của chuyên mục "Quản lý giám sát bảo hiểm" trên portal MOF (xác nhận live 2026-07-14). */
-    private static final String MOF_INSURANCE_ROOT_CATEGORY = "8dc0b2a0-38bd-427c-b6d5-c97a6f9952b4";
-
-    /** Trang HTML thật của HKIA (không phải endpoint .php) — url tương đối trong response resolve theo đây. */
-    private static final String HKIA_PAGE_URL = "https://www.ia.org.hk/en/infocenter/press_releases.html";
-
-    /**
      * MOF_ISA: danh sách qua POST /api/article/reads (body rootCategoryId), rồi mỗi bài
      * lấy full text qua GET /api/article/getbyslug (article page là SPA nên KHÔNG fetch
      * HTML như ingestListing được — phải qua API chi tiết). publishedAt lấy từ
@@ -204,9 +190,8 @@ public class IngestionJob {
      */
     private int ingestMofIsa(Source source)
             throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
-        String listBody = "{\"rootCategoryId\":\"" + MOF_INSURANCE_ROOT_CATEGORY + "\"}";
         var listRes = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                SafeFetcher.ExpectedKind.JSON, listBody);
+                SafeFetcher.ExpectedKind.JSON, SourceFetchOverrides.postBodyFor("MOF_ISA"));
         int stored = 0;
         for (var art : capItems(source, parsers.parseMofList(listRes.body(), source.getFetchUrl()))) {
             var existing = rawDocs.findFirstByUrlOrderByIdAsc(art.url());
@@ -260,18 +245,11 @@ public class IngestionJob {
      * chỉ lấy static HTML nên không parser nào trích được — bỏ qua, không silent-skip
      * mà ghi rõ trong handoff).
      */
-    /**
-     * FWD_VN /vi/blog/ embed ~331 bài trong __NEXT_DATA__ (~7-8MB) — vượt cap mặc định 5MB.
-     * Đã xác nhận thủ công đây là nội dung thật (không phải payload tấn công) — dùng biến thể
-     * fetch() có maxBytesOverride CHỈ cho nguồn này, xem SafeFetcher.
-     */
-    private static final long FWD_VN_MAX_BYTES = 12L * 1024 * 1024;
-
     private int ingestHtml(Source source)
             throws SafeFetcher.FetchRejectedException, ContentParsers.ParseFailedException {
         if ("FWD_VN".equals(source.getCode())) {
             var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                    SafeFetcher.ExpectedKind.HTML, null, FWD_VN_MAX_BYTES);
+                    SafeFetcher.ExpectedKind.HTML, null, SourceFetchOverrides.FWD_VN_MAX_BYTES);
             return ingestListing(source, parsers.parseFwdVn(result.body(), source.getFetchUrl()));
         }
         var result = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
