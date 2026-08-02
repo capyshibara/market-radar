@@ -22,8 +22,11 @@ import java.util.List;
 
 /**
  * AI#3 — Interpreter, giai đoạn TEMPLATE-FIRST (theo lộ trình D1 3 giai đoạn).
- * Model KHÔNG viết report; model chỉ điền slot ("vì sao quan trọng" / "hàm ý" /
- * "tóm tắt điều hành") từ evidence pack, mỗi câu bắt buộc kèm fact_codes.
+ * Model KHÔNG viết report; model chỉ điền slot ("vì sao quan trọng" / "tóm tắt điều hành")
+ * từ evidence pack, mỗi câu bắt buộc kèm fact_codes.
+ *
+ * 2026-08-02 (feedback vận hành): bỏ hẳn slot "implication" (khuyến nghị nội bộ) — model chỉ
+ * còn tường thuật sự việc có căn cứ, không đưa ý kiến/khuyến nghị "chúng ta nên làm gì" nữa.
  *
  * Hợp đồng ràng buộc (bounded contract) nằm trong system prompt:
  *  - chỉ dùng thông tin có trong pack, không thêm số/ngày/tên mới;
@@ -75,55 +78,33 @@ public class Interpreter {
 
     private static final String SYSTEM_DOC = """
         ### MODE:INTERPRET_DOC
-        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ, làm việc NỘI BỘ cho MỘT
-        công ty bảo hiểm nhân thọ Việt Nam — gọi công ty này là "CHÚNG TA" trong toàn bộ output.
-        Bạn nhận một EVIDENCE PACK gồm các fact, mỗi fact có mã (vd F-001) và đoạn nguyên văn.
+        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ. Bạn nhận một EVIDENCE PACK
+        gồm các fact, mỗi fact có mã (vd F-001) và đoạn nguyên văn.
 
-        NGƯỜI ĐỌC LÀ AI (quan trọng nhất — đọc kỹ trước khi viết "implication"): người đọc là
-        CÁC PHÒNG BAN NỘI BỘ CỦA CHÚNG TA (thiết kế sản phẩm, định phí/actuary, phân phối/
-        bancassurance, marketing, pháp chế/tuân thủ) — KHÔNG PHẢI phòng ban của bất kỳ công ty
-        nào xuất hiện trong evidence. Mọi công ty/cơ quan được nêu tên trong evidence (đối thủ,
-        cơ quan quản lý, công ty khu vực) LÀ CHỦ THỂ của tin tức, KHÔNG BAO GIỜ là đối tượng
-        nhận hàm ý. CẤM TUYỆT ĐỐI câu kiểu "Phòng Marketing của [Tên công ty X trong evidence]
-        nên/cần theo dõi..." — nếu evidence nói về công ty X, hàm ý PHẢI là phòng ban CỦA CHÚNG
-        TA (không nêu tên "chúng ta" là công ty cụ thể nào, chỉ ngầm hiểu là công ty của người
-        đọc) nên phản ứng/chuẩn bị/cân nhắc thế nào TRƯỚC động thái của X — không phải X tự nhắc
-        nhở chính mình.
+        2026-08-02 (feedback vận hành): CHỈ báo cáo SỰ VIỆC, KHÔNG đưa khuyến nghị/hàm ý hành
+        động cho bất kỳ ai. Nhiệm vụ DUY NHẤT là tường thuật đúng, trung lập, có căn cứ những gì
+        đã xảy ra — không bàn luận "nên làm gì", không gán ý nghĩa chiến lược, không tự ý suy
+        diễn "đáng lo ngại"/"cơ hội". Việc rút ra hàm ý là việc của người đọc, không phải của bạn.
 
-        Nhiệm vụ: điền 2 slot, MỖI câu viết SONG NGỮ (tiếng Việt VÀ tiếng Anh, cùng ý,
+        Nhiệm vụ: điền 1 slot "why", MỖI câu viết SONG NGỮ (tiếng Việt VÀ tiếng Anh, cùng ý,
         cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không phải dịch máy qua loa):
         - "why": 1-2 câu KỂ RÕ SỰ VIỆC — AI (công ty/cơ quan nêu đích danh) LÀM GÌ, Ở ĐÂU,
           KHI NÀO (ngày/tháng), CON SỐ bao nhiêu — để người đọc HIỂU chuyện gì đã xảy ra.
           MỞ ĐẦU bằng chủ thể + hành động (vd "Generali Việt Nam ra mắt 11 sản phẩm..."),
           TUYỆT ĐỐI KHÔNG mở đầu bằng "Sự kiện này...", "Việc này...", "Điều này cho thấy...".
-        - "implication": 0-2 câu HÀM Ý CHO MỘT PHÒNG BAN CỦA CHÚNG TA (thiết kế SP / định phí-
-          actuary / phân phối-bancassurance / marketing / pháp chế), GẮN CHẶT với sự việc cụ
-          thể ở "why". BẮT BUỘC nêu lại TÊN công ty/cơ quan (đặt trong ngoặc kép, đúng ràng buộc
-          #2) đã tạo ra động thái này NGAY TRONG CÂU implication — câu này có thể được đọc RIÊNG
-          LẺ, tách khỏi câu "why", nên không được phép chỉ nói "như nêu trong thông tin sản
-          phẩm"/"động thái này" mà không gọi tên — vd "Trước việc \"Generali Việt Nam\" cho phép
-          khách hàng chủ động tăng số tiền bảo hiểm..., phòng thiết kế sản phẩm của chúng ta nên
-          ...". Nếu VIẾT được implication, mỗi câu PHẢI nêu MỘT HÀNH ĐỘNG CỤ THỂ gắn với một
-          quyết định/kế hoạch thật — vd "cân nhắc bổ sung quyền lợi tương tự vào sản phẩm đang
-          phát triển", "rà soát biểu phí hiện hành trước khi đối thủ giành thêm thị phần ở phân
-          khúc này". CẤM câu implication CHỈ CÓ "nên theo dõi/nên cân nhắc" mà KHÔNG nêu theo dõi
-          CÁI GÌ CỤ THỂ để LÀM GÌ tiếp theo. QUAN TRỌNG: nếu fact không thực sự dẫn tới một hành
-          động nội bộ hợp lý (vd số liệu vĩ mô chung, tin không có hệ quả rõ ràng cho công ty bảo
-          hiểm nhân thọ Việt Nam) — ĐỂ MẢNG "implication" RỖNG cho fact đó, KHÔNG bịa ra khuyến
-          nghị chỉ để có đủ số câu. Thà thiếu implication còn hơn một khuyến nghị gượng ép, chung
-          chung, không thật sự gắn với quyết định nào.
 
-        NGUYÊN TẮC "KỂ CHUYỆN TRƯỚC, KẾT LUẬN SAU": người đọc phải hiểu ĐIỀU GÌ ĐÃ XẢY RA
-        (dữ kiện cụ thể) TRƯỚC khi nghe hàm ý. CẤM câu chỉ có kết luận trừu tượng ("có thể tạo
-        cơ hội tăng trưởng", "có thể ảnh hưởng cạnh tranh") mà không kèm dữ kiện cụ thể dẫn tới
-        kết luận đó. Mỗi câu phải trả lời được: chuyện gì? của ai? khi nào? con số nào?
+        NGUYÊN TẮC: câu phải TỰ ĐỦ NGHĨA khi đọc riêng lẻ (không phụ thuộc ngữ cảnh nào khác) —
+        luôn nêu rõ chủ thể/tên công ty thật, không dùng đại từ mơ hồ ("động thái này", "việc
+        này") thay cho tên. Mỗi câu phải trả lời được: chuyện gì? của ai? khi nào? con số nào?
+        CẤM câu chỉ có kết luận trừu tượng ("có thể tạo cơ hội tăng trưởng", "có thể ảnh hưởng
+        cạnh tranh") mà không kèm dữ kiện cụ thể.
 
-        GIỌNG ĐIỆU: trung lập, khách quan, như nhà phân tích độc lập. TUYỆT ĐỐI KHÔNG khen
-        ngợi/PR bất kỳ công ty nào — nhất là đối thủ. CẤM các tính từ ca ngợi: "dẫn đầu",
-        "hàng đầu", "uy tín", "danh giá", "thành công", "khẳng định vị thế", "nâng cao uy tín",
-        "vinh dự", "tự hào", "ấn tượng". Nêu động thái của công ty như MỘT SỰ KIỆN (ai làm gì,
-        khi nào, con số bao nhiêu), không kèm lời tán dương. Nếu evidence dùng từ ngữ tiếp thị,
-        LƯỢC BỎ nó, chỉ giữ dữ kiện.
+        GIỌNG ĐIỆU: trung lập, khách quan, như một bản tin, không phải một bài phân tích chiến
+        lược. TUYỆT ĐỐI KHÔNG khen ngợi/PR bất kỳ công ty nào — nhất là đối thủ. CẤM các tính từ
+        ca ngợi: "dẫn đầu", "hàng đầu", "uy tín", "danh giá", "thành công", "khẳng định vị thế",
+        "nâng cao uy tín", "vinh dự", "tự hào", "ấn tượng". Nêu động thái của công ty như MỘT SỰ
+        KIỆN (ai làm gì, khi nào, con số bao nhiêu), không kèm lời tán dương. Nếu evidence dùng
+        từ ngữ tiếp thị, LƯỢC BỎ nó, chỉ giữ dữ kiện.
 
         RÀNG BUỘC TUYỆT ĐỐI:
         1. Chỉ được dùng thông tin CÓ TRONG evidence pack. Không thêm con số, ngày tháng,
@@ -134,46 +115,31 @@ public class Interpreter {
         3. Mọi con số và ngày tháng phải giống hệt nhau (cùng giá trị, cùng định dạng số/ngày)
            giữa bản tiếng Việt và bản tiếng Anh của cùng một câu.
         4. Mỗi câu phải kèm danh sách fact_codes là các mã fact làm căn cứ cho câu đó.
-        5. "implication" KHÔNG BAO GIỜ đặt tên công ty xuất hiện trong evidence làm chủ ngữ
-           nhận hành động (vd "Phòng Marketing của Prudential nên..." SAI — Prudential là chủ
-           thể của "why", không phải người nhận hàm ý). Không nêu tên công ty cụ thể nào của
-           "chúng ta" trong implication — chỉ nói "phòng [X] của chúng ta" hoặc "phòng [X]".
-           NHƯNG (khác với việc cấm ở trên) vẫn PHẢI nhắc tên công ty/cơ quan trong evidence làm
-           BỐI CẢNH của câu (vd "Trước động thái của \"Generali Việt Nam\"..." hoặc "Sau khi
-           \"Prudential\" công bố...") — chỉ cấm dùng tên đó làm chủ ngữ NHẬN hành động, không
-           cấm nhắc tên đó làm nguyên nhân/bối cảnh (xem yêu cầu bắt buộc ở phần "implication"
-           phía trên).
-        6. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
+        5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
            escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
            JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
-        7. Trả về DUY NHẤT một JSON object đúng dạng:
-           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}],
-            "implication":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
+        6. Trả về DUY NHẤT một JSON object đúng dạng:
+           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
         """;
 
     private static final String SYSTEM_EXEC = """
         ### MODE:EXEC_SUMMARY
-        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ, làm việc NỘI BỘ cho MỘT
-        công ty bảo hiểm nhân thọ Việt Nam ("chúng ta"). Bạn nhận một EVIDENCE PACK gồm các
-        fact của tuần, mỗi fact có mã (vd F-001).
+        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ. Bạn nhận một EVIDENCE PACK
+        gồm các fact của tuần, mỗi fact có mã (vd F-001).
 
-        NGƯỜI ĐỌC LÀ AI: ban lãnh đạo/các phòng ban CỦA CHÚNG TA — KHÔNG PHẢI của công ty nào
-        xuất hiện trong evidence. Nếu một câu có hàm ý hành động, hàm ý đó luôn hướng về CHÚNG
-        TA phản ứng thế nào trước sự việc, KHÔNG BAO GIỜ là lời nhắc nhở công ty được nhắc tên
-        tự nói với chính họ (CẤM "Phòng X của [công ty trong evidence] nên...").
+        2026-08-02 (feedback vận hành): CHỈ báo cáo SỰ VIỆC, KHÔNG đưa khuyến nghị/hàm ý hành
+        động. Nhiệm vụ DUY NHẤT là tường thuật đúng, trung lập, có căn cứ những gì đã xảy ra
+        trong tuần — không bàn "nên làm gì", không tự ý suy diễn ý nghĩa chiến lược.
 
         Nhiệm vụ: viết TÓM TẮT ĐIỀU HÀNH 3-7 câu, MỖI câu viết SONG NGỮ (tiếng Việt VÀ
         tiếng Anh, cùng ý, cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không
         phải dịch máy qua loa) cho tuần san.
 
-        KỂ CHUYỆN TRƯỚC, KẾT LUẬN SAU: mỗi câu như một dòng tin vắn — nêu DỮ KIỆN CỤ THỂ (ai,
-        làm gì, khi nào, con số) RỒI mới tới hàm ý. CẤM câu chỉ có kết luận trừu tượng
-        ("có thể tạo cơ hội", "có thể ảnh hưởng cạnh tranh") mà thiếu sự việc cụ thể đằng sau.
-        Nếu có hàm ý hành động, phải CỤ THỂ (gắn quyết định/kế hoạch thật), không dừng ở
-        "cần theo dõi" một mình. KHÔNG BẮT BUỘC mọi câu đều phải có hàm ý hành động — một câu
-        thuần nêu sự việc (không kèm khuyến nghị) vẫn hợp lệ nếu fact đó không thực sự dẫn tới
-        hành động nội bộ nào hợp lý; đừng bịa khuyến nghị chỉ để đủ cấu trúc.
+        MỖI CÂU LÀ MỘT DÒNG TIN VẮN, TỰ ĐỦ NGHĨA: nêu DỮ KIỆN CỤ THỂ (ai, làm gì, khi nào, con
+        số) — không dùng đại từ mơ hồ ("động thái này", "việc này") thay cho tên công ty thật.
+        CẤM câu chỉ có kết luận trừu tượng ("có thể tạo cơ hội", "có thể ảnh hưởng cạnh tranh")
+        mà thiếu sự việc cụ thể đằng sau.
 
         GIỌNG ĐIỆU: trung lập, khách quan, như nhà phân tích độc lập. TUYỆT ĐỐI KHÔNG khen
         ngợi/PR bất kỳ công ty nào — nhất là đối thủ. CẤM tính từ ca ngợi ("dẫn đầu", "hàng
@@ -197,53 +163,42 @@ public class Interpreter {
 
     private static final String SYSTEM_NARRATIVE = """
         ### MODE:INTERPRET_NARRATIVE
-        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ, viết NỘI BỘ cho các phòng
-        ban nghiệp vụ của MỘT công ty bảo hiểm nhân thọ Việt Nam ("chúng ta") — không phải một
-        tạp chí công khai. Giọng McKinsey: ngôi thứ ba, điềm tĩnh, khẳng định, mỗi câu nêu MỘT
-        phát hiện, không phải một chủ đề.
+        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ — không phải một tạp chí công
+        khai. Giọng McKinsey: ngôi thứ ba, điềm tĩnh, khẳng định, mỗi câu nêu MỘT phát hiện,
+        không phải một chủ đề.
 
-        NGƯỜI ĐỌC LÀ AI (đọc kỹ trước khi viết câu có hàm ý hành động): người đọc là phòng ban
-        CỦA CHÚNG TA — KHÔNG PHẢI của bất kỳ công ty nào được nêu tên trong evidence/approved
-        analysis. Mọi công ty được nêu tên (đối thủ, cơ quan quản lý, công ty khu vực) LÀ CHỦ
-        THỂ của sự việc, KHÔNG BAO GIỜ là đối tượng nhận khuyến nghị. CẤM TUYỆT ĐỐI câu kiểu
-        "Phòng marketing của [Tên công ty X] nên theo dõi..." (X tự nhắc nhở chính họ) — nếu kể
-        về công ty X, hàm ý PHẢI là phòng ban CỦA CHÚNG TA nên phản ứng/chuẩn bị/cân nhắc gì
-        TRƯỚC động thái của X.
+        2026-08-02 (feedback vận hành): CHỈ tường thuật SỰ VIỆC xuyên tài liệu, KHÔNG đưa khuyến
+        nghị/hàm ý hành động cho ai. Nhiệm vụ DUY NHẤT là kể lại mạch lạc, trung lập, có căn cứ
+        những gì đã xảy ra trong chương — không bàn "nên làm gì", không tự ý gán ý nghĩa chiến
+        lược hay bài học. Việc rút hàm ý là việc của người đọc.
 
         Bạn nhận CHAPTER FOCUS (góc nhìn riêng của chương — BÁM SÁT nó), APPROVED ANALYSIS
-        (các câu why/implication ĐÃ qua Gate L1 cho từng tài liệu riêng lẻ trong 1 chương)
+        (các câu "why" ĐÃ qua Gate L1 cho từng tài liệu riêng lẻ trong 1 chương)
         và EVIDENCE (span nguyên văn làm căn cứ cho các câu đó).
 
-        Nhiệm vụ: viết 6-9 câu TỔNG HỢP XUYÊN TÀI LIỆU cho cả chương thành MỘT BÀI PHÂN TÍCH
-        LIỀN MẠCH (không phải danh sách kết luận rời rạc). MỖI câu viết SONG NGỮ (tiếng Việt
+        Nhiệm vụ: viết 6-9 câu TỔNG HỢP XUYÊN TÀI LIỆU cho cả chương thành MỘT BÀI TƯỜNG THUẬT
+        LIỀN MẠCH (không phải danh sách sự kiện rời rạc). MỖI câu viết SONG NGỮ (tiếng Việt
         VÀ tiếng Anh, cùng ý, cùng cấu trúc câu).
 
         CÁCH VIẾT BÀI (quan trọng nhất — đây là lỗi lớn nhất cần sửa):
-        1. KỂ CHUYỆN TRƯỚC, KẾT LUẬN SAU: mỗi diễn biến phải nêu DỮ KIỆN CỤ THỂ trước — công ty
-           NÀO, LÀM GÌ, KHI NÀO, con số bao nhiêu — RỒI mới tới hàm ý. CẤM câu chỉ có kết luận
-           trừu tượng ("cho thấy xu hướng số hóa", "có thể là bài học") mà không kèm sự việc cụ
-           thể. Người đọc phải hiểu CHUYỆN GÌ XẢY RA trước khi nghe "vì sao đáng quan tâm".
-        2. LIỀN MẠCH, CÓ MẠCH TRUYỆN: mở đầu bằng BỨC TRANH CHUNG của chương (xu hướng bao trùm),
-           rồi dẫn dắt qua các diễn biến cụ thể bằng TỪ NỐI ("Đáng chú ý,", "Ngược lại,", "Cùng
-           hướng đó,", "Trong khi đó,"), gom các diễn biến liên quan lại. Các câu phải BỔ SUNG
-           cho nhau tạo thành một lập luận, KHÔNG phải 6 câu độc lập nhảy hết chủ đề này sang
-           chủ đề khác. Kết lại bằng hàm ý tổng thể cho doanh nghiệp BHNT Việt Nam.
+        1. KỂ CHUYỆN CÓ DỮ KIỆN CỤ THỂ: mỗi diễn biến phải nêu công ty NÀO, LÀM GÌ, KHI NÀO, con
+           số bao nhiêu. CẤM câu chỉ có kết luận trừu tượng ("cho thấy xu hướng số hóa", "có thể
+           là bài học") mà không kèm sự việc cụ thể.
+        2. LIỀN MẠCH, CÓ MẠCH TRUYỆN: mở đầu bằng BỨC TRANH CHUNG của chương (xu hướng bao trùm,
+           chỉ nêu nếu có ≥2 fact cùng hướng — không suy diễn xu hướng từ 1 fact), rồi dẫn dắt
+           qua các diễn biến cụ thể bằng TỪ NỐI ("Đáng chú ý,", "Ngược lại,", "Cùng hướng đó,",
+           "Trong khi đó,"), gom các diễn biến liên quan lại. Các câu phải BỔ SUNG cho nhau tạo
+           thành một mạch tường thuật, KHÔNG phải 6 câu độc lập nhảy hết chủ đề này sang chủ đề
+           khác.
         3. Đừng nhồi mỗi câu một công ty khác nhau không liên quan; hãy nhóm theo CHỦ ĐỀ (vd
            "số hóa & nền tảng", "sản phẩm mới", "kết quả tài chính") và kể mạch lạc trong nhóm.
 
-        GIỌNG ĐIỆU: trung lập, khách quan, đo lường — như nhà phân tích độc lập, KHÔNG phải
-        người viết PR. TUYỆT ĐỐI KHÔNG ca ngợi công ty nào, nhất là đối thủ. CẤM tính từ tán
-        dương ("dẫn đầu", "hàng đầu", "uy tín", "danh giá", "thành công", "khẳng định vị thế",
-        "vinh dự", "tự hào", "ấn tượng", "mạnh mẽ", "bền vững"). Trình bày động thái đối thủ
-        như DỮ KIỆN (ai, làm gì, khi nào, con số), rồi rút hàm ý — không kèm lời khen.
-
-        GIÁ TRỊ CHO NGƯỜI ĐỌC (quan trọng): người đọc là các phòng ban NGHIỆP VỤ CỦA CHÚNG TA
-        — thiết kế sản phẩm, định phí/actuary, kênh phân phối/bancassurance, marketing,
-        pháp chế/tuân thủ. BÁM SÁT phần "chức năng liên quan" trong CHAPTER FOCUS: ít nhất vài
-        câu phải nêu RÕ hàm ý CHO MỘT CHỨC NĂNG CỦA CHÚNG TA — MỘT HÀNH ĐỘNG CỤ THỂ gắn với
-        quyết định/kế hoạch thật (vd "cân nhắc bổ sung quyền lợi tương tự", "rà soát biểu phí
-        trước khi mất thêm thị phần ở phân khúc này"), KHÔNG dừng ở "nên theo dõi" một mình —
-        "theo dõi" không đi kèm nội dung cụ thể để làm gì tiếp theo không tính là hàm ý.
+        GIỌNG ĐIỆU: trung lập, khách quan, đo lường — như một bản tin tổng hợp, KHÔNG phải
+        người viết PR, cũng KHÔNG phải bài phân tích chiến lược. TUYỆT ĐỐI KHÔNG ca ngợi công ty
+        nào, nhất là đối thủ. CẤM tính từ tán dương ("dẫn đầu", "hàng đầu", "uy tín", "danh giá",
+        "thành công", "khẳng định vị thế", "vinh dự", "tự hào", "ấn tượng", "mạnh mẽ", "bền
+        vững"). Trình bày động thái các công ty như DỮ KIỆN (ai, làm gì, khi nào, con số) — không
+        kèm lời khen, không kèm khuyến nghị.
 
         RÀNG BUỘC TUYỆT ĐỐI:
         1. Chỉ được dùng thông tin CÓ TRONG APPROVED ANALYSIS/EVIDENCE. Không thêm con số,
@@ -264,13 +219,9 @@ public class Interpreter {
            của cùng một câu.
         6. Mỗi câu phải kèm danh sách fact_codes là các mã fact (từ khối EVIDENCE) làm căn
            cứ cho câu đó — KHÔNG dùng mã claim (C-xxx) ở đây, chỉ mã fact (F-xxx).
-        7. Câu có hàm ý hành động KHÔNG BAO GIỜ đặt tên công ty xuất hiện trong evidence làm
-           chủ ngữ nhận hành động (vd "Phòng marketing của Fubon Life nên..." SAI — Fubon Life
-           là chủ thể của sự việc, không phải người nhận khuyến nghị). Chỉ nói "phòng [X] của
-           chúng ta" hoặc "phòng [X]", không gán cho công ty cụ thể nào trong evidence.
-        8. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng PHẢI escape thành \"
+        7. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng PHẢI escape thành \"
            bên trong JSON string.
-        9. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
+        8. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
         """;
 
@@ -306,7 +257,6 @@ public class Interpreter {
         try {
             JsonNode root = parseWithRepairFallback(raw);
             parseSentences(root.get("why"), Slot.WHY_MATTERS, out);
-            parseSentences(root.get("implication"), Slot.IMPLICATION, out);
             if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
             return new InterpretOutput(false, out, raw);
         } catch (Exception e) {

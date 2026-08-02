@@ -190,4 +190,15 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
     @org.springframework.data.jpa.repository.Modifying
     @Query("delete from InterpretedClaim c where c.rawDoc.sampleData = true")
     void deleteBySampleRawDoc();
+
+    /** LegacyImplicationCleanupMigration: superseded=true (không xoá, giữ audit trail) cho
+     *  claim IMPLICATION còn PENDING — slot này không còn được sinh mới (2026-08-02), nhưng
+     *  claim cũ đã sinh trước đó vẫn cần dọn khỏi Reviewer Queue thay vì buộc người duyệt
+     *  hàng loạt claim theo prompt cũ đã bị coi là lỗi thiết kế. Tham số enum truyền vào (không
+     *  hardcode literal trong JPQL) — tránh cú pháp enum lồng dễ vỡ giữa các bản Hibernate. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("update InterpretedClaim c set c.superseded = true " +
+           "where c.slot = :slot and c.reviewStatus in :pendingStatuses and c.superseded = false")
+    int supersedeBySlotAndReviewStatusIn(@Param("slot") InterpretedClaim.Slot slot,
+                                        @Param("pendingStatuses") List<InterpretedClaim.ReviewStatus> pendingStatuses);
 }
