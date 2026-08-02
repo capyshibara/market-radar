@@ -61,7 +61,11 @@ public class FactExtractionJob {
     // menu). 24k ký tự tiếng Việt ~ 8-12k token — vừa vặn context các model hiện dùng.
     // 2026-07-15 (feedback Hanh): 5 → 8. Span trung bình chỉ ~229 ký tự → quá ít nguyên
     // liệu để tổng hợp insight sắc. Trích nhiều fact hơn + ưu tiên đoạn giàu dữ kiện.
-    private static final int MAX_FACTS_PER_CHUNK = 8;
+    // 2026-08-02 (feedback Hanh): 8 → 20. Báo cáo ra quá thưa thớt — 8/chunk (24k ký tự,
+    // ~1 bài dài) là trần cứng THẬT SỰ mất dữ kiện, không phải gate tạm giữ lại chờ duyệt
+    // (khác Gate L1/L2 phía sau, vốn LƯU LẠI mọi câu kể cả fail để audit). Nới trần lên
+    // để bài giàu dữ kiện không bị cắt mất phần sau chunk.
+    private static final int MAX_FACTS_PER_CHUNK = 20;
 
     private static final String SYSTEM = """
             MODE:EXTRACT_FACTS — Bạn nhận TIÊU ĐỀ + NỘI DUNG một tài liệu tin tức ngành
