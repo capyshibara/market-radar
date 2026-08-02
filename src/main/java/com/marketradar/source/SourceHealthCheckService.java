@@ -28,6 +28,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * không phải một đường ingest. Chạy TUẦN TỰ (không song song) để không mở nhiều
  * Chromium cùng lúc (BrowserRenderService tự khởi/đóng trình duyệt mỗi lần gọi).
  *
+ * NGOẠI LỆ DUY NHẤT với "không ghi gì" ở trên: một nguồn kiểm tra OK (HTTP hoặc
+ * BROWSER) thì được set urlUnverified=false trên chính Source đó (không đụng
+ * RawDoc/EvidenceFact/ingest). Trước khi có việc này, cờ "URL verified" trên
+ * /sources đứng yên mãi mãi ở "Unverified" cho toàn bộ nguồn seed sẵn (được người
+ * viết verify tay lúc phát triển nhưng chưa từng set cờ) — gây hiểu nhầm cờ đó
+ * phản ánh tình trạng sống hiện tại, trong khi nó chỉ phản ánh lúc tạo nguồn.
+ *
  * QUAN TRỌNG (đọc kỹ khi diễn giải kết quả "OK qua BROWSER"): IngestionJob hiện
  * KHÔNG dùng BrowserRenderService làm phương án dự phòng tự động — trạng thái
  * "OK qua BROWSER" chỉ nghĩa là ĐANG TỒN TẠI cách lấy được nội dung, không nghĩa là
@@ -114,6 +121,7 @@ public class SourceHealthCheckService {
         try {
             SafeFetcher.FetchResult r = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
                     expectedKind(source.getType()));
+            markVerified(source);
             return new Result(source.getCode(), source.getName(), source.getTier(), Method.HTTP, true,
                     "OK — " + r.body().length + " bytes, " + r.contentType(),
                     System.currentTimeMillis() - t0);
@@ -131,6 +139,7 @@ public class SourceHealthCheckService {
             String html = browserRender.renderHtml(source.getFetchUrl());
             int len = html == null ? 0 : html.strip().length();
             if (len >= MIN_MEANINGFUL_HTML_CHARS) {
+                markVerified(source);
                 return new Result(source.getCode(), source.getName(), source.getTier(), Method.BROWSER, true,
                         "HTTP failed (" + httpReason + ") — headless browser succeeded, " + len
                                 + " chars. Not auto-wired into scheduled ingest yet; import manually via"
@@ -150,6 +159,14 @@ public class SourceHealthCheckService {
             return new Result(source.getCode(), source.getName(), source.getTier(), Method.NONE, false,
                     "HTTP failed (" + httpReason + "); browser also failed (" + browserFail.getMessage() + ").",
                     System.currentTimeMillis() - t0);
+        }
+    }
+
+    /** Chỉ set false khi hiện đang true — tránh ghi/flush thừa cho nguồn đã verified từ trước. */
+    private void markVerified(Source source) {
+        if (source.isUrlUnverified()) {
+            source.setUrlUnverified(false);
+            sources.save(source);
         }
     }
 
