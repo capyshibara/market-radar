@@ -1,11 +1,7 @@
 package com.marketradar.report.bi;
 
-import com.marketradar.report.ProductReportEditorialService.EditorialExhibit;
-import com.marketradar.report.ProductReportEditorialService.ExhibitDatum;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -13,27 +9,41 @@ import java.util.stream.Collectors;
 /**
  * Chuyển BiReportContent (dữ liệu thuần) thành model Thymeleaf + danh sách trang thật sự sẽ in.
  * Java quyết định TRƯỚC bucket nào có finding thì mới có trang cho bucket đó (Plan) — template
- * chỉ lặp qua và chọn fragment theo type (Render). Nhờ vậy số trang/TOC luôn khớp nội dung thật,
- * không hardcode số trang cố định ("shrink page's content rather than lowering the bar to fill
- * space" — đúng nguyên tắc materiality trong content-plan guidance).
+ * chỉ lặp qua và chọn khối markup theo type (Render). Nhờ vậy số trang/TOC luôn khớp nội dung
+ * thật, không hardcode số trang cố định.
  *
- * Mỗi bucket-page dùng lại ĐÚNG fragment exhibit (fragments/product-report-exhibit.html) — đây
- * chính là "Meridian Review + Exhibit Studio" thật đang chạy trong hệ thống.
+ * Template dùng bộ khung Techcomlife Design System (đỏ/trắng, Carlito, xem
+ * bi-report.html) — mỗi bucket-page render bằng markup RIÊNG cho type đó (bảng, thẻ, thanh KPI…)
+ * thay vì đi qua fragment exhibit chung (MATRIX/KPI/BAR/THREATMAP) như bản Meridian cũ, vì thiết
+ * kế mới có layout đặc thù cho từng loại trang mà fragment chung không biểu diễn được.
  *
- * 7 bucket BiFinding ánh xạ vào các nhóm trang theo layout-guidance:
- *  MACRO_ECONOMIC        -> MACRO (KPI)
- *  COMPETITIVE_THEME     -> THEME (MATRIX) + synthesis callout
- *  SCHEDULED_EVENT       -> PRESS_CALENDAR (TIMELINE)
- *  COMPANY_EVENT         -> EVENTS_TIMELINE (TIMELINE, toàn bộ công ty) VÀ, khi 1 subjectKey có
- *                           đủ material (>=2 finding), 1 trang COMPANY_HIGHLIGHT riêng cho subjectKey đó
- *  MARKET_SHARE_OR_AWARD -> AWARDS_MARKET_SHARE (BAR nếu có metricPercent thật cho MỌI finding,
- *                           nếu không thì tự hạ về MATRIX thay vì bịa % để vẽ bar)
- *  TECH_AI_SIGNAL        -> tách theo severity: null -> AI_SIZING (KPI); có giá trị -> AI_THREATMAP (THREATMAP)
- *  STRATEGIC_COMPARISON  -> COMPARISON (MATRIX 2 cột), 1 trang / cặp subjectKey
+ * 7 bucket BiFinding ánh xạ vào các nhóm trang:
+ *  MACRO_ECONOMIC        -> MACRO (danh sách nhận định, không bịa số KPI vì dữ liệu hiện chưa có
+ *                           trường số liệu riêng cho macro)
+ *  COMPETITIVE_THEME     -> THEME (bảng: chủ đề [subjectKey] | tín hiệu [text])
+ *  SCHEDULED_EVENT       -> PRESS_CALENDAR (bảng: công ty/chủ thể | nội dung) — KHÔNG dựng lưới
+ *                           tuần thật vì BiFinding chưa có trường ngày/tuần có cấu trúc
+ *  COMPANY_EVENT         -> EVENTS_TIMELINE (bảng, toàn bộ công ty) VÀ, khi 1 subjectKey có đủ
+ *                           material (>=2 finding), 1 trang COMPANY_HIGHLIGHT riêng cho subjectKey đó
+ *  MARKET_SHARE_OR_AWARD -> AWARDS_MARKET_SHARE (thanh ngang nếu có metricPercent thật cho MỌI
+ *                           finding, nếu không thì tự hạ về bảng thay vì bịa % để vẽ thanh)
+ *  TECH_AI_SIGNAL        -> tách theo severity: null -> AI_SIZING (danh sách); có giá trị ->
+ *                           AI_THREATMAP (bảng với SeverityBadge)
+ *  STRATEGIC_COMPARISON  -> COMPARISON (danh sách nhận định), 1 trang / cặp subjectKey
  */
 public final class BiReportPageBuilder {
 
     private static final int MIN_HIGHLIGHT_GROUP_SIZE = 2;
+
+    /** Optional per-competitor accent (matches published brand colors, not fabricated) —
+     *  default #C00000 for any subject not in this small, hand-verified list. */
+    private static final Map<String, String> COMPETITOR_ACCENTS = Map.of(
+            "chubb", "#041A70",
+            "manulife", "#01592F",
+            "aia", "#D02148",
+            "hanwha", "#EF7423",
+            "prudential", "#657076");
+    private static final String DEFAULT_ACCENT = "#C00000";
 
     private BiReportPageBuilder() {}
 
@@ -46,7 +56,6 @@ public final class BiReportPageBuilder {
         model.put("generatedAt", content.generatedAt());
         model.put("docCount", content.docCount());
         model.put("openGaps", content.openGaps());
-        model.put("sourceLines", content.sourceLines());
 
         List<BiFinding> all = content.findings();
         List<BiFinding> keyFindings = all.stream().filter(BiFinding::highlight).limit(3).toList();
@@ -69,45 +78,30 @@ public final class BiReportPageBuilder {
         List<BiFinding> aiSizing = techAll.stream().filter(f -> f.severity() == null).toList();
         List<BiFinding> aiThreat = techAll.stream().filter(f -> f.severity() != null).toList();
 
-        int[] exhibitNo = {1};
-        if (!macro.isEmpty()) {
-            model.put("macroExhibit", exhibit(macro, "KPI",
-                    vi ? "Chỉ báo vĩ mô liên quan" : "Related macro indicators", exhibitNo[0]++, vi));
-        }
-        if (!theme.isEmpty()) {
-            model.put("themeExhibit", exhibit(theme, "MATRIX",
-                    vi ? "Xu hướng lặp lại giữa nhiều đối thủ" : "Patterns spanning multiple competitors", exhibitNo[0]++, vi));
-            model.put("themeSynthesis", theme.stream().filter(BiFinding::highlight).findFirst()
-                    .or(() -> theme.stream().findFirst()).map(f -> f.text(vi)).orElse(null));
-        }
-        if (!pressCalendar.isEmpty()) {
-            model.put("pressCalendarExhibit", exhibit(pressCalendar, "TIMELINE",
-                    vi ? "Lịch công bố / sự kiện sắp tới" : "Press / event calendar", exhibitNo[0]++, vi));
-        }
-        if (!companyEvents.isEmpty()) {
-            model.put("eventsTimelineExhibit", exhibit(companyEvents, "TIMELINE",
-                    vi ? "Sự kiện theo mốc thời gian" : "Events by date", exhibitNo[0]++, vi));
-        }
+        model.put("macroFindings", macro);
+        model.put("themeFindings", theme);
+        model.put("pressCalendarFindings", pressCalendar);
+        model.put("eventsTimelineFindings", companyEvents);
+        model.put("marketShareFindings", marketShare);
         boolean marketShareHasMetrics = !marketShare.isEmpty()
                 && marketShare.stream().allMatch(f -> f.metricPercent() != null);
-        if (!marketShare.isEmpty()) {
-            model.put("marketShareExhibit", marketShareHasMetrics
-                    ? exhibitBar(marketShare, vi ? "So sánh số liệu giữa các công ty" : "Comparison across companies", exhibitNo[0]++, vi)
-                    : exhibit(marketShare, "MATRIX", vi ? "So sánh số liệu giữa các công ty" : "Comparison across companies", exhibitNo[0]++, vi));
-        }
-        if (!aiSizing.isEmpty()) {
-            model.put("aiSizingExhibit", exhibit(aiSizing, "KPI",
-                    vi ? "Định cỡ thị trường AI / Insurtech" : "AI / insurtech market sizing", exhibitNo[0]++, vi));
-        }
-        if (!aiThreat.isEmpty()) {
-            model.put("aiThreatExhibit", exhibitThreatMap(aiThreat, vi ? "Bản đồ rủi ro AI theo công ty" : "AI threat map by company", exhibitNo[0]++));
-        }
+        model.put("marketShareHasMetrics", marketShareHasMetrics);
+        model.put("aiSizingFindings", aiSizing);
+        model.put("aiThreatFindings", aiThreat);
 
         Map<String, List<BiFinding>> highlightGroups = companyEvents.stream()
                 .filter(f -> f.subjectKey() != null && !f.subjectKey().isBlank())
                 .collect(Collectors.groupingBy(BiFinding::subjectKey, LinkedHashMap::new, Collectors.toList()));
         highlightGroups.values().removeIf(list -> list.size() < MIN_HIGHLIGHT_GROUP_SIZE);
-        model.put("highlightGroups", highlightGroups);
+        // Row-paired (2 per row), not the classic even/odd-split trick — OpenHTMLtoPDF has no
+        // flexbox/grid, only CSS2.1 display:table, so a >2-card group needs real row grouping,
+        // not two same-width table-cells sized for exactly 2.
+        Map<String, List<List<BiFinding>>> highlightRows = new LinkedHashMap<>();
+        highlightGroups.forEach((key, list) -> highlightRows.put(key, partition(list, 2)));
+        model.put("highlightRows", highlightRows);
+        Map<String, String> highlightAccents = new LinkedHashMap<>();
+        highlightGroups.keySet().forEach(key -> highlightAccents.put(key, accentFor(key)));
+        model.put("highlightAccents", highlightAccents);
 
         Map<String, List<BiFinding>> comparisonPages = comparison.stream()
                 .collect(Collectors.groupingBy(
@@ -132,75 +126,43 @@ public final class BiReportPageBuilder {
         model.put("sourcesSecondary", tierSecondary);
         model.put("sourcesTotal", allCitations.size());
 
-        model.put("pages", plan(vi, macro, theme, pressCalendar, companyEvents, marketShare,
-                aiSizing, aiThreat, highlightGroups, comparisonPages));
+        List<BiPage> pages = plan(vi, macro, theme, pressCalendar, companyEvents, marketShare,
+                aiSizing, aiThreat, highlightGroups, comparisonPages);
+        model.put("pages", pages);
+        List<BiPage> tocEntries = pages.stream()
+                .filter(pg -> !pg.type().equals("COVER") && !pg.type().equals("TOC") && !pg.type().equals("BACK"))
+                .toList();
+        model.put("tocRows", partition(tocEntries, 2));
         return model;
     }
 
+    /** Splits a list into fixed-size row groups (last row may be shorter) — used to drive
+     *  CSS2.1 display:table 2-column layouts (TOC, company-highlight cards) with a REAL row
+     *  per pair, not a fixed-width-cell trick that breaks once a group has more than 2 items. */
+    private static <T> List<List<T>> partition(List<T> list, int size) {
+        List<List<T>> rows = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            rows.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return rows;
+    }
+
     /** T1/T2 (registry-verified tier or a named established publisher) read as primary;
-     *  everything else (T3/T4, "Tìm kiếm mở"/"Render trình duyệt" acquisition notes, unverified
-     *  flags) reads as secondary/desk research — matches the report's own honesty check on
-     *  how much it leans on primary vs. desk-research evidence. */
+     *  everything else (T3/T4, unverified flags) reads as secondary/desk research. */
     private static boolean isPrimaryTier(String tierNote) {
         if (tierNote == null) return false;
         String t = tierNote.strip().toUpperCase(java.util.Locale.ROOT);
         return t.equals("T1") || t.equals("T2");
     }
 
-    private static EditorialExhibit exhibit(List<BiFinding> findings, String type, String title, int number, boolean vi) {
-        List<ExhibitDatum> data = new ArrayList<>();
-        LinkedHashSet<String> citationLabels = new LinkedHashSet<>();
-        for (BiFinding f : findings) {
-            String subject = f.subjectKey() == null || f.subjectKey().isBlank() ? "—" : f.subjectKey();
-            // label = tiêu đề ngắn (chỗ hiển thị nổi bật), detail = văn bản ĐẦY ĐỦ không cắt.
-            data.add(new ExhibitDatum(shortLabel(f.text(vi)), subject, "", f.text(vi), 0, "BLUE"));
-            f.citations().forEach(c -> citationLabels.add(c.label()));
+    /** Real, published brand colors for a small hand-verified set of competitors — never a
+     *  guessed or generated color. Matches by substring so "AIA Vietnam" still hits "aia". */
+    private static String accentFor(String subjectKey) {
+        String key = subjectKey.toLowerCase(java.util.Locale.ROOT);
+        for (Map.Entry<String, String> e : COMPETITOR_ACCENTS.entrySet()) {
+            if (key.contains(e.getKey())) return e.getValue();
         }
-        String note = citationLabels.isEmpty()
-                ? (vi ? "Chưa có nguồn trích dẫn cho mục này." : "No cited source for this item yet.")
-                : (vi ? "Nguồn: " : "Source: ") + String.join("; ", citationLabels);
-        return new EditorialExhibit(String.format("%02d", number), type, true, title,
-                findings.get(0).text(vi), note, "", data);
-    }
-
-    /** BAR needs a real 0-100 width — only called when every finding in the bucket carries a
-     *  stated metricPercent (see marketShareHasMetrics above); never synthesises a percentage. */
-    private static EditorialExhibit exhibitBar(List<BiFinding> findings, String title, int number, boolean vi) {
-        List<ExhibitDatum> data = new ArrayList<>();
-        LinkedHashSet<String> citationLabels = new LinkedHashSet<>();
-        for (BiFinding f : findings) {
-            String subject = f.subjectKey() == null || f.subjectKey().isBlank() ? "—" : f.subjectKey();
-            data.add(new ExhibitDatum(subject, f.metricPercent() + "%", "", f.text(vi), f.metricPercent(), "BLUE"));
-            f.citations().forEach(c -> citationLabels.add(c.label()));
-        }
-        String note = citationLabels.isEmpty()
-                ? (vi ? "Chưa có nguồn trích dẫn cho mục này." : "No cited source for this item yet.")
-                : (vi ? "Nguồn: " : "Source: ") + String.join("; ", citationLabels);
-        return new EditorialExhibit(String.format("%02d", number), "BAR", true, title,
-                findings.get(0).text(vi), note, "", data);
-    }
-
-    private static EditorialExhibit exhibitThreatMap(List<BiFinding> findings, String title, int number) {
-        List<ExhibitDatum> data = new ArrayList<>();
-        LinkedHashSet<String> citationLabels = new LinkedHashSet<>();
-        for (BiFinding f : findings) {
-            String company = f.subjectKey() == null || f.subjectKey().isBlank() ? "—" : f.subjectKey();
-            // value = nhãn mức rủi ro (đúng chuỗi severity, hiển thị trực tiếp trong .threat-badge)
-            data.add(new ExhibitDatum(company, f.severity(), f.textVi(), f.textVi(), 0, f.severity()));
-            f.citations().forEach(c -> citationLabels.add(c.label()));
-        }
-        String note = citationLabels.isEmpty() ? "No cited source for this item yet."
-                : "Source: " + String.join("; ", citationLabels);
-        return new EditorialExhibit(String.format("%02d", number), "THREATMAP", true, title,
-                findings.get(0).textVi(), note, "", data);
-    }
-
-    /** exhibit-matrix/timeline/kpi coi "value"/"label" là ô ngắn — dữ liệu thật là câu văn dài,
-     * nên câu đầy đủ luôn nằm ở "detail"; đây chỉ cắt ngắn để không tràn ô tiêu đề. */
-    private static String shortLabel(String text) {
-        if (text == null) return "";
-        String t = text.strip();
-        return t.length() <= 90 ? t : t.substring(0, 90) + "…";
+        return DEFAULT_ACCENT;
     }
 
     private static List<BiPage> plan(boolean vi, List<BiFinding> macro, List<BiFinding> theme,

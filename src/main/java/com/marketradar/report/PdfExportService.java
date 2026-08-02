@@ -312,6 +312,19 @@ public class PdfExportService {
             builder.useFont(() -> PdfExportService.class.getResourceAsStream(
                     "/fonts/WorkSans-Bold.ttf"), "Work Sans", 700,
                     PdfRendererBuilder.FontStyle.NORMAL, true);
+            // BI report (Techcomlife design system) — Calibri substitute, metric-compatible OFL font.
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/Carlito-Regular.ttf"), "Carlito", 400,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/Carlito-Bold.ttf"), "Carlito", 700,
+                    PdfRendererBuilder.FontStyle.NORMAL, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/Carlito-Italic.ttf"), "Carlito", 400,
+                    PdfRendererBuilder.FontStyle.ITALIC, true);
+            builder.useFont(() -> PdfExportService.class.getResourceAsStream(
+                    "/fonts/Carlito-BoldItalic.ttf"), "Carlito", 700,
+                    PdfRendererBuilder.FontStyle.ITALIC, true);
             // Han-glyph fallback (GPL-2 with Font Embedding Exception — nhúng PDF tự do).
             // Tách sẵn thành .ttf đơn từ .ttc gốc vì PDFBox/OpenHTMLtoPDF không load font collection.
             builder.useFont(() -> PdfExportService.class.getResourceAsStream(

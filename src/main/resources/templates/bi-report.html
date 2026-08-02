@@ -5,255 +5,183 @@
 <title th:text="${reportTitle}">Market Radar BI Report</title>
 <style>
   /*
-   * Business Intelligence Report — dựng trên ĐÚNG Meridian Review Design System + Exhibit
-   * Studio đang chạy trong hệ thống (xem special-issue.html — "Product Academy" — nguồn gốc
-   * thật của hệ thống này). Cover/TOC/back-cover art, khối "findings", exhibit
-   * BAR/KPI/TIMELINE/MATRIX/THREATMAP đều tái dùng cấu trúc + fragment
-   * (fragments/product-report-exhibit.html) đã chạy production cho report tuần/tháng.
+   * Business Intelligence Report — Techcomlife Design System (red/white corporate identity,
+   * extracted from the reference deck "Business Intelligence - July 2026.pptx": shape fills,
+   * run colors, table cell fills — not guessed). Replaces the earlier generic "Meridian"
+   * magazine template; every page type below has its own bespoke layout instead of one
+   * reused card, because the reference deck itself uses bespoke layouts per page type.
    *
-   * Font tự host dưới /fonts/ (không phụ thuộc mạng ngoài — PDF luôn offline, và bản HTML cũng
-   * không nên phụ thuộc Google Fonts CDN). EN dùng Libre Caslon Text cho display, VI dùng Lora
-   * (thay thế có chủ đích — Libre Caslon Text không đủ dấu tiếng Việt) qua class .locale-vi.
+   * Fonts: Calibri/Calibri Light in the source deck. Calibri isn't freely licensable, so this
+   * uses Carlito (metric-compatible OFL substitute, covers Vietnamese diacritics), self-hosted
+   * under /fonts/ — never a CDN link (PDF export is offline).
+   *
+   * Layout: CSS2.1 display:table/table-cell + position:absolute ONLY — OpenHTMLtoPDF (the PDF
+   * renderer) has no flexbox or CSS grid support; both are silently DROPPED (verified via
+   * render-to-PDF: "flex is not a recognized identifier", "grid-template-columns is an
+   * unrecognized CSS property"), which collapses any flex/grid layout to plain document flow
+   * in the PDF while looking fine in a browser. Same reason opacity/box-shadow are avoided for
+   * anything that affects layout (both are also silently dropped by the PDF renderer — fine to
+   * still use box-shadow for the on-screen-only page shadow below, since that's purely
+   * decorative and losing it in print changes nothing readers rely on).
    *
    * KHÔNG dùng CSS custom properties (var()) — literal hex trực tiếp — vì OpenHTMLtoPDF không
-   * resolve var() một cách đáng tin cậy trong bản in; viết thẳng hex tránh phải song song 2 bộ
-   * CSS (browser dùng var(), PDF dùng 1 bộ override riêng phục hồi giá trị).
+   * resolve var() một cách đáng tin cậy trong bản in.
    *
    * Design tokens (tài liệu — giá trị viết thẳng bên dưới, không qua var()):
-   * --blue:#2647e8 --navy:#0e1b6b --navy2:#152a8c --paper:#f8f6f1 --canvas:#edeae2
-   * --ink:#33322e --soft:#4a4a45 --muted:#8a8878 --line:#e1ddd2 --cream:#f2efe8
-   * --teal:#00bfa6 --gold:#f5a623 --coral:#ff5a36 --violet:#8b5cf6 --green:#4caf7d
+   * --red-700:#900000 --red-600:#C00000 --red-500:#DA2A2A --red-100:#FFEBEB
+   * --ink-900:#1A1A1A --ink-700:#3D3D3D --ink-500:#6B6B6B --ink-300:#9E9E9E
+   * --line-200:#E4E4E4 --line-100:#F1F1F1 --surface-tint:#FAFAFA
+   * severity: HIGH bg#FFEBEB fg#C00000 · MEDIUM bg#FFF8E1 fg#FFC000 · LOW bg#E9F8E4 fg#00B050
    */
-  @font-face{font-family:'Libre Caslon Text';src:url('/fonts/LibreCaslonText-Regular.ttf');font-weight:400}
-  @font-face{font-family:'Libre Caslon Text';src:url('/fonts/LibreCaslonText-Bold.ttf');font-weight:700}
-  @font-face{font-family:'Libre Caslon Text';src:url('/fonts/LibreCaslonText-Italic.ttf');font-weight:400;font-style:italic}
-  @font-face{font-family:Lora;src:url('/fonts/Lora-Regular.ttf');font-weight:400}
-  @font-face{font-family:Lora;src:url('/fonts/Lora-Bold.ttf');font-weight:700}
-  @font-face{font-family:'Work Sans';src:url('/fonts/WorkSans-Regular.ttf');font-weight:400}
-  @font-face{font-family:'Work Sans';src:url('/fonts/WorkSans-SemiBold.ttf');font-weight:600}
-  @font-face{font-family:'Work Sans';src:url('/fonts/WorkSans-Bold.ttf');font-weight:700}
+  @font-face{font-family:'Carlito';src:url('/fonts/Carlito-Regular.ttf');font-weight:400;font-style:normal}
+  @font-face{font-family:'Carlito';src:url('/fonts/Carlito-Bold.ttf');font-weight:700;font-style:normal}
+  @font-face{font-family:'Carlito';src:url('/fonts/Carlito-Italic.ttf');font-weight:400;font-style:italic}
+  @font-face{font-family:'Carlito';src:url('/fonts/Carlito-BoldItalic.ttf');font-weight:700;font-style:italic}
 
   *{box-sizing:border-box}
-  html,body{margin:0;background:#edeae2;color:#33322e;font-family:'Work Sans',"Segoe UI",Arial,sans-serif}
+  html,body{margin:0;background:#EDEAE2;color:#1A1A1A;font-family:'Carlito',Arial,sans-serif}
   .report-toolbar{position:sticky;top:0;z-index:20;height:56px;padding:0 24px;background:#fff;
-    border-bottom:1px solid #d9dde5;display:flex;align-items:center;justify-content:space-between;font-size:13px}
+    border-bottom:1px solid #d9dde5;display:table;width:100%;font-size:13px}
   .report-toolbar a{color:#172442;text-decoration:none;font-weight:600}
-  .toolbar-actions{display:flex;align-items:center;gap:12px}
-  .lang{display:flex;border:1px solid #cbd1db;border-radius:5px;overflow:hidden}
-  .lang a{padding:7px 10px;font-size:12px}
+  .toolbar-title{display:table-cell;vertical-align:middle}
+  .toolbar-actions{display:table-cell;vertical-align:middle;text-align:right;white-space:nowrap}
+  .toolbar-actions>*{margin-left:12px}
+  .lang{display:inline-block;border:1px solid #cbd1db;border-radius:5px;overflow:hidden}
+  .lang a{display:inline-block;padding:7px 10px;font-size:12px}
   .lang .active{background:#172442;color:#fff}
-  .download{padding:8px 12px;background:#2647e8!important;color:#fff!important;border-radius:4px}
+  .download{padding:8px 12px;background:#C00000!important;color:#fff!important;border-radius:4px}
   .report-canvas{padding:36px 0 60px}
 
-  .report-page{position:relative;width:1056px;height:816px;margin:0 auto 34px;background:#f8f6f1;
-    overflow:hidden;box-shadow:0 24px 64px rgba(20,20,30,.2);padding:58px 72px 52px;box-sizing:border-box}
-  .page-dark{background:#0e1b6b;color:#f2efe8}
-  .kicker{font-size:12px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#8a8878}
-  .page-dark .kicker{color:#9aa5d9}
-  .display{font-family:'Libre Caslon Text',serif;font-weight:700;line-height:1.06;letter-spacing:-.02em;color:#2647e8}
-  .locale-vi .display{font-family:Lora,serif}
-  .page-title{font-size:36px;margin:14px 0 18px;max-width:850px}
-  .page-rule{height:2px;background:#2647e8;margin-top:12px;margin-bottom:20px}
-  .folio{position:absolute;left:72px;right:72px;bottom:26px;font-size:10px;font-weight:600;
-    letter-spacing:.08em;text-transform:uppercase;color:#8a8878}
-  .folio .right{float:right}
-  .body-copy{font-size:13.5px;line-height:1.65;color:#33322e}
-  .lede{font-family:'Libre Caslon Text',serif;font-size:17px;line-height:1.55;color:#33322e}
-  .locale-vi .lede{font-family:Lora,serif}
-  .muted{color:#8a8878;font-size:12px}
-  .two-col{display:table;width:100%;table-layout:fixed;border-spacing:0}
-  .two-col>.col{display:table-cell;vertical-align:top;padding-right:24px}
-  .two-col>.col:last-child{padding-right:0;padding-left:24px}
-  .card{border:1px solid #e1ddd2;padding:16px;margin-bottom:14px}
-  .card h4{margin:0 0 8px;font-size:14.5px;font-family:'Libre Caslon Text',serif;color:#0e1b6b}
-  .locale-vi .card h4{font-family:Lora,serif}
-  .card p{margin:0 0 8px;font-size:13px;line-height:1.6;color:#4a4a45}
-  .highlight-grid{display:table;width:100%;table-layout:fixed;border-spacing:16px 0}
-  .highlight-grid .card{display:table-cell;width:50%;vertical-align:top}
+  .report-page{position:relative;width:1056px;height:816px;margin:0 auto 34px;background:#fff;
+    overflow:hidden;box-shadow:0 24px 64px rgba(20,20,30,0.2);box-sizing:border-box}
 
-  /* ===== Cover / TOC / back-cover — Meridian orb art ===== */
-  /* height:816px explicit (không chỉ dựa vào top:0/bottom:0 trên style inline) — OpenHTMLtoPDF
-     đôi khi tính sai chiều cao 1 box absolute chỉ định qua top+bottom mà không có height rõ
-     ràng, khiến nó co lại theo nội dung và đẩy cover-art (bottom:46px) lên sai vị trí. */
-  .cover{padding:56px;height:816px;box-sizing:border-box}
-  .cover h1{position:relative;z-index:2;width:820px;margin:36px 0 16px;font-size:50px;color:#f2efe8}
-  .cover .deck{position:relative;z-index:2;width:640px;font-size:16px;line-height:1.55;color:#c7c3b8}
-  .cover-meta{position:relative;z-index:2;margin-top:30px;font-size:12px;font-weight:600;letter-spacing:.06em;color:#9aa5d9}
-  .cover-meta div{margin-top:4px}
-  .cover-art{position:absolute;left:56px;right:56px;bottom:46px;height:210px;overflow:hidden;background:#1531b8;border:2px solid #0b1226}
-  .art-orb{position:absolute;border:2px solid #0b1226;border-radius:50%}
-  .art-left{width:420px;height:420px;left:-70px;top:-105px;background:#2647e8}
-  .art-right{width:420px;height:420px;right:-70px;top:-105px;background:#8477b0}
-  .art-lens{width:210px;height:360px;left:350px;top:-78px;background:#f2efe8}
-  .art-core1{width:160px;height:160px;left:375px;top:24px;background:#2647e8}
-  .art-core2{width:112px;height:112px;left:399px;top:48px;background:#7fe0d2}
-  .art-core3{width:64px;height:64px;left:423px;top:72px;background:#f5a623}
-  .art-dot{position:absolute;width:14px;height:14px;border:2px solid #0b1226;border-radius:50%;background:#f2efe8;left:120px;top:48px}
-  .art-dot.two{left:auto;right:105px;top:142px;background:#f5a623}
+  /* ===== Shared page chrome: header (chip+eyebrow+title / wordmark) + footer =====
+     display:table/table-cell throughout — no flexbox (see note above). */
+  .bi-frame{width:100%;height:100%;box-sizing:border-box;padding:40px;
+    font-family:'Carlito',Arial,sans-serif;position:relative}
+  .bi-header{display:table;width:100%;border-bottom:2px solid #C00000;padding-bottom:10px}
+  .bi-chip-cell{display:table-cell;width:24px;vertical-align:top;padding-top:5px}
+  .bi-chip{display:block;width:14px;height:14px;background:#C00000}
+  .bi-text-cell{display:table-cell;vertical-align:top}
+  .bi-eyebrow{font-size:9pt;font-weight:700;letter-spacing:.06em;color:#6B6B6B;margin-bottom:2px;text-transform:uppercase}
+  .bi-title{font-size:20pt;font-weight:700;color:#C00000;text-transform:uppercase;line-height:1.1}
+  .bi-wordmark-cell{display:table-cell;vertical-align:top;text-align:right;white-space:nowrap;width:1%}
+  .bi-wordmark{font-size:12pt;font-weight:700;letter-spacing:.02em;color:#C00000;text-transform:uppercase}
+  .bi-body{margin-top:20px;padding-bottom:56px;overflow:hidden}
+  .bi-footer{position:absolute;left:40px;right:40px;bottom:40px;display:table;width:100%;
+    border-top:1px solid #E4E4E4;padding-top:8px;font-size:8pt;color:#9E9E9E}
+  .bi-footer-left{display:table-cell}
+  .bi-footer-right{display:table-cell;text-align:right;width:1%;white-space:nowrap}
 
-  .toc-visual{padding:0;background:#0e1b6b;color:#f2efe8}
-  .toc-art-stage{position:relative;height:290px;overflow:hidden;background:#e93ea0;border-bottom:2px solid #0b1226}
-  .toc-art-fallback{position:absolute;top:0;left:0;right:0;bottom:0;background:#e93ea0;overflow:hidden}
-  .toc-art-fallback .sweep{position:absolute;width:460px;height:460px;right:-70px;top:-165px;border:2px solid #0b1226;border-radius:50%;background:#c22a82}
-  .toc-art-fallback .ring{position:absolute;left:-95px;bottom:-145px;width:290px;height:290px;border:26px solid #7fe0d2;border-radius:50%;box-shadow:0 0 0 2px #0b1226}
-  .toc-art-fallback .ring.two{left:-50px;bottom:-100px;width:205px;height:205px;border-color:#f5a623}
-  .toc-art-fallback .ring.three{left:0;bottom:-55px;width:115px;height:115px;border-color:#f2efe8}
-  .toc-art-fallback .dot{position:absolute;width:14px;height:14px;border:2px solid #0b1226;border-radius:50%;background:#f2efe8}
-  .toc-art-fallback .dot.one{left:430px;top:55px}
-  .toc-art-fallback .dot.two{left:640px;top:210px;background:#f5a623}
-  .toc-content{height:474px;padding:24px 60px 32px;background:#0e1b6b}
-  .toc-content h2{margin:0 0 20px;color:#f2efe8;font:700 36px/1.06 'Libre Caslon Text',serif}
-  .locale-vi .toc-content h2{font-family:Lora,serif}
-  .toc-columns{display:table;width:100%;table-layout:fixed;border-spacing:0}
-  .toc-column{display:table-cell;width:33.333%;vertical-align:top;padding:0 22px;border-left:3px solid #8fa6ff}
-  .toc-column:nth-child(2){border-color:#7fe0d2}
-  .toc-column:nth-child(3){border-color:#c98ab5}
-  .toc-entry{display:table;width:100%;margin-bottom:13px}
-  .toc-entry .toc-no{display:table-cell;width:38px;vertical-align:top;color:#f2efe8;font:700 22px 'Libre Caslon Text',serif}
-  .locale-vi .toc-entry .toc-no{font-family:Lora,serif}
-  .toc-entry .toc-label{display:table-cell;vertical-align:top;color:#f2efe8;font:600 12px/1.4 'Work Sans',sans-serif}
+  /* ===== Section header bar (white-on-red) ===== */
+  .bi-section-bar{background:#C00000;color:#fff;font-weight:700;font-size:11pt;text-transform:uppercase;
+    letter-spacing:.02em;padding:7px 14px}
 
-  .back-cover{padding:72px 60px;height:816px;box-sizing:border-box}
-  .back-cover h2{font-size:50px;line-height:1.1;color:#f2efe8;margin:36px 0 18px}
-  .back-cover .back-copy{font-size:15px;line-height:1.65;color:#c7c3b8;max-width:560px;position:relative;z-index:2}
-  .back-art{position:absolute;left:0;right:0;bottom:0;height:250px;background:#00bfa6;overflow:hidden;border-top:2px solid #0b1226}
-  .back-circle{position:absolute;border-radius:50%;border:2px solid #0b1226}
-  .back-circle.one{width:330px;height:330px;right:-60px;top:-165px;background:#0e8e7d}
-  .back-circle.two{width:280px;height:280px;left:-125px;bottom:-155px;background:#f2efe8;border:24px solid #f5a623}
-  .back-circle.three{width:190px;height:190px;left:-80px;bottom:-110px;background:#0e1b6b}
-  .back-dot{position:absolute;width:14px;height:14px;border:2px solid #0b1226;border-radius:50%;background:#f2efe8;left:530px;top:55px}
-  .back-dot.two{left:auto;right:90px;top:170px;background:#f5a623}
+  /* ===== Severity badge (HIGH/MEDIUM/LOW — exact source-deck palette) ===== */
+  .bi-badge{display:inline-block;font-weight:700;font-size:9pt;letter-spacing:.03em;text-transform:uppercase;
+    padding:3px 10px;border-radius:2px}
+  .bi-badge.high{background:#FFEBEB;color:#C00000}
+  .bi-badge.medium{background:#FFF8E1;color:#FFC000}
+  .bi-badge.low{background:#E9F8E4;color:#00B050}
 
-  /* ===== EXEC — metric-row + findings grid ===== */
-  .metric-row{display:table;width:100%;margin-top:8px;border-top:1px solid #e1ddd2;border-bottom:1px solid #e1ddd2}
-  .metric{display:table-cell;width:33.33%;padding:15px;border-right:1px solid #e1ddd2}
-  .metric:last-child{border-right:0}
-  .metric b{display:block;font:700 31px 'Libre Caslon Text',serif;color:#2647e8}
-  .locale-vi .metric b{font-family:Lora,serif}
-  .metric span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8a8878}
-  .summary-box{margin-top:20px;background:#0e1b6b;color:#f2efe8;padding:22px 26px;font:400 18px/1.45 'Libre Caslon Text',serif;font-style:italic}
-  .locale-vi .summary-box{font-family:Lora,serif}
-  .findings{display:table;width:100%;table-layout:fixed;margin-top:22px;border-spacing:14px 0}
-  .finding{display:table-cell;width:33.33%;vertical-align:top;padding:0 16px;border-left:4px solid #2647e8}
-  .finding:first-child{padding-left:0}
-  .finding-no{font:700 34px 'Libre Caslon Text',serif;color:#2647e8}
-  .locale-vi .finding-no{font-family:Lora,serif}
-  .finding h4{font:700 15px 'Libre Caslon Text',serif;margin:5px 0;color:#0e1b6b}
-  .locale-vi .finding h4{font-family:Lora,serif}
-  .finding p{font-size:12.5px;line-height:1.5;color:#4a4a45}
+  /* ===== Tables (Theme / Press calendar / Events timeline / Threat map) — native <table>,
+     always well supported by the PDF renderer ===== */
+  .bi-table{width:100%;border-collapse:collapse}
+  .bi-table th{text-align:left;padding:8px 10px;font-size:9pt;font-weight:700;color:#fff;
+    background:#C00000;text-transform:uppercase}
+  .bi-table td{padding:9px 10px;font-size:10.5pt;border-bottom:1px solid #F1F1F1;vertical-align:top}
+  .bi-table td.subject{font-weight:700}
 
-  .cite-pill{display:inline-block;border:1px solid #d8d3c4;border-radius:12px;padding:2px 9px;
-    margin:2px 4px 2px 0;font-size:11px;text-decoration:none;color:#33322e;background:#f2efe8}
-  .cite-pill .tier-dot{font-weight:700;margin-left:4px;color:#2647e8}
+  /* ===== Narrative finding blocks (Macro / AI sizing) ===== */
+  .bi-finding-block{font-size:12pt;line-height:1.4;padding-left:14px;border-left:3px solid #FFEBEB;margin-bottom:12px}
 
-  /* ===== STRATEGIC_COMPARISON — "Our read" pull-quote callout, one page per pair ===== */
-  .callout{background:#152a8c;color:#f2efe8;padding:20px 24px;font-family:'Libre Caslon Text',serif;
-    font-style:italic;font-size:16px;line-height:1.5;margin-bottom:14px}
-  .locale-vi .callout{font-family:Lora,serif}
+  /* ===== Comparison quote block ===== */
+  .bi-quote{background:#FAFAFA;border-left:4px solid #C00000;padding:14px 16px;font-size:12pt;line-height:1.5;margin-bottom:12px}
 
-  /* ===== SOURCES — evidence-spectrum + tier-grouped source-list + method box ===== */
-  .evidence-spectrum{display:table;width:100%;table-layout:fixed;margin:12px 0 20px;border-spacing:0}
-  .evidence-tier{display:table-cell;padding:12px 16px;border-left:4px solid #2647e8;background:#ebeefc}
-  .evidence-tier:nth-child(2){border-color:#4f9b90;background:#e5f2ef}
-  .evidence-tier:nth-child(3){border-color:#8477b0;background:#eeeaf5}
-  .evidence-tier b{display:block;font:700 22px 'Libre Caslon Text',serif;color:#2647e8}
-  .locale-vi .evidence-tier b{font-family:Lora,serif}
-  .evidence-tier span{display:block;font-size:10.5px;line-height:1.3;color:#4a4a45}
-  .source-list{display:table;width:100%;table-layout:fixed;margin-top:14px;border-spacing:0}
-  .source-column{display:table-cell;width:50%;vertical-align:top}
-  .source-column:first-child{padding-right:25px}
-  .source-column:last-child{padding-left:25px}
-  .source-column h4{margin:0 0 4px;font-size:12px;font-family:'Libre Caslon Text',serif;color:#0e1b6b}
-  .locale-vi .source-column h4{font-family:Lora,serif}
-  .source-column-heading{margin:0 0 8px;font-size:13px;font-family:'Libre Caslon Text',serif;color:#0e1b6b}
-  .locale-vi .source-column-heading{font-family:Lora,serif}
-  .source-item{padding:9px 0;border-top:1px solid #e1ddd2;font-size:12px;color:#33322e}
-  .method-box{margin-top:18px;background:#ebeefc;padding:17px 20px;font-size:11px;line-height:1.5}
+  /* ===== Executive summary ===== */
+  .bi-metric-row{display:table;width:100%;margin-bottom:20px;border-top:1px solid #E4E4E4;border-bottom:1px solid #E4E4E4}
+  .bi-metric{display:table-cell;width:33.33%;padding:14px 16px;border-right:1px solid #E4E4E4}
+  .bi-metric:last-child{border-right:0}
+  .bi-metric b{display:block;font-size:26pt;font-weight:700;color:#C00000;line-height:1.05}
+  .bi-metric span{font-size:9pt;text-transform:uppercase;letter-spacing:.06em;color:#6B6B6B}
+  .bi-exec-row{display:table;width:100%;margin-bottom:16px}
+  .bi-exec-num-cell{display:table-cell;width:40px;vertical-align:top}
+  .bi-exec-num{display:inline-block;width:28px;height:28px;border-radius:50%;background:#C00000;color:#fff;
+    text-align:center;line-height:28px;font-weight:700;font-size:12pt}
+  .bi-exec-text-cell{display:table-cell;vertical-align:top}
+  .bi-exec-text{font-size:13pt;line-height:1.4}
 
-  /* ===== Exhibit fragment CSS (fragments/product-report-exhibit.html) — literal-hex port. ===== */
-  .exhibit-card{padding:22px;border:1px solid #cfcabb;border-top:3px solid #2647e8;background:#f4f1e9}
-  .exhibit-head{display:table;width:100%;border-bottom:1px solid #cfcabb;padding-bottom:9px}
-  .exhibit-head>div{display:table-cell}
-  .exhibit-head>code{display:table-cell;text-align:right;color:#1e38b6;font-family:'DejaVu Sans Mono',monospace;font-size:9px}
-  .exhibit-number,.exhibit-kind{font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
-  .exhibit-number{color:#1e38b6}
-  .exhibit-kind{padding-left:8px;margin-left:8px;border-left:1px solid #cfcabb;color:#8a8878}
-  .exhibit-card>h3{margin:16px 0 8px;color:#0e1b6b;font-family:'Libre Caslon Text',serif;font-size:22px;line-height:1.25}
-  .locale-vi .exhibit-card>h3{font-family:Lora,serif}
-  .exhibit-explainer-label{display:block;margin:2px 0 4px;color:#1e38b6;font-size:9px;letter-spacing:.1em;text-transform:uppercase}
-  .exhibit-takeaway{margin:0 0 18px;color:#3e4147;font-size:13px;line-height:1.55}
-  .exhibit-foot{display:table;width:100%;margin-top:16px;padding-top:11px;border-top:1px solid #cfcabb;color:#8a8878;font-size:10px;line-height:1.4}
-  .exhibit-foot>span{display:table-cell}
-  .exhibit-foot>code{display:table-cell;text-align:right;color:#1e38b6;font-family:'DejaVu Sans Mono',monospace;font-size:9px}
-  .exhibit-foot span>strong{color:#3e4147}
+  /* ===== Market share bars ===== */
+  .bi-bar-row{display:table;width:100%;margin-bottom:12px}
+  .bi-bar-label-cell{display:table-cell;width:170px;vertical-align:middle;font-size:11pt}
+  .bi-bar-label-cell.home{font-weight:700;color:#C00000}
+  .bi-bar-track-cell{display:table-cell;vertical-align:middle;padding:0 12px}
+  .bi-bar-track{background:#F1F1F1;height:18px}
+  .bi-bar-fill{height:18px;background:#DA2A2A;display:block}
+  .bi-bar-fill.home{background:#C00000}
+  .bi-bar-value-cell{display:table-cell;width:56px;text-align:right;vertical-align:middle;font-size:11pt;font-weight:700}
 
-  .exhibit-bars{margin-top:4px}
-  .exhibit-bar-row{margin-bottom:14px}
-  .exhibit-bar-label{display:table;width:100%}
-  .exhibit-bar-label>span{display:table-cell}
-  .exhibit-bar-label small{display:block;color:#8a8878;font-size:9px;font-weight:700;letter-spacing:.06em}
-  .exhibit-bar-label b{display:block;color:#0e1b6b;font-family:'Libre Caslon Text',serif;font-size:14px}
-  .locale-vi .exhibit-bar-label b{font-family:Lora,serif}
-  .exhibit-bar-label strong{display:table-cell;text-align:right;color:#2647e8;font:700 18px 'Libre Caslon Text',serif}
-  .locale-vi .exhibit-bar-label strong{font-family:Lora,serif}
-  .exhibit-track{height:10px;background:#d9d5ca;margin-top:6px}
-  .exhibit-fill{display:block;height:10px;background:#2647e8}
-  .exhibit-bar-row>p{margin:6px 0 0;color:#8a8878;font-size:10px;line-height:1.4}
+  /* ===== Company highlight cards — real row-pairing from Java (highlightRows), 2
+     table-cells per row, not a fixed-width-for-exactly-2 trick ===== */
+  .bi-card-row{display:table;width:100%;table-layout:fixed;margin-bottom:14px}
+  .bi-card-cell{display:table-cell;width:50%;vertical-align:top;padding-right:7px}
+  .bi-card-cell:last-child{padding-right:0;padding-left:7px}
+  .bi-card-cell:first-child:last-child{padding-left:0}
+  .bi-highlight-card{border:1px solid #E4E4E4;padding:12px 14px}
+  .bi-highlight-card-label{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.02em;margin-bottom:6px}
+  .bi-highlight-card-text{font-size:11pt;line-height:1.4}
 
-  .exhibit-kpis{display:table;width:100%;table-layout:fixed;border-top:2px solid #0e1b6b;border-bottom:1px solid #cfcabb;border-spacing:0}
-  .exhibit-kpi{display:table-cell;width:33.33%;padding:14px 13px;border-left:1px solid #cfcabb;vertical-align:top}
-  .exhibit-kpi:first-child{border-left:0}
-  .exhibit-kpi small{display:block;min-height:20px;color:#8a8878;font-size:8.5px;font-weight:700;letter-spacing:.07em}
-  .exhibit-kpi strong{display:block;margin:4px 0;color:#0e1b6b;font-family:'Libre Caslon Text',serif;font-size:19px;line-height:1.25}
-  .locale-vi .exhibit-kpi strong{font-family:Lora,serif}
-  .exhibit-kpi b{display:block;color:#33322e;font-size:10.5px;line-height:1.3}
-  .exhibit-kpi p{margin:6px 0 0;color:#8a8878;font-size:9px;line-height:1.35}
+  /* ===== Citation pills ===== */
+  .cite-pill{display:inline-block;border:1px solid #E4E4E4;border-radius:12px;padding:2px 9px;
+    margin:4px 4px 0 0;font-size:9.5pt;text-decoration:none;color:#3D3D3D;background:#FAFAFA}
+  .cite-pill .tier-dot{font-weight:700;margin-left:4px;color:#C00000}
 
-  .exhibit-timeline{display:table;width:100%;table-layout:fixed;padding-top:16px;border-spacing:14px 0}
-  .timeline-item{display:table-cell;position:relative;padding:19px 12px 0 0;border-top:2px solid #0e1b6b;vertical-align:top}
-  .timeline-item small{display:block;color:#8a8878;font-size:8.5px;font-weight:700;letter-spacing:.07em}
-  .timeline-item b{display:block;margin:5px 0;color:#0e1b6b;font-family:'Libre Caslon Text',serif;font-size:14px;line-height:1.25}
-  .locale-vi .timeline-item b{font-family:Lora,serif}
-  .timeline-item p{margin:0;color:#3e4147;font-size:10px;line-height:1.42}
+  /* ===== Sources page ===== */
+  .bi-source-item{font-size:10.5pt;margin-bottom:6px}
+  .bi-source-tier{color:#C00000;font-weight:700;margin-right:10px}
+  .bi-source-tier.secondary{color:#9E9E9E}
+  .bi-gap-item{font-size:10pt;color:#6B6B6B;margin-bottom:4px}
 
-  .exhibit-matrix-wrap{overflow-x:auto}
-  .exhibit-matrix{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}
-  .exhibit-matrix th,.exhibit-matrix td{padding:10px;border:1px solid #cfcabb;text-align:left;vertical-align:top;line-height:1.42}
-  .exhibit-matrix thead th{background:#0e1b6b;color:#fff;font-size:9px;letter-spacing:.05em;text-transform:uppercase}
-  .exhibit-matrix tbody th{color:#0e1b6b;font-family:'Libre Caslon Text',serif;font-size:14px;background:#ebeefc}
-  .locale-vi .exhibit-matrix tbody th{font-family:Lora,serif}
-  .exhibit-matrix tbody tr:nth-child(2n) td{background:#fff}
+  /* ===== TOC — row-paired from Java (tocRows), same reason as company-highlight cards ===== */
+  .bi-toc-row{display:table;width:100%;table-layout:fixed}
+  .bi-toc-cell{display:table-cell;width:50%;vertical-align:top;padding-right:20px}
+  .bi-toc-cell:last-child{padding-right:0;padding-left:20px}
+  .bi-toc-cell:first-child:last-child{padding-left:0}
+  .bi-toc-entry{display:table;width:100%;border-bottom:1px solid #F1F1F1;padding:10px 0;font-size:12pt}
+  .bi-toc-entry-label{display:table-cell}
+  .bi-toc-entry-num{display:table-cell;width:1%;text-align:right;white-space:nowrap;color:#9E9E9E}
 
-  /* THREATMAP — dedicated severity palette, NOT the chart tone palette above */
-  .exhibit-threatmap{display:table;width:100%;table-layout:fixed;border-spacing:14px 14px}
-  .threat-card{display:table-cell;width:50%;padding:16px;border:1px solid #cfcabb;border-left:4px solid #8a8878;vertical-align:top}
-  .threat-head{display:table;width:100%}
-  .threat-head b{display:table-cell;color:#0e1b6b;font-family:'Libre Caslon Text',serif;font-size:16px}
-  .locale-vi .threat-head b{font-family:Lora,serif}
-  .threat-badge{display:table-cell;width:1%;white-space:nowrap;text-align:right;padding:3px 10px;border:1px solid;border-radius:3px;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
-  .threat-reason{margin:9px 0 0;color:#33322e;font-size:11.5px;line-height:1.4}
-  .threat-detail{margin:6px 0 0;color:#8a8878;font-size:10px;line-height:1.4}
-  .threat-card.high{border-left-color:#d7192d}
-  .threat-badge.high{border-color:#d7192d;color:#d7192d;background:#fdecec}
-  .threat-card.medium{border-left-color:#c9a15a}
-  .threat-badge.medium{border-color:#c9a15a;color:#96600d;background:#fff7e6}
-  .threat-card.low{border-left-color:#8a8878}
-  .threat-badge.low{border-color:#8a8878;color:#4a4a45;background:#f1eee5}
+  /* ===== Cover / back cover — solid red field, diamond watermark (no photographic art),
+     positioned with plain absolute offsets (same technique the rest of this codebase already
+     uses for cover art) rather than flex centering ===== */
+  .bi-cover,.bi-back{width:100%;height:100%;box-sizing:border-box;background:#C00000;
+    font-family:'Carlito',Arial,sans-serif;color:#fff;position:relative;overflow:hidden}
+  .bi-cover{padding:56px}
+  .bi-watermark{position:absolute;background:rgba(255,255,255,0.06);transform:rotate(45deg)}
+  .bi-watermark.one{right:-80px;top:-80px;width:420px;height:420px}
+  .bi-watermark.two{right:120px;top:260px;width:300px;height:300px;background:rgba(255,255,255,0.08)}
+  .bi-cover-brand{position:relative;z-index:1;text-align:right;font-size:11pt;font-weight:700;letter-spacing:.04em}
+  .bi-cover-main{position:absolute;left:56px;right:56px;top:320px;z-index:1}
+  .bi-cover-title{font-size:40pt;font-weight:700;line-height:1.05;text-transform:uppercase}
+  .bi-cover-period{margin-top:14px;display:inline-block;background:#fff;color:#C00000;padding:6px 16px;font-size:13pt;font-weight:700}
+  .bi-cover-meta{position:absolute;left:56px;bottom:56px;z-index:1;font-size:9pt;color:#F6D9D9}
+  .bi-back-brand{position:absolute;left:0;right:0;top:360px;z-index:1;text-align:center;font-size:16pt;font-weight:700;letter-spacing:.03em}
+  .bi-back-meta{position:absolute;left:0;right:0;top:392px;z-index:1;text-align:center;font-size:10pt;color:#F6D9D9}
 
   .no-print{}
   @media print{ .no-print{display:none} }
 </style>
 </head>
-<body th:classappend="${vi} ? 'locale-vi'">
+<body>
 
 <div class="report-toolbar no-print">
-  <span th:text="${reportTitle}">Market Radar — Business Intelligence Report</span>
+  <div class="toolbar-title" th:text="${reportTitle}">Market Radar — Business Intelligence Report</div>
   <div class="toolbar-actions">
-    <div class="lang">
+    <span class="lang">
       <a th:href="${langHrefVi}" th:classappend="${vi} ? ' active'">VI</a>
       <a th:href="${langHrefEn}" th:classappend="${!vi} ? ' active'">EN</a>
-    </div>
-    <a th:href="${pdfHref}" th:text="${vi ? 'Tải PDF' : 'Download PDF'}">Download PDF</a>
+    </span>
+    <a class="download" th:href="${pdfHref}" th:text="${vi ? 'Tải PDF' : 'Download PDF'}">Download PDF</a>
     <a th:href="${docxHref}" th:text="${vi ? 'Tải .docx' : 'Download .docx'}">Download .docx</a>
     <a href="/pipeline" th:text="${vi ? 'Vận hành' : 'Operations'}">Operations</a>
   </div>
@@ -263,231 +191,361 @@
 <section class="report-page" th:each="p : ${pages}" th:switch="${p.type}">
 
   <!-- ============ COVER ============ -->
-  <div th:case="'COVER'" class="cover page-dark" style="position:absolute;top:0;left:0;right:0;bottom:0">
-    <div class="kicker" th:text="${vi ? 'Market Radar · Business Intelligence Report' : 'Market Radar · Business Intelligence Report'}">Market Radar · Business Intelligence Report</div>
-    <h1 class="display" th:text="${reportTitle}">Title</h1>
-    <p class="deck" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${(vi ? 'Chuẩn bị cho: ' : 'Prepared for: ') + homeCompany}">Home company</p>
-    <div class="cover-meta">
-      <div th:text="${(vi ? 'Kỳ: ' : 'Period: ') + reportPeriod}">Period</div>
-      <div th:text="${(vi ? 'Tạo lúc ' : 'Generated ') + generatedAt}">Generated</div>
+  <div th:case="'COVER'" class="bi-cover">
+    <div class="bi-watermark one"></div>
+    <div class="bi-watermark two"></div>
+    <div class="bi-cover-brand" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}"
+         th:text="${#strings.toUpperCase(homeCompany)}">HOME COMPANY</div>
+    <div class="bi-cover-main">
+      <div class="bi-cover-title" th:text="${reportTitle}">Business Intelligence Report</div>
+      <div class="bi-cover-period" th:text="${reportPeriod}">Period</div>
     </div>
-    <div class="cover-art" aria-hidden="true">
-      <div class="art-orb art-left"></div><div class="art-orb art-right"></div>
-      <div class="art-orb art-lens"></div><div class="art-orb art-core1"></div>
-      <div class="art-orb art-core2"></div><div class="art-orb art-core3"></div>
-      <div class="art-dot"></div><div class="art-dot two"></div>
-    </div>
+    <div class="bi-cover-meta" th:text="${(vi ? 'Ngày tạo: ' : 'Generated: ') + generatedAt + ' · ' + docCount + (vi ? ' tài liệu nguồn' : ' source documents')}">Generated</div>
   </div>
 
   <!-- ============ TOC ============ -->
-  <div th:case="'TOC'" class="toc-visual" style="position:absolute;top:0;left:0;right:0;bottom:0">
-    <div class="toc-art-stage" aria-hidden="true">
-      <div class="toc-art-fallback">
-        <i class="sweep"></i><i class="ring"></i><i class="ring two"></i><i class="ring three"></i>
-        <i class="dot one"></i><i class="dot two"></i>
+  <div th:case="'TOC'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'MỤC LỤC' : 'CONTENTS'}">CONTENTS</div>
+        <div class="bi-title" th:text="${vi ? 'Mục lục' : 'Table of Contents'}">Table of Contents</div>
       </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
-    <div class="toc-content">
-      <h2 th:text="${vi ? 'Nội dung báo cáo' : 'Contents'}">Contents</h2>
-      <div class="toc-columns">
-        <div class="toc-column">
-          <div class="toc-entry" th:each="entry, iter : ${pages}" th:if="${entry.type != 'COVER' and entry.type != 'TOC' and entry.type != 'BACK' and iter.index % 3 == 0}">
-            <span class="toc-no" th:text="${entry.number}">1</span><span class="toc-label" th:text="${entry.label}">Section</span>
-          </div>
-        </div>
-        <div class="toc-column">
-          <div class="toc-entry" th:each="entry, iter : ${pages}" th:if="${entry.type != 'COVER' and entry.type != 'TOC' and entry.type != 'BACK' and iter.index % 3 == 1}">
-            <span class="toc-no" th:text="${entry.number}">2</span><span class="toc-label" th:text="${entry.label}">Section</span>
-          </div>
-        </div>
-        <div class="toc-column">
-          <div class="toc-entry" th:each="entry, iter : ${pages}" th:if="${entry.type != 'COVER' and entry.type != 'TOC' and entry.type != 'BACK' and iter.index % 3 == 2}">
-            <span class="toc-no" th:text="${entry.number}">3</span><span class="toc-label" th:text="${entry.label}">Section</span>
-          </div>
+    <div class="bi-body">
+      <div class="bi-toc-row" th:each="row : ${tocRows}">
+        <div class="bi-toc-cell" th:each="entry : ${row}">
+          <div class="bi-toc-entry"><span class="bi-toc-entry-label" th:text="${entry.label}">Section</span><span class="bi-toc-entry-num" th:text="${#numbers.formatInteger(entry.number,2)}">03</span></div>
         </div>
       </div>
     </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">2</span></div>
   </div>
 
   <!-- ============ EXEC SUMMARY ============ -->
-  <div th:case="'EXEC'">
-    <div class="kicker" th:text="${vi ? 'Tóm tắt điều hành' : 'Executive summary'}">Executive summary</div>
-    <h2 class="display page-title" th:text="${vi ? 'Điểm chính kỳ này' : 'This period at a glance'}">This period at a glance</h2>
-    <div class="page-rule"></div>
-    <div th:if="${!hasAnyContent}" class="body-copy muted" th:text="${vi ? 'Chưa có nhận định nào đủ căn cứ trong kỳ này.' : 'No sufficiently grounded finding for this period yet.'}">No content yet.</div>
-    <div th:if="${hasAnyContent}">
-      <div class="metric-row">
-        <div class="metric"><b th:text="${findingsTotal}">0</b><span th:text="${vi ? 'Nhận định' : 'Findings'}">Findings</span></div>
-        <div class="metric"><b th:text="${bucketsCovered}">0</b><span th:text="${vi ? 'Nhóm chủ đề' : 'Categories covered'}">Categories</span></div>
-        <div class="metric"><b th:text="${sourcesTotal}">0</b><span th:text="${vi ? 'Nguồn tham khảo' : 'Sources'}">Sources</span></div>
+  <div th:case="'EXEC'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'TÓM TẮT' : 'EXECUTIVE SUMMARY'}">EXECUTIVE SUMMARY</div>
+        <div class="bi-title" th:text="${vi ? 'Tóm tắt điều hành' : 'Executive Summary'}">Executive Summary</div>
       </div>
-      <div class="summary-box" th:if="${!keyFindings.isEmpty()}" th:text="${keyFindings[0].text(vi)}">Lead finding</div>
-      <div class="findings">
-        <div class="finding" th:each="f, iter : ${keyFindings}">
-          <div class="finding-no" th:text="${iter.index + 1}">1</div>
-          <h4 th:text="${f.bucket}">Bucket</h4>
-          <p th:text="${f.text(vi)}">Content</p>
-          <div>
-            <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
-              <span th:text="${cit.label}">Source</span>
-              <span class="tier-dot" th:text="${cit.tierNote}">T1</span>
-            </a>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div th:if="${!hasAnyContent}" style="font-size:12pt;color:#6B6B6B" th:text="${vi ? 'Chưa có nhận định nào đủ căn cứ trong kỳ này.' : 'No sufficiently grounded finding for this period yet.'}">No content yet.</div>
+      <div th:if="${hasAnyContent}">
+        <div class="bi-metric-row">
+          <div class="bi-metric"><b th:text="${findingsTotal}">0</b><span th:text="${vi ? 'Nhận định' : 'Findings'}">Findings</span></div>
+          <div class="bi-metric"><b th:text="${bucketsCovered}">0</b><span th:text="${vi ? 'Nhóm chủ đề' : 'Categories covered'}">Categories</span></div>
+          <div class="bi-metric"><b th:text="${sourcesTotal}">0</b><span th:text="${vi ? 'Nguồn tham khảo' : 'Sources'}">Sources</span></div>
+        </div>
+        <div class="bi-section-bar" style="margin-bottom:16px" th:text="${vi ? 'Nhận định chính' : 'Executive takeaway'}">Executive takeaway</div>
+        <div class="bi-exec-row" th:each="f, iter : ${keyFindings}">
+          <div class="bi-exec-num-cell"><span class="bi-exec-num" th:text="${iter.index + 1}">1</span></div>
+          <div class="bi-exec-text-cell"><span class="bi-exec-text" th:text="${f.text(vi)}">Content</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">3</span></div>
+  </div>
+
+  <!-- ============ MACRO ECONOMIC — narrative findings ============ -->
+  <div th:case="'MACRO'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'VĨ MÔ NGÀNH' : 'MACRO UPDATE'}">MACRO UPDATE</div>
+        <div class="bi-title" th:text="${vi ? 'Cập nhật vĩ mô' : 'Key Macro Updates'}">Key Macro Updates</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div th:each="f : ${macroFindings}" class="bi-finding-block">
+        <span th:text="${f.text(vi)}">Content</span>
+        <div th:if="${!f.citations.isEmpty()}">
+          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">4</span></div>
+  </div>
+
+  <!-- ============ COMPETITIVE THEME — table ============ -->
+  <div th:case="'THEME'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'QUÉT THỊ TRƯỜNG' : 'MARKET SCAN'}">MARKET SCAN</div>
+        <div class="bi-title" th:text="${vi ? 'Chủ đề &amp; tín hiệu cạnh tranh' : 'Competitive Themes &amp; Signals'}">Competitive Themes &amp; Signals</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <table class="bi-table">
+        <thead><tr><th th:text="${vi ? 'Chủ đề' : 'Theme'}">Theme</th><th th:text="${vi ? 'Tín hiệu' : 'Signal'}">Signal</th></tr></thead>
+        <tbody>
+          <tr th:each="f : ${themeFindings}">
+            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Theme</td>
+            <td>
+              <span th:text="${f.text(vi)}">Signal text</span>
+              <div th:if="${!f.citations.isEmpty()}">
+                <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+                  <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">5</span></div>
+  </div>
+
+  <!-- ============ PRESS CALENDAR — table ============ -->
+  <div th:case="'PRESS_CALENDAR'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'LỊCH ĐỐI THỦ' : 'MARKET SCAN'}">MARKET SCAN</div>
+        <div class="bi-title" th:text="${vi ? 'Lịch công bố đối thủ' : 'Competitor Press Release Calendar'}">Competitor Press Release Calendar</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <table class="bi-table">
+        <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Nội dung' : 'Upcoming'}">Upcoming</th></tr></thead>
+        <tbody>
+          <tr th:each="f : ${pressCalendarFindings}">
+            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</td>
+            <td>
+              <span th:text="${f.text(vi)}">Event text</span>
+              <div th:if="${!f.citations.isEmpty()}">
+                <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+                  <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px;font-size:9pt;color:#9E9E9E" th:text="${vi ? 'Chỉ dùng ngày do chính công ty công bố hoặc lịch IR đáng tin cậy; ngày ước tính được đánh dấu rõ trong nội dung, không tự suy đoán.' : 'Dates come only from company statements or a reliable IR calendar; estimated dates are marked explicitly in the text, never guessed.'}">Method note.</p>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">6</span></div>
+  </div>
+
+  <!-- ============ EVENTS TIMELINE — table ============ -->
+  <div th:case="'EVENTS_TIMELINE'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'SỰ KIỆN' : 'COMPANY EVENTS'}">COMPANY EVENTS</div>
+        <div class="bi-title" th:text="${vi ? 'Dòng thời gian sự kiện' : 'Events Timeline'}">Events Timeline</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <table class="bi-table">
+        <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Sự kiện' : 'Event'}">Event</th></tr></thead>
+        <tbody>
+          <tr th:each="f : ${eventsTimelineFindings}">
+            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</td>
+            <td>
+              <span th:text="${f.text(vi)}">Event text</span>
+              <div th:if="${!f.citations.isEmpty()}">
+                <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+                  <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">7</span></div>
+  </div>
+
+  <!-- ============ AWARDS / MARKET SHARE — bar chart, or table fallback ============ -->
+  <div th:case="'AWARDS_MARKET_SHARE'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'GIẢI THƯỞNG &amp; THỊ PHẦN' : 'AWARDS &amp; MARKET SHARE'}">AWARDS &amp; MARKET SHARE</div>
+        <div class="bi-title" th:text="${vi ? 'So sánh số liệu giữa các công ty' : 'Comparison Across Companies'}">Comparison Across Companies</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div th:if="${marketShareHasMetrics}">
+        <div class="bi-bar-row" th:each="f : ${marketShareFindings}">
+          <div th:class="${homeCompany != null and #strings.equalsIgnoreCase(f.subjectKey(), homeCompany)} ? 'bi-bar-label-cell home' : 'bi-bar-label-cell'"
+               th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</div>
+          <div class="bi-bar-track-cell">
+            <div class="bi-bar-track">
+              <span th:class="${homeCompany != null and #strings.equalsIgnoreCase(f.subjectKey(), homeCompany)} ? 'bi-bar-fill home' : 'bi-bar-fill'"
+                   th:style="'width:' + ${f.metricPercent()} + '%'"></span>
+            </div>
+          </div>
+          <div class="bi-bar-value-cell" th:text="${f.metricPercent()} + '%'">0%</div>
+        </div>
+      </div>
+      <table class="bi-table" th:unless="${marketShareHasMetrics}">
+        <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Nội dung' : 'Detail'}">Detail</th></tr></thead>
+        <tbody>
+          <tr th:each="f : ${marketShareFindings}">
+            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</td>
+            <td th:text="${f.text(vi)}">Detail</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">8</span></div>
+  </div>
+
+  <!-- ============ AI / INSURTECH SIZING — narrative findings ============ -->
+  <div th:case="'AI_SIZING'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'ĐÀO SÂU: AI' : 'DEEP DIVE: AI'}">DEEP DIVE: AI</div>
+        <div class="bi-title" th:text="${vi ? 'Định cỡ thị trường AI / Insurtech' : 'AI / Insurtech Market Sizing'}">AI / Insurtech Market Sizing</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div th:each="f : ${aiSizingFindings}" class="bi-finding-block">
+        <span th:text="${f.text(vi)}">Content</span>
+        <div th:if="${!f.citations.isEmpty()}">
+          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">9</span></div>
+  </div>
+
+  <!-- ============ AI THREAT MAP — table with severity badge ============ -->
+  <div th:case="'AI_THREATMAP'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'ĐÀO SÂU: AI' : 'DEEP DIVE: AI'}">DEEP DIVE: AI</div>
+        <div class="bi-title" th:text="${vi ? 'Bản đồ đe dọa AI' : 'AI Threat Map'}">AI Threat Map</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <table class="bi-table">
+        <thead><tr><th style="width:130px" th:text="${vi ? 'Mức độ' : 'Threat Level'}">Threat Level</th><th style="width:160px" th:text="${vi ? 'Đối thủ' : 'Competitor'}">Competitor</th><th th:text="${vi ? 'Vì sao' : 'Why'}">Why</th></tr></thead>
+        <tbody>
+          <tr th:each="f : ${aiThreatFindings}">
+            <td><span th:class="'bi-badge ' + ${#strings.toLowerCase(f.severity())}" th:text="${f.severity()}">HIGH</span></td>
+            <td class="subject" th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Competitor</td>
+            <td>
+              <span th:text="${f.text(vi)}">Why</span>
+              <div th:if="${!f.citations.isEmpty()}">
+                <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+                  <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">10</span></div>
+  </div>
+
+  <!-- ============ COMPANY HIGHLIGHTS (lặp động, 1 trang / subjectKey đủ material) ============ -->
+  <div th:case="'COMPANY_HIGHLIGHT'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'ĐIỂM NỔI BẬT ĐỐI THỦ' : 'COMPETITOR KEY HIGHLIGHTS'}">COMPETITOR KEY HIGHLIGHTS</div>
+        <div class="bi-title" th:text="${p.subjectKey}">Company</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div class="bi-card-row" th:each="row : ${highlightRows.get(p.subjectKey)}">
+        <div class="bi-card-cell" th:each="f : ${row}">
+          <div class="bi-highlight-card" th:style="'border-top:3px solid ' + ${highlightAccents.get(p.subjectKey)}">
+            <div class="bi-highlight-card-label" th:style="'color:' + ${highlightAccents.get(p.subjectKey)}"
+                 th:text="${#strings.abbreviate(f.text(vi), 40)}">Label</div>
+            <div class="bi-highlight-card-text" th:text="${f.text(vi)}">Content</div>
+            <div th:if="${!f.citations.isEmpty()}">
+              <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+                <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ MACRO ECONOMIC — exhibit KPI ============ -->
-  <div th:case="'MACRO'">
-    <div class="kicker" th:text="${vi ? 'Vĩ mô ngành' : 'Macro update'}">Macro update</div>
-    <h2 class="display page-title" th:text="${vi ? 'Bối cảnh kinh tế vĩ mô liên quan' : 'Related macro-economic context'}">Related macro context</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${macroExhibit}, ${vi}, false)}"></th:block>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ COMPETITIVE THEME — exhibit MATRIX + synthesis ============ -->
-  <div th:case="'THEME'">
-    <div class="kicker" th:text="${vi ? 'Xu hướng cạnh tranh' : 'Competitive themes'}">Competitive themes</div>
-    <h2 class="display page-title" th:text="${vi ? 'Chủ đề lặp lại giữa nhiều đối thủ' : 'Patterns spanning multiple competitors'}">Patterns spanning competitors</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${themeExhibit}, ${vi}, false)}"></th:block>
-    <div class="callout" th:if="${themeSynthesis != null}" th:text="${themeSynthesis}">Synthesis</div>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ PRESS CALENDAR — exhibit TIMELINE ============ -->
-  <div th:case="'PRESS_CALENDAR'">
-    <div class="kicker" th:text="${vi ? 'Lịch công bố' : 'Press calendar'}">Press calendar</div>
-    <h2 class="display page-title" th:text="${vi ? 'Lịch công bố / sự kiện sắp tới' : 'Upcoming press releases / events'}">Upcoming press releases</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${pressCalendarExhibit}, ${vi}, false)}"></th:block>
-    <p class="muted" style="margin-top:12px" th:text="${vi ? 'Chỉ dùng ngày do chính công ty công bố hoặc lịch IR đáng tin cậy; ngày ước tính được đánh dấu rõ trong nội dung, không tự suy đoán.' : 'Dates come only from company statements or a reliable IR calendar; estimated dates are marked explicitly in the text, never guessed.'}">Method note.</p>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ EVENTS TIMELINE (toàn bộ công ty) — exhibit TIMELINE ============ -->
-  <div th:case="'EVENTS_TIMELINE'">
-    <div class="kicker" th:text="${vi ? 'Diễn biến theo mốc thời gian' : 'Events timeline'}">Events timeline</div>
-    <h2 class="display page-title" th:text="${vi ? 'Sự kiện theo mốc thời gian' : 'Events by date'}">Events by date</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${eventsTimelineExhibit}, ${vi}, false)}"></th:block>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ AWARDS / MARKET SHARE — exhibit BAR (hoặc MATRIX nếu chưa có % thật) ============ -->
-  <div th:case="'AWARDS_MARKET_SHARE'">
-    <div class="kicker" th:text="${vi ? 'Thị phần / Giải thưởng' : 'Awards / market share'}">Awards / market share</div>
-    <h2 class="display page-title" th:text="${vi ? 'So sánh số liệu giữa các công ty' : 'Comparison across companies'}">Comparison across companies</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${marketShareExhibit}, ${vi}, false)}"></th:block>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ AI / INSURTECH SIZING — exhibit KPI ============ -->
-  <div th:case="'AI_SIZING'">
-    <div class="kicker" th:text="${vi ? 'Tech / AI / Insurtech' : 'Tech / AI / Insurtech'}">Tech / AI / Insurtech</div>
-    <h2 class="display page-title" th:text="${vi ? 'Định cỡ thị trường AI / Insurtech' : 'AI / insurtech market sizing'}">AI / insurtech sizing</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${aiSizingExhibit}, ${vi}, false)}"></th:block>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ AI THREAT MAP — exhibit THREATMAP ============ -->
-  <div th:case="'AI_THREATMAP'">
-    <div class="kicker" th:text="${vi ? 'Tech / AI / Insurtech' : 'Tech / AI / Insurtech'}">Tech / AI / Insurtech</div>
-    <h2 class="display page-title" th:text="${vi ? 'Bản đồ rủi ro AI theo công ty' : 'AI threat map by company'}">AI threat map</h2>
-    <div class="page-rule"></div>
-    <th:block th:replace="~{fragments/product-report-exhibit :: card(${aiThreatExhibit}, ${vi}, false)}"></th:block>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
-  </div>
-
-  <!-- ============ COMPANY HIGHLIGHTS (lặp động, 1 trang / subjectKey đủ material) ============ -->
-  <div th:case="'COMPANY_HIGHLIGHT'">
-    <div class="kicker" th:text="${vi ? 'Diễn biến nổi bật' : 'Highlights'}">Highlights</div>
-    <h2 class="display page-title" th:text="${p.subjectKey}">Company</h2>
-    <div class="page-rule"></div>
-    <div class="highlight-grid">
-      <div class="card" th:each="f, iter : ${highlightGroups.get(p.subjectKey)}" th:if="${iter.index % 2 == 0}">
-        <p th:text="${f.text(vi)}">Content</p>
-        <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
-          <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
-        </a>
-      </div>
-    </div>
-    <div class="highlight-grid">
-      <div class="card" th:each="f, iter : ${highlightGroups.get(p.subjectKey)}" th:if="${iter.index % 2 == 1}">
-        <p th:text="${f.text(vi)}">Content</p>
-        <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
-          <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
-        </a>
-      </div>
-    </div>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">11</span></div>
   </div>
 
   <!-- ============ STRATEGIC COMPARISON (lặp động, 1 trang / cặp) ============ -->
-  <div th:case="'COMPARISON'">
-    <div class="kicker" th:text="${vi ? 'So sánh chiến lược' : 'Strategic comparison'}">Strategic comparison</div>
-    <h2 class="display page-title" th:text="${p.subjectKey}">Comparison pair</h2>
-    <div class="page-rule"></div>
-    <div th:each="f : ${comparisonPages.get(p.subjectKey)}">
-      <div class="callout" th:text="${f.text(vi)}">Content</div>
-      <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
-        <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
-      </a>
+  <div th:case="'COMPARISON'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'SO SÁNH CHIẾN LƯỢC' : 'STRATEGIC COMPARISON'}">STRATEGIC COMPARISON</div>
+        <div class="bi-title" th:text="${p.subjectKey}">Comparison pair</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
+    <div class="bi-body">
+      <div class="bi-quote" th:each="f : ${comparisonPages.get(p.subjectKey)}">
+        <span th:text="${f.text(vi)}">Content</span>
+        <div th:if="${!f.citations.isEmpty()}">
+          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">12</span></div>
   </div>
 
   <!-- ============ SOURCES & METHOD ============ -->
-  <div th:case="'SOURCES'">
-    <div class="kicker" th:text="${vi ? 'Nguồn &amp; Phương pháp' : 'Sources &amp; method'}">Sources &amp; method</div>
-    <h2 class="display page-title" th:text="${vi ? 'Minh bạch nguồn dữ liệu' : 'Source transparency'}">Source transparency</h2>
-    <div class="page-rule"></div>
-    <div class="evidence-spectrum">
-      <div class="evidence-tier"><b th:text="${findingsTotal}">0</b><span th:text="${vi ? 'Nhận định trong báo cáo này' : 'Findings in this report'}">Findings</span></div>
-      <div class="evidence-tier"><b th:text="${sourcesPrimary.size()}">0</b><span th:text="${vi ? 'Nguồn sơ cấp / chính thức (T1-T2)' : 'Primary / official sources (T1-T2)'}">Primary sources</span></div>
-      <div class="evidence-tier"><b th:text="${sourcesSecondary.size()}">0</b><span th:text="${vi ? 'Nguồn thứ cấp / nghiên cứu bàn giấy (T3-T4)' : 'Secondary / desk-research sources (T3-T4)'}">Secondary sources</span></div>
+  <div th:case="'SOURCES'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'NGUỒN' : 'SOURCES'}">SOURCES</div>
+        <div class="bi-title" th:text="${vi ? 'Nguồn &amp; khoảng trống dữ liệu' : 'Sources &amp; Open Gaps'}">Sources &amp; Open Gaps</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
-    <div class="source-list">
-      <div class="source-column">
-        <h4 th:text="${vi ? 'Sơ cấp / chính thức (T1-T2)' : 'Primary / official (T1-T2)'}">Primary</h4>
-        <div class="source-item" th:each="c : ${sourcesPrimary}" th:text="${c.label() + (c.tierNote() != null ? ' · ' + c.tierNote() : '')}">Source</div>
-        <div class="source-item muted" th:if="${sourcesPrimary.isEmpty()}" th:text="${vi ? 'Chưa có nguồn sơ cấp nào trong kỳ này.' : 'No primary source yet this period.'}">None</div>
+    <div class="bi-body">
+      <div class="bi-section-bar" style="margin-bottom:12px" th:text="${vi ? 'Nguồn chính (T1-T2)' : 'Primary sources (T1-T2)'}">Primary sources</div>
+      <div style="margin-bottom:20px">
+        <div class="bi-source-item" th:each="c : ${sourcesPrimary}"><span class="bi-source-tier" th:text="${c.tierNote()}">T1</span><span th:text="${c.label()}">Source</span></div>
+        <div class="bi-source-item" style="color:#9E9E9E" th:if="${sourcesPrimary.isEmpty()}" th:text="${vi ? 'Chưa có nguồn chính nào trong kỳ này.' : 'No primary source yet this period.'}">None</div>
       </div>
-      <div class="source-column">
-        <h4 th:text="${vi ? 'Thứ cấp / nghiên cứu bàn giấy (T3-T4)' : 'Secondary / desk research (T3-T4)'}">Secondary</h4>
-        <div class="source-item" th:each="c : ${sourcesSecondary}" th:text="${c.label() + (c.tierNote() != null ? ' · ' + c.tierNote() : '')}">Source</div>
-        <div class="source-item muted" th:if="${sourcesSecondary.isEmpty()}" th:text="${vi ? 'Chưa có nguồn thứ cấp nào trong kỳ này.' : 'No secondary source yet this period.'}">None</div>
+      <div class="bi-section-bar" style="margin-bottom:12px" th:text="${vi ? 'Nguồn phụ / nghiên cứu bàn giấy' : 'Secondary / desk research'}">Secondary sources</div>
+      <div style="margin-bottom:20px">
+        <div class="bi-source-item" th:each="c : ${sourcesSecondary}"><span class="bi-source-tier secondary" th:text="${c.tierNote()}">T3</span><span th:text="${c.label()}">Source</span></div>
+        <div class="bi-source-item" style="color:#9E9E9E" th:if="${sourcesSecondary.isEmpty()}" th:text="${vi ? 'Chưa có nguồn phụ nào trong kỳ này.' : 'No secondary source yet this period.'}">None</div>
       </div>
+      <div class="bi-eyebrow" style="margin-bottom:6px" th:text="${vi ? 'Chưa được đề cập kỳ này' : 'Not covered this period'}">Not covered this period</div>
+      <div class="bi-gap-item" th:each="g : ${openGaps}" th:text="'· ' + ${g}">gap</div>
+      <p style="margin-top:16px;font-size:9pt;color:#9E9E9E" th:text="${(vi ? 'Tổng số tài liệu đã crawl: ' : 'Total documents crawled: ') + docCount}">doc count</p>
     </div>
-    <div class="method-box" th:text="${vi ? 'Phương pháp: T1-T2 là nguồn chính thức/báo chí uy tín, trích dẫn thẳng. T3-T4 là ước tính/nghiên cứu bàn giấy hoặc ghi chú chưa kiểm chứng — luôn hedge trong câu chữ (vd theo ước tính của X, chưa xác nhận), không nâng cấp thành số liệu chính thức. Một trang Nguồn ngắn (ít T1-T2) là tín hiệu báo cáo đang dựa nhiều vào nghiên cứu bàn giấy — nêu rõ, không che giấu.' : 'Method: T1-T2 are official/established-media sources, cited directly. T3-T4 are estimates, desk research or unverified notes — always hedged in the wording (e.g. an estimate per X, unconfirmed), never upgraded to read as official figures. A short primary-source column is itself a signal that this report leans on desk research — stated plainly, not hidden.'}">Method</div>
-    <div class="two-col" style="margin-top:18px">
-      <div class="col">
-        <h4 class="source-column-heading" th:text="${vi ? 'Khoảng trống dữ liệu đã ghi nhận' : 'Declared data gaps'}">Data gaps</h4>
-        <ul class="body-copy" style="padding-left:18px;margin:0">
-          <li th:each="g : ${openGaps}" th:text="${g}">gap</li>
-        </ul>
-      </div>
-      <div class="col">
-        <p class="muted" th:text="${(vi ? 'Tổng số tài liệu đã crawl: ' : 'Total documents crawled: ') + docCount}">doc count</p>
-      </div>
-    </div>
-    <div class="folio" th:text="${(vi ? 'Market Radar BI · Trang ' : 'Market Radar BI · Page ') + p.number}">folio</div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">13</span></div>
   </div>
 
   <!-- ============ BACK COVER ============ -->
-  <div th:case="'BACK'" class="back-cover page-dark" style="position:absolute;top:0;left:0;right:0;bottom:0">
-    <div class="kicker" th:text="${vi ? 'Market Radar · Business Intelligence Report' : 'Market Radar · Business Intelligence Report'}">Market Radar · Business Intelligence Report</div>
-    <h2 class="display" th:utext="${vi ? 'Cảm ơn bạn<br/><span style=&quot;color:#8fa6ff&quot;>đã đọc.</span>' : 'Thank you<br/><span style=&quot;color:#8fa6ff&quot;>for reading.</span>'}">Thank you for reading.</h2>
-    <p class="back-copy" th:text="${vi ? 'Business Intelligence Report tổng hợp bằng chứng từ kho dữ liệu và/hoặc Deep Research thành một tài liệu có cấu trúc cho C-Level. Mọi nhận định đều dẫn về nguồn thực tế.' : 'This Business Intelligence Report synthesises evidence from the corpus and/or Deep Research into a structured document for C-level readers. Every finding is traceable to an actual source.'}">Closing</p>
-    <div class="back-art" aria-hidden="true">
-      <div class="back-circle one"></div><div class="back-circle two"></div><div class="back-circle three"></div>
-      <div class="back-dot"></div><div class="back-dot two"></div>
-    </div>
+  <div th:case="'BACK'" class="bi-back">
+    <div class="bi-watermark one"></div>
+    <div class="bi-watermark two"></div>
+    <div class="bi-back-brand" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${#strings.toUpperCase(homeCompany)}">HOME COMPANY</div>
+    <div class="bi-back-meta" th:text="${(vi ? 'Được tạo bởi hệ thống tình báo kinh doanh · ' : 'Generated by the Business Intelligence system · ') + generatedAt}">Generated</div>
   </div>
 
 </section>
