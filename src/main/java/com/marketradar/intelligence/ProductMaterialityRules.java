@@ -96,16 +96,6 @@ public final class ProductMaterialityRules {
 
     private static final Pattern NUMBER = Pattern.compile("(?<![a-z])(?:\\d[\\d.,]*|\\d+\\s*%)(?![a-z])");
 
-    private static final String[] CSR_NOISE = {
-            "csr", "corporate social responsibility", "trách nhiệm xã hội", "từ thiện",
-            "charity", "community donation", "trồng cây", "học bổng", "trao quà"
-    };
-    private static final String[] MARKETING_NOISE = {
-            "brand ambassador", "đại sứ thương hiệu", "sponsorship", "tài trợ", "anniversary",
-            "kỷ niệm thành lập", "customer appreciation", "tri ân khách hàng", "giveaway",
-            "minigame", "cuộc thi ảnh", "music festival", "promotion", "promotional program",
-            "khuyến mãi", "e-voucher", "voucher"
-    };
     private static final String[] BANKING_TERMS = {
             "bank", "banking", "ngân hàng", "deposit", "tiền gửi", "mortgage", "thế chấp",
             "credit card", "thẻ tín dụng", "lending", "cho vay"
@@ -147,12 +137,6 @@ public final class ProductMaterialityRules {
             "trend", "across the market", "multiple insurers", "industry-wide", "market shift",
             "xu hướng", "toàn thị trường", "nhiều doanh nghiệp bảo hiểm", "chuyển dịch thị trường"
     };
-    private static final String[] RESEARCH_CONTENT_TERMS = {
-            "survey", "research report", "study", "index", "khảo sát", "báo cáo nghiên cứu", "chỉ số"
-    };
-    private static final String[] EXPLICIT_PRODUCT_TITLE_TERMS = {
-            "insurance plan", "insurance product", "policy", "sản phẩm bảo hiểm", "hợp đồng bảo hiểm"
-    };
     private static final String[] COUNTER_EVIDENCE_TERMS = {
             "however", "but", "decline", "risk", "uncertain", "caveat", "contradict",
             "tuy nhiên", "nhưng", "suy giảm", "rủi ro", "không chắc chắn", "mâu thuẫn"
@@ -161,10 +145,6 @@ public final class ProductMaterialityRules {
     // should not reach this brief merely because it contains generic policy or product words.
     private static final String[] NON_LIFE_TERMS = {
             "non-life", "property and casualty", "p&c", "bảo hiểm phi nhân thọ", "phi nhân thọ"
-    };
-    private static final String[] CLAIMS_PAYMENT_TERMS = {
-            "claim payment", "claims payment", "claim payout", "payout", "paid a claim",
-            "chi trả bồi thường", "bồi thường bảo hiểm", "chi trả quyền lợi bảo hiểm"
     };
 
     public static Score score(Input input) {
@@ -258,22 +238,6 @@ public final class ProductMaterialityRules {
             hardSuppressed = true;
             reasons.add("Suppressed: source document did not parse successfully.");
         }
-        if (containsAny(text, CSR_NOISE)) {
-            penalty -= 40;
-            hardSuppressed = true;
-            reasons.add("Suppressed editorial noise: CSR or philanthropy story.");
-        }
-        if (containsAny(text, MARKETING_NOISE)) {
-            penalty -= 35;
-            hardSuppressed = true;
-            reasons.add("Suppressed editorial noise: sponsorship, celebration or marketing activation.");
-        }
-        if (launchLabel && containsAny(title, RESEARCH_CONTENT_TERMS)
-                && !containsAny(title, EXPLICIT_PRODUCT_TITLE_TERMS)) {
-            penalty -= 35;
-            hardSuppressed = true;
-            reasons.add("Suppressed: survey, study or index mislabelled as a product launch.");
-        }
         if ((containsAny(title, BANKING_TERMS) && !containsAny(title, INSURANCE_TERMS))
                 || (containsAny(text, BANKING_TERMS) && !containsAny(text, INSURANCE_TERMS))) {
             penalty -= 40;
@@ -284,13 +248,6 @@ public final class ProductMaterialityRules {
             penalty -= 40;
             hardSuppressed = true;
             reasons.add("Suppressed: non-life insurance is outside the life Product brief scope.");
-        }
-        boolean explicitProductDesignConsequence = launch || feeBenefit
-                || (regulation && containsAny(text, OFFER_TERMS) && containsAny(text, OFFER_CHANGE_TERMS));
-        if (containsAny(text, CLAIMS_PAYMENT_TERMS) && !explicitProductDesignConsequence) {
-            penalty -= 35;
-            hardSuppressed = true;
-            reasons.add("Suppressed: claims-payment story has no evidenced product-design consequence.");
         }
         boolean sufficientFullText = input.fullTextFetched() && rawLength >= MIN_FULL_TEXT_CHARS;
         if (!sufficientFullText) {

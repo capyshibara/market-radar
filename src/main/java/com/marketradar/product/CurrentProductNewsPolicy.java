@@ -30,15 +30,6 @@ public final class CurrentProductNewsPolicy {
             "non-life", "property and casualty", "p&c", "bảo hiểm phi nhân thọ", "phi nhân thọ",
             "travel insurance", "bảo hiểm du lịch", "motor insurance", "bảo hiểm xe"
     };
-    private static final String[] CLAIMS_ONLY_TERMS = {
-            "claim payment", "claims payment", "claim payout", "payout", "paid a claim",
-            "chi trả bồi thường", "bồi thường bảo hiểm", "chi trả quyền lợi bảo hiểm"
-    };
-    private static final String[] EDITORIAL_NOISE_TERMS = {
-            "corporate social responsibility", "trách nhiệm xã hội", "charity", "từ thiện",
-            "music festival", "giveaway", "anniversary celebration"
-    };
-
     private CurrentProductNewsPolicy() {}
 
     public record Input(
@@ -92,12 +83,6 @@ public final class CurrentProductNewsPolicy {
         }
         String evidenceText = normalize(join(input.title(), input.verbatimEvidenceSpan()));
         if (containsAny(evidenceText, NON_LIFE_TERMS)) return reject("non-life item is outside the life Product scope");
-        if (containsAny(evidenceText, CLAIMS_ONLY_TERMS)
-                || (containsAny(evidenceText, new String[]{"chi trả", "bồi thường"})
-                && containsAny(evidenceText, new String[]{"quyền lợi bảo hiểm", "claim"}))) {
-            return reject("claims-payment item is outside the Product news scope");
-        }
-        if (containsAny(evidenceText, EDITORIAL_NOISE_TERMS)) return reject("CSR or marketing item is not Product news");
         return new Decision(true, "eligible");
     }
 
