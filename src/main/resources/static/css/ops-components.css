@@ -79,7 +79,9 @@
 /* ---------- CodeChip ---------- */
 .code-chip { display: inline-flex; align-items: center; font-family: var(--font-mono); font-size: var(--text-xs);
   font-weight: var(--weight-medium); padding: 2px 8px; border-radius: var(--radius-xs);
-  background: var(--slate-100); color: var(--slate-700); letter-spacing: var(--tracking-tight); white-space: nowrap; }
+  background: var(--slate-100); color: var(--slate-700); letter-spacing: var(--tracking-tight); white-space: nowrap;
+  text-decoration: none; }
+a.code-chip:hover { background: var(--slate-200); text-decoration: underline; }
 .code-chip.code-chip-sm { font-size: var(--text-2xs); padding: 1px 6px; }
 .code-chip.code-chip-brand { background: var(--brand-red-50); color: var(--brand-red-600); }
 
