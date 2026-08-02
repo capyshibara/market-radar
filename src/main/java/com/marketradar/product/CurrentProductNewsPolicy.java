@@ -35,7 +35,6 @@ public final class CurrentProductNewsPolicy {
             "chi trả bồi thường", "bồi thường bảo hiểm", "chi trả quyền lợi bảo hiểm"
     };
     private static final String[] EDITORIAL_NOISE_TERMS = {
-            " award", "awards", "vinh danh", "mdrt ranking", "top employer", "best workplace",
             "corporate social responsibility", "trách nhiệm xã hội", "charity", "từ thiện",
             "music festival", "giveaway", "anniversary celebration"
     };
@@ -98,7 +97,7 @@ public final class CurrentProductNewsPolicy {
                 && containsAny(evidenceText, new String[]{"quyền lợi bảo hiểm", "claim"}))) {
             return reject("claims-payment item is outside the Product news scope");
         }
-        if (containsAny(evidenceText, EDITORIAL_NOISE_TERMS)) return reject("award, CSR, or marketing item is not Product news");
+        if (containsAny(evidenceText, EDITORIAL_NOISE_TERMS)) return reject("CSR or marketing item is not Product news");
         return new Decision(true, "eligible");
     }
 

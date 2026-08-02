@@ -96,10 +96,6 @@ public final class ProductMaterialityRules {
 
     private static final Pattern NUMBER = Pattern.compile("(?<![a-z])(?:\\d[\\d.,]*|\\d+\\s*%)(?![a-z])");
 
-    private static final String[] AWARD_NOISE = {
-            "award", "awards", "giải thưởng", "vinh danh", "top employer", "best workplace",
-            "nơi làm việc tốt nhất", "thương hiệu xuất sắc", "brand award"
-    };
     private static final String[] CSR_NOISE = {
             "csr", "corporate social responsibility", "trách nhiệm xã hội", "từ thiện",
             "charity", "community donation", "trồng cây", "học bổng", "trao quà"
@@ -261,11 +257,6 @@ public final class ProductMaterialityRules {
             penalty -= 25;
             hardSuppressed = true;
             reasons.add("Suppressed: source document did not parse successfully.");
-        }
-        if (containsAny(text, AWARD_NOISE)) {
-            penalty -= 40;
-            hardSuppressed = true;
-            reasons.add("Suppressed editorial noise: award or employer-branding story.");
         }
         if (containsAny(text, CSR_NOISE)) {
             penalty -= 40;
