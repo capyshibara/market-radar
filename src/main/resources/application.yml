@@ -23,6 +23,10 @@ spring:
       enabled: true   # /h2-console — chỉ dùng dev/demo, tắt khi deploy thật
 
 marketradar:
+  # Demo Strategy: true = sidebar thu gọn về luồng 5 bước (nguồn chọn lọc → duyệt →
+  # báo cáo → research), ẩn trang vận hành/audit kỹ thuật khỏi menu (route vẫn sống).
+  # Các phòng ban khác dùng đầy đủ: để false.
+  demo-mode: false
   ingest:
     enabled: false          # bật true khi muốn cron chạy thật; demo dùng nút chạy tay /ingest/run
     fixed-delay-ms: 900000  # 15 phút

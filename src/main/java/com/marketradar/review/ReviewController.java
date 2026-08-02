@@ -44,17 +44,20 @@ public class ReviewController {
     private final LabelLogRepository labels;
     private final GroundingGateL1 gate;
     private final com.marketradar.alert.HotAlertService alerts;
+    private final EntityAttributionGuard entityGuard;
 
     public ReviewController(InterpretedClaimRepository claims, EvidenceFactRepository facts,
                             ClaimVerificationRepository verifications,
                             LabelLogRepository labels, GroundingGateL1 gate,
-                            com.marketradar.alert.HotAlertService alerts) {
+                            com.marketradar.alert.HotAlertService alerts,
+                            EntityAttributionGuard entityGuard) {
         this.claims = claims;
         this.facts = facts;
         this.verifications = verifications;
         this.labels = labels;
         this.gate = gate;
         this.alerts = alerts;
+        this.entityGuard = entityGuard;
     }
 
     // ---------- Queue ----------
@@ -84,6 +87,9 @@ public class ReviewController {
         model.addAttribute("evidenceComplete", evidence.complete());
         model.addAttribute("verification",
                 verifications.findFirstByClaimOrderByCreatedAtDescIdDesc(c).orElse(null));
+        // Chốt chặn quy kết thực thể (deterministic, không LLM): cảnh báo ngay tại
+        // điểm ra quyết định — người duyệt thấy cờ TRƯỚC khi bấm Duyệt.
+        model.addAttribute("entityWarnings", entityGuard.check(c, evidence.facts()));
         return "review-detail";
     }
 

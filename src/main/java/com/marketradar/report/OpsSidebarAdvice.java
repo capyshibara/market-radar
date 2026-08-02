@@ -16,13 +16,28 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 public class OpsSidebarAdvice {
 
     private final InterpretedClaimRepository claims;
+    private final boolean demoMode;
 
-    public OpsSidebarAdvice(InterpretedClaimRepository claims) {
+    public OpsSidebarAdvice(InterpretedClaimRepository claims,
+                            @org.springframework.beans.factory.annotation.Value(
+                                    "${marketradar.demo-mode:false}") boolean demoMode) {
         this.claims = claims;
+        this.demoMode = demoMode;
     }
 
     @ModelAttribute("queueCount")
     public long queueCount() {
         return claims.countByReviewStatus(ReviewStatus.PENDING_REVIEW);
+    }
+
+    /**
+     * marketradar.demo-mode=true thu gọn điều hướng cho demo Strategy: ẩn các trang
+     * vận hành pipeline/audit kỹ thuật khỏi sidebar, chỉ giữ luồng 5 bước (nguồn
+     * chọn lọc → duyệt → báo cáo → research). CHỈ ẩn khỏi menu — mọi route vẫn
+     * hoạt động; phòng ban khác bật lại bằng cách tắt cờ, không mất chức năng nào.
+     */
+    @ModelAttribute("demoMode")
+    public boolean demoMode() {
+        return demoMode;
     }
 }

@@ -71,6 +71,53 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
                 ClaimVerification.Verdict.ENTAILED);
     }
 
+    /**
+     * Đường CHỌN LỌC TAY cho báo cáo BI: khác findPublishableVerified ở đúng một điểm —
+     * KHÔNG đòi verdict ENTAILED mới nhất, chỉ CHẶN khi verdict mới nhất là CONTRADICTED.
+     *
+     * Lý do (nguyên tắc "máy lọc thô, người là cổng cuối" của luồng BI curated):
+     * người duyệt ở /review đã đọc claim CẠNH bằng chứng rồi mới bấm Duyệt — với các
+     * trạng thái duyệt tay (APPROVED/EDITED_APPROVED/FORCE_APPROVED), đòi thêm verifier
+     * ENTAILED nghĩa là máy phủ quyết con người, và khi verifier chạy stub (mọi verdict
+     * NEUTRAL) thì không claim nào ra được báo cáo dù đã duyệt — chính là lỗi "pipeline
+     * quá khắt khe đến mức báo cáo trống". CONTRADICTED vẫn chặn cứng: bằng chứng mới
+     * mâu thuẫn thì không trạng thái duyệt nào cứu được (fail-closed đúng chỗ).
+     *
+     * Vẫn giữ: L1 PASS (Invariant #1 — không claim nào thiếu citation), superseded=false,
+     * origin lọc ở tham số (PIPELINE — DEMO_INJECT không bao giờ vào báo cáo thật).
+     * Weekly/monthly report KHÔNG đổi — vẫn đi findPublishable (ENTAILED bắt buộc).
+     */
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
+           "where c.reviewStatus in :statuses and c.gateStatus = :gateStatus " +
+           "and c.origin = :origin and c.superseded = false " +
+           "and not exists (select v.id from ClaimVerification v where v.claim = c " +
+           "  and v.verdict = :blockedVerdict " +
+           "  and not exists (select newer.id from ClaimVerification newer " +
+           "    where newer.claim = c and (newer.createdAt > v.createdAt " +
+           "      or (newer.createdAt = v.createdAt and newer.id > v.id)))) " +
+           "order by c.id asc")
+    List<InterpretedClaim> findApprovedNotContradicted(
+            @Param("statuses") List<InterpretedClaim.ReviewStatus> statuses,
+            @Param("gateStatus") InterpretedClaim.GateStatus gateStatus,
+            @Param("origin") InterpretedClaim.Origin origin,
+            @Param("blockedVerdict") ClaimVerification.Verdict blockedVerdict);
+
+    /** Claim đủ điều kiện vào báo cáo BI: duyệt tay (không cần ENTAILED, chặn
+     *  CONTRADICTED) + AUTO_APPROVED (đường máy — vốn dĩ chỉ được set khi ENTAILED). */
+    default List<InterpretedClaim> findForBiReport() {
+        java.util.LinkedHashMap<Long, InterpretedClaim> byId = new java.util.LinkedHashMap<>();
+        findApprovedNotContradicted(
+                List.of(InterpretedClaim.ReviewStatus.APPROVED,
+                        InterpretedClaim.ReviewStatus.EDITED_APPROVED,
+                        InterpretedClaim.ReviewStatus.FORCE_APPROVED),
+                InterpretedClaim.GateStatus.PASS, InterpretedClaim.Origin.PIPELINE,
+                ClaimVerification.Verdict.CONTRADICTED)
+                .forEach(c -> byId.put(c.getId(), c));
+        findPublishable(List.of(InterpretedClaim.ReviewStatus.AUTO_APPROVED))
+                .forEach(c -> byId.putIfAbsent(c.getId(), c));
+        return List.copyOf(byId.values());
+    }
+
     @Query("select c from InterpretedClaim c left join fetch c.rawDoc where c.id = :id")
     java.util.Optional<InterpretedClaim> findByIdFetched(@Param("id") Long id);
 

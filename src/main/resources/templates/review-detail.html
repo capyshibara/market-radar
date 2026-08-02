@@ -82,6 +82,20 @@
 
         <!-- Right: evidence (always visible) + affirmation + actions -->
         <div>
+          <!-- Chốt chặn quy kết thực thể: cờ đỏ khi bằng chứng có dấu hiệu nói về
+               thực thể trùng thương hiệu nhưng khác pháp nhân (vd Prudential plc vs
+               Prudential Financial Mỹ). Deterministic — không phải phán đoán LLM. -->
+          <div th:if="${entityWarnings != null and !#lists.isEmpty(entityWarnings)}"
+               th:each="w : ${entityWarnings}"
+               class="no-evidence-notice" style="margin-bottom:10px"
+               th:styleappend="${w.code().name() == 'CONFUSABLE_ENTITY'} ? 'border-color:#C00000;background:#FFEBEB' : ''">
+            <div class="title"
+                 th:text="${w.code().name() == 'CONFUSABLE_ENTITY'}
+                          ? (${#locale.language == 'vi'} ? '⚠ Nghi ngờ quy kết sai thực thể' : '⚠ Possible entity misattribution')
+                          : (${#locale.language == 'vi'} ? 'Chủ thể không xuất hiện trong bằng chứng' : 'Subject not found in evidence')">Entity warning</div>
+            <div class="desc" th:text="${#locale.language == 'vi'} ? ${w.messageVi()} : ${w.messageEn()}">detail</div>
+          </div>
+
           <div class="rd-panel-label" th:text="#{ops.review.detail.evidenceLabel} + ' (' + ${#lists.size(citedFacts)} + ')'">Source evidence</div>
 
           <div th:if="${#lists.isEmpty(citedFacts)}" class="no-evidence-notice">
