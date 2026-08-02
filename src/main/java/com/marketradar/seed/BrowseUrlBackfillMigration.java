@@ -30,8 +30,14 @@ public class BrowseUrlBackfillMigration implements ApplicationRunner {
     private static final Map<String, String> BROWSE_URL_BY_CODE = Map.of(
             "MOF_ISA", "https://www.mof.gov.vn/",
             "CATHAY_VN", "https://www.cathaylife.com.vn/cathay/news",
-            "DAIICHI_VN", "https://dai-ichi-life.com.vn/",
+            "DAIICHI_VN", "https://dai-ichi-life.com.vn/tin-tuc",
             "HKIA", "https://www.ia.org.hk/en/infocenter/press_releases.html");
+
+    /** Giá trị migration bản trước tự đoán rồi hoá ra sai (trang chủ, không phải trang tin thật)
+     *  — cho phép lần chạy này SỬA ĐÈ đúng giá trị cũ này, không đụng browseUrl nào khác dù
+     *  trùng hay khác (tôn trọng chỉnh sửa thật của operator nếu có trong tương lai). */
+    private static final Map<String, String> KNOWN_WRONG_GUESSES = Map.of(
+            "DAIICHI_VN", "https://dai-ichi-life.com.vn/");
 
     private final SourceRepository sources;
 
@@ -44,13 +50,18 @@ public class BrowseUrlBackfillMigration implements ApplicationRunner {
         int filled = 0;
         for (Map.Entry<String, String> entry : BROWSE_URL_BY_CODE.entrySet()) {
             Source source = sources.findByCode(entry.getKey()).orElse(null);
-            if (source == null || source.getBrowseUrl() != null && !source.getBrowseUrl().isBlank()) continue;
+            if (source == null) continue;
+            String current = source.getBrowseUrl();
+            boolean blank = current == null || current.isBlank();
+            boolean knownWrongGuess = !blank && current.equals(KNOWN_WRONG_GUESSES.get(entry.getKey()));
+            if (!blank && !knownWrongGuess) continue;
+            if (current != null && current.equals(entry.getValue())) continue;
             source.setBrowseUrl(entry.getValue());
             sources.save(source);
             filled++;
         }
         if (filled > 0) {
-            log.info("Browse-URL backfill: set a human-facing link for {} source(s) whose fetchUrl is a "
+            log.info("Browse-URL backfill: set/corrected a human-facing link for {} source(s) whose fetchUrl is a "
                     + "POST/GraphQL API (MOF_ISA, CATHAY_VN, DAIICHI_VN, HKIA — not a plain-click URL).", filled);
         }
     }

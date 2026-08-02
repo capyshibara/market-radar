@@ -277,8 +277,8 @@ public class SeedData implements CommandLineRunner {
                     "https://dai-ichi-life.com.vn/api/news/home", "dai-ichi-life.com.vn",
                     Source.SourceType.JSON, 1, "vi");
             // browseUrl: fetchUrl là API POST (body rỗng "{}" là đủ, nhưng vẫn khác GET của
-            // trình duyệt) — trang chủ là nơi widget tin tức thật sự hiển thị cho người dùng.
-            daiichiVn.setBrowseUrl("https://dai-ichi-life.com.vn/");
+            // trình duyệt) — trang tin thật con người đọc là /tin-tuc (xác nhận thủ công).
+            daiichiVn.setBrowseUrl("https://dai-ichi-life.com.vn/tin-tuc");
             sources.save(daiichiVn);
         }
         // Track 2 fix 2026-07-05: root 301 → /vi/ (same host).
