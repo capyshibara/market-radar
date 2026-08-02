@@ -84,7 +84,7 @@
       <p class="notice err" th:if="${promptError}" th:text="${promptError}">Error.</p>
       <section class="research-card">
         <h2 th:text="${#locale.language == 'vi' ? 'Deep Research' : 'Deep Research'}">Deep Research</h2>
-        <p th:text="${#locale.language == 'vi' ? 'AI tự lặp nhiều vòng: quyết định tìm kiếm mở hay đọc 1 URL cụ thể qua trình duyệt thật, tự dừng khi đủ thông tin, rồi tổng hợp thành báo cáo BI (Meridian) hoặc .docx.' : 'AI iterates over multiple rounds: deciding to search or render a specific URL with a real browser, stopping on its own once satisfied, then synthesizing a BI report (Meridian) or .docx.'}">Description</p>
+        <p th:text="${#locale.language == 'vi' ? 'AI tự lặp nhiều vòng: quyết định tìm kiếm mở hay đọc 1 URL cụ thể qua trình duyệt thật (không giới hạn trong danh sách nguồn whitelist), tự dừng khi đủ thông tin. Mỗi nguồn thật tìm được vừa được tổng hợp nhanh thành báo cáo xem ngay, VỪA được nạp riêng vào pipeline xác thực đầy đủ (Router → Researcher → Analyst → Fact-checker → Verifier) — chờ duyệt ở Reviewer Queue trước khi vào báo cáo BI chính thức.' : 'AI iterates over multiple rounds: deciding to search openly or render a specific URL with a real browser (not limited to the whitelisted source list), stopping on its own once satisfied. Every real source found is both synthesized instantly into a preview report AND separately fed into the full verification pipeline (Router → Researcher → Analyst → Fact-checker → Verifier) — held in the Reviewer Queue before it can reach the official BI report.'}">Description</p>
         <form method="post" action="/research/deep" id="deep-form">
           <div class="research-control">
             <label class="lbl" for="prompt" th:text="${#locale.language == 'vi' ? 'Yêu cầu nghiên cứu' : 'Research request'}">Research request</label>
@@ -97,7 +97,8 @@
           <strong th:text="${#locale.language == 'vi' ? 'Cách hoạt động' : 'How it works'}">How it works</strong>
           <ol>
             <li th:text="${#locale.language == 'vi' ? 'Tối đa 5 vòng lặp, tối đa 8 nguồn — AI tự dừng sớm nếu đã đủ thông tin.' : 'Up to 5 iterations, up to 8 sources — the AI stops early once it has enough.'}">step</li>
-            <li th:text="${#locale.language == 'vi' ? 'Kết quả hiển thị theo template Business Intelligence Report (Meridian) — có nút tải PDF/.docx. Không ghi vào kho evidence.' : 'The result renders as a Business Intelligence Report (Meridian template) — with PDF/.docx download buttons. Nothing is written to the evidence store.'}">step</li>
+            <li th:text="${#locale.language == 'vi' ? 'Kết quả hiển thị NGAY theo template Business Intelligence Report (Meridian) — có nút tải PDF/.docx. Bản này do AI tự tổng hợp, CHƯA qua fact-check.' : 'The result renders immediately as a Business Intelligence Report (Meridian template) — with PDF/.docx download buttons. This preview is AI-synthesized and has not been fact-checked yet.'}">step</li>
+            <li th:text="${#locale.language == 'vi' ? 'Song song, mỗi nguồn thật đã đọc được cũng được nạp vào kho evidence và chạy qua đúng pipeline xác thực (Gate L1 exact-match + Gate L2 verifier độc lập) — xem tiến trình ở Reviewer Queue / Pipeline Runner.' : 'In parallel, every real source read is also ingested into the evidence store and run through the same verification pipeline (Gate L1 exact-match + Gate L2 independent verifier) — track progress in the Reviewer Queue / Pipeline Runner.'}">step</li>
           </ol>
         </div>
       </section>

@@ -2,15 +2,22 @@ package com.marketradar.research;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marketradar.domain.RawDoc;
+import com.marketradar.extract.FactExtractionJob;
 import com.marketradar.fetch.SafeFetcher;
+import com.marketradar.intake.ManualDocumentIntakeService;
+import com.marketradar.intake.ManualDocumentRules;
+import com.marketradar.interpret.InterpretationJob;
 import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
 import com.marketradar.parse.ContentParsers;
+import com.marketradar.pipeline.ClassificationJob;
 import com.marketradar.product.ProductMarketScopeClassifier;
 import com.marketradar.report.bi.BiCitation;
 import com.marketradar.report.bi.BiFinding;
 import com.marketradar.report.bi.BiReportContent;
+import com.marketradar.verify.VerificationJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -59,19 +66,39 @@ public class DeepResearchService {
     private final BrowserRenderService browserRender;
     private final SafeFetcher fetcher;
     private final ContentParsers parsers;
+    private final ManualDocumentIntakeService intake;
+    private final ClassificationJob classify;
+    private final FactExtractionJob extract;
+    private final InterpretationJob interpret;
+    private final VerificationJob verify;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public DeepResearchService(LlmClient llm, NewsDiscoveryService discovery,
                                BrowserRenderService browserRender, SafeFetcher fetcher,
-                               ContentParsers parsers) {
+                               ContentParsers parsers, ManualDocumentIntakeService intake,
+                               ClassificationJob classify, FactExtractionJob extract,
+                               InterpretationJob interpret, VerificationJob verify) {
         this.llm = llm;
         this.discovery = discovery;
         this.browserRender = browserRender;
         this.fetcher = fetcher;
         this.parsers = parsers;
+        this.intake = intake;
+        this.classify = classify;
+        this.extract = extract;
+        this.interpret = interpret;
+        this.verify = verify;
     }
 
-    private record GatheredSource(String label, String url, String acquisition, String excerpt) {}
+    /** renderedHtml chỉ khác null với nguồn lấy qua BROWSE — giữ lại đúng bytes trình duyệt đã
+     *  render để nạp qua ManualDocumentIntakeService.importRenderedHtml() không phải render lại
+     *  (tốn Chromium 2 lần) và không thử GET trơn một trang vốn cần JS mới có nội dung. */
+    private record GatheredSource(String label, String url, String acquisition, String excerpt,
+                                  byte[] renderedHtml) {
+        GatheredSource(String label, String url, String acquisition, String excerpt) {
+            this(label, url, acquisition, excerpt, null);
+        }
+    }
 
     public BiReportContent research(String prompt) {
         return research(prompt, step -> {});
@@ -103,10 +130,121 @@ public class DeepResearchService {
             }
         }
 
+        List<Long> newDocIds = ingestIntoPipeline(prompt, gathered, onStep);
+        runVerificationPipeline(newDocIds, onStep);
+
         onStep.accept("Đang tổng hợp báo cáo từ " + gathered.size() + " nguồn…");
-        BiReportContent content = synthesize(prompt, gathered);
+        BiReportContent content = appendPipelineNote(synthesize(prompt, gathered), newDocIds.size());
         onStep.accept("Hoàn tất — " + content.findings().size() + " nhận định qua " + gathered.size() + " nguồn.");
         return content;
+    }
+
+    /**
+     * Nạp mỗi nguồn đã đọc được thành 1 RawDoc thật (đúng đường ManualDocumentIntakeService dùng
+     * chung với Quick Search /research/run — validate/metadata/dedup sẵn có, intake=OPEN_SEARCH
+     * cho nguồn tìm mở, BROWSER_RENDER cho nguồn phải render JS). Đây là điểm khác Deep Research
+     * TRƯỚC ĐÂY (chỉ giữ excerpt trong RAM rồi 1 lần gọi LLM tự do viết narrative — không ai gác
+     * cổng): giờ nguồn thật sự đi vào kho evidence, sẵn sàng cho pipeline verify thật ở dưới.
+     * Một nguồn bị từ chối (quá ngắn, thiếu tiêu đề...) không được phép làm hỏng cả yêu cầu —
+     * ghi log, đếm, đi tiếp.
+     */
+    private List<Long> ingestIntoPipeline(String prompt, List<GatheredSource> gathered, Consumer<String> onStep) {
+        List<Long> newDocIds = new ArrayList<>();
+        int duplicates = 0, rejected = 0;
+        for (GatheredSource g : gathered) {
+            try {
+                ManualDocumentIntakeService.Result result = g.renderedHtml() != null
+                        ? intake.importRenderedHtml(g.url(), g.renderedHtml())
+                        : intake.importUrl(g.url(), RawDoc.IntakeMethod.OPEN_SEARCH,
+                                "DEEP_RESEARCH | prompt=\"" + prompt + "\"");
+                if (result.duplicate()) duplicates++;
+                else if (result.rawDocId() != null) newDocIds.add(result.rawDocId());
+            } catch (ManualDocumentRules.ValidationException invalid) {
+                rejected++;
+                log.warn("Deep Research: intake từ chối {} ({})", g.url(), invalid.getMessage());
+            } catch (Exception unexpected) {
+                rejected++;
+                log.warn("Deep Research: intake lỗi không lường trước cho {}: {}", g.url(), unexpected.toString());
+            }
+        }
+        onStep.accept("Nạp vào kho evidence: +" + newDocIds.size() + " tài liệu mới"
+                + (duplicates > 0 ? ", " + duplicates + " trùng (đã có)" : "")
+                + (rejected > 0 ? ", " + rejected + " bị loại (không đạt chuẩn nạp — vd quá ngắn)" : "") + ".");
+        return newDocIds;
+    }
+
+    /**
+     * Chạy ĐÚNG pipeline thật (Router → Researcher → Analyst/Fact-checker → Independent Verifier)
+     * nhưng CHỈ trên các RawDoc vừa nạp ở trên — không quét lại toàn kho mỗi lần Deep Research
+     * chạy. Classify dùng retryOne (đường "single-doc retry" sẵn có, không đụng dedup toàn cục);
+     * Extract dùng runTargeted (đường "bounded reprocessing" sẵn có). Interpret/Verify chưa có
+     * biến thể theo ID cụ thể nên gọi nguyên bản runOnce() — an toàn vì cả hai đã tự bỏ qua mọi
+     * thứ chưa CONFIRMED/chưa có fact mới, chỉ xử lý phần việc thật sự mới sinh ra ở trên.
+     *
+     * Claim sinh ra ở đây đi qua ĐÚNG 2 lớp gác (Gate L1 exact-match + Gate L2 verifier khác họ
+     * model) như mọi claim từ crawl — không có đường tắt nào bỏ qua fact-check cho riêng Deep
+     * Research. Claim PASS + ENTAILED được tự duyệt; còn lại chờ người ở /review — đúng yêu cầu
+     * "nguồn linh hoạt nhưng vẫn phải qua pipeline xác thực".
+     */
+    private void runVerificationPipeline(List<Long> newDocIds, Consumer<String> onStep) {
+        if (newDocIds.isEmpty()) return;
+        onStep.accept("Đưa " + newDocIds.size() + " tài liệu vào pipeline xác thực (Router → Researcher → Analyst → Fact-checker → Verifier)…");
+        int classified = 0, classifyErrors = 0;
+        for (Long id : newDocIds) {
+            try {
+                classify.retryOne(id);
+                classified++;
+            } catch (Exception e) {
+                classifyErrors++;
+                log.warn("Deep Research: classify lỗi doc#{}: {}", id, e.getMessage());
+                if (e instanceof IllegalStateException && e.getMessage() != null && e.getMessage().contains("STUB")) {
+                    onStep.accept("→ Classifier đang STUB — bỏ qua bước xác thực pipeline (cấu hình LLM Settings để bật).");
+                    return;
+                }
+            }
+        }
+        onStep.accept("→ Đã phân loại " + classified + "/" + newDocIds.size() + " tài liệu"
+                + (classifyErrors > 0 ? " (" + classifyErrors + " lỗi)" : "") + ".");
+
+        String extractSummary = safeStage(() -> extract.runTargeted(newDocIds));
+        onStep.accept("→ Extract: " + firstLine(extractSummary));
+
+        String interpretSummary = safeStage(interpret::runOnce);
+        onStep.accept("→ Interpret (Analyst + Fact-checker Gate L1): " + firstLine(interpretSummary));
+
+        String verifySummary = safeStage(verify::runOnce);
+        onStep.accept("→ Verify (Gate L2, model độc lập): " + firstLine(verifySummary));
+
+        onStep.accept("Nhận định đã qua đủ 2 lớp gác đang chờ ở /review — sau khi duyệt sẽ tự vào báo cáo BI kỳ tiếp theo.");
+    }
+
+    private interface StageCall { String run(); }
+
+    private static String safeStage(StageCall call) {
+        try {
+            return call.run();
+        } catch (Exception e) {
+            return "lỗi — " + e.getMessage();
+        }
+    }
+
+    private static String firstLine(String text) {
+        if (text == null || text.isBlank()) return "(không có output)";
+        int nl = text.indexOf('\n');
+        return nl < 0 ? text.strip() : text.substring(0, nl).strip();
+    }
+
+    /** Gắn rõ trạng thái "đã nạp pipeline xác thực" vào bản xem nhanh, để người đọc không nhầm
+     *  narrative tự do bên dưới (chưa qua Gate L1/L2) với các claim thật đang chờ duyệt. */
+    private static BiReportContent appendPipelineNote(BiReportContent content, int newDocCount) {
+        if (newDocCount == 0) return content;
+        List<String> gaps = new ArrayList<>(content.openGaps());
+        gaps.add(0, "Bản xem nhanh này do AI tổng hợp trực tiếp từ nguồn thu thập được — CHƯA qua "
+                + "Fact-checker/Verifier. " + newDocCount + " tài liệu nguồn thật đã được nạp riêng vào pipeline "
+                + "xác thực (Router/Researcher/Analyst/Fact-checker/Verifier) và đang chờ duyệt ở /review; sau khi "
+                + "duyệt, nhận định đã kiểm chứng sẽ tự động vào báo cáo BI định kỳ chính thức.");
+        return new BiReportContent(content.title(), content.period(), content.homeCompany(),
+                content.generatedAt(), content.docCount(), content.findings(), content.sourceLines(), gaps);
     }
 
     private void runSearch(String query, List<GatheredSource> gathered) {
@@ -139,10 +277,12 @@ public class DeepResearchService {
         if (alreadyGathered(gathered, url)) return;
         try {
             String html = browserRender.renderHtml(url);
-            var parsed = parsers.parseArticleHtml(html.getBytes(StandardCharsets.UTF_8));
+            byte[] htmlBytes = html.getBytes(StandardCharsets.UTF_8);
+            var parsed = parsers.parseArticleHtml(htmlBytes);
             gathered.add(new GatheredSource(
                     parsed.title() != null && !parsed.title().isBlank() ? parsed.title() : url,
-                    url, "Render trình duyệt", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS)));
+                    url, "Render trình duyệt", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS),
+                    htmlBytes));
         } catch (Exception e) {
             log.warn("Deep Research: render lỗi cho {}: {}", url, e.getMessage());
         }
