@@ -4,27 +4,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
-import com.marketradar.domain.EvidenceFact;
-import com.marketradar.domain.EvidenceFact.FactType;
-import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
 import com.marketradar.domain.Category;
 import com.marketradar.domain.Department;
 import com.marketradar.domain.RoutingRule;
 import com.marketradar.repo.EvidenceFactRepository;
-import com.marketradar.repo.RawDocRepository;
 import com.marketradar.repo.RoutingRuleRepository;
 import com.marketradar.repo.SourceRepository;
 
 import java.time.Instant;
-import java.time.LocalDate;
 
 /**
- * Seed cho batch 1:
- *  (a) 5 nguồn curated — ⚠️ fetchUrl là PLACEHOLDER soạn offline, PHẢI verify
- *      bằng tay khi có mạng trước demo (cờ urlUnverified = true).
- *  (b) Fact mẫu ĐẶT TAY (sampleData = true) để template report hiển thị được ngay
- *      — toàn bộ công ty/sản phẩm trong fact mẫu là HƯ CẤU, chỉ minh hoạ cấu trúc.
+ * Seed cho batch 1: nguồn curated — ⚠️ fetchUrl là PLACEHOLDER soạn offline, PHẢI verify
+ * bằng tay khi có mạng trước demo (cờ urlUnverified = true).
+ *
+ * 2026-08-02: đã bỏ seedSampleFacts() (2 tài liệu mẫu hư cấu "BHNT Hoa Sen"/"华晟人寿保险")
+ * — InterpretationJob từng thiếu điều kiện loại rawDoc.sampleData, nên 2 tài liệu này bị xử lý
+ * y hệt tài liệu thật, sinh claim thật nằm lẫn trong Reviewer Queue (phát hiện qua operator bấm
+ * "Open original source" và thấy trang không tồn tại). Xem SampleDataCleanupMigration để dọn DB
+ * cũ đã seed 2 tài liệu này từ trước.
  */
 @Component
 public class SeedData implements CommandLineRunner {
@@ -32,26 +30,20 @@ public class SeedData implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(SeedData.class);
 
     private final SourceRepository sources;
-    private final RawDocRepository rawDocs;
     private final EvidenceFactRepository facts;
     private final RoutingRuleRepository routingRules;
 
-    public SeedData(SourceRepository sources, RawDocRepository rawDocs,
+    public SeedData(SourceRepository sources,
                     EvidenceFactRepository facts, RoutingRuleRepository routingRules) {
         this.sources = sources;
-        this.rawDocs = rawDocs;
         this.facts = facts;
         this.routingRules = routingRules;
     }
-
-    private Source mofIsa;
-    private Source nfra;
 
     @Override
     public void run(String... args) {
         if (sources.count() > 0) return;
         seedSources();
-        seedSampleFacts();
         seedRoutingRules();
         log.info("Seed xong: {} nguồn, {} fact mẫu, {} routing rule",
                 sources.count(), facts.count(), routingRules.count());
@@ -63,7 +55,7 @@ public class SeedData implements CommandLineRunner {
         // POST /api/article/reads (body {"rootCategoryId":<id chuyên mục BH>}), chi tiết qua
         // GET /api/article/getbyslug. fetchUrl = endpoint danh sách; rootCategoryId + endpoint
         // chi tiết nằm trong ingestMofIsa/parseMofList (đặc thù site, như các parser riêng khác).
-        mofIsa = new Source("MOF_ISA", "Cục Quản lý, giám sát bảo hiểm — Bộ Tài chính",
+        Source mofIsa = new Source("MOF_ISA", "Cục Quản lý, giám sát bảo hiểm — Bộ Tài chính",
                 "https://www.mof.gov.vn/api/article/reads?offset=0&limit=25", "www.mof.gov.vn",
                 Source.SourceType.JSON, 1, "vi");
         // browseUrl = trang chủ: fetchUrl là API POST (cần body rootCategoryId) — bấm trực tiếp
@@ -72,7 +64,7 @@ public class SeedData implements CommandLineRunner {
         // chưa xác định được URL sâu hơn tới đúng chuyên mục "Quản lý giám sát bảo hiểm" vì môi
         // trường này không có mạng để dò; cập nhật nếu tìm được link chính xác hơn.
         mofIsa.setBrowseUrl("https://www.mof.gov.vn/");
-        mofIsa = sources.save(mofIsa);
+        sources.save(mofIsa);
         // Collision check 2026-07-05: registry's "root" URL is a meta-refresh redirect TO this exact
         // deep path — current seed is already the real target. No change.
         // Fix 2026-07-14 (3 lần dò): homepage là Vue SPA rỗng. Lần 1 (itemId=914 "时政要闻") ra
@@ -83,7 +75,7 @@ public class SeedData implements CommandLineRunner {
         // HTML chi tiết đầy đủ. Endpoint GET .../SelectDocByItemIdAndChild/data_itemId=915,...
         // bắt được từ đúng trang danh mục (không phải trang chủ — trang chủ chỉ gọi itemId=914).
         // parseNfraCn(). Verified server-side: 18/4855 items, real dates through July 2026.
-        nfra = sources.save(new Source("NFRA_CN", "国家金融监督管理总局 (NFRA)",
+        sources.save(new Source("NFRA_CN", "国家金融监督管理总局 (NFRA)",
                 "https://www.nfra.gov.cn/cn/static/data/DocInfo/SelectDocByItemIdAndChild/data_itemId=915,pageIndex=1,pageSize=18.json",
                 "www.nfra.gov.cn", Source.SourceType.JSON, 3, "zh"));
         // Collision check 2026-07-05: registry's URL differs only by trailing slash, both live,
@@ -592,55 +584,6 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 3, "en");
         insBizAsia.setActive(false);
         sources.save(insBizAsia);
-    }
-
-    private void seedSampleFacts() {
-        // ---- RawDoc mẫu (sampleData=true) — công ty/sản phẩm HƯ CẤU ----
-        RawDoc docZh = new RawDoc(nfra,
-                "https://www.nfra.gov.cn/SAMPLE/demo-doc-1",
-                "[MẪU] 某人寿保险公司获批新型分红型终身寿险产品",
-                Instant.parse("2026-06-29T02:00:00Z"), Instant.now(),
-                "sample-hash-zh-001",
-                "[DỮ LIỆU MẪU] 华晟人寿保险股份有限公司（示例）获批推出\"金福长盈\"分红型终身寿险，"
-                + "保证利率为2.0%，首年最低保费人民币10,000元。该产品自2026年7月1日起在全国范围销售。",
-                "zh", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
-        docZh.setSampleData(true);
-        rawDocs.save(docZh);
-
-        RawDoc docVi = new RawDoc(mofIsa,
-                "https://mof.gov.vn/SAMPLE/demo-doc-2",
-                "[MẪU] Doanh nghiệp bảo hiểm điều chỉnh biểu phí sản phẩm liên kết đơn vị",
-                Instant.parse("2026-06-30T07:00:00Z"), Instant.now(),
-                "sample-hash-vi-002",
-                "[DỮ LIỆU MẪU] Công ty TNHH Bảo hiểm Nhân thọ Hoa Sen (hư cấu) công bố điều chỉnh "
-                + "phí quản lý quỹ của sản phẩm liên kết đơn vị 'An Phát Đầu Tư' từ 2,0%/năm xuống 1,75%/năm, "
-                + "áp dụng từ ngày 01/08/2026 cho cả hợp đồng mới và hợp đồng hiện hữu.",
-                "vi", RawDoc.ParseStatus.OK, "Dữ liệu mẫu đặt tay cho demo template");
-        docVi.setSampleData(true);
-        rawDocs.save(docVi);
-
-        // ---- EvidenceFact mẫu — span NGUYÊN VĂN theo ngôn ngữ gốc ----
-        facts.save(new EvidenceFact("F-001", docZh, FactType.PRODUCT_LAUNCH,
-                "华晟人寿保险股份有限公司（示例）获批推出\"金福长盈\"分红型终身寿险，保证利率为2.0%，首年最低保费人民币10,000元。",
-                "zh")
-                .eventDate(LocalDate.of(2026, 6, 29))
-                .company("Huasheng Life (mẫu — hư cấu)")
-                .productName("金福长盈 — bảo hiểm trọn đời có chia lãi")
-                .category("Ra mắt sản phẩm")
-                .categoryEn("Product Launch")
-                .summaryVi("[Bản dịch/tóm tắt] Được phê duyệt sản phẩm trọn đời chia lãi mới, lãi suất đảm bảo 2,0%, phí tối thiểu năm đầu 10.000 NDT, bán toàn quốc từ 01/07/2026.")
-                .summaryEn("[Translation/summary] Approved a new participating whole-life product, guaranteed rate 2.0%, minimum first-year premium RMB 10,000, sold nationwide from 07/01/2026."));
-
-        facts.save(new EvidenceFact("F-002", docVi, FactType.FEE_CHANGE,
-                "điều chỉnh phí quản lý quỹ của sản phẩm liên kết đơn vị 'An Phát Đầu Tư' từ 2,0%/năm xuống 1,75%/năm, áp dụng từ ngày 01/08/2026 cho cả hợp đồng mới và hợp đồng hiện hữu.",
-                "vi")
-                .eventDate(LocalDate.of(2026, 6, 30))
-                .company("BHNT Hoa Sen (mẫu — hư cấu)")
-                .productName("An Phát Đầu Tư (unit-linked)")
-                .category("Thay đổi phí")
-                .categoryEn("Fee Change")
-                .summaryVi("Giảm phí quản lý quỹ ULP từ 2,0% xuống 1,75%/năm, hiệu lực 01/08/2026, áp dụng cả hợp đồng hiện hữu.")
-                .summaryEn("Cut the unit-linked fund management fee from 2.0% to 1.75%/year, effective 08/01/2026, applying to existing contracts too."));
     }
 
     /**

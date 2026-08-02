@@ -27,4 +27,10 @@ public interface ClaimVerificationRepository extends JpaRepository<ClaimVerifica
     void deleteByClaimSlotAndChapterCodeAndOrigin(@Param("slot") InterpretedClaim.Slot slot,
                                                   @Param("chapterCode") String chapterCode,
                                                   @Param("origin") InterpretedClaim.Origin origin);
+
+    /** SampleDataCleanupMigration: xoá verification của claim mẫu hư cấu TRƯỚC khi xoá
+     *  chính claim đó (FK claim_verifications→interpreted_claims), cùng lý do với method trên. */
+    @Modifying
+    @Query("delete from ClaimVerification v where v.claim.rawDoc.sampleData = true")
+    void deleteByClaimSampleRawDoc();
 }

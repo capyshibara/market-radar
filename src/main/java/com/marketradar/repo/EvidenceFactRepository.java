@@ -68,4 +68,11 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
      * — count()+1 vỡ khi có row bị xoá. Tính max ở tầng Java. */
     @Query("select f.factCode from EvidenceFact f")
     List<String> findAllFactCodes();
+
+    /** SampleDataCleanupMigration: fact mẫu hư cấu (rawDoc.sampleData=true) không được
+     *  phép tồn tại lẫn với evidence thật — xem InterpretationJob (giờ đã loại sampleData
+     *  ở input) và javadoc migration để biết vì sao cần dọn dữ liệu cũ. */
+    @Modifying
+    @Query("delete from EvidenceFact f where f.rawDoc.sampleData = true")
+    void deleteBySampleRawDoc();
 }

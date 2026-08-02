@@ -27,4 +27,6 @@ public interface RawDocRepository extends JpaRepository<RawDoc, Long> {
     Optional<RawDoc> findByIdWithSource(Long id);
 
     boolean existsByContentHashAndIdNot(String contentHash, Long id);
+
+    List<RawDoc> findBySampleDataTrue();
 }

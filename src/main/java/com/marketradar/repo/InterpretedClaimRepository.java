@@ -184,4 +184,10 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
     int supersedeStaleChapter(@Param("slot") InterpretedClaim.Slot slot,
                               @Param("chapterCode") String chapterCode,
                               @Param("origin") InterpretedClaim.Origin origin);
+
+    /** SampleDataCleanupMigration: claim mẫu hư cấu — c.rawDoc null (EXEC_SUMMARY/NARRATIVE)
+     *  không khớp điều kiện này, an toàn không đụng tới. Xoá SAU ClaimVerification (FK). */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("delete from InterpretedClaim c where c.rawDoc.sampleData = true")
+    void deleteBySampleRawDoc();
 }

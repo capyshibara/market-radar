@@ -28,8 +28,11 @@ import java.util.stream.Collectors;
  * → Gate L1 kiểm deterministic → LƯU mọi câu kèm gate status (kể cả fail — fail loud,
  * audit được ở /claims). Sau đó 1 pack toàn cục cho exec summary.
  *
- * GIẢ ĐỊNH: chỉ yêu cầu doc CÓ fact — không yêu cầu classification CONFIRMED
- * (fact extraction từ doc thật vẫn là bước mở; hiện facts là sample data từ seed).
+ * GIẢ ĐỊNH: chỉ yêu cầu doc CÓ fact — không yêu cầu classification CONFIRMED (dữ liệu mẫu tự
+ * seed đặt fact tay, không qua Classify, nên không thể đòi CONFIRMED). NHƯNG rawDoc.sampleData
+ * PHẢI bị loại (2026-08-02 fix): trước đây thiếu điều kiện này, 2 tài liệu mẫu hư cấu của
+ * SeedData bị xử lý y hệt tài liệu thật, sinh claim thật nằm lẫn trong Reviewer Queue — xem
+ * SampleDataCleanupMigration.
  */
 @Service
 public class InterpretationJob {
@@ -72,7 +75,11 @@ public class InterpretationJob {
                     + "No claim edition was created; configure a real writer model.\n";
         }
         StringBuilder summary = new StringBuilder();
-        List<EvidenceFact> allFacts = facts.findAllForReport();
+        // sampleData=true → tài liệu mẫu hư cấu (SeedData), không phải evidence thật — loại
+        // trước khi gom theo doc, khác đúng cách findCurrentProductNewsCandidates() đã làm.
+        List<EvidenceFact> allFacts = facts.findAllForReport().stream()
+                .filter(f -> f.getRawDoc() != null && !f.getRawDoc().isSampleData())
+                .toList();
         if (allFacts.isEmpty()) return "No evidence facts yet — run Extract first.\n";
 
         // ---- Gom fact theo doc ----

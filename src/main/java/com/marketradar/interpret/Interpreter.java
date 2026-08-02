@@ -96,14 +96,22 @@ public class Interpreter {
           KHI NÀO (ngày/tháng), CON SỐ bao nhiêu — để người đọc HIỂU chuyện gì đã xảy ra.
           MỞ ĐẦU bằng chủ thể + hành động (vd "Generali Việt Nam ra mắt 11 sản phẩm..."),
           TUYỆT ĐỐI KHÔNG mở đầu bằng "Sự kiện này...", "Việc này...", "Điều này cho thấy...".
-        - "implication": 1-2 câu HÀM Ý CHO MỘT PHÒNG BAN CỦA CHÚNG TA (thiết kế SP / định phí-
+        - "implication": 0-2 câu HÀM Ý CHO MỘT PHÒNG BAN CỦA CHÚNG TA (thiết kế SP / định phí-
           actuary / phân phối-bancassurance / marketing / pháp chế), GẮN CHẶT với sự việc cụ
-          thể ở "why". MỖI câu PHẢI nêu MỘT HÀNH ĐỘNG CỤ THỂ gắn với một quyết định/kế hoạch
-          thật — vd "cân nhắc bổ sung quyền lợi tương tự vào sản phẩm đang phát triển", "rà
-          soát biểu phí hiện hành trước khi đối thủ giành thêm thị phần ở phân khúc này", "đánh
-          giá tác động của mốc tuân thủ này lên quy trình đại lý hiện tại". CẤM câu implication
-          CHỈ CÓ "nên theo dõi/nên cân nhắc" mà KHÔNG nêu theo dõi CÁI GÌ CỤ THỂ để LÀM GÌ tiếp
-          theo — "theo dõi" một mình không phải là hàm ý, phải đi kèm hành động/quyết định rõ.
+          thể ở "why". BẮT BUỘC nêu lại TÊN công ty/cơ quan (đặt trong ngoặc kép, đúng ràng buộc
+          #2) đã tạo ra động thái này NGAY TRONG CÂU implication — câu này có thể được đọc RIÊNG
+          LẺ, tách khỏi câu "why", nên không được phép chỉ nói "như nêu trong thông tin sản
+          phẩm"/"động thái này" mà không gọi tên — vd "Trước việc \"Generali Việt Nam\" cho phép
+          khách hàng chủ động tăng số tiền bảo hiểm..., phòng thiết kế sản phẩm của chúng ta nên
+          ...". Nếu VIẾT được implication, mỗi câu PHẢI nêu MỘT HÀNH ĐỘNG CỤ THỂ gắn với một
+          quyết định/kế hoạch thật — vd "cân nhắc bổ sung quyền lợi tương tự vào sản phẩm đang
+          phát triển", "rà soát biểu phí hiện hành trước khi đối thủ giành thêm thị phần ở phân
+          khúc này". CẤM câu implication CHỈ CÓ "nên theo dõi/nên cân nhắc" mà KHÔNG nêu theo dõi
+          CÁI GÌ CỤ THỂ để LÀM GÌ tiếp theo. QUAN TRỌNG: nếu fact không thực sự dẫn tới một hành
+          động nội bộ hợp lý (vd số liệu vĩ mô chung, tin không có hệ quả rõ ràng cho công ty bảo
+          hiểm nhân thọ Việt Nam) — ĐỂ MẢNG "implication" RỖNG cho fact đó, KHÔNG bịa ra khuyến
+          nghị chỉ để có đủ số câu. Thà thiếu implication còn hơn một khuyến nghị gượng ép, chung
+          chung, không thật sự gắn với quyết định nào.
 
         NGUYÊN TẮC "KỂ CHUYỆN TRƯỚC, KẾT LUẬN SAU": người đọc phải hiểu ĐIỀU GÌ ĐÃ XẢY RA
         (dữ kiện cụ thể) TRƯỚC khi nghe hàm ý. CẤM câu chỉ có kết luận trừu tượng ("có thể tạo
@@ -130,6 +138,11 @@ public class Interpreter {
            nhận hành động (vd "Phòng Marketing của Prudential nên..." SAI — Prudential là chủ
            thể của "why", không phải người nhận hàm ý). Không nêu tên công ty cụ thể nào của
            "chúng ta" trong implication — chỉ nói "phòng [X] của chúng ta" hoặc "phòng [X]".
+           NHƯNG (khác với việc cấm ở trên) vẫn PHẢI nhắc tên công ty/cơ quan trong evidence làm
+           BỐI CẢNH của câu (vd "Trước động thái của \"Generali Việt Nam\"..." hoặc "Sau khi
+           \"Prudential\" công bố...") — chỉ cấm dùng tên đó làm chủ ngữ NHẬN hành động, không
+           cấm nhắc tên đó làm nguyên nhân/bối cảnh (xem yêu cầu bắt buộc ở phần "implication"
+           phía trên).
         6. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
            escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
            JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
@@ -158,7 +171,9 @@ public class Interpreter {
         làm gì, khi nào, con số) RỒI mới tới hàm ý. CẤM câu chỉ có kết luận trừu tượng
         ("có thể tạo cơ hội", "có thể ảnh hưởng cạnh tranh") mà thiếu sự việc cụ thể đằng sau.
         Nếu có hàm ý hành động, phải CỤ THỂ (gắn quyết định/kế hoạch thật), không dừng ở
-        "cần theo dõi" một mình.
+        "cần theo dõi" một mình. KHÔNG BẮT BUỘC mọi câu đều phải có hàm ý hành động — một câu
+        thuần nêu sự việc (không kèm khuyến nghị) vẫn hợp lệ nếu fact đó không thực sự dẫn tới
+        hành động nội bộ nào hợp lý; đừng bịa khuyến nghị chỉ để đủ cấu trúc.
 
         GIỌNG ĐIỆU: trung lập, khách quan, như nhà phân tích độc lập. TUYỆT ĐỐI KHÔNG khen
         ngợi/PR bất kỳ công ty nào — nhất là đối thủ. CẤM tính từ ca ngợi ("dẫn đầu", "hàng
