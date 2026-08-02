@@ -116,11 +116,24 @@ public class SourceHealthCheckService {
         return true;
     }
 
+    /**
+     * FWD_VN /vi/blog/ trả về ~7-8MB (nội dung thật, đã xác nhận thủ công — xem
+     * IngestionJob.FWD_VN_MAX_BYTES) — vượt cap mặc định 5MB của SafeFetcher.fetch() 3 tham số.
+     * IngestionJob đã tự nâng cap cho đúng nguồn này khi crawl thật; health check gọi
+     * fetch() 3 tham số (cap mặc định) nên trước khi có dòng này, FWD_VN LUÔN báo "Not
+     * reachable" qua HTTP dù nguồn thật sự sống — hai nơi phải khớp cap, không thể chỉ sửa
+     * IngestionJob. Giữ đồng bộ nếu IngestionJob.FWD_VN_MAX_BYTES đổi.
+     */
+    private static final long FWD_VN_MAX_BYTES = 12L * 1024 * 1024;
+
     private Result checkOne(Source source) {
         long t0 = System.currentTimeMillis();
         try {
-            SafeFetcher.FetchResult r = fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
-                    expectedKind(source.getType()));
+            SafeFetcher.FetchResult r = "FWD_VN".equals(source.getCode())
+                    ? fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                            expectedKind(source.getType()), null, FWD_VN_MAX_BYTES)
+                    : fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
+                            expectedKind(source.getType()));
             markVerified(source);
             return new Result(source.getCode(), source.getName(), source.getTier(), Method.HTTP, true,
                     "OK — " + r.body().length + " bytes, " + r.contentType(),
