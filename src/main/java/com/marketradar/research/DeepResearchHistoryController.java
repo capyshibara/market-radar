@@ -81,9 +81,15 @@ public class DeepResearchHistoryController {
                 tail = String.join("\n", java.util.Arrays.copyOfRange(lines, from, lines.length));
             }
         }
-        return new RunRow(r.getId(), r.shortPrompt(), r.getStatus().name(),
-                TS_FMT.format(r.getQueuedAt().atZone(ZONE)),
+        return new RunRow(r.getId(), r.shortPrompt(), statusLabel(r),
+                r.getQueuedAt() != null ? TS_FMT.format(r.getQueuedAt().atZone(ZONE)) : "—",
                 r.getSourceCount(), r.getNewDocCount(), elapsedLabel(r), tail);
+    }
+
+    /** Bản ghi từ trước khi có hàng đợi (status=null trong DB) luôn là kết quả đã chạy xong
+     *  đồng bộ — hiển thị như DONE thay vì bắt phân biệt "chưa có khái niệm status". */
+    private static String statusLabel(DeepResearchRun r) {
+        return r.getStatus() != null ? r.getStatus().name() : DeepResearchRun.Status.DONE.name();
     }
 
     public record ClaimFlowSummary(int newDocCount, int totalClaims, int approvedCount,
@@ -96,7 +102,8 @@ public class DeepResearchHistoryController {
             model.addAttribute("promptError", "Không tìm thấy lần chạy này.");
             return "research-history";
         }
-        if (run.getStatus() != DeepResearchRun.Status.DONE) {
+        if (run.getStatus() == DeepResearchRun.Status.QUEUED || run.getStatus() == DeepResearchRun.Status.RUNNING
+                || run.getStatus() == DeepResearchRun.Status.FAILED) {
             model.addAttribute("promptError", statusMessage(run));
             return "research-history";
         }
@@ -156,7 +163,9 @@ public class DeepResearchHistoryController {
 
     private BiReportContent readContent(Long id) {
         DeepResearchRun run = runs.findById(id).orElse(null);
-        if (run == null || run.getStatus() != DeepResearchRun.Status.DONE) return null;
+        // contentJson != null là điều kiện thật (không dựa vào status — bản ghi cũ trước khi có
+        // hàng đợi không có status nhưng vẫn có content hợp lệ, xem statusLabel()).
+        if (run == null || run.getContentJson() == null || run.getContentJson().isBlank()) return null;
         try {
             return mapper.readValue(run.getContentJson(), BiReportContent.class);
         } catch (Exception e) {

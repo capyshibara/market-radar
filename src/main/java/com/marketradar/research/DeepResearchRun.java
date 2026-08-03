@@ -39,11 +39,19 @@ public class DeepResearchRun {
     @Column(nullable = false, columnDefinition = "CLOB")
     private String prompt;
 
+    // 2026-08-03: KHÔNG nullable=false ở đây dù luôn có giá trị cho run mới — bảng này đã tồn
+    // tại từ trước lần thêm 2 cột này (bản ghi cũ trước khi có hàng đợi). Hibernate ddl-auto:
+    // update thêm cột NOT NULL vào bảng ĐÃ CÓ DỮ LIỆU sẽ tự làm ALTER TABLE thất bại (không có
+    // default để backfill hàng cũ) — quan sát thật: app crash ngay lúc khởi động (DeepResearchQueueService
+    // đọc bảng ngay trong @PostConstruct, sớm hơn mọi migration ApplicationRunner). Để nullable
+    // ở tầng DB, chỉ ràng buộc "luôn có giá trị cho run mới" ở tầng Java qua giá trị khởi tạo
+    // + constructor — bản ghi CŨ (trước khi có 2 cột này) có status/queuedAt = null, xử lý an
+    // toàn ở DeepResearchHistoryController thay vì bắt DB migrate ngược cho dữ liệu không còn
+    // quan trọng (chỉ là bản xem nhanh Deep Research, không phải claim/evidence thật).
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
+    @Column(length = 16)
     private Status status = Status.QUEUED;
 
-    @Column(nullable = false)
     private Instant queuedAt = Instant.now();
 
     private Instant startedAt;
