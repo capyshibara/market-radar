@@ -51,6 +51,7 @@ public class DeepResearchController {
                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rangeStart,
                           @RequestParam(value = "rangeEnd", required = false)
                           @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rangeEnd,
+                          @RequestParam(value = "vietnamOnly", required = false) Boolean vietnamOnly,
                           Model model) {
         List<String> lines = new ArrayList<>();
         if (prompts != null) {
@@ -71,8 +72,9 @@ public class DeepResearchController {
             model.addAttribute("promptError", "\"Đến ngày\" phải sau hoặc bằng \"Từ ngày\".");
             return "research-deep-create";
         }
+        boolean vnOnly = Boolean.TRUE.equals(vietnamOnly);
         for (String prompt : lines) {
-            queue.enqueue(prompt, rangeStart, rangeEnd);
+            queue.enqueue(prompt, rangeStart, rangeEnd, vnOnly);
         }
         return "redirect:/research/history";
     }

@@ -66,6 +66,22 @@ public class DeepResearchRun {
     private LocalDate rangeStart;
     private LocalDate rangeEnd;
 
+    /** 2026-08-03 (feedback: "cần 1 toggle strictly control việc bật/tắt dữ liệu công ty bảo
+     *  hiểm nhân thọ ở thị trường nước ngoài... phải xác định đúng chứ không chỉ dựa vào ngôn
+     *  ngữ tin đăng hay tên miền"): khi true, mỗi nguồn tìm được đều bị LLM đánh giá NỘI DUNG có
+     *  thực sự nói về hoạt động tại thị trường Việt Nam hay không trước khi được giữ lại (xem
+     *  DeepResearchService#classifyVietnamRelevance) — khác hẳn cách phân loại cũ chỉ dựa vào
+     *  ngôn ngữ nguồn/tên miền .vn (ProductMarketScopeClassifier), vốn để lọt tin tiếng Việt đưa
+     *  lại tin cổ phiếu công ty mẹ ở nước ngoài (ca thật: prompt xin lịch IR của Prudential plc/
+     *  AIA/Manulife... ra toàn tin JPMorgan xếp hạng cổ phiếu, không phải diễn biến VN).
+     *
+     *  Boolean (không phải boolean) VÀ không nullable=false: cùng lý do đã ghi ở rangeStart/
+     *  rangeEnd phía trên — bảng deep_research_run ĐÃ CÓ dữ liệu từ trước khi thêm cột này, cột
+     *  primitive boolean mặc định NOT NULL khiến Hibernate ddl-auto:update tự ALTER TABLE ADD
+     *  COLUMN ... NOT NULL và crash ngay lúc khởi động (không có default để backfill hàng cũ) —
+     *  quan sát thật khi test. Bản ghi cũ đọc null → coi là false qua isVietnamOnly(). */
+    private Boolean vietnamOnly = false;
+
     /** Từng dòng tiến trình (giống onStep của DeepResearchService), nối bằng \n, nối thêm khi
      *  worker chạy — cho phép mở lại trang bất cứ lúc nào và thấy log gần nhất, không chỉ khi
      *  request gốc còn sống. */
@@ -101,9 +117,15 @@ public class DeepResearchRun {
 
     /** Có kèm khung thời gian yêu cầu (null/null nếu không giới hạn). */
     public DeepResearchRun(String prompt, LocalDate rangeStart, LocalDate rangeEnd) {
+        this(prompt, rangeStart, rangeEnd, false);
+    }
+
+    /** Có kèm khung thời gian + toggle "chỉ thị trường Việt Nam". */
+    public DeepResearchRun(String prompt, LocalDate rangeStart, LocalDate rangeEnd, boolean vietnamOnly) {
         this.prompt = prompt;
         this.rangeStart = rangeStart;
         this.rangeEnd = rangeEnd;
+        this.vietnamOnly = vietnamOnly;
     }
 
     public Long getId() { return id; }
@@ -114,6 +136,7 @@ public class DeepResearchRun {
     public Instant getFinishedAt() { return finishedAt; }
     public LocalDate getRangeStart() { return rangeStart; }
     public LocalDate getRangeEnd() { return rangeEnd; }
+    public boolean isVietnamOnly() { return Boolean.TRUE.equals(vietnamOnly); }
     public String getProgressLog() { return progressLog; }
     public long getElapsedMs() { return elapsedMs; }
     public int getSourceCount() { return sourceCount; }

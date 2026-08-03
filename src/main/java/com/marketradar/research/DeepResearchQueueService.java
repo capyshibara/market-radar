@@ -71,11 +71,15 @@ public class DeepResearchQueueService {
     }
 
     public Long enqueue(String prompt) {
-        return enqueue(prompt, null, null);
+        return enqueue(prompt, null, null, false);
     }
 
     public Long enqueue(String prompt, java.time.LocalDate rangeStart, java.time.LocalDate rangeEnd) {
-        DeepResearchRun run = runs.save(new DeepResearchRun(prompt, rangeStart, rangeEnd));
+        return enqueue(prompt, rangeStart, rangeEnd, false);
+    }
+
+    public Long enqueue(String prompt, java.time.LocalDate rangeStart, java.time.LocalDate rangeEnd, boolean vietnamOnly) {
+        DeepResearchRun run = runs.save(new DeepResearchRun(prompt, rangeStart, rangeEnd, vietnamOnly));
         pending.add(run.getId());
         return run.getId();
     }
@@ -102,7 +106,7 @@ public class DeepResearchQueueService {
         runs.save(run);
         try {
             DeepResearchService.ResearchResult result = deepResearch.research(run.getPrompt(),
-                    run.getRangeStart(), run.getRangeEnd(), step -> {
+                    run.getRangeStart(), run.getRangeEnd(), run.isVietnamOnly(), step -> {
                 // Ghi ngay khi có bước mới — đây là lý do xem được tiến trình từ tab khác/sau khi
                 // đóng tab gốc, khác hẳn SSE cũ chỉ sống trong đúng 1 request.
                 DeepResearchRun fresh = runs.findById(id).orElse(null);

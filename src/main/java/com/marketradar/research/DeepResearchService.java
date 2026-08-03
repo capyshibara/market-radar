@@ -116,13 +116,18 @@ public class DeepResearchService {
     public record ResearchResult(BiReportContent content, int sourceCount, List<Long> newDocIds) {}
 
     public ResearchResult research(String prompt) {
-        return research(prompt, null, null, step -> {});
+        return research(prompt, null, null, false, step -> {});
     }
 
     /** @param onStep nhận 1 dòng trạng thái mỗi bước — DeepResearchQueueService dùng để ghi
      *  progressLog vào DB theo thời gian thực; no-op an toàn khi gọi không cần theo dõi. */
     public ResearchResult research(String prompt, Consumer<String> onStep) {
-        return research(prompt, null, null, onStep);
+        return research(prompt, null, null, false, onStep);
+    }
+
+    /** Tương thích chữ ký cũ (chưa có toggle Việt Nam) — mặc định không lọc theo thị trường. */
+    public ResearchResult research(String prompt, LocalDate rangeStart, LocalDate rangeEnd, Consumer<String> onStep) {
+        return research(prompt, rangeStart, rangeEnd, false, onStep);
     }
 
     /**
@@ -132,13 +137,20 @@ public class DeepResearchService {
      *  PROMPT — không đáng tin cậy (cùng loại vấn đề với sanitizeQuery trước đây). Giờ mỗi nguồn
      *  tìm được đều bị lọc CỨNG bằng ngày thật trích được (xem GatheredSource#publishedDate) khi
      *  có khung — nguồn ngoài khung bị loại thẳng, không đợi LLM tự nhận ra.
+     * @param vietnamOnly 2026-08-03 (ca thật: prompt xin lịch IR các tập đoàn mẹ nước ngoài ra
+     *  toàn tin JPMorgan xếp hạng cổ phiếu Prudential PLC — không phải diễn biến VN — dù nguồn là
+     *  báo tiếng Việt/.vn): khi true, mỗi nguồn tìm được bị LLM đánh giá NỘI DUNG (xem
+     *  {@link #classifyVietnamRelevance}) trước khi giữ lại — khác cách phân loại cũ chỉ dựa vào
+     *  ngôn ngữ/tên miền nguồn (ProductMarketScopeClassifier, vốn để lọt đúng ca trên).
      */
-    public ResearchResult research(String prompt, LocalDate rangeStart, LocalDate rangeEnd, Consumer<String> onStep) {
+    public ResearchResult research(String prompt, LocalDate rangeStart, LocalDate rangeEnd, boolean vietnamOnly,
+                                   Consumer<String> onStep) {
         List<GatheredSource> gathered = new ArrayList<>();
         List<String> triedQueries = new ArrayList<>();
         onStep.accept("Bắt đầu Deep Research cho: \"" + prompt + "\""
                 + (rangeStart != null && rangeEnd != null
-                        ? " (chỉ dùng nguồn từ " + rangeStart + " đến " + rangeEnd + ")" : ""));
+                        ? " (chỉ dùng nguồn từ " + rangeStart + " đến " + rangeEnd + ")" : "")
+                + (vietnamOnly ? " (chỉ giữ nguồn thực sự về thị trường Việt Nam)" : ""));
 
         for (int iteration = 0; iteration < MAX_ITERATIONS && gathered.size() < MAX_SOURCES; iteration++) {
             PlanAction action = plan(prompt, gathered, triedQueries, iteration);
@@ -152,15 +164,15 @@ public class DeepResearchService {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Tìm kiếm mở: \"" + query + "\""
                         + (!query.equals(action.target().strip()) ? " (đã tự rút gọn từ: \"" + action.target() + "\")" : ""));
                 int before = gathered.size();
-                runSearch(query, gathered, rangeStart, rangeEnd, onStep);
+                runSearch(query, gathered, rangeStart, rangeEnd, vietnamOnly, onStep);
                 int found = gathered.size() - before;
                 onStep.accept("→ Đọc được " + found + " nguồn mới (tổng " + gathered.size() + ")");
                 triedQueries.add(query + " → " + found + " nguồn mới");
             } else if ("BROWSE".equalsIgnoreCase(action.action()) && action.target() != null && !action.target().isBlank()) {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Render trình duyệt: " + action.target());
                 int before = gathered.size();
-                runBrowse(action.target(), gathered, rangeStart, rangeEnd, onStep);
-                onStep.accept(gathered.size() > before ? "→ Đọc thành công" : "→ Render lỗi hoặc ngoài khung thời gian, bỏ qua nguồn này");
+                runBrowse(action.target(), gathered, rangeStart, rangeEnd, vietnamOnly, onStep);
+                onStep.accept(gathered.size() > before ? "→ Đọc thành công" : "→ Render lỗi, ngoài khung thời gian, hoặc không thực sự về thị trường Việt Nam — bỏ qua nguồn này");
             }
         }
 
@@ -282,7 +294,7 @@ public class DeepResearchService {
     }
 
     private void runSearch(String query, List<GatheredSource> gathered, LocalDate rangeStart, LocalDate rangeEnd,
-                          Consumer<String> onStep) {
+                          boolean vietnamOnly, Consumer<String> onStep) {
         List<NewsDiscoveryService.Candidate> candidates;
         try {
             candidates = discovery.discover(query);
@@ -290,7 +302,7 @@ public class DeepResearchService {
             log.warn("Deep Research: tìm kiếm mở lỗi cho '{}': {}", query, e.getMessage());
             return;
         }
-        int added = 0, skippedOutOfRange = 0;
+        int added = 0, skippedOutOfRange = 0, skippedForeign = 0;
         for (var c : candidates) {
             if (added >= MAX_NEW_SOURCES_PER_SEARCH || gathered.size() >= MAX_SOURCES) break;
             if (c.publisherUrl() == null || alreadyGathered(gathered, c.publisherUrl())) continue;
@@ -304,10 +316,13 @@ public class DeepResearchService {
                     skippedOutOfRange++;
                     continue;
                 }
-                gathered.add(new GatheredSource(
-                        c.title() != null && !c.title().isBlank() ? c.title() : c.publisherUrl(),
-                        c.publisherUrl(), "Tìm kiếm mở", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS),
-                        publishedDate));
+                String title = c.title() != null && !c.title().isBlank() ? c.title() : c.publisherUrl();
+                String excerpt = truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS);
+                if (vietnamOnly && !classifyVietnamRelevance(title, c.publisherUrl(), excerpt)) {
+                    skippedForeign++;
+                    continue;
+                }
+                gathered.add(new GatheredSource(title, c.publisherUrl(), "Tìm kiếm mở", excerpt, publishedDate));
                 added++;
             } catch (Exception e) {
                 log.warn("Deep Research: bỏ qua nguồn {} ({})", c.publisherUrl(), e.getMessage());
@@ -317,10 +332,13 @@ public class DeepResearchService {
             onStep.accept("→ Bỏ qua " + skippedOutOfRange + " nguồn ngoài khung thời gian yêu cầu ("
                     + rangeStart + " – " + rangeEnd + ")");
         }
+        if (skippedForeign > 0) {
+            onStep.accept("→ Bỏ qua " + skippedForeign + " nguồn không thực sự nói về thị trường Việt Nam (đánh giá theo nội dung).");
+        }
     }
 
     private void runBrowse(String url, List<GatheredSource> gathered, LocalDate rangeStart, LocalDate rangeEnd,
-                          Consumer<String> onStep) {
+                          boolean vietnamOnly, Consumer<String> onStep) {
         if (alreadyGathered(gathered, url)) return;
         try {
             String html = browserRender.renderHtml(url);
@@ -331,12 +349,58 @@ public class DeepResearchService {
                 onStep.accept("→ Bỏ qua (ngoài khung thời gian yêu cầu " + rangeStart + " – " + rangeEnd + ")");
                 return;
             }
-            gathered.add(new GatheredSource(
-                    parsed.title() != null && !parsed.title().isBlank() ? parsed.title() : url,
-                    url, "Render trình duyệt", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS),
-                    publishedDate, htmlBytes));
+            String title = parsed.title() != null && !parsed.title().isBlank() ? parsed.title() : url;
+            String excerpt = truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS);
+            if (vietnamOnly && !classifyVietnamRelevance(title, url, excerpt)) {
+                onStep.accept("→ Bỏ qua (không thực sự nói về thị trường Việt Nam — đánh giá theo nội dung)");
+                return;
+            }
+            gathered.add(new GatheredSource(title, url, "Render trình duyệt", excerpt, publishedDate, htmlBytes));
         } catch (Exception e) {
             log.warn("Deep Research: render lỗi cho {}: {}", url, e.getMessage());
+        }
+    }
+
+    private static final List<LlmClient.LlmTool> MARKET_CHECK_TOOLS = buildMarketCheckTools();
+
+    private static List<LlmClient.LlmTool> buildMarketCheckTools() {
+        ObjectMapper m = new ObjectMapper();
+        ObjectNode schema = m.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = schema.putObject("properties");
+        props.putObject("vietnam_relevant").put("type", "boolean").put("description",
+                "true nếu nội dung THỰC SỰ mô tả hoạt động/sản phẩm/kênh phân phối/quy định/sự kiện CỤ THỂ diễn "
+                        + "ra TẠI thị trường Việt Nam. false nếu nội dung chỉ là tin cổ phiếu/xếp hạng phân tích/"
+                        + "kết quả tài chính TOÀN TẬP ĐOÀN của công ty mẹ niêm yết ở thị trường khác, hoặc tin về "
+                        + "một thị trường khác hoàn toàn (Hong Kong, Singapore, Anh, Canada...) chỉ tình cờ trùng "
+                        + "tên thương hiệu với công ty con tại Việt Nam — KHÔNG suy đoán từ ngôn ngữ bài viết hay "
+                        + "tên miền trang đăng, chỉ dựa vào nội dung thật.");
+        props.putObject("reason").put("type", "string").put("description", "Vì sao — 1 câu ngắn.");
+        schema.putArray("required").add("vietnam_relevant");
+        return List.of(new LlmClient.LlmTool("assess",
+                "Đánh giá 1 nguồn có thực sự nói về thị trường Việt Nam hay không, dựa trên nội dung.", schema));
+    }
+
+    /** 2026-08-03 (ca thật: prompt xin lịch IR các tập đoàn mẹ nước ngoài — Prudential plc, AIA,
+     *  Manulife... — ra toàn tin JPMorgan xếp hạng cổ phiếu, không phải diễn biến VN, dù nguồn là
+     *  báo tiếng Việt/.vn): khác {@link com.marketradar.product.ProductMarketScopeClassifier} (chỉ
+     *  nhìn ngôn ngữ nguồn/tên miền), hàm này để LLM ĐỌC EXCERPT THẬT rồi phán đoán — LỖI/không
+     *  đọc được thì LOẠI (fail-closed), vì đây là toggle strict do người dùng chủ động bật, mục
+     *  đích chính là đảm bảo không lọt tin ngoài thị trường chứ không phải giữ tối đa nguồn. */
+    private boolean classifyVietnamRelevance(String title, String url, String excerpt) {
+        String user = "Tiêu đề: " + title + "\nURL: " + url + "\nTrích đoạn:\n" + truncate(excerpt, 1200)
+                + "\n---\nGọi tool assess để đánh giá.";
+        try {
+            LlmClient.ToolChoice choice = llm.completeWithTools(
+                    "MODE:DEEP_RESEARCH_MARKET_CHECK\nBạn xác định 1 nguồn có thực sự nói về hoạt động tại thị "
+                            + "trường Việt Nam hay không, dựa vào NỘI DUNG — không dựa vào ngôn ngữ bài viết hay "
+                            + "tên miền trang đăng.",
+                    user, MARKET_CHECK_TOOLS, null);
+            if (!"assess".equals(choice.toolName())) return false;
+            return choice.arguments().path("vietnam_relevant").asBoolean(false);
+        } catch (LlmException e) {
+            log.warn("Deep Research: market-check lỗi LLM, loại nguồn theo hướng an toàn: {}", e.getMessage());
+            return false;
         }
     }
 

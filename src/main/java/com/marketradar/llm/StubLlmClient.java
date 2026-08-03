@@ -39,7 +39,15 @@ public class StubLlmClient implements LlmClient {
             args.put("reason", "[STUB] đã có nguồn tham khảo, dừng vòng lặp demo");
             return new ToolChoice("stop", args);
         }
-        throw new UnsupportedOperationException("StubLlmClient.completeWithTools chỉ hỗ trợ MODE:DEEP_RESEARCH_PLAN");
+        // Stub luôn coi là hợp lệ (giữ nguồn) — không có mạng/AI thật để đọc nội dung khi test
+        // offline, toggle "chỉ Việt Nam" chỉ có ý nghĩa đầy đủ khi chạy với LLM thật.
+        if (systemPrompt != null && systemPrompt.contains("MODE:DEEP_RESEARCH_MARKET_CHECK")) {
+            ObjectNode args = mapper.createObjectNode();
+            args.put("vietnam_relevant", true);
+            args.put("reason", "[STUB] không đánh giá thật khi offline — mặc định giữ nguồn");
+            return new ToolChoice("assess", args);
+        }
+        throw new UnsupportedOperationException("StubLlmClient.completeWithTools chỉ hỗ trợ MODE:DEEP_RESEARCH_PLAN/MARKET_CHECK");
     }
 
     @Override
