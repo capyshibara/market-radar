@@ -272,9 +272,12 @@
         </div>
 
         <!-- ================= PUBLISH ================= -->
-        <div class="desk-label desk-publish"><span th:text="#{ops.pipeline.desk.publish}">Publish</span> <small>· <span th:text="#{ops.pipeline.desk.publishSub}">Editor curates, a human signs</span></small></div>
+        <!-- legacyDesksEnabled=false (mặc định): Product Brief (department Product) không
+             còn ai dùng — ẩn khối này cùng lúc /report/product/regenerate-all bị 404
+             (LegacyDeskAccessGuard), tránh CFO/Strategy thấy nút bấm dẫn tới route đã tắt. -->
+        <div class="desk-label desk-publish" th:if="${legacyDesksEnabled}"><span th:text="#{ops.pipeline.desk.publish}">Publish</span> <small>· <span th:text="#{ops.pipeline.desk.publishSub}">Editor curates, a human signs</span></small></div>
 
-        <div class="stage-row stage-row-product" data-product-row>
+        <div class="stage-row stage-row-product" data-product-row th:if="${legacyDesksEnabled}">
           <div class="st-top">
             <div class="st-heroes"><th:block th:replace="~{fragments/agent-emblems :: editor(62)}"/><th:block th:replace="~{fragments/agent-emblems :: sme(62)}"/></div>
             <div class="st-meta">

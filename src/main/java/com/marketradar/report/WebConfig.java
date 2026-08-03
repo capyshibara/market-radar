@@ -1,5 +1,6 @@
 package com.marketradar.report;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.LocaleResolver;
@@ -19,6 +20,12 @@ import java.util.Locale;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
+    private final boolean legacyDesksEnabled;
+
+    public WebConfig(@Value("${marketradar.legacy-desks.enabled:false}") boolean legacyDesksEnabled) {
+        this.legacyDesksEnabled = legacyDesksEnabled;
+    }
+
     @Bean
     public LocaleResolver localeResolver() {
         CookieLocaleResolver resolver = new CookieLocaleResolver("mr-lang");
@@ -37,5 +44,10 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(localeChangeInterceptor());
+        registry.addInterceptor(new LegacyDeskAccessGuard(legacyDesksEnabled))
+                .addPathPatterns("/desks", "/desks/**",
+                        "/report/product", "/report/product/**",
+                        "/product/special-issues", "/product/special-issues/**",
+                        "/report/weekly", "/report/weekly/**");
     }
 }

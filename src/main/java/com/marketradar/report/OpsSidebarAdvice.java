@@ -2,6 +2,7 @@ package com.marketradar.report;
 
 import com.marketradar.domain.InterpretedClaim.ReviewStatus;
 import com.marketradar.repo.InterpretedClaimRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -17,12 +18,14 @@ public class OpsSidebarAdvice {
 
     private final InterpretedClaimRepository claims;
     private final boolean demoMode;
+    private final boolean legacyDesksEnabled;
 
     public OpsSidebarAdvice(InterpretedClaimRepository claims,
-                            @org.springframework.beans.factory.annotation.Value(
-                                    "${marketradar.demo-mode:false}") boolean demoMode) {
+                            @Value("${marketradar.demo-mode:false}") boolean demoMode,
+                            @Value("${marketradar.legacy-desks.enabled:false}") boolean legacyDesksEnabled) {
         this.claims = claims;
         this.demoMode = demoMode;
+        this.legacyDesksEnabled = legacyDesksEnabled;
     }
 
     @ModelAttribute("queueCount")
@@ -39,5 +42,16 @@ public class OpsSidebarAdvice {
     @ModelAttribute("demoMode")
     public boolean demoMode() {
         return demoMode;
+    }
+
+    /**
+     * marketradar.legacy-desks.enabled=false (default): Product/Sales/Compliance desk
+     * pipeline không còn ai dùng — KHÁC demoMode ở trên (chỉ ẩn menu), cờ này còn được
+     * LegacyDeskAccessGuard dùng để 404 hẳn route tương ứng. Sidebar dùng lại đúng cờ
+     * này để không hiện link dẫn tới route đã tắt.
+     */
+    @ModelAttribute("legacyDesksEnabled")
+    public boolean legacyDesksEnabled() {
+        return legacyDesksEnabled;
     }
 }

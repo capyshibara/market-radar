@@ -34,6 +34,15 @@ marketradar:
   # báo cáo → research), ẩn trang vận hành/audit kỹ thuật khỏi menu (route vẫn sống).
   # Các phòng ban khác dùng đầy đủ: để false.
   demo-mode: false
+  legacy-desks:
+    # 2026-08-03 (feedback CFO Strategy: chỉ cần #3 web-search/HTTP + #5 manual import,
+    # dồn lực vào curate/validate — không cần "wider net"): nhánh Product/Sales/Compliance
+    # (Classifier routing → Desk feed → Product Brief magazine, Special Issues) không còn
+    # ai dùng. KHÁC demo-mode (chỉ ẩn menu, route vẫn sống) — cờ này 404 hẳn route
+    # /desks, /report/product*, /product/special-issues*, /report/weekly*, và ẩn luôn
+    # nút "Generate reports" (Publish/Product SME) khỏi Pipeline Runner. KHÔNG xoá code:
+    # đặt lại true là dùng được ngay, không cần rebuild gì thêm.
+    enabled: false
   ingest:
     enabled: false          # bật true khi muốn cron chạy thật; demo dùng nút chạy tay /ingest/run
     fixed-delay-ms: 900000  # 15 phút
