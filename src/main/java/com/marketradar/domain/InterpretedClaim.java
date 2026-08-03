@@ -106,6 +106,19 @@ public class InterpretedClaim {
     private String chapterCode;
 
     /**
+     * 2026-08-03: bucket của com.marketradar.report.bi.BiFinding (MACRO_ECONOMIC,
+     * SCHEDULED_EVENT, MARKET_SHARE_OR_AWARD, TECH_AI_SIGNAL, STRATEGIC_COMPARISON — hoặc null
+     * cho tin công ty thông thường) — Interpreter tự phân loại khi sinh slot WHY_MATTERS (xem
+     * SYSTEM_DOC). Trước đây claim đã duyệt CHỈ đổ vào 2 bucket cứng (COMPETITIVE_THEME/
+     * COMPANY_EVENT) trong PeriodicalBiAdapter, khiến 5 mục trên của báo cáo BI định kỳ LUÔN
+     * trống dù nội dung liên quan đã được duyệt — không phải vì thiếu dữ liệu, mà vì không có
+     * đường phân loại nào gán cho đúng mục. Không dùng @Enumerated: giá trị lạ/rỗng phải rơi về
+     * null một cách an toàn (validate ở Interpreter#parseSentences), không được phép ném lỗi
+     * runtime khi model trả về bucket không nằm trong danh sách. */
+    @Column(length = 32)
+    private String biBucket;
+
+    /**
      * Append-only edition metadata for PIPELINE claims. Signature identifies the
      * interpreter contract + provider/model + effective prompt; inputHash identifies
      * the exact rendered evidence pack. All sentences from one call share editionId.
@@ -160,6 +173,7 @@ public class InterpretedClaim {
     public String getRiskTier() { return riskTier; }
     public ReviewStatus getReviewStatus() { return reviewStatus; }
     public String getChapterCode() { return chapterCode; }
+    public String getBiBucket() { return biBucket; }
     public String getInterpretationSignature() { return interpretationSignature; }
     public String getInterpretationInputHash() { return interpretationInputHash; }
     public String getInterpretationEditionId() { return interpretationEditionId; }
@@ -173,6 +187,7 @@ public class InterpretedClaim {
     public void setGateStatus(GateStatus gateStatus) { this.gateStatus = gateStatus; }
     public void setGateDetailJson(String gateDetailJson) { this.gateDetailJson = gateDetailJson; }
     public void setChapterCode(String chapterCode) { this.chapterCode = chapterCode; }
+    public void setBiBucket(String biBucket) { this.biBucket = biBucket; }
 
     public void setInterpretationEdition(String signature, String inputHash, String editionId) {
         this.interpretationSignature = signature;

@@ -45,8 +45,12 @@ public class Interpreter {
     private static final Logger log = LoggerFactory.getLogger(Interpreter.class);
 
     /** Một câu do model trả về, đã qua parse (CHƯA qua gate). Batch 7 (i18n):
-     * model sinh CẢ hai bản trong cùng lần gọi, không phải dịch máy tách rời. */
-    public record Sentence(Slot slot, String textVi, String textEn, List<String> factCodes) {}
+     * model sinh CẢ hai bản trong cùng lần gọi, không phải dịch máy tách rời.
+     * biBucket (2026-08-03): null cho tin công ty thông thường, hoặc 1 trong 5 bucket đặc biệt
+     * của BiFinding (MACRO_ECONOMIC/SCHEDULED_EVENT/MARKET_SHARE_OR_AWARD/TECH_AI_SIGNAL/
+     * STRATEGIC_COMPARISON) — CHỈ có ý nghĩa cho slot WHY_MATTERS, các slot khác luôn null vì
+     * schema JSON của chúng không có field này. */
+    public record Sentence(Slot slot, String textVi, String textEn, List<String> factCodes, String biBucket) {}
 
     /** Kết quả 1 lần gọi: parse OK → sentences; parse hỏng → schemaRejected + raw. */
     public record InterpretOutput(boolean schemaRejected, List<Sentence> sentences, String rawResponse) {}
@@ -118,8 +122,23 @@ public class Interpreter {
         5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
            escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
            JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
-        6. Trả về DUY NHẤT một JSON object đúng dạng:
-           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
+        6. PHÂN LOẠI bi_bucket cho mỗi câu — dùng để xếp câu vào đúng mục trong Business
+           Intelligence Report. Để null (bỏ field hoặc null) cho tin công ty thông thường (ra mắt
+           sản phẩm, nhân sự, tài trợ/CSR, kết quả tài chính của MỘT công ty...). CHỈ gán 1 trong
+           5 giá trị sau khi câu ĐÚNG BẢN CHẤT thuộc về nó:
+           - "MACRO_ECONOMIC": số liệu/chính sách kinh tế vĩ mô hoặc TOÀN NGÀNH bảo hiểm, KHÔNG
+             gắn riêng cho 1 công ty (vd GDP, lạm phát, quy định pháp lý áp cho cả ngành, quy mô
+             thị trường bảo hiểm quốc gia).
+           - "SCHEDULED_EVENT": LỊCH/NGÀY một sự kiện SẮP diễn ra (công bố kết quả kinh doanh,
+             họp báo...) — không dùng cho sự kiện ĐÃ xảy ra rồi.
+           - "MARKET_SHARE_OR_AWARD": số liệu thị phần (vd % APE) hoặc giải thưởng/xếp hạng một
+             công ty ĐÃ ĐẠT ĐƯỢC.
+           - "TECH_AI_SIGNAL": động thái/năng lực AI hoặc công nghệ của một công ty cụ thể (đầu
+             tư, ra mắt, tuyển dụng liên quan AI/tự động hoá).
+           - "STRATEGIC_COMPARISON": câu SO SÁNH TRỰC TIẾP từ 2 công ty trở lên trong cùng 1 câu
+             (không phải liệt kê nhiều công ty làm việc khác nhau — phải là một sự so sánh thật).
+        7. Trả về DUY NHẤT một JSON object đúng dạng:
+           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"],"bi_bucket":null}]}
            Không markdown, không giải thích ngoài JSON.
         """;
 
@@ -336,6 +355,14 @@ public class Interpreter {
      * cùng triết lý "fail loud" như thiếu fact_codes, chỉ khác là bỏ hẳn thay vì để gate
      * bắt, vì đây là lỗi cấu trúc output chứ không phải lỗi grounding).
      */
+    /** Bucket đặc biệt hợp lệ cho bi_bucket — không dùng BiFinding.* trực tiếp để tránh phụ
+     *  thuộc ngược từ interpret sang report.bi; danh sách này PHẢI khớp 5 hằng số tương ứng
+     *  trong BiFinding (trừ COMPETITIVE_THEME/COMPANY_EVENT — đó là fallback mặc định, model
+     *  không cần tự gán, PeriodicalBiAdapter tự chọn khi bi_bucket null). */
+    private static final java.util.Set<String> VALID_BI_BUCKETS = java.util.Set.of(
+            "MACRO_ECONOMIC", "SCHEDULED_EVENT", "MARKET_SHARE_OR_AWARD",
+            "TECH_AI_SIGNAL", "STRATEGIC_COMPARISON");
+
     private void parseSentences(JsonNode arr, Slot slot, List<Sentence> out) {
         if (arr == null || !arr.isArray()) return;
         for (JsonNode n : arr) {
@@ -348,7 +375,12 @@ public class Interpreter {
                 String v = c.asText("").strip();
                 if (!v.isEmpty()) codes.add(v);
             });
-            out.add(new Sentence(slot, textVi, textEn, codes));
+            String bucket = n.path("bi_bucket").isNull() ? null : n.path("bi_bucket").asText(null);
+            if (bucket != null) {
+                bucket = bucket.strip().toUpperCase(java.util.Locale.ROOT);
+                if (!VALID_BI_BUCKETS.contains(bucket)) bucket = null; // giá trị lạ → rơi về mặc định, không ném lỗi
+            }
+            out.add(new Sentence(slot, textVi, textEn, codes, bucket));
         }
     }
 

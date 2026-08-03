@@ -298,6 +298,7 @@ public class InterpretationJob {
             c.setReviewStatus(r.status() == GateStatus.PASS
                     ? ReviewStatus.PENDING_VERIFICATION : ReviewStatus.PENDING_REVIEW);
             c.setChapterCode(chapterCode);
+            c.setBiBucket(s.biBucket());
             applyEdition(c, plan, editionId);
             claims.save(c);
             statuses.add(r.status());

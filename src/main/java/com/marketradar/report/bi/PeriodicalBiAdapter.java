@@ -51,6 +51,21 @@ public class PeriodicalBiAdapter {
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
+    /** 2026-08-03: 5 bucket mà Interpreter có thể tự gán cho claim WHY_MATTERS (xem
+     *  Interpreter#VALID_BI_BUCKETS) — claim với bucket khác/null rơi về COMPETITIVE_THEME/
+     *  COMPANY_EVENT như trước. Dùng chung danh sách này để biết mục nào THẬT SỰ trống trong
+     *  kỳ này, thay vì luôn báo cả 5 mục là "chưa có nguồn" bất kể có claim hay không. */
+    private static final Set<String> SPECIAL_BUCKETS = Set.of(
+            BiFinding.MACRO_ECONOMIC, BiFinding.SCHEDULED_EVENT, BiFinding.MARKET_SHARE_OR_AWARD,
+            BiFinding.TECH_AI_SIGNAL, BiFinding.STRATEGIC_COMPARISON);
+
+    private static final Map<String, String> BUCKET_LABEL_VI = Map.of(
+            BiFinding.MACRO_ECONOMIC, "Vĩ mô ngành",
+            BiFinding.SCHEDULED_EVENT, "Lịch công bố sắp tới",
+            BiFinding.MARKET_SHARE_OR_AWARD, "Thị phần/Giải thưởng",
+            BiFinding.TECH_AI_SIGNAL, "Tín hiệu Tech/AI",
+            BiFinding.STRATEGIC_COMPARISON, "So sánh chiến lược");
+
     private final String homeCompany;
     private final InterpretedClaimRepository claims;
     private final EvidenceFactRepository facts;
@@ -100,9 +115,13 @@ public class PeriodicalBiAdapter {
                     claim.getRawDoc() == null ? null : claim.getRawDoc().getUrl(),
                     claim.getRawDoc() == null ? null : claim.getRawDoc().getPublisherName(),
                     null);
+            // claim.getBiBucket() null cho tuyệt đại đa số claim (tin công ty thông thường) —
+            // SPECIAL_BUCKETS là Set.of(...) nên contains(null) tự ném NPE, phải chặn trước.
+            String bucket = claim.getBiBucket() != null && SPECIAL_BUCKETS.contains(claim.getBiBucket())
+                    ? claim.getBiBucket()
+                    : (reportLevel ? BiFinding.COMPETITIVE_THEME : BiFinding.COMPANY_EVENT);
             findings.add(new BiFinding(
-                    reportLevel ? BiFinding.COMPETITIVE_THEME : BiFinding.COMPANY_EVENT,
-                    subject,
+                    bucket, subject,
                     claim.getTextVi(), claim.getTextEn(),
                     claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY,
                     citations, market.scope(), market.geography()));
@@ -143,9 +162,19 @@ public class PeriodicalBiAdapter {
                     + "duyệt claim ở đó là cách trực tiếp nhất để làm dày báo cáo (mỗi claim duyệt "
                     + "xong xuất hiện ngay tại đây).");
         }
-        openGaps.add("Vĩ mô ngành, Lịch công bố sắp tới, Thị phần/Giải thưởng, Tín hiệu Tech/AI, "
-                + "So sánh chiến lược — kho whitelist crawl chưa có nguồn cho các mục này; "
-                + "dùng Deep Research để bổ sung theo yêu cầu cụ thể.");
+        // 2026-08-03: chỉ báo "chưa có nguồn" cho ĐÚNG mục nào thật sự không có finding nào
+        // trong kỳ này — trước đây báo cả 5 mục vô điều kiện dù claim đã duyệt CÓ THỂ đã thuộc
+        // đúng mục đó (Interpreter tự gán bi_bucket từ 2026-08-03, xem InterpretedClaim#biBucket).
+        Set<String> presentBuckets = findings.stream().map(BiFinding::bucket).collect(java.util.stream.Collectors.toSet());
+        List<String> missingBuckets = SPECIAL_BUCKETS.stream()
+                .filter(b -> !presentBuckets.contains(b))
+                .map(BUCKET_LABEL_VI::get)
+                .toList();
+        if (!missingBuckets.isEmpty()) {
+            openGaps.add(String.join(", ", missingBuckets) + " — chưa có claim đã duyệt nào thuộc "
+                    + (missingBuckets.size() == 1 ? "mục này" : "các mục này") + " trong kỳ; "
+                    + "dùng Deep Research để bổ sung theo yêu cầu cụ thể, hoặc duyệt thêm claim liên quan ở /review.");
+        }
         if (homeCompany == null || homeCompany.isBlank()) {
             openGaps.add("So sánh chiến lược cần cấu hình marketradar.home-company để xác định công ty gốc.");
         }
