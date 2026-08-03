@@ -28,10 +28,15 @@ import java.util.Set;
  * credibility. Only the ~60 codes this codebase itself seeded are touched; a source an
  * operator added later through /sources is left alone (this migration doesn't know its intent).
  *
- * Tier 3 is also auto-deactivated, but ONLY the first time a source is reclassified INTO tier 3
- * (detected by the tier actually changing to 3 during this same pass) — an operator who later
- * flips a Tier 3 source back on via the /sources toggle must stay flipped on across restarts,
- * or the toggle button would be pointless.
+ * 2026-08-03 (Strategy request): active status for these ~60 seed sources is now a HARD RULE
+ * derived from tier — Tier 1/2 always active, Tier 3 always inactive — enforced on EVERY boot,
+ * not just once. Before this, active/inactive was set ad hoc per source at seed time for
+ * unrelated technical reasons (WAF blocks, dead certs, gone RSS feeds), which left several
+ * VN Tier 1/2 sources inactive while many Tier 3 foreign sources stayed active — the opposite
+ * of what the taxonomy is meant to express. Re-enforcing this every boot is intentional: this
+ * table is documented as a "bảng tier cố định (Invariant)" on Source.java, so an operator
+ * manually reactivating one of these specific 60 sources is not an expected workflow (unlike
+ * a source the operator added themselves through /sources, which this migration never touches).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -66,25 +71,31 @@ public class TierReclassificationMigration implements ApplicationRunner {
         TIER3.forEach(code -> newTierByCode.put(code, 3));
 
         int retagged = 0;
-        int deactivated = 0;
+        int flippedActive = 0;
         for (Map.Entry<String, Integer> entry : newTierByCode.entrySet()) {
             Source source = sources.findByCode(entry.getKey()).orElse(null);
             if (source == null) continue;
-            int oldTier = source.getTier();
             int newTier = entry.getValue();
-            if (oldTier == newTier) continue;
-            source.setTier(newTier);
-            retagged++;
-            if (newTier == 3 && oldTier != 3 && source.isActive()) {
-                source.setActive(false);
-                deactivated++;
+            boolean changed = false;
+            if (source.getTier() != newTier) {
+                source.setTier(newTier);
+                retagged++;
+                changed = true;
             }
-            sources.save(source);
+            boolean shouldBeActive = newTier <= 2;
+            if (source.isActive() != shouldBeActive) {
+                source.setActive(shouldBeActive);
+                flippedActive++;
+                changed = true;
+            }
+            if (changed) {
+                sources.save(source);
+            }
         }
-        if (retagged > 0) {
+        if (retagged > 0 || flippedActive > 0) {
             log.info("Tier reclassification: retagged {} source(s) to the VN/media/foreign taxonomy, "
-                    + "auto-deactivated {} newly-Tier-3 source(s) (use the /sources toggle to turn any back on).",
-                    retagged, deactivated);
+                    + "flipped active status on {} source(s) to match active=(tier<=2).",
+                    retagged, flippedActive);
         }
     }
 }

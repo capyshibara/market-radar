@@ -193,7 +193,9 @@ public class SourceRegistryService {
                 : TestResult.notRun(validatedUrl.allowedHost(),
                         SourceRegistryRules.parserSupportedForActivation(type));
         boolean verified = command.testPassed() && serverTest.success();
-        boolean active = command.active() && verified && serverTest.recommendedActive();
+        // Tier 3 (nước ngoài) không bao giờ được kích hoạt qua form thêm nguồn — cùng quy tắc
+        // active=(tier<=2) mà TierReclassificationMigration áp cho 60 nguồn seed sẵn.
+        boolean active = command.active() && verified && serverTest.recommendedActive() && tier <= 2;
 
         Source source = new Source(code, name, validatedUrl.fetchUrl(), validatedUrl.allowedHost(),
                 type, tier, language);

@@ -96,6 +96,25 @@ public class SeedData implements CommandLineRunner {
                 Source.SourceType.HTML, 3, "zh"));
 
         seedBatch6aSources();
+        enforceActiveByTier();
+    }
+
+    /**
+     * 2026-08-03 (Strategy request): active=(tier<=2) là quy tắc cứng cho 60 nguồn seed —
+     * Tier 1/2 (Việt Nam) luôn active, Tier 3 (nước ngoài) luôn inactive. Các dòng
+     * .setActive(false) rải rác ở trên là lý do KỸ THUẬT cũ (WAF chặn, RSS đã gỡ...) không liên
+     * quan gì đến tier — quét lại một lượt ở đây để không phải sửa tay từng dòng, và để không bị
+     * lệch nếu sau này thêm nguồn mới mà quên set active theo đúng tier. TierReclassificationMigration
+     * làm lại đúng việc này cho DB cũ đã tồn tại từ trước; đây là bản áp dụng cho DB mới seed lần đầu.
+     */
+    private void enforceActiveByTier() {
+        for (Source s : sources.findAll()) {
+            boolean shouldBeActive = s.getTier() <= 2;
+            if (s.isActive() != shouldBeActive) {
+                s.setActive(shouldBeActive);
+                sources.save(s);
+            }
+        }
     }
 
     /**
