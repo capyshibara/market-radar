@@ -52,6 +52,48 @@ public class EvidenceFact {
     @Lob @Column(columnDefinition = "CLOB") private String summaryVi; // tóm tắt tiếng Việt, gắn nhãn bản dịch/tóm tắt
     @Lob @Column(columnDefinition = "CLOB") private String summaryEn; // Batch 7 (i18n): bản tiếng Anh của summary
 
+    /**
+     * 2026-08-03 (Router — feedback "phân loại linh hoạt hơn dựa trên file báo cáo mẫu thật"):
+     * các nhãn Router gán CHO FACT, trước khi Analyst chạy — thay cho cách cũ là gán biBucket
+     * SAU KHI viết câu, lồng trong prompt Interpreter (InterpretedClaim#biBucket, nay bỏ hẳn).
+     * Tất cả nullable — bảng evidence_facts đã có dữ liệu từ trước, xem lý do ở Boolean
+     * vietnamOnly của DeepResearchRun (primitive/NOT NULL sẽ làm ALTER TABLE crash).
+     *
+     * biBucket: 1 trong 8 giá trị BiFinding.* (7 cũ + DEEP_DIVE mới, xem BiFinding).
+     * subjectKey: tên công ty đã chuẩn hoá (CompetitorRegistry) / tên chủ đề (COMPETITIVE_THEME)
+     *   / tên cặp so sánh (STRATEGIC_COMPARISON) — null nếu bucket không cần nhóm.
+     * highlightCardLabel: CHỈ có ý nghĩa khi bucket=COMPANY_EVENT — nhãn ngắn Router tự đặt
+     *   theo đúng nội dung (PRODUCT_LAUNCH, BANCASSURANCE, HIRING_SIGNAL...), danh sách MỞ —
+     *   trừ 1 giá trị bắt buộc dùng đúng lúc: "PARENT_GROUP" khi fact nói về kết quả/số liệu
+     *   công ty MẸ toàn cầu chứ không tách riêng thị trường Việt Nam (ca thật thấy trong file
+     *   mẫu CFO gửi: "Vietnam not broken out separately... No Vietnam-specific questions in
+     *   investor call Q&A" — đúng vấn đề quy kết sai công ty CFO nêu từ đầu, xử lý bằng cách
+     *   hiện minh bạch + cảnh báo, không lọc ẩn).
+     * severity/severityTrend: CHỈ bucket=TECH_AI_SIGNAL. severity null = AI_SIZING (số liệu thị
+     *   trường); có giá trị = AI_THREATMAP (đánh giá theo công ty). severityTrend (RISING/
+     *   FALLING/STABLE) là cờ phụ — file mẫu có "MEDIUM, RISING", không chỉ 3 mức tĩnh.
+     * eventDateRangeStart/End: CHỈ bucket=SCHEDULED_EVENT hoặc COMPANY_EVENT khi nguồn nêu rõ
+     *   ngày/khoảng ngày — để dựng được lưới lịch thật (file mẫu slide 3/4 là lưới tháng thật,
+     *   không phải bảng 2 cột) thay vì chuỗi tự do eventDateLabel cũ ở BiFinding.
+     * kpiLabel/kpiValue: CHỈ khi fact là 1 CHỈ SỐ độc lập không gắn 1 công ty cụ thể (vd "GDP
+     *   Growth" / "7.9%", "Insurtech market size (2034)" / "USD 878.7 million") — dùng cho
+     *   MACRO_ECONOMIC và nhánh AI_SIZING của TECH_AI_SIGNAL. kpiValue giữ nguyên chuỗi đã định
+     *   dạng (không tách number/unit riêng — định dạng thật quá đa dạng để ép khuôn cứng).
+     * highlight: có đủ quan trọng để lên trang Tóm tắt điều hành không — quyết định NỘI DUNG
+     *   thật (materiality), thay cho rule cũ "slot==EXEC_SUMMARY" (chỉ là do bước nào sinh ra
+     *   câu, không phải do câu đó quan trọng hay không).
+     */
+    @Column(length = 32) private String biBucket;
+    @Column(length = 256) private String subjectKey;
+    @Column(length = 64) private String highlightCardLabel;
+    @Column(length = 16) private String severity;
+    @Column(length = 16) private String severityTrend;
+    private LocalDate eventDateRangeStart;
+    private LocalDate eventDateRangeEnd;
+    @Column(length = 128) private String kpiLabel;
+    @Column(length = 128) private String kpiValue;
+    private Boolean highlight;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -98,6 +140,16 @@ public class EvidenceFact {
     public String getCategoryEn() { return categoryEn; }
     public String getSummaryVi() { return summaryVi; }
     public String getSummaryEn() { return summaryEn; }
+    public String getBiBucket() { return biBucket; }
+    public String getSubjectKey() { return subjectKey; }
+    public String getHighlightCardLabel() { return highlightCardLabel; }
+    public String getSeverity() { return severity; }
+    public String getSeverityTrend() { return severityTrend; }
+    public LocalDate getEventDateRangeStart() { return eventDateRangeStart; }
+    public LocalDate getEventDateRangeEnd() { return eventDateRangeEnd; }
+    public String getKpiLabel() { return kpiLabel; }
+    public String getKpiValue() { return kpiValue; }
+    public boolean isHighlight() { return Boolean.TRUE.equals(highlight); }
     public Instant getCreatedAt() { return createdAt; }
     public FactExtractionRun getExtractionRun() { return extractionRun; }
     public boolean isActive() { return active; }
@@ -160,4 +212,15 @@ public class EvidenceFact {
     public EvidenceFact summaryVi(String s) { this.summaryVi = s; return this; }
     public EvidenceFact summaryEn(String s) { this.summaryEn = s; return this; }
     public EvidenceFact extractionRun(FactExtractionRun run) { this.extractionRun = run; return this; }
+
+    public EvidenceFact biBucket(String b) { this.biBucket = b; return this; }
+    public EvidenceFact subjectKey(String s) { this.subjectKey = s; return this; }
+    public EvidenceFact highlightCardLabel(String l) { this.highlightCardLabel = l; return this; }
+    public EvidenceFact severity(String s) { this.severity = s; return this; }
+    public EvidenceFact severityTrend(String t) { this.severityTrend = t; return this; }
+    public EvidenceFact eventDateRangeStart(LocalDate d) { this.eventDateRangeStart = d; return this; }
+    public EvidenceFact eventDateRangeEnd(LocalDate d) { this.eventDateRangeEnd = d; return this; }
+    public EvidenceFact kpiLabel(String l) { this.kpiLabel = l; return this; }
+    public EvidenceFact kpiValue(String v) { this.kpiValue = v; return this; }
+    public EvidenceFact highlight(boolean h) { this.highlight = h; return this; }
 }

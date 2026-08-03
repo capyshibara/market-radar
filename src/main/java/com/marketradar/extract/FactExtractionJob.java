@@ -2,6 +2,7 @@ package com.marketradar.extract;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -111,6 +112,105 @@ public class FactExtractionJob {
             "effective_date":null,"expiry_date":null,"forecast_horizon":null,
             "summary_vi":"...","summary_en":"..."}]}
             """.formatted(MAX_FACTS_PER_CHUNK);
+
+    /**
+     * 2026-08-03 — Router (feedback: "Router không được phân loại linh tinh... phải làm rõ
+     * requirement, đọc file báo cáo mẫu"): gán nhãn CHO FACT ngay sau khi Researcher (chính là
+     * job này) trích xong span, TRƯỚC khi Analyst/Interpreter chạy — thay cho cách cũ là để
+     * Interpreter tự vừa viết câu vừa đoán bi_bucket trong CÙNG 1 lần gọi (lỗi kiến trúc CFO
+     * chỉ ra: trộn "phân loại" vào "phân tích"). Taxonomy suy trực tiếp từ file mẫu CFO gửi
+     * ("Business Intelligence - July 2026.pptx", 14 slide thật), KHÔNG phải suy diễn.
+     *
+     * Không gán DEEP_DIVE ở đây — đó là quyết định của Connector (gộp nhiều fact thành 1 bài
+     * phân tích), không phải quyết định per-fact của Router.
+     */
+    private static final String ROUTER_SYSTEM = """
+            MODE:ROUTE_FACT
+            Bạn phân loại 1 fact (đoạn nguyên văn đã trích) vào đúng vị trí trong Business
+            Intelligence Report, dựa trên NỘI DUNG THẬT — không đoán, không suy diễn ngoài
+            những gì đoạn văn nói.
+
+            1. "bucket" — bắt buộc, đúng 1 trong 7 giá trị:
+               - MACRO_ECONOMIC: chỉ số/chính sách kinh tế vĩ mô hoặc TOÀN NGÀNH bảo hiểm,
+                 KHÔNG gắn riêng 1 công ty (vd GDP, lạm phát, FDI, quy định áp cho cả ngành).
+               - COMPETITIVE_THEME: một PATTERN/xu hướng liên quan từ 2 công ty trở lên hoặc
+                 toàn thị trường (vd "chuyển từ mở rộng đại lý sang cạnh tranh nền tảng số") —
+                 KHÔNG dùng cho tin riêng của 1 công ty.
+               - SCHEDULED_EVENT: LỊCH/NGÀY một sự kiện SẮP diễn ra (công bố KQKD, họp báo...).
+                 Không dùng cho sự kiện ĐÃ xảy ra rồi.
+               - COMPANY_EVENT: tin THÔNG THƯỜNG của MỘT công ty cụ thể đã xảy ra (ra mắt sản
+                 phẩm, nhân sự, CSR, kết quả tài chính, hợp tác, M&A...). Đây là bucket MẶC ĐỊNH
+                 cho tin 1 công ty khi không rõ ràng thuộc bucket nào khác.
+               - MARKET_SHARE_OR_AWARD: số liệu thị phần (vd % APE) hoặc giải thưởng/xếp hạng
+                 MỘT công ty ĐÃ ĐẠT ĐƯỢC.
+               - TECH_AI_SIGNAL: động thái/năng lực AI hoặc công nghệ — CỦA MỘT công ty cụ thể
+                 (đầu tư, ra mắt, tuyển dụng liên quan AI) HOẶC số liệu ĐỊNH CỠ THỊ TRƯỜNG AI/
+                 insurtech nói chung (không gắn 1 công ty — set kpi_label/kpi_value, để severity
+                 null).
+               - STRATEGIC_COMPARISON: câu SO SÁNH TRỰC TIẾP 2 công ty trở lên trong cùng 1 câu/
+                 đoạn — không phải liệt kê nhiều công ty làm việc khác nhau.
+
+            2. "subject_key" — tên công ty (giữ NGUYÊN VĂN như trong span, không tự dịch/rút
+               gọn) khi bucket cần gắn 1 công ty (COMPANY_EVENT, SCHEDULED_EVENT,
+               MARKET_SHARE_OR_AWARD, TECH_AI_SIGNAL công ty cụ thể); tên chủ đề ngắn khi
+               COMPETITIVE_THEME; để trống nếu không áp dụng.
+
+            3. "highlight_card_label" — CHỈ điền khi bucket=COMPANY_EVENT: 1 nhãn ngắn viết
+               hoa có gạch dưới (vd PRODUCT_LAUNCH, BANCASSURANCE, BRAND_CAMPAIGN, HR_AWARD,
+               HIRING_SIGNAL, STRATEGIC_POSITIONING, DIVESTMENT) mô tả ĐÚNG loại tin — tự đặt
+               theo nội dung, không có danh sách cố định. NGOẠI LỆ BẮT BUỘC: nếu fact nói về
+               kết quả/số liệu của CÔNG TY MẸ toàn cầu/khu vực (không tách riêng thị trường
+               Việt Nam, hoặc rõ ràng gộp chung nhiều thị trường) — PHẢI dùng đúng nhãn
+               "PARENT_GROUP" (đây là nhãn tồn tại để tránh đúng lỗi quy kết sai công ty: tin
+               công ty mẹ toàn cầu bị đọc nhầm thành diễn biến tại Việt Nam).
+
+            4. "severity"/"severity_trend" — CHỈ điền khi bucket=TECH_AI_SIGNAL và fact đánh
+               giá MỨC ĐỘ ĐE DỌA cạnh tranh của 1 công ty cụ thể: severity = HIGH/MEDIUM/LOW;
+               severity_trend = RISING/FALLING/STABLE nếu văn bản có nêu xu hướng thay đổi
+               (vd "đang tăng tốc"), null nếu không rõ. Để cả 2 trống nếu đây là số liệu thị
+               trường chung (không đánh giá theo công ty).
+
+            5. "event_date_range_start"/"event_date_range_end" (định dạng YYYY-MM-DD) — CHỈ
+               điền khi văn bản nêu rõ ngày/khoảng ngày CỤ THỂ cho 1 sự kiện (bucket
+               SCHEDULED_EVENT hoặc COMPANY_EVENT). Cùng 1 ngày thì start=end. KHÔNG đoán ngày
+               không có trong văn bản.
+
+            6. "kpi_label"/"kpi_value" — CHỈ điền khi fact là 1 CHỈ SỐ độc lập, không gắn 1
+               công ty cụ thể (vd kpi_label="GDP Growth", kpi_value="7.9%"; kpi_label=
+               "Insurtech market size (2034)", kpi_value="USD 878.7 million"). kpi_value giữ
+               nguyên định dạng như trong văn bản (không tự tách số/đơn vị).
+
+            7. "highlight" — bắt buộc true/false: fact này có đủ quan trọng để lên trang Tóm
+               tắt điều hành không (dựa trên mức độ ảnh hưởng thật tới vị thế cạnh tranh, KHÔNG
+               phải dựa trên có nhiều con số/tên riêng hay không).
+
+            Gọi tool "route" với đúng các trường trên — trường không áp dụng thì để trống/null,
+            KHÔNG bịa giá trị.
+            """;
+
+    private static final java.util.List<LlmClient.LlmTool> ROUTER_TOOLS = buildRouterTools();
+
+    private static java.util.List<LlmClient.LlmTool> buildRouterTools() {
+        ObjectMapper m = new ObjectMapper();
+        ObjectNode schema = m.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode props = schema.putObject("properties");
+        props.putObject("bucket").put("type", "string").put("description",
+                "MACRO_ECONOMIC|COMPETITIVE_THEME|SCHEDULED_EVENT|COMPANY_EVENT|"
+                        + "MARKET_SHARE_OR_AWARD|TECH_AI_SIGNAL|STRATEGIC_COMPARISON");
+        props.putObject("subject_key").put("type", "string");
+        props.putObject("highlight_card_label").put("type", "string");
+        props.putObject("severity").put("type", "string").put("description", "HIGH|MEDIUM|LOW");
+        props.putObject("severity_trend").put("type", "string").put("description", "RISING|FALLING|STABLE");
+        props.putObject("event_date_range_start").put("type", "string").put("description", "YYYY-MM-DD");
+        props.putObject("event_date_range_end").put("type", "string").put("description", "YYYY-MM-DD");
+        props.putObject("kpi_label").put("type", "string");
+        props.putObject("kpi_value").put("type", "string");
+        props.putObject("highlight").put("type", "boolean");
+        schema.putArray("required").add("bucket").add("highlight");
+        return java.util.List.of(new LlmClient.LlmTool("route",
+                "Gán nhãn Router cho 1 fact — chủ đề, chủ thể, vị trí trên report.", schema));
+    }
 
     private final ClassificationRepository classifications;
     private final EvidenceFactRepository facts;
@@ -445,9 +545,93 @@ public class FactExtractionJob {
                     .effectiveDate(d.effectiveDate()).expiryDate(d.expiryDate())
                     .forecastHorizon(d.forecastHorizon())
                     .summaryVi(d.summaryVi()).summaryEn(d.summaryEn());
+            route(fact, doc);
             result.add(fact);
         }
         return result;
+    }
+
+    /**
+     * Router — gọi 1 lần/fact qua tool-calling (cùng độ tin cậy hơn JSON tự do đã áp dụng cho
+     * plan() của Deep Research và classifyVietnamRelevance). Fail closed về "không gán" (mọi
+     * field null/false) khi lỗi — fact vẫn được lưu bình thường, chỉ là chưa có nhãn Router,
+     * PeriodicalBiAdapter tự rơi về heuristic cũ cho các fact chưa route (không mất dữ liệu).
+     */
+    private void route(EvidenceFact fact, RawDoc doc) {
+        String user = "NGỮ CẢNH: thị trường=" + market(doc) + " · nguồn=" + doc.getSource().getName()
+                + "\nTIÊU ĐỀ: " + (doc.getTitle() == null ? "(không tiêu đề)" : doc.getTitle())
+                + "\nCÔNG TY (nếu có): " + (fact.getCompany() == null ? "(không rõ)" : fact.getCompany())
+                + "\nSẢN PHẨM (nếu có): " + (fact.getProductName() == null ? "(không rõ)" : fact.getProductName())
+                + "\nNGÀY SỰ KIỆN (nếu có): " + (fact.getEventDate() == null ? "(không rõ)" : fact.getEventDate())
+                + "\nSPAN NGUYÊN VĂN:\n" + fact.getSpanText()
+                + "\n---\nGọi tool route để gán nhãn.";
+        try {
+            String raw = routeCallWithCache(doc, user);
+            JsonNode args = mapper.readTree(raw);
+            applyRouting(fact, args);
+        } catch (LlmException e) {
+            log.warn("Router: lỗi LLM cho fact {} (doc#{}), để trống nhãn: {}",
+                    fact.getFactCode(), doc.getId(), e.getMessage());
+        } catch (Exception e) {
+            log.warn("Router: không parse được kết quả cho fact {} (doc#{}): {}",
+                    fact.getFactCode(), doc.getId(), e.getMessage());
+        }
+    }
+
+    private static final java.util.Set<String> VALID_ROUTER_BUCKETS = java.util.Set.of(
+            "MACRO_ECONOMIC", "COMPETITIVE_THEME", "SCHEDULED_EVENT", "COMPANY_EVENT",
+            "MARKET_SHARE_OR_AWARD", "TECH_AI_SIGNAL", "STRATEGIC_COMPARISON");
+    private static final java.util.Set<String> VALID_SEVERITIES = java.util.Set.of("HIGH", "MEDIUM", "LOW");
+    private static final java.util.Set<String> VALID_TRENDS = java.util.Set.of("RISING", "FALLING", "STABLE");
+
+    private void applyRouting(EvidenceFact fact, JsonNode args) {
+        String bucket = upperOrNull(args.path("bucket").asText(null));
+        if (bucket != null && VALID_ROUTER_BUCKETS.contains(bucket)) fact.biBucket(bucket);
+        String subjectKey = textOrNull(args, "subject_key");
+        if (subjectKey != null) fact.subjectKey(subjectKey);
+        String cardLabel = textOrNull(args, "highlight_card_label");
+        if (cardLabel != null) fact.highlightCardLabel(cardLabel.strip().toUpperCase(java.util.Locale.ROOT).replace(' ', '_'));
+        String severity = upperOrNull(args.path("severity").asText(null));
+        if (severity != null && VALID_SEVERITIES.contains(severity)) fact.severity(severity);
+        String trend = upperOrNull(args.path("severity_trend").asText(null));
+        if (trend != null && VALID_TRENDS.contains(trend)) fact.severityTrend(trend);
+        parseIsoDateSafe(textOrNull(args, "event_date_range_start")).ifPresent(fact::eventDateRangeStart);
+        parseIsoDateSafe(textOrNull(args, "event_date_range_end")).ifPresent(fact::eventDateRangeEnd);
+        String kpiLabel = textOrNull(args, "kpi_label");
+        if (kpiLabel != null) fact.kpiLabel(kpiLabel);
+        String kpiValue = textOrNull(args, "kpi_value");
+        if (kpiValue != null) fact.kpiValue(kpiValue);
+        fact.highlight(args.path("highlight").asBoolean(false));
+    }
+
+    private static String textOrNull(JsonNode args, String field) {
+        String v = args.path(field).asText(null);
+        return v == null || v.isBlank() ? null : v.strip();
+    }
+
+    private static String upperOrNull(String s) {
+        return s == null || s.isBlank() ? null : s.strip().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private static java.util.Optional<LocalDate> parseIsoDateSafe(String s) {
+        if (s == null) return java.util.Optional.empty();
+        try { return java.util.Optional.of(LocalDate.parse(s.strip())); }
+        catch (Exception e) { return java.util.Optional.empty(); }
+    }
+
+    /** Cùng cơ chế replay-cache với callWithCache(chunk) phía trên, khác purpose="ROUTE". */
+    private String routeCallWithCache(RawDoc doc, String user) throws LlmException {
+        String hash = sha256(llm.providerName() + "\nROUTE\n" + ROUTER_SYSTEM + "\n---\n" + user);
+        if (replayCache) {
+            var cached = callLog.findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(hash, 0);
+            if (cached.isPresent()) return cached.get().getResponseText();
+        }
+        long t0 = System.currentTimeMillis();
+        LlmClient.ToolChoice choice = llm.completeWithTools(ROUTER_SYSTEM, user, ROUTER_TOOLS, null);
+        String responseJson = choice.arguments().toString();
+        callLog.save(new LlmCallLog("ROUTE", llm.providerName(), hash, 0,
+                responseJson, doc.getId(), System.currentTimeMillis() - t0));
+        return responseJson;
     }
 
     private static EvidenceDateGrounding.Result parseGroundedDate(

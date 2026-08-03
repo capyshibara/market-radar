@@ -118,4 +118,8 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
     public static final String MARKET_SHARE_OR_AWARD = "MARKET_SHARE_OR_AWARD";
     public static final String TECH_AI_SIGNAL = "TECH_AI_SIGNAL";
     public static final String STRATEGIC_COMPARISON = "STRATEGIC_COMPARISON";
+    /** 2026-08-03 (file mẫu CFO — slide "DEEP DIVE"): bài phân tích dài, tổng hợp NHIỀU fact
+     *  (có thể khác bucket nhau) thành 1 luận điểm — dành cho vài chủ đề Connector đề xuất là
+     *  đủ quan trọng để đào sâu, không phải mọi fact đều có bucket này. */
+    public static final String DEEP_DIVE = "DEEP_DIVE";
 }
