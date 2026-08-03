@@ -1,3 +1,10 @@
+# Mặc định 8081 (không phải 8080 mặc định của Spring Boot) — cố định ở đây thay vì dựa vào
+# việc phải nhớ `export SERVER_PORT=8081` mỗi lần mở terminal mới trước khi chạy app (đã gây
+# nhầm lẫn nhiều lần: quên export -> app rơi về 8080, trong khi mọi hướng dẫn/script đều giả
+# định 8081). Vẫn đọc được biến môi trường SERVER_PORT nếu thật sự cần đổi cổng.
+server:
+  port: ${SERVER_PORT:8081}
+
 spring:
   servlet:
     multipart:
