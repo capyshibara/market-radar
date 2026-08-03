@@ -31,9 +31,12 @@ public class ManualDocumentController {
     }
 
     @PostMapping("/documents/intake/url")
-    public String importUrl(@RequestParam String sourceUrl, RedirectAttributes redirect) {
+    public String importUrl(@RequestParam String sourceUrl,
+                            @RequestParam(value = "homeCompanyContent", required = false) Boolean homeCompanyContent,
+                            RedirectAttributes redirect) {
         try {
-            addResult(intake.importUrl(sourceUrl), redirect);
+            addResult(intake.importUrl(sourceUrl, com.marketradar.domain.RawDoc.IntakeMethod.MANUAL_TEXT,
+                    "URL_IMPORT", Boolean.TRUE.equals(homeCompanyContent)), redirect);
         } catch (ManualDocumentRules.ValidationException invalid) {
             redirect.addFlashAttribute("intakeError", invalid.getMessage());
         }
@@ -42,9 +45,10 @@ public class ManualDocumentController {
 
     @PostMapping("/documents/intake/upload")
     public String upload(@RequestParam("file") MultipartFile file,
+                         @RequestParam(value = "homeCompanyContent", required = false) Boolean homeCompanyContent,
                          RedirectAttributes redirect) {
         try {
-            addResult(intake.submitFile(file), redirect);
+            addResult(intake.submitFile(file, Boolean.TRUE.equals(homeCompanyContent)), redirect);
         } catch (ManualDocumentRules.ValidationException invalid) {
             redirect.addFlashAttribute("intakeError", invalid.getMessage());
         }

@@ -433,6 +433,7 @@ public class FactExtractionJob {
 
     private String buildUserPrompt(RawDoc doc, LongDocumentChunker.Chunk chunk, int chunkCount) {
         return "NGỮ CẢNH: thị trường=" + market(doc)
+                + (doc.isHomeCompanyContent() ? " · CHỦ THỂ=CHÍNH TECHCOM LIFE (không phải đối thủ, tài liệu tự nộp)" : "")
                 + " · nguồn=" + doc.getSource().getName()
                 + " · chunk=" + (chunk.index() + 1) + "/" + chunkCount
                 + " · ký tự nguồn=" + chunk.startInclusive() + ".." + chunk.endExclusive()
@@ -558,7 +559,10 @@ public class FactExtractionJob {
      * PeriodicalBiAdapter tự rơi về heuristic cũ cho các fact chưa route (không mất dữ liệu).
      */
     private void route(EvidenceFact fact, RawDoc doc) {
-        String user = "NGỮ CẢNH: thị trường=" + market(doc) + " · nguồn=" + doc.getSource().getName()
+        String user = "NGỮ CẢNH: thị trường=" + market(doc)
+                + (doc.isHomeCompanyContent() ? " · CHỦ THỂ=CHÍNH TECHCOM LIFE (không phải đối thủ, tài liệu tự nộp — "
+                        + "nếu fact hợp lý cho so sánh chiến lược, đặt subject_key=\"Techcom Life\")" : "")
+                + " · nguồn=" + doc.getSource().getName()
                 + "\nTIÊU ĐỀ: " + (doc.getTitle() == null ? "(không tiêu đề)" : doc.getTitle())
                 + "\nCÔNG TY (nếu có): " + (fact.getCompany() == null ? "(không rõ)" : fact.getCompany())
                 + "\nSẢN PHẨM (nếu có): " + (fact.getProductName() == null ? "(không rõ)" : fact.getProductName())

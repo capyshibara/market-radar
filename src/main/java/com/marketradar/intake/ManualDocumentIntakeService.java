@@ -32,12 +32,17 @@ public class ManualDocumentIntakeService {
     }
 
     public Result importUrl(String sourceUrl) {
-        return importUrl(sourceUrl, RawDoc.IntakeMethod.MANUAL_TEXT, "URL_IMPORT");
+        return importUrl(sourceUrl, RawDoc.IntakeMethod.MANUAL_TEXT, "URL_IMPORT", false);
     }
 
     /** Open-research variant: same fetch/parse/metadata/validation/dedup path, only the
      * provenance label differs (OPEN_SEARCH + audit prefix naming the query that found it). */
     public Result importUrl(String sourceUrl, RawDoc.IntakeMethod method, String auditLabel) {
+        return importUrl(sourceUrl, method, auditLabel, false);
+    }
+
+    public Result importUrl(String sourceUrl, RawDoc.IntakeMethod method, String auditLabel,
+                            boolean homeCompanyContent) {
         String url = ManualDocumentRules.directImportUrl(sourceUrl);
         try {
             SafeFetcher.FetchResult fetched = fetcher.fetchDocument(url);
@@ -52,7 +57,8 @@ public class ManualDocumentIntakeService {
                     metadata.title(), metadata.publisher(), url, metadata.publishedDate(),
                     metadata.language(), parsed.text());
             return store(input, method, filename,
-                    auditLabel + " | contentType=" + fetched.contentType(), pdf ? "PDF" : "article");
+                    auditLabel + " | contentType=" + fetched.contentType(), pdf ? "PDF" : "article",
+                    homeCompanyContent);
         } catch (SafeFetcher.FetchRejectedException rejected) {
             throw new ManualDocumentRules.ValidationException("Could not import this URL: " + rejected.getMessage());
         } catch (ContentParsers.ParseFailedException parseError) {
@@ -73,13 +79,20 @@ public class ManualDocumentIntakeService {
                     metadata.title(), metadata.publisher(), url, metadata.publishedDate(),
                     metadata.language(), parsed.text());
             return store(input, RawDoc.IntakeMethod.BROWSER_RENDER, filenameFromUrl(url, null),
-                    "BROWSER_RENDER | js-rendered page", "article");
+                    "BROWSER_RENDER | js-rendered page", "article", false);
         } catch (ContentParsers.ParseFailedException parseError) {
             throw new ManualDocumentRules.ValidationException("The rendered page could not be read: " + parseError.getMessage());
         }
     }
 
     public Result submitFile(MultipartFile file) {
+        return submitFile(file, false);
+    }
+
+    /** homeCompanyContent (feedback: "STRATEGIC_COMPARISON cần input hoạt động của chính Techcom
+     *  Life"): người nộp tay gắn cờ khi tài liệu mô tả hoạt động của CHÍNH công ty, không phải
+     *  đối thủ — xem RawDoc#homeCompanyContent. */
+    public Result submitFile(MultipartFile file, boolean homeCompanyContent) {
         if (file == null || file.isEmpty()) throw new ManualDocumentRules.ValidationException("Choose a PDF or TXT file.");
         if (file.getSize() > ManualDocumentRules.MAX_FILE_BYTES) {
             throw new ManualDocumentRules.ValidationException("File exceeds the 10 MB safety limit.");
@@ -107,7 +120,8 @@ public class ManualDocumentIntakeService {
                     metadata.publishedDate(), metadata.language(), text);
             return store(input, RawDoc.IntakeMethod.FILE_UPLOAD, filename,
                     "FILE_UPLOAD | artifactSha256=" + artifactHash
-                            + " | no external source URL supplied", pdf ? "PDF" : "TXT");
+                            + " | no external source URL supplied", pdf ? "PDF" : "TXT",
+                    homeCompanyContent);
         } catch (ContentParsers.ParseFailedException e) {
             throw new ManualDocumentRules.ValidationException("The PDF could not be read: " + e.getMessage());
         } catch (java.io.IOException e) {
@@ -116,7 +130,7 @@ public class ManualDocumentIntakeService {
     }
 
     private Result store(ManualDocumentRules.Submission input, RawDoc.IntakeMethod method,
-                         String filename, String auditPrefix, String type) {
+                         String filename, String auditPrefix, String type, boolean homeCompanyContent) {
         String hash = sha256(input.text());
         if (rawDocs.existsByContentHash(hash)) return new Result(null, true,
                 "This exact content already exists, so no duplicate was added.");
@@ -130,6 +144,7 @@ public class ManualDocumentIntakeService {
         doc.setIntakeMethod(method);
         doc.setPublisherName(input.publisher());
         doc.setOriginalFilename(filename);
+        doc.setHomeCompanyContent(homeCompanyContent);
         RawDoc saved = rawDocs.save(doc);
         String date = input.publishedDate() == null ? "date not detected" : input.publishedDate().toString();
         return new Result(saved.getId(), false, "Added " + type + " · " + input.publisher()

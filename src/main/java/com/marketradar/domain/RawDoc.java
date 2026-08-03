@@ -93,6 +93,16 @@ public class RawDoc {
     @Column(length = 512)
     private String originalFilename;
 
+    /** 2026-08-03 (feedback: "STRATEGIC_COMPARISON cần input về hoạt động của chính Techcom
+     *  Life, không chỉ tin đối thủ" — file mẫu CFO luôn so sánh Techcom Life với 1 đối thủ cụ
+     *  thể, vd "AI Health Machine vs MB Life Palm Scan"): true khi tài liệu NỘP TAY (Manual
+     *  Upload) mô tả hoạt động của CHÍNH Techcom Life, không phải đối thủ — Router/Extract dùng
+     *  cờ này để không nhầm gán "công ty" là 1 đối thủ, và Connector/Analyst dùng để ghép cặp so
+     *  sánh (task Analyst theo bucket DEEP_DIVE/STRATEGIC_COMPARISON). Boolean (không phải
+     *  boolean) + nullable: bảng raw_docs đã có dữ liệu — cùng lý do đã ghi ở các cột tương tự
+     *  trong phiên làm việc này (vd DeepResearchRun#vietnamOnly). */
+    private Boolean homeCompanyContent;
+
     protected RawDoc() {}
 
     public RawDoc(Source source, String url, String title, Instant publishedAt,
@@ -137,6 +147,8 @@ public class RawDoc {
     public void setPublisherName(String publisherName) { this.publisherName = publisherName; }
     public String getOriginalFilename() { return originalFilename; }
     public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
+    public boolean isHomeCompanyContent() { return Boolean.TRUE.equals(homeCompanyContent); }
+    public void setHomeCompanyContent(boolean homeCompanyContent) { this.homeCompanyContent = homeCompanyContent; }
 
     /** Batch 9: nâng cấp doc title-only lên toàn văn TẠI CHỖ (không insert row mới,
      * tránh phải xử lý dedup EXACT_URL cho 2 bản của cùng 1 bài). */

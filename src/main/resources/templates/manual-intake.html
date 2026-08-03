@@ -35,6 +35,13 @@
         <p th:text="${#locale.language == 'vi' ? 'Dùng liên kết bài viết hoặc PDF gốc của nhà xuất bản. Với liên kết từ mạng xã hội, hãy mở và dùng trang đích ban đầu.' : 'Use the publisher’s original article or PDF URL. For a social-media discovery link, open and use the original destination.'}">Description</p>
         <form method="post" action="/documents/intake/url">
           <div class="intake-control"><label class="lbl" for="sourceUrl" th:text="${#locale.language == 'vi' ? 'Liên kết bài viết hoặc PDF' : 'Article or PDF link'}">Article or PDF link</label><input id="sourceUrl" class="ops-input" name="sourceUrl" type="url" required autofocus/></div>
+          <div class="intake-control">
+            <label style="display:flex;gap:10px;align-items:center;cursor:pointer">
+              <input type="checkbox" name="homeCompanyContent" value="true" style="width:auto"/>
+              <span th:text="${#locale.language == 'vi' ? 'Đây là hoạt động của chính Techcom Life (không phải đối thủ)' : 'This is Techcom Life''s own activity (not a competitor)'}">Home company content</span>
+            </label>
+            <div class="doc-meta" th:text="${#locale.language == 'vi' ? 'Dùng cho tài liệu mô tả sáng kiến/chiến dịch của Techcom Life — để so sánh chiến lược có vế của chính mình, không chỉ tin đối thủ.' : 'Use for documents describing Techcom Life''s own initiative/campaign — so strategic comparisons have our own side, not just competitor news.'}">Hint</div>
+          </div>
           <button class="btn btn-primary" type="submit" th:text="${#locale.language == 'vi' ? 'Nhập liên kết' : 'Import link'}">Import link</button>
         </form>
       </section>
@@ -43,6 +50,13 @@
         <p th:text="${#locale.language == 'vi' ? 'Chọn tệp PDF hoặc TXT. Văn bản được trích xuất cục bộ; tệp mã hóa hoặc PDF chỉ có ảnh sẽ báo lỗi rõ ràng.' : 'Choose a PDF or TXT file. Text is extracted locally; encrypted and image-only PDFs fail clearly.'}">Description</p>
         <form method="post" action="/documents/intake/upload" enctype="multipart/form-data">
           <div class="intake-control"><label class="lbl" for="file" th:text="${#locale.language == 'vi' ? 'Tệp PDF hoặc TXT' : 'PDF or TXT file'}">PDF or TXT file</label><input id="file" class="ops-input" name="file" type="file" accept="application/pdf,.pdf,text/plain,.txt" required/></div>
+          <div class="intake-control">
+            <label style="display:flex;gap:10px;align-items:center;cursor:pointer">
+              <input type="checkbox" name="homeCompanyContent" value="true" style="width:auto"/>
+              <span th:text="${#locale.language == 'vi' ? 'Đây là hoạt động của chính Techcom Life (không phải đối thủ)' : 'This is Techcom Life''s own activity (not a competitor)'}">Home company content</span>
+            </label>
+            <div class="doc-meta" th:text="${#locale.language == 'vi' ? 'Dùng cho tài liệu mô tả sáng kiến/chiến dịch của Techcom Life — để so sánh chiến lược có vế của chính mình, không chỉ tin đối thủ.' : 'Use for documents describing Techcom Life''s own initiative/campaign — so strategic comparisons have our own side, not just competitor news.'}">Hint</div>
+          </div>
           <button class="btn btn-primary" type="submit" th:text="${#locale.language == 'vi' ? 'Tải tài liệu lên' : 'Upload document'}">Upload document</button>
         </form>
       </section>
