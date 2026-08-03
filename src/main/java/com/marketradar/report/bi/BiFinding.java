@@ -33,10 +33,18 @@ import java.util.List;
  *                   CFO nêu (đừng để một tin quốc tế bị đọc nhầm thành đối thủ tại Việt Nam).
  * @param geography  nhãn địa lý cụ thể hơn khi INTERNATIONAL (vd "Japan", "Hong Kong"); "Vietnam"
  *                   khi VIETNAM; "Global / regional" khi không xác định được quốc gia cụ thể.
+ * @param eventDateLabel nhãn thời gian tự do (vd "26-27/08/2026", "đầu tháng 8/2026") — CHỈ áp
+ *                   dụng cho SCHEDULED_EVENT khi nguồn nêu rõ mốc thời gian cụ thể; null nghĩa là
+ *                   chưa biết mốc chính xác (finding vẫn hợp lệ, chỉ không lên được trang "Lịch sự
+ *                   kiện dự kiến" dạng bảng — vẫn hiện ở trang danh sách sự kiện chung). Hiện chỉ
+ *                   Deep Research điền field này (LLM tổng hợp tức thời, xem DeepResearchService);
+ *                   report định kỳ đọc claim đã duyệt từ trước, chưa có field ngày cấu trúc ở tầng
+ *                   Interpreter/InterpretedClaim — để dành cho một đợt sau nếu cần.
  */
 public record BiFinding(String bucket, String subjectKey, String textVi, String textEn,
                         boolean highlight, List<BiCitation> citations, String severity,
-                        Integer metricPercent, ProductMarketScope scope, String geography) {
+                        Integer metricPercent, ProductMarketScope scope, String geography,
+                        String eventDateLabel) {
 
     public BiFinding {
         citations = citations == null ? List.of() : List.copyOf(citations);
@@ -50,20 +58,21 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
         if (metricPercent != null) metricPercent = Math.max(0, Math.min(100, metricPercent));
         scope = scope == null ? ProductMarketScope.INTERNATIONAL : scope;
         geography = geography == null || geography.isBlank() ? "Global / regional" : geography.strip();
+        eventDateLabel = eventDateLabel == null || eventDateLabel.isBlank() ? null : eventDateLabel.strip();
     }
 
-    /** Convenience constructor for the common case of no severity/metric. */
+    /** Convenience constructor for the common case of no severity/metric/event date. */
     public BiFinding(String bucket, String subjectKey, String textVi, String textEn,
                      boolean highlight, List<BiCitation> citations,
                      ProductMarketScope scope, String geography) {
-        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null, scope, geography);
+        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null, scope, geography, null);
     }
 
     /** Convenience constructor for VI-only content (no English translation available yet). */
     public BiFinding(String bucket, String subjectKey, String textVi,
                      boolean highlight, List<BiCitation> citations,
                      ProductMarketScope scope, String geography) {
-        this(bucket, subjectKey, textVi, null, highlight, citations, null, null, scope, geography);
+        this(bucket, subjectKey, textVi, null, highlight, citations, null, null, scope, geography, null);
     }
 
     /** The finding text in the requested language — falls back to Vietnamese rather than

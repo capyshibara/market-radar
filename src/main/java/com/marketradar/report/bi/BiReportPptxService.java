@@ -75,7 +75,13 @@ public class BiReportPptxService {
             }
 
             List<BiFinding> background = byBucket(content, BiFinding.MACRO_ECONOMIC, BiFinding.COMPETITIVE_THEME);
-            if (!background.isEmpty()) industryBackgroundSlides(ppt, background);
+            List<BiFinding> events = byBucket(content, BiFinding.COMPANY_EVENT, BiFinding.SCHEDULED_EVENT);
+            List<BiFinding> scheduledWithDate = events.stream()
+                    .filter(f -> BiFinding.SCHEDULED_EVENT.equals(f.bucket()) && f.eventDateLabel() != null)
+                    .toList();
+            if (!background.isEmpty() || !scheduledWithDate.isEmpty()) {
+                marketScanSlide(ppt, background, scheduledWithDate);
+            }
 
             List<BiFinding> marketShare = byBucket(content, BiFinding.MARKET_SHARE_OR_AWARD);
             if (!marketShare.isEmpty()) marketShareSlides(ppt, marketShare);
@@ -84,8 +90,9 @@ public class BiReportPptxService {
                     .filter(f -> f.severity() != null).toList();
             if (!aiThreat.isEmpty()) threatMapSlides(ppt, aiThreat);
 
-            List<BiFinding> events = byBucket(content, BiFinding.COMPANY_EVENT, BiFinding.SCHEDULED_EVENT);
-            if (!events.isEmpty()) eventsSlides(ppt, events);
+            // Sự kiện đã lên bảng lịch ở marketScanSlide() rồi thì không lặp lại ở đây nữa.
+            List<BiFinding> remainingEvents = events.stream().filter(f -> !scheduledWithDate.contains(f)).toList();
+            if (!remainingEvents.isEmpty()) eventsSlides(ppt, remainingEvents);
 
             List<BiFinding> comparison = byBucket(content, BiFinding.STRATEGIC_COMPARISON);
             if (!comparison.isEmpty()) comparisonSlides(ppt, comparison);
@@ -135,40 +142,61 @@ public class BiReportPptxService {
                 XSLFTextParagraph p = body.addNewTextParagraph();
                 p.setBullet(true);
                 p.setSpaceBefore(10.0);
-                XSLFTextRun r = p.addNewTextRun();
-                r.setText(t);
-                r.setFontSize(fontSize);
-                r.setFontColor(TEXT_DARK);
+                addMarkdownRuns(p, t, fontSize, TEXT_DARK);
             }
         }
     }
 
-    private void industryBackgroundSlides(XMLSlideShow ppt, List<BiFinding> findings) {
-        List<List<BiFinding>> pages = paginate(findings,
-                f -> (f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() + ": " : "") + f.textVi(),
-                CARD_BODY_W, 13, CARD_BODY_H);
-        for (int i = 0; i < pages.size(); i++) {
-            XSLFSlide slide = ppt.createSlide();
-            sectionHeader(slide, "VĨ MÔ & XU HƯỚNG CẠNH TRANH" + pageSuffix(i, pages.size()));
-            roundedCard(slide, new Rectangle2D.Double(56, 90, 848, 400), GREY_HEADER);
-            headerPill(slide, new Rectangle2D.Double(76, 100, 220, 26), "Bối cảnh ngành", GREY_HEADER);
-            XSLFTextBox body = slide.createTextBox();
-            body.setAnchor(new Rectangle2D.Double(90, 140, CARD_BODY_W, CARD_BODY_H));
-            for (BiFinding f : pages.get(i)) {
-                XSLFTextParagraph p = body.addNewTextParagraph();
-                p.setSpaceBefore(10.0);
-                if (f.subjectKey() != null && !f.subjectKey().isBlank()) {
-                    XSLFTextRun subj = p.addNewTextRun();
-                    subj.setText(f.subjectKey() + ": ");
-                    subj.setBold(true);
-                    subj.setFontSize(13.0);
-                    subj.setFontColor(TEXT_DARK);
-                }
-                XSLFTextRun r = p.addNewTextRun();
-                r.setText(f.textVi());
-                r.setFontSize(13.0);
-                r.setFontColor(TEXT_DARK);
+    /**
+     * Tái tạo bám sát slide "MARKET SCAN" của mẫu Techcom Life thật (2 cột: tổng quan thị trường
+     * bên trái, lịch sự kiện dự kiến theo đối thủ bên phải) — khác phong cách thẻ bo góc/pill màu
+     * của các slide khác trong file này vì mẫu THẬT dùng thanh tiêu đề đen phẳng cho đúng slide
+     * này. KHÔNG tái tạo bảng "Competitive Themes & Strategic Signals" của mẫu (góc dưới-trái) —
+     * bảng đó cần 1 taxonomy chủ đề + đánh giá "độ mạnh tín hiệu" mà hệ thống chưa có cách tổng
+     * hợp đáng tin cậy (xem trao đổi 2026-08-03), cố làm sẽ phải bịa nhãn.
+     */
+    private void marketScanSlide(XMLSlideShow ppt, List<BiFinding> background, List<BiFinding> scheduledEvents) {
+        XSLFSlide slide = ppt.createSlide();
+        marketScanHeader(slide, "MARKET SCAN");
+
+        blackBar(slide, new Rectangle2D.Double(56, 60, 428, 26), "TỔNG QUAN THỊ TRƯỜNG");
+        plainBox(slide, new Rectangle2D.Double(56, 90, 428, 340));
+        XSLFTextBox overviewBox = slide.createTextBox();
+        overviewBox.setAnchor(new Rectangle2D.Double(68, 100, 404, 320));
+        BiFinding overview = background.stream().filter(BiFinding::highlight).findFirst()
+                .orElse(background.isEmpty() ? null : background.get(0));
+        if (overview != null) {
+            XSLFTextParagraph p = overviewBox.addNewTextParagraph();
+            addMarkdownRuns(p, truncate(overview.textVi(), 700), 12.0, TEXT_DARK);
+        } else {
+            XSLFTextParagraph p = overviewBox.addNewTextParagraph();
+            XSLFTextRun r = p.addNewTextRun();
+            r.setText("Chưa có dữ liệu tổng quan thị trường trong kỳ này.");
+            r.setItalic(true);
+            r.setFontSize(12.0);
+            r.setFontColor(TEXT_DARK);
+        }
+
+        blackBar(slide, new Rectangle2D.Double(492, 60, 412, 26), "LỊCH SỰ KIỆN DỰ KIẾN THEO ĐỐI THỦ");
+        if (scheduledEvents.isEmpty()) {
+            addText(slide, new Rectangle2D.Double(492, 100, 412, 40),
+                    "Chưa có mốc thời gian cụ thể nào trong kỳ này.", 11, false, TEXT_DARK, TextParagraph.TextAlign.LEFT);
+        } else {
+            XSLFTable table = slide.createTable();
+            table.setAnchor(new Rectangle2D.Double(492, 90, 412, 340));
+            XSLFTableRow header = table.addRow();
+            header.setHeight(26);
+            addCell(header, "Đối thủ", true, BLACK, WHITE);
+            addCell(header, "Dự kiến", true, BLACK, WHITE);
+            addCell(header, "Sự kiện", true, BLACK, WHITE);
+            for (BiFinding f : chunk(scheduledEvents, MAX_TABLE_ROWS).get(0)) {
+                XSLFTableRow row = table.addRow();
+                row.setHeight(30);
+                addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
+                addCell(row, f.eventDateLabel(), true, WHITE, RED);
+                addCell(row, truncate(f.textVi(), 70), false, WHITE, TEXT_DARK);
             }
+            setColumnWidths(table, 120, 90, 202);
         }
     }
 
@@ -263,10 +291,7 @@ public class BiReportPptxService {
                     XSLFTextParagraph p = body.addNewTextParagraph();
                     p.setBullet(true);
                     p.setSpaceBefore(10.0);
-                    XSLFTextRun r = p.addNewTextRun();
-                    r.setText(f.textVi());
-                    r.setFontSize(13.0);
-                    r.setFontColor(TEXT_DARK);
+                    addMarkdownRuns(p, f.textVi(), 13.0, TEXT_DARK);
                 }
             }
         }
@@ -367,6 +392,70 @@ public class BiReportPptxService {
         r.setFontSize(12.0);
         r.setBold(true);
         r.setFontColor(WHITE);
+    }
+
+    /** Tiêu đề riêng cho slide "MARKET SCAN" — chữ đen + ô vuông đỏ nhỏ bên trái, khác
+     *  {@link #sectionHeader} (chữ đỏ + gạch chân) để bám sát đúng mẫu thật cho slide này. */
+    private static void marketScanHeader(XSLFSlide slide, String title) {
+        XSLFAutoShape icon = slide.createAutoShape();
+        icon.setShapeType(ShapeType.RECT);
+        icon.setAnchor(new Rectangle2D.Double(56, 14, 26, 26));
+        icon.setFillColor(RED);
+        icon.setLineColor(RED);
+        addText(slide, new Rectangle2D.Double(92, 10, 500, 34), title, 24, true, BLACK, TextParagraph.TextAlign.LEFT);
+        addText(slide, new Rectangle2D.Double(700, 20, 204, 26), "TECHCOM LIFE", 12, true, RED, TextParagraph.TextAlign.RIGHT);
+    }
+
+    private static void blackBar(XSLFSlide slide, Rectangle2D anchor, String label) {
+        XSLFAutoShape bar = slide.createAutoShape();
+        bar.setShapeType(ShapeType.RECT);
+        bar.setAnchor(anchor);
+        bar.setFillColor(BLACK);
+        bar.setLineColor(BLACK);
+        XSLFTextParagraph p = bar.addNewTextParagraph();
+        XSLFTextRun r = p.addNewTextRun();
+        r.setText(label);
+        r.setBold(true);
+        r.setFontSize(12.0);
+        r.setFontColor(WHITE);
+    }
+
+    private static void plainBox(XSLFSlide slide, Rectangle2D anchor) {
+        XSLFAutoShape box = slide.createAutoShape();
+        box.setShapeType(ShapeType.RECT);
+        box.setAnchor(anchor);
+        box.setFillColor(WHITE);
+        box.setLineColor(GREY_HEADER);
+        box.setLineWidth(1.0);
+    }
+
+    /** Parse **bold** kiểu markdown (LLM Deep Research được dặn bọc tối đa 2 cụm/finding) thành
+     *  nhiều run trong 1 đoạn CÓ SẴN — dùng chung cho mọi nơi hiện textVi (tóm tắt, market scan,
+     *  so sánh chiến lược) để "**" không bao giờ lộ nguyên trạng ra slide dù finding nào chứa nó;
+     *  không có cú pháp thì render y hệt 1 run thường, không vỡ. */
+    private static void addMarkdownRuns(XSLFTextParagraph p, String text, double fontSize, Color color) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\*\\*(.+?)\\*\\*").matcher(text);
+        int last = 0;
+        while (m.find()) {
+            if (m.start() > last) {
+                XSLFTextRun plain = p.addNewTextRun();
+                plain.setText(text.substring(last, m.start()));
+                plain.setFontSize(fontSize);
+                plain.setFontColor(color);
+            }
+            XSLFTextRun bold = p.addNewTextRun();
+            bold.setText(m.group(1));
+            bold.setBold(true);
+            bold.setFontSize(fontSize);
+            bold.setFontColor(color);
+            last = m.end();
+        }
+        if (last < text.length()) {
+            XSLFTextRun tail = p.addNewTextRun();
+            tail.setText(text.substring(last));
+            tail.setFontSize(fontSize);
+            tail.setFontColor(color);
+        }
     }
 
     private static void roundedCard(XSLFSlide slide, Rectangle2D anchor, Color borderColor) {

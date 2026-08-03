@@ -442,7 +442,13 @@ public class DeepResearchService {
         user.append("Trả về ĐÚNG 1 JSON object, không thêm chữ nào khác:\n");
         user.append("{\"title\":\"...\",\"findings\":[{\"bucket\":\"...\",\"subject_key\":\"...\",")
                 .append("\"text_vi\":\"...\",\"text_en\":\"...\",\"highlight\":true,\"severity\":null,")
-                .append("\"metric_percent\":null,\"source_refs\":[1,2]}]}\n");
+                .append("\"metric_percent\":null,\"event_date\":null,\"source_refs\":[1,2]}]}\n");
+        user.append("- event_date: CHỈ set khi bucket=SCHEDULED_EVENT và nguồn nêu RÕ mốc thời gian cụ thể ")
+                .append("(vd \"26-27/08/2026\", \"đầu tháng 8/2026\") — dùng để xếp lên bảng lịch sự kiện; ")
+                .append("để null nếu chỉ nói chung chung (\"sắp tới\", \"trong năm\") — ĐỪNG đoán ngày.\n");
+        user.append("- Trong text_vi/text_en, bọc TỐI ĐA 2 cụm từ khoá quan trọng nhất bằng **markdown bold** ")
+                .append("(vd \"**quyền sở hữu hệ sinh thái số**\") để nhấn mạnh khi lên slide — không lạm dụng, ")
+                .append("chỉ 1-2 cụm/finding, và CHỈ cho finding thuộc MACRO_ECONOMIC/COMPETITIVE_THEME.\n");
         user.append("- subject_key: TÊN NGẮN DỄ ĐỌC dùng làm tiêu đề hiển thị (vd \"Manulife vs Prudential\", ")
                 .append("\"Khối ngoại vs khối nội\", \"Manulife\") — KHÔNG dùng snake_case/slug kiểu lập trình ")
                 .append("(vd \"our_read_foreign_scale_advantage\" là SAI, sẽ hiện nguyên trạng lên báo cáo CFO đọc).\n");
@@ -510,7 +516,8 @@ public class DeepResearchService {
                             f.path("severity").isNull() ? null : f.path("severity").asText(null),
                             f.path("metric_percent").isNull() || !f.path("metric_percent").isNumber() ? null
                                     : f.path("metric_percent").asInt(),
-                            market.scope(), market.geography()));
+                            market.scope(), market.geography(),
+                            f.path("event_date").isNull() ? null : f.path("event_date").asText(null)));
                 }
             } catch (Exception e) {
                 log.warn("Deep Research: synthesis JSON không đọc được, dùng bản dự phòng nguyên văn: {}", e.getMessage());
