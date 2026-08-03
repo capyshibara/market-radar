@@ -33,8 +33,6 @@ import java.util.stream.Collectors;
  */
 public final class BiReportPageBuilder {
 
-    private static final int MIN_HIGHLIGHT_GROUP_SIZE = 2;
-
     /** Optional per-competitor accent (matches published brand colors, not fabricated) —
      *  default #C00000 for any subject not in this small, hand-verified list. */
     private static final Map<String, String> COMPETITOR_ACCENTS = Map.of(
@@ -89,10 +87,13 @@ public final class BiReportPageBuilder {
         model.put("aiSizingFindings", aiSizing);
         model.put("aiThreatFindings", aiThreat);
 
-        Map<String, List<BiFinding>> highlightGroups = companyEvents.stream()
-                .filter(f -> f.subjectKey() != null && !f.subjectKey().isBlank())
-                .collect(Collectors.groupingBy(BiFinding::subjectKey, LinkedHashMap::new, Collectors.toList()));
-        highlightGroups.values().removeIf(list -> list.size() < MIN_HIGHLIGHT_GROUP_SIZE);
+        // 2026-08-03: gộp qua Connector (dùng chung, test độc lập được) thay vì tự groupingBy ẩn
+        // ở đây — cùng logic (gộp theo subjectKey trong 1 bucket, cần >= MIN_HIGHLIGHT_GROUP_SIZE
+        // finding mới đủ material cho 1 trang riêng).
+        Map<String, List<BiFinding>> highlightGroups = new LinkedHashMap<>();
+        for (Connector.Group g : Connector.groupByBucketAndSubject(all, BiFinding.COMPANY_EVENT)) {
+            if (g.bigEnoughForOwnPage()) highlightGroups.put(g.subjectKey(), g.members());
+        }
         // Row-paired (2 per row), not the classic even/odd-split trick — OpenHTMLtoPDF has no
         // flexbox/grid, only CSS2.1 display:table, so a >2-card group needs real row grouping,
         // not two same-width table-cells sized for exactly 2.
