@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Lịch sử Deep Research · Market Radar' : 'Deep Research History · Market Radar'}">Deep Research History</title>
+  <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
+  <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
+  <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
+  <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
+  <style>
+    .history-table { width:100%; border-collapse:collapse; }
+    .history-table th { text-align:left; font-size:var(--text-xs); text-transform:uppercase; letter-spacing:.03em;
+      color:var(--text-tertiary); padding:10px 12px; border-bottom:1px solid var(--border-default); }
+    .history-table td { padding:12px; border-bottom:1px solid var(--border-default); font-size:var(--text-sm); vertical-align:top; }
+    .history-table tr:hover td { background:var(--slate-50); }
+    .history-table a.prompt-link { font-weight:600; color:var(--text-primary); text-decoration:none; }
+    .history-table a.prompt-link:hover { text-decoration:underline; }
+    .meta-num { font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body><div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('researchhistory', ${null})}"></th:block>
+  <div class="ops-main"><div class="ops-content">
+    <div class="page-header"><div>
+      <h1 th:text="${#locale.language == 'vi' ? 'Lịch sử Deep Research' : 'Deep Research History'}">Deep Research History</h1>
+      <p th:text="${#locale.language == 'vi' ? 'Mọi lần chạy Deep Research đều được lưu lại ở đây — bấm vào để xem lại bản xem nhanh (chưa fact-check) và trạng thái duyệt thật của các tài liệu đã nạp vào pipeline.' : 'Every Deep Research run is saved here — open one to see the unverified preview again and the real review status of the documents it fed into the pipeline.'}">Description</p>
+    </div></div>
+
+    <div class="empty-state" th:if="${runs.isEmpty()}">
+      <div class="title" th:text="${#locale.language == 'vi' ? 'Chưa chạy Deep Research lần nào.' : 'No Deep Research runs yet.'}">No runs yet</div>
+      <p><a th:href="@{/research}" th:text="${#locale.language == 'vi' ? 'Chạy Deep Research →' : 'Run Deep Research →'}">Run Deep Research →</a></p>
+    </div>
+
+    <table class="history-table" th:unless="${runs.isEmpty()}">
+      <thead>
+        <tr>
+          <th th:text="${#locale.language == 'vi' ? 'Thời gian' : 'Time'}">Time</th>
+          <th th:text="${#locale.language == 'vi' ? 'Yêu cầu' : 'Prompt'}">Prompt</th>
+          <th th:text="${#locale.language == 'vi' ? 'Nguồn' : 'Sources'}">Sources</th>
+          <th th:text="${#locale.language == 'vi' ? 'Tài liệu mới' : 'New docs'}">New docs</th>
+          <th th:text="${#locale.language == 'vi' ? 'Thời gian chạy' : 'Elapsed'}">Elapsed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="r : ${runs}">
+          <td th:text="${r.createdAtLabel}">03/08/2026 08:10</td>
+          <td><a class="prompt-link" th:href="@{'/research/history/' + ${r.id}}" th:text="${r.shortPrompt}">Prompt</a></td>
+          <td class="meta-num" th:text="${r.sourceCount}">12</td>
+          <td class="meta-num" th:text="${r.newDocCount}">8</td>
+          <td class="meta-num" th:text="${r.elapsedLabel}">4p12s</td>
+        </tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+<script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+</body>
+</html>

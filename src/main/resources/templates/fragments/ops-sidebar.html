@@ -18,6 +18,7 @@
         <a href="/desks" class="ops-nav-item" th:classappend="${active == 'desks'} ? 'is-active'" th:text="#{ops.sidebar.navDesks}">Department Desks</a>
         <a href="/product/special-issues" class="ops-nav-item" th:if="${demoMode == null or !demoMode}" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
         <a href="/research" class="ops-nav-item" th:classappend="${active == 'research'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Nghiên cứu (Web Search / Deep Research)' : 'Research (Web Search / Deep Research)'}">Research</a>
+        <a href="/research/history" class="ops-nav-item" th:classappend="${active == 'researchhistory'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Lịch sử Deep Research' : 'Deep Research History'}">Deep Research History</a>
       </div>
     </div>
 

@@ -20,6 +20,14 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
            "where c.gateStatus = :status order by c.id asc")
     List<InterpretedClaim> findByGateStatusFetched(@Param("status") InterpretedClaim.GateStatus status);
 
+    /** 2026-08-03: tra claim phát sinh từ 1 lô RawDoc cụ thể — dùng cho lịch sử Deep Research
+     *  để trả lời "tài liệu vừa nạp đã sinh claim gì, trạng thái duyệt ra sao" (xem
+     *  DeepResearchHistoryController). superseded=true VẪN lấy — muốn thấy toàn bộ lịch sử,
+     *  không chỉ bản mới nhất. */
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
+           "where c.rawDoc.id in :rawDocIds order by c.id asc")
+    List<InterpretedClaim> findByRawDocIdIn(@Param("rawDocIds") List<Long> rawDocIds);
+
     boolean existsByRawDocAndOriginAndInterpretationSignatureAndInterpretationInputHashAndSupersededFalse(
             RawDoc rawDoc, InterpretedClaim.Origin origin, String interpretationSignature,
             String interpretationInputHash);

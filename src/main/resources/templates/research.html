@@ -92,11 +92,12 @@
           </div>
           <button class="btn btn-primary" type="submit" id="deep-submit" th:text="${#locale.language == 'vi' ? 'Chạy Deep Research' : 'Run Deep Research'}">Run Deep Research</button>
         </form>
+        <p><a th:href="@{/research/history}" th:text="${#locale.language == 'vi' ? 'Xem lịch sử các lần đã chạy →' : 'View past runs →'}">View past runs →</a></p>
         <div class="activity-feed" id="activity-feed"><ul id="activity-list"></ul></div>
         <div class="how-it-works">
           <strong th:text="${#locale.language == 'vi' ? 'Cách hoạt động' : 'How it works'}">How it works</strong>
           <ol>
-            <li th:text="${#locale.language == 'vi' ? 'Tối đa 5 vòng lặp, tối đa 8 nguồn — AI tự dừng sớm nếu đã đủ thông tin.' : 'Up to 5 iterations, up to 8 sources — the AI stops early once it has enough.'}">step</li>
+            <li th:text="${#locale.language == 'vi' ? 'Tối đa 12 vòng lặp, tối đa 25 nguồn — AI tự dừng sớm nếu đã đủ thông tin.' : 'Up to 12 iterations, up to 25 sources — the AI stops early once it has enough.'}">step</li>
             <li th:text="${#locale.language == 'vi' ? 'Kết quả hiển thị NGAY theo template Business Intelligence Report (Meridian) — có nút tải PDF/.docx. Bản này do AI tự tổng hợp, CHƯA qua fact-check.' : 'The result renders immediately as a Business Intelligence Report (Meridian template) — with PDF/.docx download buttons. This preview is AI-synthesized and has not been fact-checked yet.'}">step</li>
             <li th:text="${#locale.language == 'vi' ? 'Song song, mỗi nguồn thật đã đọc được cũng được nạp vào kho evidence và chạy qua đúng pipeline xác thực (Gate L1 exact-match + Gate L2 verifier độc lập) — xem tiến trình ở Reviewer Queue / Pipeline Runner.' : 'In parallel, every real source read is also ingested into the evidence store and run through the same verification pipeline (Gate L1 exact-match + Gate L2 independent verifier) — track progress in the Reviewer Queue / Pipeline Runner.'}">step</li>
           </ol>

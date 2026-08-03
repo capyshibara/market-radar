@@ -53,6 +53,13 @@
   .cadence a{display:inline-block;padding:7px 10px;font-size:12px}
   .cadence .active{background:#C00000;color:#fff}
   .download{padding:8px 12px;background:#C00000!important;color:#fff!important;border-radius:4px}
+  .claim-flow{background:#fff;border-bottom:1px solid #d9dde5;padding:10px 24px;font-size:13px;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .claim-flow a{color:#172442;font-weight:600;text-decoration:none;margin-left:auto}
+  .cf-pill{padding:3px 9px;border-radius:10px;font-weight:600;font-size:12px}
+  .cf-pill.cf-approved{background:#e3f5e9;color:#1e7a45}
+  .cf-pill.cf-pending{background:#fdf1da;color:#8a5b12}
+  .cf-pill.cf-rejected{background:#fbe4e4;color:#a12b2b}
   .report-canvas{padding:36px 0 60px}
 
   .report-page{position:relative;width:1056px;height:816px;margin:0 auto 34px;background:#fff;
@@ -189,7 +196,7 @@
 <div class="report-toolbar no-print">
   <div class="toolbar-title" th:text="${reportTitle}">Market Radar — Business Intelligence Report</div>
   <div class="toolbar-actions">
-    <span class="cadence">
+    <span class="cadence" th:if="${cadenceParam != null}">
       <a th:href="${cadenceHrefWeekly}" th:classappend="${cadenceParam == 'weekly'} ? ' active'" th:text="${vi ? '7 ngày' : '7 days'}">7 days</a>
       <a th:href="${cadenceHrefMonthly}" th:classappend="${cadenceParam == 'monthly'} ? ' active'" th:text="${vi ? '30 ngày' : '30 days'}">30 days</a>
       <a th:href="${cadenceHrefQuarterly}" th:classappend="${cadenceParam == 'quarterly'} ? ' active'" th:text="${vi ? '90 ngày' : '90 days'}">90 days</a>
@@ -202,6 +209,15 @@
     <a th:href="${docxHref}" th:text="${vi ? 'Tải .docx' : 'Download .docx'}">Download .docx</a>
     <a href="/pipeline" th:text="${vi ? 'Vận hành' : 'Operations'}">Operations</a>
   </div>
+</div>
+
+<div class="claim-flow no-print" th:if="${claimFlow != null}">
+  <strong th:text="${vi ? 'Luồng vào báo cáo chính thức: ' : 'Flow into the official report: '}">Flow:</strong>
+  <span th:text="${(vi ? 'Đã nạp ' : 'Ingested ') + claimFlow.newDocCount + (vi ? ' tài liệu → rút ra ' : ' documents → ') + claimFlow.totalClaims + (vi ? ' nhận định.' : ' claims extracted.')}">Ingested N docs</span>
+  <span class="cf-pill cf-approved" th:text="${(vi ? 'Đã duyệt: ' : 'Approved: ') + claimFlow.approvedCount}">Approved: 0</span>
+  <span class="cf-pill cf-pending" th:text="${(vi ? 'Đang chờ duyệt: ' : 'Pending: ') + claimFlow.pendingCount}">Pending: 0</span>
+  <span class="cf-pill cf-rejected" th:if="${claimFlow.rejectedCount > 0}" th:text="${(vi ? 'Bị từ chối: ' : 'Rejected: ') + claimFlow.rejectedCount}">Rejected: 0</span>
+  <a href="/review" th:text="${vi ? 'Mở Reviewer Queue →' : 'Open Reviewer Queue →'}">Open Reviewer Queue →</a>
 </div>
 
 <main class="report-canvas">
