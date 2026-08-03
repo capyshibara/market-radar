@@ -14,32 +14,32 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 
 /**
  * 2026-08-03: compatibility migration for `deep_research_run` databases created before the
  * Deep Research queue rewrite. Hibernate's ddl-auto=update never removes/renames an old
- * physical column when a mapped field is renamed, and never RELAXES an existing column's NOT
- * NULL constraint when the entity's own annotation is relaxed — it only ever ADDS brand-new
- * columns for brand-new fields. Two columns were left stuck NOT NULL on any database that had
- * run Deep Research before this rewrite, each 500-ing every new enqueue in turn once the first
- * was fixed (found by reproducing against a copy of the actual broken table):
- *   - created_at: renamed to queued_at — new entity never supplies a value for the old column.
- *   - content_json: used to be required at insert time; now legitimately null until a run
- *     reaches DONE (a row is created at QUEUED time, before any content exists).
- * Same pattern as {@link DepartmentSchemaMigration}.
+ * physical column when a mapped field is renamed, and never relaxes an existing column's NOT
+ * NULL when the entity's own constraint is relaxed — it only ever ADDS brand-new columns for
+ * brand-new fields. A first attempt at this migration patched the two columns found broken by
+ * reproducing against a copy of one broken table (created_at, content_json) individually — that
+ * missed at least one more on a real database with a slightly different history, still 500-ing
+ * every enqueue. Whack-a-mole on individual columns isn't reliable; this table only holds
+ * unverified Deep Research preview history (not evidence/claims), so there's nothing worth
+ * surgically preserving — just DROP the whole table when it looks like the pre-queue shape
+ * (missing the `status` column) and let Hibernate recreate it from scratch with the correct
+ * schema. Non-destructive to anything that matters: Reviewer Queue claims and approvals live in
+ * entirely different tables untouched by this.
  *
- * Non-destructive: only drops the NOT NULL constraint, leaves the (now-partly-unused) column
- * and its old data in place — this table only holds unverified preview history, not
- * evidence/claims, so there's nothing worth actively migrating out of it either.
+ * Note on timing: this ApplicationRunner runs AFTER Hibernate's own ddl-auto=update already
+ * attempted (and partially failed) for THIS boot, so dropping here fixes the database for the
+ * NEXT restart, not the one currently in progress — same as {@link DepartmentSchemaMigration}
+ * would if it needed a full rebuild instead of a constraint swap.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 24)
 public class DeepResearchRunSchemaMigration implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DeepResearchRunSchemaMigration.class);
-
-    private static final List<String> COLUMNS_TO_RELAX = List.of("CREATED_AT", "CONTENT_JSON");
 
     private final DataSource dataSource;
 
@@ -52,15 +52,22 @@ public class DeepResearchRunSchemaMigration implements ApplicationRunner {
         try (Connection connection = dataSource.getConnection()) {
             if (!"H2".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) return;
             if (!tableExists(connection, "DEEP_RESEARCH_RUN")) return;
-            for (String column : COLUMNS_TO_RELAX) {
-                if (!columnIsNotNull(connection, "DEEP_RESEARCH_RUN", column)) continue;
-                try (Statement statement = connection.createStatement()) {
-                    statement.execute("ALTER TABLE \"DEEP_RESEARCH_RUN\" ALTER COLUMN \"" + column + "\" SET NULL");
-                }
-                log.info("Dropped orphaned NOT NULL constraint on deep_research_run.{} — was blocking "
-                        + "every new Deep Research enqueue on databases that ran Deep Research before "
-                        + "the queue rewrite.", column);
+            // created_at only ever existed on the pre-queue entity (renamed to queued_at) — its
+            // mere presence is unambiguous proof of the legacy shape, unlike checking whether
+            // `status` was added: Hibernate's ddl-auto:update CAN successfully add a new nullable
+            // column to an existing table (that part alone isn't broken), so a first version of
+            // this migration that checked "does status exist" wrongly treated the table as
+            // healthy while content_json/created_at were still stuck NOT NULL underneath.
+            if (!columnExists(connection, "DEEP_RESEARCH_RUN", "CREATED_AT")) return; // already current shape
+
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("DROP TABLE \"DEEP_RESEARCH_RUN\"");
             }
+            log.warn("Dropped deep_research_run (pre-queue schema, still has the legacy created_at "
+                    + "column) — only unverified Deep Research preview history was lost, nothing in "
+                    + "the Reviewer Queue/claims. Hibernate will recreate it with the current schema; "
+                    + "RESTART THE APP ONCE MORE for the table to actually exist again (this migration "
+                    + "runs after this boot's own schema update already happened).");
         }
     }
 
@@ -71,11 +78,10 @@ public class DeepResearchRunSchemaMigration implements ApplicationRunner {
         }
     }
 
-    private static boolean columnIsNotNull(Connection connection, String table, String column) throws SQLException {
+    private static boolean columnExists(Connection connection, String table, String column) throws SQLException {
         DatabaseMetaData metadata = connection.getMetaData();
         try (ResultSet rs = metadata.getColumns(null, null, table, column)) {
-            if (!rs.next()) return false; // column doesn't exist on this DB — nothing to fix
-            return rs.getInt("NULLABLE") == DatabaseMetaData.columnNoNulls;
+            return rs.next();
         }
     }
 }
