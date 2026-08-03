@@ -70,8 +70,13 @@ public class PipelineItemLog {
         this.message = truncate(message, 500);
     }
 
+    // Fix 2026-08-03: substring(0, max) + "…" tạo ra chuỗi dài max+1 ký tự — vượt đúng giới
+    // hạn cột VARCHAR(max) khi input gốc dài hơn max, khiến INSERT tự thất bại ngay trong lúc
+    // ghi log lỗi (phát hiện qua Scout/ingest: message lỗi fetch dài > 500 ký tự làm cả stage
+    // bị đánh dấu FAILED dù các item khác đã xử lý xong). substring(0, max - 1) đảm bảo tổng
+    // độ dài sau khi thêm "…" đúng bằng max.
     private static String truncate(String s, int max) {
-        return s == null ? null : (s.length() <= max ? s : s.substring(0, max) + "…");
+        return s == null ? null : (s.length() <= max ? s : s.substring(0, max - 1) + "…");
     }
 
     public Long getId() { return id; }
