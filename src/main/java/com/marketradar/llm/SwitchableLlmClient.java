@@ -37,6 +37,11 @@ public class SwitchableLlmClient implements LlmClient {
     }
 
     @Override
+    public List<WebSearchHit> webSearch(String query, int maxUses) throws LlmException {
+        return delegate.webSearch(query, maxUses);
+    }
+
+    @Override
     public String providerName() { return delegate.providerName(); }
 
     public Config config() { return config; }

@@ -293,39 +293,38 @@ public class DeepResearchService {
                 content.generatedAt(), content.docCount(), content.findings(), content.sourceLines(), gaps);
     }
 
+    /** 1 URL ứng viên đã giải, KHÔNG PHÂN BIỆT nguồn tìm ra nó (web_search thật hay RSS dự
+     *  phòng) — downstream (fetch/parse/gate) xử lý giống hệt nhau bất kể nguồn gốc. */
+    private record DiscoveredUrl(String title, String url) {}
+
     private void runSearch(String query, List<GatheredSource> gathered, LocalDate rangeStart, LocalDate rangeEnd,
                           boolean vietnamOnly, Consumer<String> onStep) {
-        List<NewsDiscoveryService.Candidate> candidates;
-        try {
-            candidates = discovery.discover(query);
-        } catch (NewsDiscoveryService.DiscoveryFailedException e) {
-            log.warn("Deep Research: tìm kiếm mở lỗi cho '{}': {}", query, e.getMessage());
-            return;
-        }
+        List<DiscoveredUrl> candidates = discover(query, onStep);
+        if (candidates.isEmpty()) return;
         int added = 0, skippedOutOfRange = 0, skippedForeign = 0;
         for (var c : candidates) {
             if (added >= MAX_NEW_SOURCES_PER_SEARCH || gathered.size() >= MAX_SOURCES) break;
-            if (c.publisherUrl() == null || alreadyGathered(gathered, c.publisherUrl())) continue;
+            if (c.url() == null || alreadyGathered(gathered, c.url())) continue;
             try {
-                var fetched = fetcher.fetchDocument(c.publisherUrl());
+                var fetched = fetcher.fetchDocument(c.url());
                 boolean pdf = "application/pdf".equalsIgnoreCase(fetched.contentType());
                 var parsed = pdf ? parsers.parsePdf(fetched.body()) : parsers.parseArticleHtml(fetched.body());
                 LocalDate publishedDate = detectPublishedDate(fetched.body(), parsed.text(), parsed.title(),
-                        c.publisherUrl(), pdf);
+                        c.url(), pdf);
                 if (outOfRange(publishedDate, rangeStart, rangeEnd)) {
                     skippedOutOfRange++;
                     continue;
                 }
-                String title = c.title() != null && !c.title().isBlank() ? c.title() : c.publisherUrl();
+                String title = c.title() != null && !c.title().isBlank() ? c.title() : c.url();
                 String excerpt = truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS);
-                if (vietnamOnly && !classifyVietnamRelevance(title, c.publisherUrl(), excerpt)) {
+                if (vietnamOnly && !classifyVietnamRelevance(title, c.url(), excerpt)) {
                     skippedForeign++;
                     continue;
                 }
-                gathered.add(new GatheredSource(title, c.publisherUrl(), "Tìm kiếm mở", excerpt, publishedDate));
+                gathered.add(new GatheredSource(title, c.url(), "Tìm kiếm mở", excerpt, publishedDate));
                 added++;
             } catch (Exception e) {
-                log.warn("Deep Research: bỏ qua nguồn {} ({})", c.publisherUrl(), e.getMessage());
+                log.warn("Deep Research: bỏ qua nguồn {} ({})", c.url(), e.getMessage());
             }
         }
         if (skippedOutOfRange > 0) {
@@ -334,6 +333,38 @@ public class DeepResearchService {
         }
         if (skippedForeign > 0) {
             onStep.accept("→ Bỏ qua " + skippedForeign + " nguồn không thực sự nói về thị trường Việt Nam (đánh giá theo nội dung).");
+        }
+    }
+
+    /**
+     * 2026-08-03 (feedback: "chạy Deep Research mà chẳng tìm ra gì" — nguyên nhân: trước đây CHỈ
+     * có RSS scrape Google/Bing News KHÔNG chính thức, không SLA, dễ rỗng/bị chặn). Ưu tiên
+     * web_search THẬT của provider (Anthropic — Anthropic tự chạy search, trả URL/title thật,
+     * xem AnthropicLlmClient#webSearch); RSS chỉ còn là ĐƯỜNG LÙI khi provider không hỗ trợ
+     * (STUB, hoặc writer không phải Claude) hoặc web_search lỗi — KHÔNG âm thầm bỏ qua nữa, luôn
+     * báo rõ qua onStep để người dùng biết đang tìm bằng cách nào / vì sao không ra gì.
+     */
+    private List<DiscoveredUrl> discover(String query, Consumer<String> onStep) {
+        try {
+            List<LlmClient.WebSearchHit> hits = llm.webSearch(query, MAX_NEW_SOURCES_PER_SEARCH);
+            if (!hits.isEmpty()) {
+                return hits.stream().map(h -> new DiscoveredUrl(h.title(), h.url())).toList();
+            }
+            onStep.accept("→ web_search (" + llm.providerName() + ") không trả kết quả nào cho \"" + query + "\", thử RSS dự phòng…");
+        } catch (UnsupportedOperationException e) {
+            onStep.accept("→ " + llm.providerName() + " không hỗ trợ web search thật, dùng RSS Google/Bing News dự phòng (kém tin cậy hơn).");
+        } catch (LlmException e) {
+            onStep.accept("→ web_search lỗi (" + e.getMessage() + "), thử RSS dự phòng…");
+            log.warn("Deep Research: web_search lỗi cho '{}': {}", query, e.getMessage());
+        }
+        try {
+            List<NewsDiscoveryService.Candidate> rss = discovery.discover(query);
+            return rss.stream().filter(c -> c.publisherUrl() != null)
+                    .map(c -> new DiscoveredUrl(c.title(), c.publisherUrl())).toList();
+        } catch (NewsDiscoveryService.DiscoveryFailedException e) {
+            onStep.accept("→ RSS dự phòng cũng lỗi cho \"" + query + "\": " + e.getMessage());
+            log.warn("Deep Research: tìm kiếm mở lỗi cho '{}': {}", query, e.getMessage());
+            return List.of();
         }
     }
 

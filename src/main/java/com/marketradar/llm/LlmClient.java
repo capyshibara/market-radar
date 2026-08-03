@@ -33,4 +33,21 @@ public interface LlmClient {
                                          List<LlmTool> tools, Double temperature) throws LlmException {
         throw new UnsupportedOperationException(providerName() + " không hỗ trợ tool-calling");
     }
+
+    /** 1 kết quả tìm kiếm web THẬT (không phải RSS scrape) — url/title do chính search backend
+     *  trả về, snippet chỉ để tham khảo (không dùng làm bằng chứng, evidence thật lấy từ trang
+     *  đã fetch nguyên văn sau đó, xem DeepResearchService#runSearch). */
+    record WebSearchHit(String title, String url, String snippet) {}
+
+    /**
+     * 2026-08-03 (feedback: "Deep Research chạy không ra gì" — nguyên nhân: NewsDiscoveryService
+     * cũ chỉ scrape RSS Google/Bing News KHÔNG chính thức, không SLA, dễ bị chặn/rỗng bất kỳ lúc
+     * nào). Search THẬT qua tool web_search gốc của provider — mặc định ném
+     * UnsupportedOperationException, chỉ client thật sự hỗ trợ (Anthropic) mới override; caller
+     * PHẢI có đường lùi (fallback RSS) khi provider không hỗ trợ, không được coi thiếu tính năng
+     * này là lỗi cứng.
+     */
+    default List<WebSearchHit> webSearch(String query, int maxUses) throws LlmException {
+        throw new UnsupportedOperationException(providerName() + " không hỗ trợ web search");
+    }
 }

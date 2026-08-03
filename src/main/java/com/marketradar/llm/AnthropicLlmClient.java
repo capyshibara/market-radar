@@ -153,6 +153,77 @@ public class AnthropicLlmClient implements LlmClient {
                 + "(model trả lời bằng text thường thay vì gọi tool)");
     }
 
+    /**
+     * 2026-08-03: web_search — server tool GỐC của Anthropic (Anthropic tự chạy search + trả
+     * kết quả THẬT trong cùng response, khác hẳn completeWithTools ở trên vốn là tool CLIENT tự
+     * thực thi). Request/response format theo docs: khai tool
+     * {"type":"web_search_20250305","name":"web_search","max_uses":N}; kết quả nằm trong content
+     * block type="web_search_tool_result", mỗi item con type="web_search_result" có url/title.
+     * KHÔNG ép tool_choice — 1 tool duy nhất + prompt chỉ thị rõ đã đủ để model tự gọi.
+     */
+    @Override
+    public List<WebSearchHit> webSearch(String query, int maxUses) throws LlmException {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("model", model);
+        body.put("max_tokens", maxTokens);
+        body.put("system", "Bạn là công cụ tìm kiếm. Nhiệm vụ DUY NHẤT: gọi tool web_search với "
+                + "đúng truy vấn được yêu cầu, không tự diễn giải lại truy vấn.");
+        ArrayNode messages = body.putArray("messages");
+        ObjectNode userMsg = messages.addObject();
+        userMsg.put("role", "user");
+        userMsg.put("content", "Tìm kiếm: " + query);
+        ArrayNode toolsNode = body.putArray("tools");
+        ObjectNode searchTool = toolsNode.addObject();
+        searchTool.put("type", "web_search_20250305");
+        searchTool.put("name", "web_search");
+        searchTool.put("max_uses", Math.max(1, maxUses));
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(ENDPOINT))
+                .timeout(Duration.ofSeconds(60))
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", API_VERSION)
+                .header("content-type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response;
+        try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new LlmException("Lỗi mạng gọi Anthropic web_search: " + e.getMessage(), e);
+        }
+        if (response.statusCode() != 200) {
+            throw new LlmException("Anthropic web_search HTTP " + response.statusCode()
+                    + ": " + truncate(response.body(), 500));
+        }
+
+        JsonNode root;
+        try {
+            root = mapper.readTree(response.body());
+        } catch (IOException e) {
+            throw new LlmException("Không parse được response web_search: " + e.getMessage(), e);
+        }
+        return parseWebSearchHits(root);
+    }
+
+    /** Tách riêng khỏi webSearch() để test được không cần gọi mạng thật (đọc JSON mẫu). */
+    static List<WebSearchHit> parseWebSearchHits(JsonNode root) {
+        List<WebSearchHit> hits = new java.util.ArrayList<>();
+        for (JsonNode block : root.path("content")) {
+            if (!"web_search_tool_result".equals(block.path("type").asText())) continue;
+            for (JsonNode item : block.path("content")) {
+                if (!"web_search_result".equals(item.path("type").asText())) continue; // bỏ qua block lỗi
+                String url = item.path("url").asText(null);
+                String title = item.path("title").asText(null);
+                if (url == null || url.isBlank()) continue;
+                hits.add(new WebSearchHit(title == null || title.isBlank() ? url : title, url,
+                        item.path("page_age").asText(null)));
+            }
+        }
+        return hits;
+    }
+
     // Bao gồm model (không chỉ "ANTHROPIC" trần) — cần thiết để replay-cache phân biệt
     // được model khác nhau CÙNG họ Anthropic (vd Haiku ↔ Sonnet), xem callWithCache() ở
     // Interpreter/TopicClassifier/EntailmentVerifier: hash cache giờ gồm providerName().
