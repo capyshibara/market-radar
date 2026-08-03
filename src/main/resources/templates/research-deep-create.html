@@ -29,7 +29,7 @@
 
     <section class="research-card">
       <h2 th:text="${#locale.language == 'vi' ? 'Nộp yêu cầu nghiên cứu' : 'Submit research requests'}">Submit research requests</h2>
-      <p th:text="${#locale.language == 'vi' ? 'Nhập MỖI DÒNG 1 yêu cầu — nộp được nhiều yêu cầu cùng lúc, hệ thống tự xếp hàng và xử lý lần lượt (không chạy song song, để tránh đụng độ dữ liệu). Nộp xong chuyển sang trang Quản lý để xem tiến trình.' : 'Enter ONE request PER LINE — submit several at once, the system queues and processes them one at a time (not in parallel, to avoid data collisions). After submitting you\'ll land on the Management page to watch progress.'}">Description</p>
+      <p th:text="${#locale.language == 'vi' ? 'Nhập MỖI DÒNG 1 yêu cầu — nộp được nhiều yêu cầu cùng lúc, hệ thống tự xếp hàng và xử lý lần lượt (không chạy song song, để tránh đụng độ dữ liệu). Nộp xong chuyển sang trang Quản lý để xem tiến trình.' : 'Enter ONE request PER LINE — submit several at once, the system queues and processes them one at a time (not in parallel, to avoid data collisions). After submitting you will land on the Management page to watch progress.'}">Description</p>
       <form method="post" action="/research/deep/enqueue" id="deep-form">
         <div class="research-control">
           <label class="lbl" for="prompts" th:text="${#locale.language == 'vi' ? 'Yêu cầu nghiên cứu (mỗi dòng 1 yêu cầu)' : 'Research requests (one per line)'}">Research requests</label>
