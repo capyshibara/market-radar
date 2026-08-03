@@ -443,6 +443,9 @@ public class DeepResearchService {
         user.append("{\"title\":\"...\",\"findings\":[{\"bucket\":\"...\",\"subject_key\":\"...\",")
                 .append("\"text_vi\":\"...\",\"text_en\":\"...\",\"highlight\":true,\"severity\":null,")
                 .append("\"metric_percent\":null,\"source_refs\":[1,2]}]}\n");
+        user.append("- subject_key: TÊN NGẮN DỄ ĐỌC dùng làm tiêu đề hiển thị (vd \"Manulife vs Prudential\", ")
+                .append("\"Khối ngoại vs khối nội\", \"Manulife\") — KHÔNG dùng snake_case/slug kiểu lập trình ")
+                .append("(vd \"our_read_foreign_scale_advantage\" là SAI, sẽ hiện nguyên trạng lên báo cáo CFO đọc).\n");
         user.append("- text_vi và text_en PHẢI cùng mức độ cụ thể/hedging (số liệu ước tính phải hedge ở CẢ hai bản, không chỉ 1 bản).\n");
         user.append("- source_refs: BẮT BUỘC ít nhất 1 số thứ tự nguồn ở trên làm căn cứ cho finding này.\n");
         user.append("- highlight=true cho tối đa 3 finding quan trọng nhất (lên trang Tóm tắt điều hành).\n");

@@ -106,7 +106,8 @@ public final class BiReportPageBuilder {
         Map<String, List<BiFinding>> comparisonPages = comparison.stream()
                 .collect(Collectors.groupingBy(
                         f -> f.subjectKey() == null || f.subjectKey().isBlank()
-                                ? (vi ? "Không rõ cặp so sánh" : "Unspecified comparison pair") : f.subjectKey(),
+                                ? (vi ? "Không rõ cặp so sánh" : "Unspecified comparison pair")
+                                : displayLabel(f.subjectKey()),
                         LinkedHashMap::new, Collectors.toList()));
         model.put("comparisonPages", comparisonPages);
 
@@ -163,6 +164,21 @@ public final class BiReportPageBuilder {
             if (key.contains(e.getKey())) return e.getValue();
         }
         return DEFAULT_ACCENT;
+    }
+
+    /** Deep Research để LLM tự đặt subject_key tự do — đôi khi nó trả 1 slug kiểu lập trình (vd
+     *  "our_read_foreign_scale_advantage") thay vì tên cặp so sánh dễ đọc, không nên hiện nguyên
+     *  trạng làm tiêu đề trang cho CFO. Chỉ prettify khi rõ ràng LÀ slug (toàn chữ thường/số/gạch
+     *  dưới) — key đã là tên hiển thị tự nhiên (có hoa/khoảng trắng/dấu) thì giữ nguyên. */
+    private static String displayLabel(String key) {
+        if (!key.matches("[a-z0-9_]+")) return key;
+        StringBuilder sb = new StringBuilder();
+        for (String w : key.split("_")) {
+            if (w.isEmpty()) continue;
+            if (!sb.isEmpty()) sb.append(' ');
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+        }
+        return sb.isEmpty() ? key : sb.toString();
     }
 
     private static List<BiPage> plan(boolean vi, List<BiFinding> macro, List<BiFinding> theme,
