@@ -152,8 +152,10 @@ public final class BiReportPageBuilder {
      *  everything else (T3/T4, unverified flags) reads as secondary/desk research. */
     private static boolean isPrimaryTier(String tierNote) {
         if (tierNote == null) return false;
+        // startsWith (không equals): PeriodicalBiAdapter#tierLabel giờ có thể nối thêm
+        // " · Deep Research" vào sau "T1"/"T2" — vẫn phải tính đúng là tier chính.
         String t = tierNote.strip().toUpperCase(java.util.Locale.ROOT);
-        return t.equals("T1") || t.equals("T2");
+        return t.startsWith("T1") || t.startsWith("T2");
     }
 
     /** Real, published brand colors for a small hand-verified set of competitors — never a

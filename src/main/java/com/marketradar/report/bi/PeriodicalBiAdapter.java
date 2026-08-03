@@ -2,6 +2,7 @@ package com.marketradar.report.bi;
 
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.InterpretedClaim;
+import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
 import com.marketradar.intelligence.CompetitorRegistry;
 import com.marketradar.product.CurrentProductNewsItem;
@@ -215,8 +216,7 @@ public class PeriodicalBiAdapter {
                         && !f.getRawDoc().getPublisherName().isBlank()
                         ? f.getRawDoc().getPublisherName()
                         : f.getRawDoc().getSource().getName();
-                unique.putIfAbsent(label, new BiCitation(label,
-                        "T" + f.getRawDoc().getSource().getTier(), f.getRawDoc().getUrl()));
+                unique.putIfAbsent(label, new BiCitation(label, tierLabel(f.getRawDoc()), f.getRawDoc().getUrl()));
             }
         }
         if (unique.isEmpty() && claim.getRawDoc() != null) {
@@ -224,17 +224,29 @@ public class PeriodicalBiAdapter {
                     && !claim.getRawDoc().getPublisherName().isBlank()
                     ? claim.getRawDoc().getPublisherName()
                     : claim.getRawDoc().getSource().getName();
-            unique.put(label, new BiCitation(label,
-                    "T" + claim.getRawDoc().getSource().getTier(), claim.getRawDoc().getUrl()));
+            unique.put(label, new BiCitation(label, tierLabel(claim.getRawDoc()), claim.getRawDoc().getUrl()));
         }
         return List.copyOf(unique.values());
+    }
+
+    /** 2026-08-03 (feedback: "cần đánh dấu vào đâu đó để biết nguồn của nó là từ deep research"):
+     *  claim từ tài liệu Deep Research đi qua ĐÚNG pipeline xác thực như claim thường (xem
+     *  DeepResearchService#runVerificationPipeline) nên không có cột/bảng riêng nào để tách —
+     *  tín hiệu duy nhất phân biệt được là RawDoc#intakeMethod (OPEN_SEARCH/BROWSER_RENDER thay
+     *  vì CRAWLED). Gắn thẳng vào tierNote hiện có (đã là "T1".."T3" hoặc ghi chú tự do theo
+     *  design) thay vì thêm field mới vào BiCitation — ít thay đổi hơn, hiển thị ngay ở mọi nơi
+     *  đã render tierNote (không cần sửa template). */
+    private static String tierLabel(RawDoc rawDoc) {
+        String tier = "T" + rawDoc.getSource().getTier();
+        boolean fromDeepResearch = rawDoc.getIntakeMethod() == RawDoc.IntakeMethod.OPEN_SEARCH
+                || rawDoc.getIntakeMethod() == RawDoc.IntakeMethod.BROWSER_RENDER;
+        return fromDeepResearch ? tier + " · Deep Research" : tier;
     }
 
     private BiFinding toFinding(ProductBriefInsight insight, ProductReportAdapter.Snapshot snapshot, boolean highlight) {
         List<EvidenceFact> evidence = snapshot.evidenceByInsight().getOrDefault(insight.getId(), List.of());
         List<BiCitation> citations = evidence.stream()
-                .map(f -> new BiCitation(f.getRawDoc().getSource().getName(),
-                        "T" + f.getRawDoc().getSource().getTier(), null))
+                .map(f -> new BiCitation(f.getRawDoc().getSource().getName(), tierLabel(f.getRawDoc()), null))
                 .distinct()
                 .toList();
         String textVi = insight.getHeadlineVi()
