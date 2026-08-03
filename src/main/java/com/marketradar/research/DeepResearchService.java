@@ -115,10 +115,11 @@ public class DeepResearchService {
      *  progressLog vào DB theo thời gian thực; no-op an toàn khi gọi không cần theo dõi. */
     public ResearchResult research(String prompt, Consumer<String> onStep) {
         List<GatheredSource> gathered = new ArrayList<>();
+        List<String> triedQueries = new ArrayList<>();
         onStep.accept("Bắt đầu Deep Research cho: \"" + prompt + "\"");
 
         for (int iteration = 0; iteration < MAX_ITERATIONS && gathered.size() < MAX_SOURCES; iteration++) {
-            PlanAction action = plan(prompt, gathered, iteration);
+            PlanAction action = plan(prompt, gathered, triedQueries, iteration);
             if (action == null || "STOP".equalsIgnoreCase(action.action())) {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — AI quyết định: DỪNG"
                         + (action != null && !action.reason().isBlank() ? " (" + action.reason() + ")" : ""));
@@ -128,7 +129,9 @@ public class DeepResearchService {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Tìm kiếm mở: \"" + action.target() + "\"");
                 int before = gathered.size();
                 runSearch(action.target(), gathered);
-                onStep.accept("→ Đọc được " + (gathered.size() - before) + " nguồn mới (tổng " + gathered.size() + ")");
+                int found = gathered.size() - before;
+                onStep.accept("→ Đọc được " + found + " nguồn mới (tổng " + gathered.size() + ")");
+                triedQueries.add(action.target() + " → " + found + " nguồn mới");
             } else if ("BROWSE".equalsIgnoreCase(action.action()) && action.target() != null && !action.target().isBlank()) {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Render trình duyệt: " + action.target());
                 int before = gathered.size();
@@ -301,7 +304,7 @@ public class DeepResearchService {
 
     private record PlanAction(String action, String target, String reason) {}
 
-    private PlanAction plan(String prompt, List<GatheredSource> gathered, int iteration) {
+    private PlanAction plan(String prompt, List<GatheredSource> gathered, List<String> triedQueries, int iteration) {
         StringBuilder user = new StringBuilder();
         user.append("YÊU CẦU GỐC: ").append(prompt).append("\n---\n");
         user.append("Số nguồn đã thu thập: ").append(gathered.size()).append('\n');
@@ -311,12 +314,24 @@ public class DeepResearchService {
                     .append(") — ").append(g.acquisition()).append('\n')
                     .append("   ").append(truncate(g.excerpt(), EXCERPT_CHARS_FOR_PLANNER)).append('\n');
         }
+        if (!triedQueries.isEmpty()) {
+            user.append("---\nCÁC CÂU TÌM ĐÃ THỬ (đừng lặp lại/biến tấu nhẹ những câu đã cho 0 nguồn mới — đổi HẲN hướng khác):\n");
+            for (String q : triedQueries) user.append("- ").append(q).append('\n');
+        }
         user.append("---\n");
         user.append("Hãy quyết định bước tiếp theo. Trả về ĐÚNG 1 JSON object, không thêm chữ nào khác:\n");
         user.append("{\"action\":\"SEARCH|BROWSE|STOP\",\"target\":\"...\",\"reason\":\"...\"}\n");
-        user.append("- SEARCH: tìm kiếm mở (Google/Bing News RSS) theo 1 câu hỏi/từ khoá cụ thể (target = câu tìm).\n");
+        user.append("- SEARCH: tìm kiếm mở (Google/Bing News RSS) theo 1 câu hỏi/từ khoá cụ thể (target = câu tìm). ")
+                .append("QUAN TRỌNG — đây là tìm kiếm tin tức đơn giản, KHÔNG phải Google Search nâng cao: ")
+                .append("target chỉ nên 3-6 từ khoá cốt lõi, KHÔNG xếp chồng nhiều 'site:' (dùng TỐI ĐA 1 site: mỗi câu, ")
+                .append("hoặc bỏ hẳn để tìm rộng), KHÔNG bọc quá nhiều cụm trong dấu ngoặc kép cùng lúc. ")
+                .append("Nếu 1-2 câu tìm trước đã cho 0 nguồn mới, đừng thêm từ khoá/site: để 'cụ thể hơn' — ")
+                .append("càng nhiều điều kiện càng dễ ra 0 kết quả. Thay vào đó ĐƠN GIẢN HOÁ triệt để (chỉ 2-3 từ khoá) ")
+                .append("hoặc đổi hẳn góc tiếp cận (đổi ngôn ngữ VI/EN, đổi tên công ty cụ thể thay vì liệt kê nhiều công ty, ")
+                .append("bỏ hẳn giới hạn site/nguồn).\n");
         user.append("- BROWSE: có 1 URL cụ thể cần đọc bằng trình duyệt thật (target = URL đầy đủ).\n");
-        user.append("- STOP: đã đủ thông tin để tổng hợp, hoặc không còn hướng tìm khả thi (target để trống).\n");
+        user.append("- STOP: đã đủ thông tin để tổng hợp, hoặc đã thử ≥3 câu tìm khác hướng đều cho 0 nguồn mới ")
+                .append("(không còn hướng tìm khả thi — dừng lại còn hơn lặp vô ích, target để trống).\n");
         user.append("Đang ở vòng ").append(iteration + 1).append('/').append(MAX_ITERATIONS).append('.');
 
         String raw = safeComplete("MODE:DEEP_RESEARCH_PLAN\nBạn là agent nghiên cứu thị trường, tự quyết định bước tìm tiếp theo.",
