@@ -1,5 +1,6 @@
 package com.marketradar.research;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.repo.InterpretedClaimRepository;
@@ -45,7 +46,12 @@ public class DeepResearchHistoryController {
     private final InterpretedClaimRepository claims;
     private final PdfExportService pdfExport;
     private final BiReportDocxService docxExport;
-    private final ObjectMapper mapper = new ObjectMapper();
+    // FAIL_ON_UNKNOWN_PROPERTIES=false: contentJson của các run đã lưu TRƯỚC bản sửa
+    // BiFinding#isVietnamMarket() (@JsonIgnore) vẫn còn trường thừa "vietnamMarket" — nới lỏng ở
+    // đây để đọc lại được NGAY các báo cáo cũ mà không cần chạy lại Deep Research. An toàn: đây
+    // chỉ là bản xem nhanh (read model), không phải đường ghi/xác thực nào.
+    private final ObjectMapper mapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public DeepResearchHistoryController(DeepResearchRunRepository runs, InterpretedClaimRepository claims,
                                          PdfExportService pdfExport, BiReportDocxService docxExport) {

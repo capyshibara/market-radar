@@ -1,5 +1,6 @@
 package com.marketradar.report.bi;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.marketradar.product.ProductMarketScope;
 
 import java.util.List;
@@ -72,6 +73,12 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
         return textEn != null && !textEn.isBlank() ? textEn : textVi;
     }
 
+    // 2026-08-03: @JsonIgnore BẮT BUỘC — Jackson tự coi mọi isXxx() là 1 thuộc tính JSON
+    // ("vietnamMarket") dù không phải field thật của record. Ghi thì vô hại (dư 1 trường), nhưng
+    // đọc lại bằng ObjectMapper mặc định (FAIL_ON_UNKNOWN_PROPERTIES=true) thì vỡ ngay vì record
+    // không có tham số "vietnamMarket" nào để nhận — đây chính là nguyên nhân lỗi
+    // "Không đọc được nội dung đã lưu" của Deep Research (contentJson ghi thành công, đọc lại vỡ).
+    @JsonIgnore
     public boolean isVietnamMarket() { return scope == ProductMarketScope.VIETNAM; }
 
     /** Short badge label for the report — "Việt Nam"/"Vietnam" or the specific international
