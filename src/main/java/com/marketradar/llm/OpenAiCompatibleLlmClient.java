@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Client generic cho mọi endpoint theo chuẩn OpenAI chat/completions
@@ -51,6 +52,57 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @Override
     public String complete(String systemPrompt, String userPrompt, Double temperature)
             throws LlmException {
+        ObjectNode body = baseRequestBody(systemPrompt, userPrompt, temperature);
+        JsonNode root = sendWithRetry(body);
+        JsonNode content = root.path("choices").path(0).path("message").path("content");
+        if (content.isMissingNode() || content.asText().isBlank()) {
+            throw new LlmException("OpenAI-compat API (" + model
+                    + "): response không có choices[0].message.content");
+        }
+        return content.asText();
+    }
+
+    /**
+     * 2026-08-03: tool-calling GỐC của provider thay cho bắt LLM trả JSON tự do trong content
+     * rồi tự parse tay (JsonRepair...) — dùng cho Deep Research plan step (xem DeepResearchService
+     * #plan). tool_choice="auto" (không ép "required") để còn tương thích các provider OpenAI-
+     * compat khác có thể không support ép buộc; nếu model vẫn trả lời bằng text thường thay vì
+     * gọi tool, coi là lỗi — caller (DeepResearchService) đã có sẵn đường xử lý an toàn (dừng
+     * vòng lặp) cho mọi LlmException từ bước plan.
+     */
+    @Override
+    public ToolChoice completeWithTools(String systemPrompt, String userPrompt,
+                                        List<LlmTool> tools, Double temperature) throws LlmException {
+        ObjectNode body = baseRequestBody(systemPrompt, userPrompt, temperature);
+        ArrayNode toolsNode = body.putArray("tools");
+        for (LlmTool tool : tools) {
+            ObjectNode fn = toolsNode.addObject();
+            fn.put("type", "function");
+            ObjectNode function = fn.putObject("function");
+            function.put("name", tool.name());
+            function.put("description", tool.description());
+            function.set("parameters", tool.parameters());
+        }
+        body.put("tool_choice", "auto");
+
+        JsonNode root = sendWithRetry(body);
+        JsonNode toolCalls = root.path("choices").path(0).path("message").path("tool_calls");
+        if (!toolCalls.isArray() || toolCalls.isEmpty()) {
+            throw new LlmException("OpenAI-compat API (" + model + "): response không gọi tool nào "
+                    + "(model trả lời bằng text thường thay vì function call)");
+        }
+        JsonNode call = toolCalls.get(0).path("function");
+        String name = call.path("name").asText("");
+        String argsRaw = call.path("arguments").asText("{}");
+        try {
+            return new ToolChoice(name, mapper.readTree(argsRaw.isBlank() ? "{}" : argsRaw));
+        } catch (Exception e) {
+            throw new LlmException("OpenAI-compat API (" + model + "): arguments của tool call '"
+                    + name + "' không phải JSON hợp lệ: " + truncate(argsRaw, 300), e);
+        }
+    }
+
+    private ObjectNode baseRequestBody(String systemPrompt, String userPrompt, Double temperature) {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
         // 2026-07-15 (writer → gpt-5-mini): họ reasoning của OpenAI (gpt-5*, o*) TỪ CHỐI
@@ -75,7 +127,13 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         ObjectNode user = messages.addObject();
         user.put("role", "user");
         user.put("content", userPrompt);
+        return body;
+    }
 
+    /** Retry BỊ CHẶN cho lỗi kết nối / 5xx / 429 (transient); KHÔNG retry 4xx khác (bad
+     *  request/key sai — retry chỉ lặp lại lỗi). Idempotent: chat/completions không tạo state
+     *  phía server nên retry an toàn. Dùng chung cho cả complete() và completeWithTools(). */
+    private JsonNode sendWithRetry(ObjectNode body) throws LlmException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
                 .timeout(Duration.ofSeconds(60))
                 .header("Authorization", "Bearer " + apiKey)
@@ -83,23 +141,12 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
                 .build();
 
-        // Retry BỊ CHẶN cho lỗi kết nối / 5xx / 429 (transient); KHÔNG retry 4xx khác
-        // (bad request/key sai — retry chỉ lặp lại lỗi). Idempotent: chat/completions
-        // không tạo state phía server nên retry an toàn.
         LlmException last = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
                 HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
                 int sc = resp.statusCode();
-                if (sc / 100 == 2) {
-                    JsonNode root = mapper.readTree(resp.body());
-                    JsonNode content = root.path("choices").path(0).path("message").path("content");
-                    if (content.isMissingNode() || content.asText().isBlank()) {
-                        throw new LlmException("OpenAI-compat API (" + model
-                                + "): response không có choices[0].message.content");
-                    }
-                    return content.asText();
-                }
+                if (sc / 100 == 2) return mapper.readTree(resp.body());
                 LlmException httpErr = new LlmException("OpenAI-compat API (" + model + ") HTTP " + sc
                         + ": " + truncate(resp.body(), 500));
                 if (sc != 429 && sc / 100 != 5) throw httpErr; // 4xx khác — không retry

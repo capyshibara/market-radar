@@ -2,6 +2,7 @@ package com.marketradar.research;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.extract.FactExtractionJob;
 import com.marketradar.fetch.SafeFetcher;
@@ -329,6 +330,53 @@ public class DeepResearchService {
 
     private record PlanAction(String action, String target, String reason) {}
 
+    // 2026-08-03 (feedback: "Kiro/công cụ SOTA làm web search sao?" → họ để model GỌI TOOL qua
+    // function-calling gốc của provider thay vì trả JSON tự do rồi tự parse). Đổi plan() sang
+    // dùng đúng cơ chế đó: 3 tool cố định, hướng dẫn chi tiết nằm trong description của
+    // tool/tham số (nơi model đọc nghiêm túc hơn hẳn văn bản chèn giữa prompt tự do) thay vì lặp
+    // lại whack-a-mole ở system/user prompt. Vẫn giữ sanitizeQuery() ở research() làm lưới an
+    // toàn cuối cùng — không tin tuyệt đối model sẽ theo đúng schema dù có ép qua tool-calling.
+    private static final List<LlmClient.LlmTool> PLAN_TOOLS = buildPlanTools();
+
+    private static List<LlmClient.LlmTool> buildPlanTools() {
+        ObjectMapper m = new ObjectMapper();
+
+        ObjectNode searchSchema = m.createObjectNode();
+        searchSchema.put("type", "object");
+        ObjectNode searchProps = searchSchema.putObject("properties");
+        searchProps.putObject("query").put("type", "string").put("description",
+                "3-6 từ khoá cốt lõi — đây là tìm tin tức đơn giản qua Google/Bing News RSS, KHÔNG "
+                        + "phải Google Search nâng cao. KHÔNG xếp chồng nhiều 'site:' (tối đa 1, hoặc bỏ hẳn "
+                        + "để tìm rộng), KHÔNG bọc nhiều cụm trong ngoặc kép cùng lúc. Nếu câu tìm trước đã "
+                        + "cho 0 nguồn mới, đừng thêm điều kiện để 'cụ thể hơn' (càng nhiều điều kiện càng dễ "
+                        + "ra 0 kết quả) — ĐƠN GIẢN HOÁ triệt để hoặc đổi hẳn góc tiếp cận (đổi ngôn ngữ VI/EN, "
+                        + "đổi 1 công ty cụ thể thay vì liệt kê nhiều công ty, bỏ giới hạn site/nguồn).");
+        searchProps.putObject("reason").put("type", "string").put("description", "Vì sao chọn câu tìm này.");
+        searchSchema.putArray("required").add("query");
+
+        ObjectNode browseSchema = m.createObjectNode();
+        browseSchema.put("type", "object");
+        ObjectNode browseProps = browseSchema.putObject("properties");
+        browseProps.putObject("url").put("type", "string").put("description", "URL đầy đủ cần đọc.");
+        browseProps.putObject("reason").put("type", "string").put("description", "Vì sao cần đọc URL này.");
+        browseSchema.putArray("required").add("url");
+
+        ObjectNode stopSchema = m.createObjectNode();
+        stopSchema.put("type", "object");
+        stopSchema.putObject("properties").putObject("reason").put("type", "string")
+                .put("description", "Vì sao đã đủ thông tin, hoặc vì sao hết hướng tìm khả thi.");
+
+        return List.of(
+                new LlmClient.LlmTool("search",
+                        "Tìm kiếm mở qua Google/Bing News RSS theo 1 câu hỏi/từ khoá cụ thể.", searchSchema),
+                new LlmClient.LlmTool("browse",
+                        "Đọc 1 URL cụ thể bằng trình duyệt thật — dùng khi đã biết chính xác trang cần đọc "
+                                + "(vd từ kết quả search trước, hoặc URL người dùng nêu sẵn).", browseSchema),
+                new LlmClient.LlmTool("stop",
+                        "Đã đủ thông tin để tổng hợp báo cáo, HOẶC đã thử ≥3 câu tìm khác hướng đều cho 0 "
+                                + "nguồn mới (không còn hướng tìm khả thi — dừng còn hơn lặp vô ích).", stopSchema));
+    }
+
     private PlanAction plan(String prompt, List<GatheredSource> gathered, List<String> triedQueries, int iteration) {
         StringBuilder user = new StringBuilder();
         user.append("YÊU CẦU GỐC: ").append(prompt).append("\n---\n");
@@ -343,33 +391,27 @@ public class DeepResearchService {
             user.append("---\nCÁC CÂU TÌM ĐÃ THỬ (đừng lặp lại/biến tấu nhẹ những câu đã cho 0 nguồn mới — đổi HẲN hướng khác):\n");
             for (String q : triedQueries) user.append("- ").append(q).append('\n');
         }
-        user.append("---\n");
-        user.append("Hãy quyết định bước tiếp theo. Trả về ĐÚNG 1 JSON object, không thêm chữ nào khác:\n");
-        user.append("{\"action\":\"SEARCH|BROWSE|STOP\",\"target\":\"...\",\"reason\":\"...\"}\n");
-        user.append("- SEARCH: tìm kiếm mở (Google/Bing News RSS) theo 1 câu hỏi/từ khoá cụ thể (target = câu tìm). ")
-                .append("QUAN TRỌNG — đây là tìm kiếm tin tức đơn giản, KHÔNG phải Google Search nâng cao: ")
-                .append("target chỉ nên 3-6 từ khoá cốt lõi, KHÔNG xếp chồng nhiều 'site:' (dùng TỐI ĐA 1 site: mỗi câu, ")
-                .append("hoặc bỏ hẳn để tìm rộng), KHÔNG bọc quá nhiều cụm trong dấu ngoặc kép cùng lúc. ")
-                .append("Nếu 1-2 câu tìm trước đã cho 0 nguồn mới, đừng thêm từ khoá/site: để 'cụ thể hơn' — ")
-                .append("càng nhiều điều kiện càng dễ ra 0 kết quả. Thay vào đó ĐƠN GIẢN HOÁ triệt để (chỉ 2-3 từ khoá) ")
-                .append("hoặc đổi hẳn góc tiếp cận (đổi ngôn ngữ VI/EN, đổi tên công ty cụ thể thay vì liệt kê nhiều công ty, ")
-                .append("bỏ hẳn giới hạn site/nguồn).\n");
-        user.append("- BROWSE: có 1 URL cụ thể cần đọc bằng trình duyệt thật (target = URL đầy đủ).\n");
-        user.append("- STOP: đã đủ thông tin để tổng hợp, hoặc đã thử ≥3 câu tìm khác hướng đều cho 0 nguồn mới ")
-                .append("(không còn hướng tìm khả thi — dừng lại còn hơn lặp vô ích, target để trống).\n");
+        user.append("---\nHãy quyết định bước tiếp theo bằng cách GỌI ĐÚNG 1 trong 3 tool đã cung cấp ")
+                .append("(search/browse/stop) — không trả lời bằng văn bản tự do.\n");
         user.append("Đang ở vòng ").append(iteration + 1).append('/').append(MAX_ITERATIONS).append('.');
 
-        String raw = safeComplete("MODE:DEEP_RESEARCH_PLAN\nBạn là agent nghiên cứu thị trường, tự quyết định bước tìm tiếp theo.",
-                user.toString());
-        if (raw == null) return null;
         try {
-            JsonNode root = parseJson(raw);
-            return new PlanAction(
-                    root.path("action").asText("STOP"),
-                    root.path("target").isNull() ? null : root.path("target").asText(null),
-                    root.path("reason").asText(""));
-        } catch (Exception e) {
-            log.warn("Deep Research: plan step trả JSON không đọc được, dừng vòng lặp: {}", e.getMessage());
+            LlmClient.ToolChoice choice = llm.completeWithTools(
+                    "MODE:DEEP_RESEARCH_PLAN\nBạn là agent nghiên cứu thị trường, tự quyết định bước tìm tiếp theo.",
+                    user.toString(), PLAN_TOOLS, null);
+            return switch (choice.toolName()) {
+                case "search" -> new PlanAction("SEARCH", choice.arguments().path("query").asText(null),
+                        choice.arguments().path("reason").asText(""));
+                case "browse" -> new PlanAction("BROWSE", choice.arguments().path("url").asText(null),
+                        choice.arguments().path("reason").asText(""));
+                case "stop" -> new PlanAction("STOP", null, choice.arguments().path("reason").asText(""));
+                default -> {
+                    log.warn("Deep Research: plan step gọi tool lạ '{}', dừng vòng lặp", choice.toolName());
+                    yield null;
+                }
+            };
+        } catch (LlmException e) {
+            log.warn("Deep Research: plan step lỗi LLM, dừng vòng lặp: {}", e.getMessage());
             return null;
         }
     }

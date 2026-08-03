@@ -1,8 +1,13 @@
 package com.marketradar.llm;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Stub OFFLINE — chỉ dùng khi KHÔNG có API key, để test E2E không tốn tiền/không cần mạng.
@@ -10,6 +15,32 @@ import java.util.Locale;
  * provider=STUB trong DB để không ai nhầm là kết quả phân loại thật.
  */
 public class StubLlmClient implements LlmClient {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    /** Bản tool-calling của nhánh MODE:DEEP_RESEARCH_PLAN ở complete() bên dưới — cùng logic
+     *  (tìm 1 vòng cho đủ nguồn demo rồi dừng), chỉ khác chỗ trả thẳng ToolChoice đã cấu trúc
+     *  thay vì chuỗi JSON để không lệch hành vi với client thật khi DeepResearchService chạy
+     *  qua completeWithTools(). */
+    @Override
+    public ToolChoice completeWithTools(String systemPrompt, String userPrompt,
+                                        List<LlmTool> tools, Double temperature) {
+        if (systemPrompt != null && systemPrompt.contains("MODE:DEEP_RESEARCH_PLAN")) {
+            Matcher gm = Pattern.compile("Số nguồn đã thu thập: (\\d+)").matcher(userPrompt);
+            int gatheredCount = gm.find() ? Integer.parseInt(gm.group(1)) : 0;
+            ObjectNode args = mapper.createObjectNode();
+            if (gatheredCount == 0) {
+                Matcher qm = Pattern.compile("YÊU CẦU GỐC: (.*?)\\n---", Pattern.DOTALL).matcher(userPrompt);
+                String query = qm.find() ? qm.group(1).strip() : "thông tin thị trường";
+                args.put("query", query);
+                args.put("reason", "[STUB] tìm nguồn mở cho yêu cầu ban đầu");
+                return new ToolChoice("search", args);
+            }
+            args.put("reason", "[STUB] đã có nguồn tham khảo, dừng vòng lặp demo");
+            return new ToolChoice("stop", args);
+        }
+        throw new UnsupportedOperationException("StubLlmClient.completeWithTools chỉ hỗ trợ MODE:DEEP_RESEARCH_PLAN");
+    }
 
     @Override
     public String complete(String systemPrompt, String userPrompt, Double temperature) {

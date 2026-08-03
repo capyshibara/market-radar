@@ -12,6 +12,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 
 /**
  * Client REST cho Anthropic Messages API.
@@ -89,6 +90,67 @@ public class AnthropicLlmClient implements LlmClient {
         } catch (IOException e) {
             throw new LlmException("Không parse được response JSON: " + e.getMessage(), e);
         }
+    }
+
+    /** 2026-08-03: tool-calling GỐC (Anthropic "tool_use") thay cho bắt model trả JSON tự do
+     *  trong text rồi tự parse — dùng cho Deep Research plan step. tool_choice={"type":"auto"}
+     *  (không ép "any") để model vẫn có đường thoát nếu thật sự không tool nào hợp — plan() phía
+     *  DeepResearchService đã coi mọi LlmException ở bước này là tín hiệu dừng vòng lặp an toàn. */
+    @Override
+    public ToolChoice completeWithTools(String systemPrompt, String userPrompt,
+                                        List<LlmTool> tools, Double temperature) throws LlmException {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("model", model);
+        body.put("max_tokens", maxTokens);
+        body.put("system", systemPrompt);
+        if (temperature != null) body.put("temperature", temperature);
+        ArrayNode messages = body.putArray("messages");
+        ObjectNode userMsg = messages.addObject();
+        userMsg.put("role", "user");
+        userMsg.put("content", userPrompt);
+
+        ArrayNode toolsNode = body.putArray("tools");
+        for (LlmTool tool : tools) {
+            ObjectNode t = toolsNode.addObject();
+            t.put("name", tool.name());
+            t.put("description", tool.description());
+            t.set("input_schema", tool.parameters());
+        }
+        body.putObject("tool_choice").put("type", "auto");
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(ENDPOINT))
+                .timeout(Duration.ofSeconds(60))
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", API_VERSION)
+                .header("content-type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response;
+        try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new LlmException("Lỗi mạng gọi Anthropic API: " + e.getMessage(), e);
+        }
+        if (response.statusCode() != 200) {
+            throw new LlmException("Anthropic API HTTP " + response.statusCode()
+                    + ": " + truncate(response.body(), 500));
+        }
+
+        JsonNode root;
+        try {
+            root = mapper.readTree(response.body());
+        } catch (IOException e) {
+            throw new LlmException("Không parse được response JSON: " + e.getMessage(), e);
+        }
+        for (JsonNode block : root.path("content")) {
+            if ("tool_use".equals(block.path("type").asText())) {
+                return new ToolChoice(block.path("name").asText(""), block.path("input"));
+            }
+        }
+        throw new LlmException("Anthropic API: response không có block tool_use nào "
+                + "(model trả lời bằng text thường thay vì gọi tool)");
     }
 
     // Bao gồm model (không chỉ "ANTHROPIC" trần) — cần thiết để replay-cache phân biệt

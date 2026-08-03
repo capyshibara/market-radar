@@ -1,5 +1,7 @@
 package com.marketradar.llm;
 
+import java.util.List;
+
 /**
  * Batch 9 ("Change LLM" UI): bọc một LlmClient sau một reference volatile để
  * đổi provider/model TẠI RUNTIME (từ /llm-settings) mà không cần restart JVM.
@@ -26,6 +28,12 @@ public class SwitchableLlmClient implements LlmClient {
     @Override
     public String complete(String systemPrompt, String userPrompt, Double temperature) throws LlmException {
         return delegate.complete(systemPrompt, userPrompt, temperature);
+    }
+
+    @Override
+    public ToolChoice completeWithTools(String systemPrompt, String userPrompt,
+                                        List<LlmTool> tools, Double temperature) throws LlmException {
+        return delegate.completeWithTools(systemPrompt, userPrompt, tools, temperature);
     }
 
     @Override
