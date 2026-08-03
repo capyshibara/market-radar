@@ -1,11 +1,13 @@
 package com.marketradar.research;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,9 +42,16 @@ public class DeepResearchController {
         return "research-deep-create";
     }
 
-    /** Mỗi dòng không rỗng trong prompts = 1 job riêng, nộp cùng lúc. */
+    /** Mỗi dòng không rỗng trong prompts = 1 job riêng, nộp cùng lúc — dùng CHUNG 1 khung thời
+     *  gian (rangeStart/rangeEnd, tuỳ chọn) cho cả lô, vì đây là điều kiện lọc nguồn chứ không
+     *  phải nội dung câu hỏi (không cần tách riêng theo từng dòng). */
     @PostMapping("/research/deep/enqueue")
-    public String enqueue(@RequestParam(value = "prompts", required = false) String prompts, Model model) {
+    public String enqueue(@RequestParam(value = "prompts", required = false) String prompts,
+                          @RequestParam(value = "rangeStart", required = false)
+                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rangeStart,
+                          @RequestParam(value = "rangeEnd", required = false)
+                          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate rangeEnd,
+                          Model model) {
         List<String> lines = new ArrayList<>();
         if (prompts != null) {
             for (String line : prompts.split("\\R")) {
@@ -54,8 +63,16 @@ public class DeepResearchController {
             model.addAttribute("promptError", "Cần nhập ít nhất 1 yêu cầu nghiên cứu (mỗi dòng 1 yêu cầu).");
             return "research-deep-create";
         }
+        if ((rangeStart == null) != (rangeEnd == null)) {
+            model.addAttribute("promptError", "Cần nhập ĐỦ CẢ 2 mốc (từ ngày / đến ngày) hoặc để trống cả hai.");
+            return "research-deep-create";
+        }
+        if (rangeStart != null && rangeEnd.isBefore(rangeStart)) {
+            model.addAttribute("promptError", "\"Đến ngày\" phải sau hoặc bằng \"Từ ngày\".");
+            return "research-deep-create";
+        }
         for (String prompt : lines) {
-            queue.enqueue(prompt);
+            queue.enqueue(prompt, rangeStart, rangeEnd);
         }
         return "redirect:/research/history";
     }

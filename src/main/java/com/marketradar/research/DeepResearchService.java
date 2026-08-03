@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.extract.FactExtractionJob;
 import com.marketradar.fetch.SafeFetcher;
+import com.marketradar.intake.DocumentMetadataDetector;
 import com.marketradar.intake.ManualDocumentIntakeService;
 import com.marketradar.intake.ManualDocumentRules;
 import com.marketradar.interpret.InterpretationJob;
@@ -24,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -96,11 +98,16 @@ public class DeepResearchService {
 
     /** renderedHtml chỉ khác null với nguồn lấy qua BROWSE — giữ lại đúng bytes trình duyệt đã
      *  render để nạp qua ManualDocumentIntakeService.importRenderedHtml() không phải render lại
-     *  (tốn Chromium 2 lần) và không thử GET trơn một trang vốn cần JS mới có nội dung. */
+     *  (tốn Chromium 2 lần) và không thử GET trơn một trang vốn cần JS mới có nội dung.
+     *  publishedDate: 2026-08-03 (feedback: cần biết ngày THẬT của từng nguồn để lọc theo khung
+     *  thời gian yêu cầu, thay vì chỉ dặn LLM trong prompt — trước đây GatheredSource không có
+     *  field ngày nào, planner/synthesis phải tự đoán độ mới từ văn bản) — trích bằng ĐÚNG
+     *  DocumentMetadataDetector dùng cho mọi nguồn khác trong app, null nếu không xác định được
+     *  (không đoán). */
     private record GatheredSource(String label, String url, String acquisition, String excerpt,
-                                  byte[] renderedHtml) {
-        GatheredSource(String label, String url, String acquisition, String excerpt) {
-            this(label, url, acquisition, excerpt, null);
+                                  LocalDate publishedDate, byte[] renderedHtml) {
+        GatheredSource(String label, String url, String acquisition, String excerpt, LocalDate publishedDate) {
+            this(label, url, acquisition, excerpt, publishedDate, null);
         }
     }
 
@@ -109,15 +116,29 @@ public class DeepResearchService {
     public record ResearchResult(BiReportContent content, int sourceCount, List<Long> newDocIds) {}
 
     public ResearchResult research(String prompt) {
-        return research(prompt, step -> {});
+        return research(prompt, null, null, step -> {});
     }
 
     /** @param onStep nhận 1 dòng trạng thái mỗi bước — DeepResearchQueueService dùng để ghi
      *  progressLog vào DB theo thời gian thực; no-op an toàn khi gọi không cần theo dõi. */
     public ResearchResult research(String prompt, Consumer<String> onStep) {
+        return research(prompt, null, null, onStep);
+    }
+
+    /**
+     * @param rangeStart/@param rangeEnd khung thời gian NGƯỜI DÙNG chỉ định (cả 2 null = không
+     *  giới hạn) — 2026-08-03 (feedback: "cần hết sức lưu ý query time range thật chính xác,
+     *  tránh dữ liệu outdated rơi vào báo cáo"): trước đây chỉ dặn LLM lọc theo thời gian TRONG
+     *  PROMPT — không đáng tin cậy (cùng loại vấn đề với sanitizeQuery trước đây). Giờ mỗi nguồn
+     *  tìm được đều bị lọc CỨNG bằng ngày thật trích được (xem GatheredSource#publishedDate) khi
+     *  có khung — nguồn ngoài khung bị loại thẳng, không đợi LLM tự nhận ra.
+     */
+    public ResearchResult research(String prompt, LocalDate rangeStart, LocalDate rangeEnd, Consumer<String> onStep) {
         List<GatheredSource> gathered = new ArrayList<>();
         List<String> triedQueries = new ArrayList<>();
-        onStep.accept("Bắt đầu Deep Research cho: \"" + prompt + "\"");
+        onStep.accept("Bắt đầu Deep Research cho: \"" + prompt + "\""
+                + (rangeStart != null && rangeEnd != null
+                        ? " (chỉ dùng nguồn từ " + rangeStart + " đến " + rangeEnd + ")" : ""));
 
         for (int iteration = 0; iteration < MAX_ITERATIONS && gathered.size() < MAX_SOURCES; iteration++) {
             PlanAction action = plan(prompt, gathered, triedQueries, iteration);
@@ -131,15 +152,15 @@ public class DeepResearchService {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Tìm kiếm mở: \"" + query + "\""
                         + (!query.equals(action.target().strip()) ? " (đã tự rút gọn từ: \"" + action.target() + "\")" : ""));
                 int before = gathered.size();
-                runSearch(query, gathered);
+                runSearch(query, gathered, rangeStart, rangeEnd, onStep);
                 int found = gathered.size() - before;
                 onStep.accept("→ Đọc được " + found + " nguồn mới (tổng " + gathered.size() + ")");
                 triedQueries.add(query + " → " + found + " nguồn mới");
             } else if ("BROWSE".equalsIgnoreCase(action.action()) && action.target() != null && !action.target().isBlank()) {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Render trình duyệt: " + action.target());
                 int before = gathered.size();
-                runBrowse(action.target(), gathered);
-                onStep.accept(gathered.size() > before ? "→ Đọc thành công" : "→ Render lỗi, bỏ qua nguồn này");
+                runBrowse(action.target(), gathered, rangeStart, rangeEnd, onStep);
+                onStep.accept(gathered.size() > before ? "→ Đọc thành công" : "→ Render lỗi hoặc ngoài khung thời gian, bỏ qua nguồn này");
             }
         }
 
@@ -260,7 +281,8 @@ public class DeepResearchService {
                 content.generatedAt(), content.docCount(), content.findings(), content.sourceLines(), gaps);
     }
 
-    private void runSearch(String query, List<GatheredSource> gathered) {
+    private void runSearch(String query, List<GatheredSource> gathered, LocalDate rangeStart, LocalDate rangeEnd,
+                          Consumer<String> onStep) {
         List<NewsDiscoveryService.Candidate> candidates;
         try {
             candidates = discovery.discover(query);
@@ -268,7 +290,7 @@ public class DeepResearchService {
             log.warn("Deep Research: tìm kiếm mở lỗi cho '{}': {}", query, e.getMessage());
             return;
         }
-        int added = 0;
+        int added = 0, skippedOutOfRange = 0;
         for (var c : candidates) {
             if (added >= MAX_NEW_SOURCES_PER_SEARCH || gathered.size() >= MAX_SOURCES) break;
             if (c.publisherUrl() == null || alreadyGathered(gathered, c.publisherUrl())) continue;
@@ -276,29 +298,67 @@ public class DeepResearchService {
                 var fetched = fetcher.fetchDocument(c.publisherUrl());
                 boolean pdf = "application/pdf".equalsIgnoreCase(fetched.contentType());
                 var parsed = pdf ? parsers.parsePdf(fetched.body()) : parsers.parseArticleHtml(fetched.body());
+                LocalDate publishedDate = detectPublishedDate(fetched.body(), parsed.text(), parsed.title(),
+                        c.publisherUrl(), pdf);
+                if (outOfRange(publishedDate, rangeStart, rangeEnd)) {
+                    skippedOutOfRange++;
+                    continue;
+                }
                 gathered.add(new GatheredSource(
                         c.title() != null && !c.title().isBlank() ? c.title() : c.publisherUrl(),
-                        c.publisherUrl(), "Tìm kiếm mở", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS)));
+                        c.publisherUrl(), "Tìm kiếm mở", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS),
+                        publishedDate));
                 added++;
             } catch (Exception e) {
                 log.warn("Deep Research: bỏ qua nguồn {} ({})", c.publisherUrl(), e.getMessage());
             }
         }
+        if (skippedOutOfRange > 0) {
+            onStep.accept("→ Bỏ qua " + skippedOutOfRange + " nguồn ngoài khung thời gian yêu cầu ("
+                    + rangeStart + " – " + rangeEnd + ")");
+        }
     }
 
-    private void runBrowse(String url, List<GatheredSource> gathered) {
+    private void runBrowse(String url, List<GatheredSource> gathered, LocalDate rangeStart, LocalDate rangeEnd,
+                          Consumer<String> onStep) {
         if (alreadyGathered(gathered, url)) return;
         try {
             String html = browserRender.renderHtml(url);
             byte[] htmlBytes = html.getBytes(StandardCharsets.UTF_8);
             var parsed = parsers.parseArticleHtml(htmlBytes);
+            LocalDate publishedDate = detectPublishedDate(htmlBytes, parsed.text(), parsed.title(), url, false);
+            if (outOfRange(publishedDate, rangeStart, rangeEnd)) {
+                onStep.accept("→ Bỏ qua (ngoài khung thời gian yêu cầu " + rangeStart + " – " + rangeEnd + ")");
+                return;
+            }
             gathered.add(new GatheredSource(
                     parsed.title() != null && !parsed.title().isBlank() ? parsed.title() : url,
                     url, "Render trình duyệt", truncate(parsed.text(), EXCERPT_CHARS_FOR_SYNTHESIS),
-                    htmlBytes));
+                    publishedDate, htmlBytes));
         } catch (Exception e) {
             log.warn("Deep Research: render lỗi cho {}: {}", url, e.getMessage());
         }
+    }
+
+    /** Chỉ trích ngày (KHÔNG bao giờ đoán khi nguồn không nêu rõ) — dùng đúng
+     *  {@link DocumentMetadataDetector} như mọi nguồn crawl/upload tay khác trong app, để ngày
+     *  của nguồn Deep Research đáng tin cậy y hệt, không phải suy luận riêng. */
+    private static LocalDate detectPublishedDate(byte[] body, String cleanText, String title, String url, boolean pdf) {
+        try {
+            return pdf
+                    ? DocumentMetadataDetector.pdf(body, cleanText, "document.pdf").publishedDate()
+                    : DocumentMetadataDetector.html(body, cleanText, title, url).publishedDate();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Chỉ loại khi khung thời gian có yêu cầu VÀ ngày nguồn đã biết rõ nằm ngoài khung — ngày
+     *  chưa xác định được KHÔNG bị loại (nhiều nội dung chiến lược hợp lệ — vd điều khoản sản
+     *  phẩm — vốn dĩ không có khái niệm "ngày đăng"), chỉ hiện rõ "chưa xác định" khi lên báo cáo. */
+    private static boolean outOfRange(LocalDate date, LocalDate rangeStart, LocalDate rangeEnd) {
+        if (rangeStart == null || rangeEnd == null || date == null) return false;
+        return date.isBefore(rangeStart) || date.isAfter(rangeEnd);
     }
 
     private static boolean alreadyGathered(List<GatheredSource> gathered, String url) {
@@ -384,7 +444,9 @@ public class DeepResearchService {
         for (int i = 0; i < gathered.size(); i++) {
             GatheredSource g = gathered.get(i);
             user.append(i + 1).append(". [").append(g.label()).append("] (").append(g.url())
-                    .append(") — ").append(g.acquisition()).append('\n')
+                    .append(") — ").append(g.acquisition()).append(" — ngày: ")
+                    .append(g.publishedDate() != null ? g.publishedDate().toString() : "chưa xác định")
+                    .append('\n')
                     .append("   ").append(truncate(g.excerpt(), EXCERPT_CHARS_FOR_PLANNER)).append('\n');
         }
         if (!triedQueries.isEmpty()) {
@@ -432,10 +494,15 @@ public class DeepResearchService {
         for (int i = 0; i < gathered.size(); i++) {
             GatheredSource g = gathered.get(i);
             user.append(i + 1).append(". [").append(g.label()).append("] (").append(g.url())
-                    .append(") — ").append(g.acquisition()).append('\n')
+                    .append(") — ").append(g.acquisition()).append(" — ngày: ")
+                    .append(g.publishedDate() != null ? g.publishedDate().toString() : "chưa xác định")
+                    .append('\n')
                     .append("   ").append(g.excerpt()).append('\n');
         }
         user.append("---\n");
+        user.append("LƯU Ý NGÀY: dùng đúng ngày đã ghi ở mỗi nguồn phía trên khi viết finding (vd \"theo tin tháng ")
+                .append("X/năm Y\") — KHÔNG suy đoán độ mới từ văn phong. Nguồn ghi \"chưa xác định\" thì PHẢI nêu rõ ")
+                .append("trong finding là chưa rõ thời điểm, không mặc định coi là tin mới.\n");
         user.append("Tổng hợp thành các nhận định (finding) theo đúng 7 bucket sau (bỏ qua bucket không có dữ liệu):\n");
         user.append("MACRO_ECONOMIC, COMPETITIVE_THEME, SCHEDULED_EVENT, COMPANY_EVENT, MARKET_SHARE_OR_AWARD, ")
                 .append("TECH_AI_SIGNAL, STRATEGIC_COMPARISON.\n");

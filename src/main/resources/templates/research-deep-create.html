@@ -36,6 +36,15 @@
           <textarea id="prompts" class="ops-input" name="prompts" required></textarea>
           <div class="prompt-hint" th:text="${#locale.language == 'vi' ? 'Ví dụ: dán 3-6 câu hỏi khác nhau, mỗi câu 1 dòng — tất cả sẽ được xếp hàng chạy lần lượt, không cần ngồi canh từng câu.' : 'Example: paste 3-6 different questions, one per line — all get queued and run one after another, no need to babysit each one.'}">Hint</div>
         </div>
+        <div class="research-control">
+          <label class="lbl" th:text="${#locale.language == 'vi' ? 'Khung thời gian nguồn (tuỳ chọn)' : 'Source time range (optional)'}">Source time range</label>
+          <div style="display:flex;gap:12px;align-items:center">
+            <input type="date" class="ops-input" name="rangeStart" style="max-width:170px"/>
+            <span th:text="${#locale.language == 'vi' ? 'đến' : 'to'}">to</span>
+            <input type="date" class="ops-input" name="rangeEnd" style="max-width:170px"/>
+          </div>
+          <div class="prompt-hint" th:text="${#locale.language == 'vi' ? 'Để trống = không giới hạn. Đặt khung thời gian sẽ LOẠI CỨNG (bằng code, không chỉ dặn AI) mọi nguồn có ngày đăng xác định nằm ngoài khoảng này — tránh tin cũ lẫn vào báo cáo như thể mới. Nguồn không xác định được ngày vẫn được giữ (không đoán), chỉ ghi rõ &quot;chưa xác định thời điểm&quot;.' : 'Leave blank = unlimited. Setting a range HARD-EXCLUDES (in code, not just an AI instruction) any source with a known publish date outside it — prevents old news from reading as current. Sources with no detectable date are still kept (no guessing), just clearly marked as undated.'}">Hint</div>
+        </div>
         <button class="btn btn-primary" type="submit" id="deep-submit" th:text="${#locale.language == 'vi' ? 'Xếp hàng chạy' : 'Queue for processing'}">Queue for processing</button>
       </form>
       <p style="margin-top:14px"><a th:href="@{/research/history}" th:text="${#locale.language == 'vi' ? 'Xem hàng đợi / lịch sử →' : 'View queue / history →'}">View queue / history →</a></p>

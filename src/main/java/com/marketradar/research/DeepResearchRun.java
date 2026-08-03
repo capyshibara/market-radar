@@ -3,6 +3,7 @@ package com.marketradar.research;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,6 +58,14 @@ public class DeepResearchRun {
     private Instant startedAt;
     private Instant finishedAt;
 
+    /** Khung thời gian NGƯỜI DÙNG chỉ định lúc nộp yêu cầu (cả 2 null = không giới hạn) —
+     *  2026-08-03 (feedback: "cần hết sức lưu ý query time range thật chính xác"): dùng để lọc
+     *  cứng nguồn tìm được theo ngày thật (xem DeepResearchService#research), lưu lại ở đây chỉ
+     *  để hiển thị lại trên trang lịch sử/tiến trình — bản thân việc lọc không phụ thuộc vào 2
+     *  field này được đọc lại đúng hay không. */
+    private LocalDate rangeStart;
+    private LocalDate rangeEnd;
+
     /** Từng dòng tiến trình (giống onStep của DeepResearchService), nối bằng \n, nối thêm khi
      *  worker chạy — cho phép mở lại trang bất cứ lúc nào và thấy log gần nhất, không chỉ khi
      *  request gốc còn sống. */
@@ -90,12 +99,21 @@ public class DeepResearchRun {
         this.prompt = prompt;
     }
 
+    /** Có kèm khung thời gian yêu cầu (null/null nếu không giới hạn). */
+    public DeepResearchRun(String prompt, LocalDate rangeStart, LocalDate rangeEnd) {
+        this.prompt = prompt;
+        this.rangeStart = rangeStart;
+        this.rangeEnd = rangeEnd;
+    }
+
     public Long getId() { return id; }
     public String getPrompt() { return prompt; }
     public Status getStatus() { return status; }
     public Instant getQueuedAt() { return queuedAt; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getFinishedAt() { return finishedAt; }
+    public LocalDate getRangeStart() { return rangeStart; }
+    public LocalDate getRangeEnd() { return rangeEnd; }
     public String getProgressLog() { return progressLog; }
     public long getElapsedMs() { return elapsedMs; }
     public int getSourceCount() { return sourceCount; }
