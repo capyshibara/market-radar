@@ -16,6 +16,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -23,11 +24,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 2026-08-03: lịch sử các lần chạy Deep Research (xem DeepResearchRun) — trước đây một lần chạy
- * chỉ xem được NGAY LÚC vừa xong (qua link SSE trả về hoặc cache tạm 20 kết quả gần nhất, mất
- * khi app restart), không có nơi nào liệt kê lại. Trang này còn trả lời câu hỏi "kết quả có chui
- * vào báo cáo chính thức không" bằng cách tra claim đã phát sinh từ các RawDoc mà lần chạy đó
- * nạp vào pipeline, và trạng thái duyệt hiện tại của chúng.
+ * 2026-08-03: "Quản lý" (Management) cho Deep Research — hàng đợi + tiến trình đang chạy + lịch
+ * sử đã xong, TẤT CẢ trong 1 trang (xem DeepResearchQueueService để biết vì sao chạy tuần tự).
+ * Trang tự poll {@link #statusJson()} vài giây/lần khi còn job QUEUED/RUNNING — không cần tải
+ * lại cả trang, và xem được từ tab/thiết bị khác với tab đã nộp job.
+ *
+ * Còn trả lời câu hỏi "kết quả có chui vào báo cáo chính thức không" bằng cách tra claim đã phát
+ * sinh từ các RawDoc mà lần chạy đó nạp vào pipeline, và trạng thái duyệt hiện tại của chúng.
  */
 @Controller
 public class DeepResearchHistoryController {
@@ -49,18 +52,38 @@ public class DeepResearchHistoryController {
         this.docxExport = docxExport;
     }
 
-    public record RunRow(Long id, String shortPrompt, String createdAtLabel, int sourceCount,
-                         int newDocCount, String elapsedLabel) {}
+    public record RunRow(Long id, String shortPrompt, String status, String queuedAtLabel,
+                         int sourceCount, int newDocCount, String elapsedLabel, String progressTail) {}
 
     @GetMapping("/research/history")
     public String history(Model model) {
-        List<RunRow> rows = runs.findAllByOrderByCreatedAtDesc().stream()
-                .map(r -> new RunRow(r.getId(), r.shortPrompt(),
-                        TS_FMT.format(r.getCreatedAt().atZone(ZONE)),
-                        r.getSourceCount(), r.getNewDocCount(), elapsedLabel(r.getElapsedMs())))
-                .toList();
-        model.addAttribute("runs", rows);
+        model.addAttribute("runs", rows());
         return "research-history";
+    }
+
+    @GetMapping(value = "/research/queue/status.json", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public List<RunRow> statusJson() {
+        return rows();
+    }
+
+    private List<RunRow> rows() {
+        return runs.findAllByOrderByQueuedAtDesc().stream().map(this::toRow).toList();
+    }
+
+    private RunRow toRow(DeepResearchRun r) {
+        String tail = null;
+        if (r.getStatus() == DeepResearchRun.Status.RUNNING || r.getStatus() == DeepResearchRun.Status.FAILED) {
+            String log = r.getProgressLog();
+            if (log != null && !log.isBlank()) {
+                String[] lines = log.split("\n");
+                int from = Math.max(0, lines.length - 8);
+                tail = String.join("\n", java.util.Arrays.copyOfRange(lines, from, lines.length));
+            }
+        }
+        return new RunRow(r.getId(), r.shortPrompt(), r.getStatus().name(),
+                TS_FMT.format(r.getQueuedAt().atZone(ZONE)),
+                r.getSourceCount(), r.getNewDocCount(), elapsedLabel(r), tail);
     }
 
     public record ClaimFlowSummary(int newDocCount, int totalClaims, int approvedCount,
@@ -71,13 +94,17 @@ public class DeepResearchHistoryController {
         DeepResearchRun run = runs.findById(id).orElse(null);
         if (run == null) {
             model.addAttribute("promptError", "Không tìm thấy lần chạy này.");
-            return "research";
+            return "research-history";
+        }
+        if (run.getStatus() != DeepResearchRun.Status.DONE) {
+            model.addAttribute("promptError", statusMessage(run));
+            return "research-history";
         }
         boolean vi = !"en".equalsIgnoreCase(lang);
         BiReportContent content = readContent(id);
         if (content == null) {
             model.addAttribute("promptError", "Không đọc được nội dung đã lưu của lần chạy này.");
-            return "research";
+            return "research-history";
         }
         Map<String, Object> reportModel = BiReportPageBuilder.toTemplateModel(content, vi);
         reportModel.put("pdfHref", "/research/history/" + id + ".pdf?lang=" + (vi ? "vi" : "en"));
@@ -87,6 +114,21 @@ public class DeepResearchHistoryController {
         reportModel.put("claimFlow", claimFlow(run));
         model.addAllAttributes(reportModel);
         return "bi-report";
+    }
+
+    private static String statusMessage(DeepResearchRun run) {
+        return switch (run.getStatus()) {
+            case QUEUED -> "Đang chờ trong hàng đợi — chưa tới lượt xử lý.";
+            case RUNNING -> "Đang chạy — quay lại trang Quản lý để xem tiến trình trực tiếp.";
+            case FAILED -> "Lần chạy này bị lỗi: " + lastLine(run.getProgressLog());
+            case DONE -> "";
+        };
+    }
+
+    private static String lastLine(String log) {
+        if (log == null || log.isBlank()) return "(không rõ nguyên nhân)";
+        String[] lines = log.split("\n");
+        return lines[lines.length - 1];
     }
 
     @GetMapping("/research/history/{id}.pdf")
@@ -114,7 +156,7 @@ public class DeepResearchHistoryController {
 
     private BiReportContent readContent(Long id) {
         DeepResearchRun run = runs.findById(id).orElse(null);
-        if (run == null) return null;
+        if (run == null || run.getStatus() != DeepResearchRun.Status.DONE) return null;
         try {
             return mapper.readValue(run.getContentJson(), BiReportContent.class);
         } catch (Exception e) {
@@ -124,7 +166,7 @@ public class DeepResearchHistoryController {
 
     private static ResponseEntity<byte[]> notFound() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).contentType(MediaType.TEXT_PLAIN)
-                .body("Không tìm thấy lần chạy này.".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                .body("Không tìm thấy lần chạy này (hoặc chưa chạy xong).".getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private ClaimFlowSummary claimFlow(DeepResearchRun run) {
@@ -142,8 +184,11 @@ public class DeepResearchHistoryController {
         return new ClaimFlowSummary(run.getNewDocCount(), found.size(), approved, pending, rejected);
     }
 
-    private static String elapsedLabel(long elapsedMs) {
-        long totalSeconds = elapsedMs / 1000;
+    private static String elapsedLabel(DeepResearchRun r) {
+        long ms = r.getStatus() == DeepResearchRun.Status.RUNNING && r.getStartedAt() != null
+                ? System.currentTimeMillis() - r.getStartedAt().toEpochMilli()
+                : r.getElapsedMs();
+        long totalSeconds = ms / 1000;
         long minutes = totalSeconds / 60;
         long seconds = totalSeconds % 60;
         return minutes > 0 ? minutes + "p" + seconds + "s" : seconds + "s";

@@ -74,15 +74,13 @@ public class DeepResearchService {
     private final FactExtractionJob extract;
     private final InterpretationJob interpret;
     private final VerificationJob verify;
-    private final DeepResearchRunRepository runs;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public DeepResearchService(LlmClient llm, NewsDiscoveryService discovery,
                                BrowserRenderService browserRender, SafeFetcher fetcher,
                                ContentParsers parsers, ManualDocumentIntakeService intake,
                                ClassificationJob classify, FactExtractionJob extract,
-                               InterpretationJob interpret, VerificationJob verify,
-                               DeepResearchRunRepository runs) {
+                               InterpretationJob interpret, VerificationJob verify) {
         this.llm = llm;
         this.discovery = discovery;
         this.browserRender = browserRender;
@@ -93,7 +91,6 @@ public class DeepResearchService {
         this.extract = extract;
         this.interpret = interpret;
         this.verify = verify;
-        this.runs = runs;
     }
 
     /** renderedHtml chỉ khác null với nguồn lấy qua BROWSE — giữ lại đúng bytes trình duyệt đã
@@ -106,14 +103,17 @@ public class DeepResearchService {
         }
     }
 
-    public BiReportContent research(String prompt) {
+    /** Kết quả đầy đủ 1 lần chạy — DeepResearchQueueService dùng sourceCount/newDocIds để điền
+     *  vào đúng DeepResearchRun đã tạo lúc enqueue (xem DeepResearchRun#markDone). */
+    public record ResearchResult(BiReportContent content, int sourceCount, List<Long> newDocIds) {}
+
+    public ResearchResult research(String prompt) {
         return research(prompt, step -> {});
     }
 
-    /** @param onStep nhận 1 dòng trạng thái mỗi bước — dùng để stream tiến trình qua SSE
-     *  (xem DeepResearchController); no-op an toàn khi gọi đồng bộ không cần theo dõi. */
-    public BiReportContent research(String prompt, Consumer<String> onStep) {
-        long startedAt = System.currentTimeMillis();
+    /** @param onStep nhận 1 dòng trạng thái mỗi bước — DeepResearchQueueService dùng để ghi
+     *  progressLog vào DB theo thời gian thực; no-op an toàn khi gọi không cần theo dõi. */
+    public ResearchResult research(String prompt, Consumer<String> onStep) {
         List<GatheredSource> gathered = new ArrayList<>();
         onStep.accept("Bắt đầu Deep Research cho: \"" + prompt + "\"");
 
@@ -143,24 +143,7 @@ public class DeepResearchService {
         onStep.accept("Đang tổng hợp báo cáo từ " + gathered.size() + " nguồn…");
         BiReportContent content = appendPipelineNote(synthesize(prompt, gathered), newDocIds.size());
         onStep.accept("Hoàn tất — " + content.findings().size() + " nhận định qua " + gathered.size() + " nguồn.");
-        persistRun(prompt, System.currentTimeMillis() - startedAt, gathered.size(), newDocIds, content);
-        return content;
-    }
-
-    /** Lưu lại lần chạy này để có lịch sử (xem DeepResearchRun javadoc) — lỗi lưu KHÔNG được
-     *  làm hỏng kết quả vừa tổng hợp, chỉ log và bỏ qua (người dùng vẫn xem/tải được report
-     *  qua cache như trước, chỉ là lần này sẽ không xuất hiện trong /research/history). */
-    private void persistRun(String prompt, long elapsedMs, int sourceCount, List<Long> newDocIds,
-                            BiReportContent content) {
-        try {
-            String contentJson = mapper.writeValueAsString(content);
-            String newDocIdsCsv = newDocIds.isEmpty() ? null
-                    : newDocIds.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse(null);
-            runs.save(new DeepResearchRun(prompt, elapsedMs, sourceCount, newDocIds.size(),
-                    contentJson, newDocIdsCsv));
-        } catch (Exception e) {
-            log.warn("Deep Research: không lưu được lịch sử chạy: {}", e.getMessage());
-        }
+        return new ResearchResult(content, gathered.size(), newDocIds);
     }
 
     /**

@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 <head>
-  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Lịch sử Deep Research · Market Radar' : 'Deep Research History · Market Radar'}">Deep Research History</title>
+  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Deep Research — Quản lý · Market Radar' : 'Deep Research — Management · Market Radar'}">Deep Research Management</title>
   <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
   <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
   <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
   <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
   <style>
+    .notice { padding:14px 16px; border-radius:var(--radius-md); margin:0 0 18px; }
+    .notice.err { background:var(--rose-50); color:var(--rose-700); }
     .history-table { width:100%; border-collapse:collapse; }
     .history-table th { text-align:left; font-size:var(--text-xs); text-transform:uppercase; letter-spacing:.03em;
       color:var(--text-tertiary); padding:10px 12px; border-bottom:1px solid var(--border-default); }
@@ -14,44 +16,111 @@
     .history-table tr:hover td { background:var(--slate-50); }
     .history-table a.prompt-link { font-weight:600; color:var(--text-primary); text-decoration:none; }
     .history-table a.prompt-link:hover { text-decoration:underline; }
+    .prompt-plain { font-weight:600; color:var(--text-primary); }
     .meta-num { font-variant-numeric:tabular-nums; }
+    .status-badge { display:inline-block; padding:3px 9px; border-radius:10px; font-weight:600; font-size:12px; }
+    .status-QUEUED { background:#eef0f4; color:#5b6472; }
+    .status-RUNNING { background:#fdf1da; color:#8a5b12; }
+    .status-DONE { background:#e3f5e9; color:#1e7a45; }
+    .status-FAILED { background:#fbe4e4; color:#a12b2b; }
+    .progress-box { margin-top:8px; padding:8px 10px; background:#0f1420; color:#c8d0dc; border-radius:6px;
+      font-family:var(--font-mono, monospace); font-size:11.5px; line-height:1.5; white-space:pre-wrap; max-height:160px; overflow-y:auto; }
   </style>
 </head>
 <body><div class="ops-shell">
-  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('researchhistory', ${null})}"></th:block>
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('deepresearchmanage', ${null})}"></th:block>
   <div class="ops-main"><div class="ops-content">
     <div class="page-header"><div>
-      <h1 th:text="${#locale.language == 'vi' ? 'Lịch sử Deep Research' : 'Deep Research History'}">Deep Research History</h1>
-      <p th:text="${#locale.language == 'vi' ? 'Mọi lần chạy Deep Research đều được lưu lại ở đây — bấm vào để xem lại bản xem nhanh (chưa fact-check) và trạng thái duyệt thật của các tài liệu đã nạp vào pipeline.' : 'Every Deep Research run is saved here — open one to see the unverified preview again and the real review status of the documents it fed into the pipeline.'}">Description</p>
-    </div></div>
+      <h1 th:text="${#locale.language == 'vi' ? 'Deep Research — Quản lý' : 'Deep Research — Management'}">Deep Research — Management</h1>
+      <p th:text="${#locale.language == 'vi' ? 'Hàng đợi, tiến trình đang chạy, và lịch sử — tất cả trong 1 trang. Tự cập nhật khi có job đang chạy, không cần tải lại.' : 'Queue, live progress, and history — all on one page. Auto-updates while a job is running, no reload needed.'}">Description</p>
+    </div>
+    <a class="btn btn-primary" th:href="@{/research/deep/create}" th:text="${#locale.language == 'vi' ? 'Nộp yêu cầu mới' : 'Submit new request'}">Submit new request</a>
+    </div>
+
+    <p class="notice err" th:if="${promptError}" th:text="${promptError}">Error.</p>
 
     <div class="empty-state" th:if="${runs.isEmpty()}">
       <div class="title" th:text="${#locale.language == 'vi' ? 'Chưa chạy Deep Research lần nào.' : 'No Deep Research runs yet.'}">No runs yet</div>
-      <p><a th:href="@{/research}" th:text="${#locale.language == 'vi' ? 'Chạy Deep Research →' : 'Run Deep Research →'}">Run Deep Research →</a></p>
+      <p><a th:href="@{/research/deep/create}" th:text="${#locale.language == 'vi' ? 'Nộp yêu cầu đầu tiên →' : 'Submit the first request →'}">Submit the first request →</a></p>
     </div>
 
-    <table class="history-table" th:unless="${runs.isEmpty()}">
+    <table class="history-table" th:unless="${runs.isEmpty()}" id="history-table">
       <thead>
         <tr>
-          <th th:text="${#locale.language == 'vi' ? 'Thời gian' : 'Time'}">Time</th>
+          <th th:text="${#locale.language == 'vi' ? 'Nộp lúc' : 'Queued at'}">Queued at</th>
           <th th:text="${#locale.language == 'vi' ? 'Yêu cầu' : 'Prompt'}">Prompt</th>
+          <th th:text="${#locale.language == 'vi' ? 'Trạng thái' : 'Status'}">Status</th>
           <th th:text="${#locale.language == 'vi' ? 'Nguồn' : 'Sources'}">Sources</th>
           <th th:text="${#locale.language == 'vi' ? 'Tài liệu mới' : 'New docs'}">New docs</th>
-          <th th:text="${#locale.language == 'vi' ? 'Thời gian chạy' : 'Elapsed'}">Elapsed</th>
+          <th th:text="${#locale.language == 'vi' ? 'Thời gian' : 'Elapsed'}">Elapsed</th>
         </tr>
       </thead>
-      <tbody>
-        <tr th:each="r : ${runs}">
-          <td th:text="${r.createdAtLabel}">03/08/2026 08:10</td>
-          <td><a class="prompt-link" th:href="@{'/research/history/' + ${r.id}}" th:text="${r.shortPrompt}">Prompt</a></td>
-          <td class="meta-num" th:text="${r.sourceCount}">12</td>
-          <td class="meta-num" th:text="${r.newDocCount}">8</td>
-          <td class="meta-num" th:text="${r.elapsedLabel}">4p12s</td>
+      <tbody id="history-tbody" th:attr="data-lang=${#locale.language}">
+        <tr th:each="r : ${runs}" th:attr="data-id=${r.id},data-status=${r.status}">
+          <td th:text="${r.queuedAtLabel}">03/08/2026 08:10</td>
+          <td>
+            <a th:if="${r.status == 'DONE'}" class="prompt-link" th:href="@{'/research/history/' + ${r.id}}" th:text="${r.shortPrompt}">Prompt</a>
+            <span th:unless="${r.status == 'DONE'}" class="prompt-plain" th:text="${r.shortPrompt}">Prompt</span>
+            <div class="progress-box" th:if="${r.progressTail != null}" th:text="${r.progressTail}">log…</div>
+          </td>
+          <td><span th:class="'status-badge status-' + ${r.status}" th:text="${r.status}">QUEUED</span></td>
+          <td class="meta-num" th:text="${r.sourceCount}">0</td>
+          <td class="meta-num" th:text="${r.newDocCount}">0</td>
+          <td class="meta-num" th:text="${r.elapsedLabel}">0s</td>
         </tr>
       </tbody>
     </table>
   </div></div>
 </div>
 <script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+<script th:inline="javascript">
+(function () {
+  var tbody = document.getElementById('history-tbody');
+  if (!tbody) return;
+  var vi = tbody.dataset.lang === 'vi';
+  var labels = { QUEUED: 'QUEUED', RUNNING: 'RUNNING', DONE: 'DONE', FAILED: 'FAILED' };
+
+  function hasActive() {
+    return Array.prototype.some.call(tbody.querySelectorAll('tr'), function (tr) {
+      var s = tr.dataset.status;
+      return s === 'QUEUED' || s === 'RUNNING';
+    });
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : s;
+    return d.innerHTML;
+  }
+
+  function renderRow(r) {
+    var promptCell = r.status === 'DONE'
+      ? '<a class="prompt-link" href="/research/history/' + r.id + '">' + esc(r.shortPrompt) + '</a>'
+      : '<span class="prompt-plain">' + esc(r.shortPrompt) + '</span>';
+    if (r.progressTail) {
+      promptCell += '<div class="progress-box">' + esc(r.progressTail) + '</div>';
+    }
+    return '<tr data-id="' + r.id + '" data-status="' + r.status + '">' +
+      '<td>' + esc(r.queuedAtLabel) + '</td>' +
+      '<td>' + promptCell + '</td>' +
+      '<td><span class="status-badge status-' + r.status + '">' + r.status + '</span></td>' +
+      '<td class="meta-num">' + r.sourceCount + '</td>' +
+      '<td class="meta-num">' + r.newDocCount + '</td>' +
+      '<td class="meta-num">' + esc(r.elapsedLabel) + '</td>' +
+      '</tr>';
+  }
+
+  function poll() {
+    fetch('/research/queue/status.json').then(function (res) { return res.json(); }).then(function (rows) {
+      tbody.innerHTML = rows.map(renderRow).join('');
+      if (rows.some(function (r) { return r.status === 'QUEUED' || r.status === 'RUNNING'; })) {
+        setTimeout(poll, 3000);
+      }
+    }).catch(function () { setTimeout(poll, 5000); });
+  }
+
+  if (hasActive()) setTimeout(poll, 3000);
+})();
+</script>
 </body>
 </html>

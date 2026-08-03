@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Web Search — Quản lý · Market Radar' : 'Web Search — Management · Market Radar'}">Web Search Management</title>
+  <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
+  <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
+  <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
+  <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
+  <style>
+    .history-table { width:100%; border-collapse:collapse; }
+    .history-table th { text-align:left; font-size:var(--text-xs); text-transform:uppercase; letter-spacing:.03em;
+      color:var(--text-tertiary); padding:10px 12px; border-bottom:1px solid var(--border-default); }
+    .history-table td { padding:12px; border-bottom:1px solid var(--border-default); font-size:var(--text-sm); vertical-align:top; }
+    .history-table tr:hover td { background:var(--slate-50); }
+    .meta-num { font-variant-numeric:tabular-nums; }
+  </style>
+</head>
+<body><div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('websearchmanage', ${null})}"></th:block>
+  <div class="ops-main"><div class="ops-content">
+    <div class="page-header"><div>
+      <h1 th:text="${#locale.language == 'vi' ? 'Web Search — Quản lý' : 'Web Search — Management'}">Web Search — Management</h1>
+      <p th:text="${#locale.language == 'vi' ? 'Lịch sử các lượt tìm kiếm nhanh đã chạy.' : 'History of past quick searches.'}">Description</p>
+    </div>
+    <a class="btn btn-primary" th:href="@{/research/web}" th:text="${#locale.language == 'vi' ? 'Tìm kiếm mới' : 'New search'}">New search</a>
+    </div>
+
+    <div class="empty-state" th:if="${runs.isEmpty()}">
+      <div class="title" th:text="${#locale.language == 'vi' ? 'Chưa tìm kiếm lần nào.' : 'No searches yet.'}">No searches yet</div>
+      <p><a th:href="@{/research/web}" th:text="${#locale.language == 'vi' ? 'Tìm kiếm đầu tiên →' : 'Run the first search →'}">Run the first search →</a></p>
+    </div>
+
+    <table class="history-table" th:unless="${runs.isEmpty()}">
+      <thead>
+        <tr>
+          <th th:text="${#locale.language == 'vi' ? 'Thời gian' : 'Time'}">Time</th>
+          <th th:text="${#locale.language == 'vi' ? 'Câu hỏi / từ khoá' : 'Question / keyword'}">Query</th>
+          <th th:text="${#locale.language == 'vi' ? 'Số kết quả' : 'Results'}">Results</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="r : ${runs}">
+          <td th:text="${r.createdAtLabel}">03/08/2026 08:10</td>
+          <td th:text="${r.query}">Query</td>
+          <td class="meta-num" th:text="${r.resultCount}">5</td>
+        </tr>
+      </tbody>
+    </table>
+  </div></div>
+</div>
+<script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+</body>
+</html>

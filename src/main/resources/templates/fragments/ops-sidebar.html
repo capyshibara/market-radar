@@ -17,8 +17,22 @@
         <a href="/report/bi" class="ops-nav-item" th:text="${#locale.language == 'vi' ? 'Báo cáo BI ↗' : 'BI Report ↗'}">BI Report ↗</a>
         <a href="/desks" class="ops-nav-item" th:classappend="${active == 'desks'} ? 'is-active'" th:text="#{ops.sidebar.navDesks}">Department Desks</a>
         <a href="/product/special-issues" class="ops-nav-item" th:if="${demoMode == null or !demoMode}" th:classappend="${active == 'specialissues'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Chuyên đề tháng' : 'Special Issues'}">Special Issues</a>
-        <a href="/research" class="ops-nav-item" th:classappend="${active == 'research'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Nghiên cứu (Web Search / Deep Research)' : 'Research (Web Search / Deep Research)'}">Research</a>
-        <a href="/research/history" class="ops-nav-item" th:classappend="${active == 'researchhistory'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Lịch sử Deep Research' : 'Deep Research History'}">Deep Research History</a>
+      </div>
+    </div>
+
+    <div>
+      <div class="ops-nav-heading" th:text="${#locale.language == 'vi' ? 'Web Search' : 'Web Search'}">Web Search</div>
+      <div class="ops-nav-group">
+        <a href="/research/web" class="ops-nav-subitem" th:classappend="${active == 'websearchcreate'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tạo mới' : 'Create'}">Create</a>
+        <a href="/research/web/history" class="ops-nav-subitem" th:classappend="${active == 'websearchmanage'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Quản lý' : 'Management'}">Management</a>
+      </div>
+    </div>
+
+    <div>
+      <div class="ops-nav-heading" th:text="${#locale.language == 'vi' ? 'Deep Research' : 'Deep Research'}">Deep Research</div>
+      <div class="ops-nav-group">
+        <a href="/research/deep/create" class="ops-nav-subitem" th:classappend="${active == 'deepresearchcreate'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Tạo mới' : 'Create'}">Create</a>
+        <a href="/research/history" class="ops-nav-subitem" th:classappend="${active == 'deepresearchmanage'} ? 'is-active'" th:text="${#locale.language == 'vi' ? 'Quản lý' : 'Management'}">Management</a>
       </div>
     </div>
 

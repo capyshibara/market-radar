@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Web Search · Market Radar' : 'Web Search · Market Radar'}">Web Search</title>
+  <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
+  <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
+  <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
+  <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
+  <style>
+    .research-card { max-width:760px; padding:26px; border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--surface-card); margin-bottom:20px; }
+    .research-card h2 { margin:0 0 8px; font-size:var(--text-xl); } .research-card p { color:var(--text-secondary); line-height:1.55; }
+    .research-control { margin:18px 0 14px; }
+    .notice { padding:14px 16px; border-radius:var(--radius-md); margin:0 0 18px; }
+    .notice.err { background:var(--rose-50); color:var(--rose-700); }
+    .search-item { padding:14px 0; border-top:1px solid var(--border-default); }
+    .search-item:first-child { border-top:0; }
+    .search-item h4 { margin:0 0 4px; font-size:var(--text-md); }
+    .search-item p { margin:4px 0 0; color:var(--text-secondary); font-size:var(--text-sm); line-height:1.5; }
+    .search-item .meta { font-size:var(--text-xs); color:var(--text-tertiary); }
+  </style>
+</head>
+<body><div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('websearchcreate', ${null})}"></th:block>
+  <div class="ops-main"><div class="ops-content">
+    <div class="page-header"><div>
+      <h1 th:text="${#locale.language == 'vi' ? 'Web Search — Tạo mới' : 'Web Search — Create'}">Web Search — Create</h1>
+      <p th:text="${#locale.language == 'vi' ? '1 lượt tìm + đọc top kết quả, KHÔNG có AI tổng hợp — nhanh, xác định, phù hợp câu hỏi đơn giản kiểu &quot;có tin gì về X&quot;. Không ghi vào kho evidence chính thức.' : 'One search+read pass, NO AI synthesis — fast and deterministic, good for a simple &quot;what news on X&quot; question. Does not write to the official evidence store.'}">Description</p>
+    </div></div>
+
+    <p class="notice err" th:if="${searchError}" th:text="${searchError}">Error.</p>
+    <section class="research-card">
+      <h2 th:text="${#locale.language == 'vi' ? 'Tìm kiếm nhanh' : 'Quick Search'}">Quick Search</h2>
+      <form method="post" action="/research/web/search">
+        <div class="research-control">
+          <label class="lbl" for="q" th:text="${#locale.language == 'vi' ? 'Câu hỏi / từ khoá' : 'Question / keyword'}">Question / keyword</label>
+          <input id="q" class="ops-input" name="q" type="text" required autofocus/>
+        </div>
+        <button class="btn btn-primary" type="submit" th:text="${#locale.language == 'vi' ? 'Tìm kiếm' : 'Search'}">Search</button>
+      </form>
+      <p style="margin-top:14px"><a th:href="@{/research/web/history}" th:text="${#locale.language == 'vi' ? 'Xem lịch sử tìm kiếm →' : 'View search history →'}">View search history →</a></p>
+    </section>
+
+    <section class="research-card" th:if="${searchResult != null}">
+      <h2 th:text="${#locale.language == 'vi' ? 'Kết quả cho: ' : 'Results for: '} + ${searchResult.query}">Results</h2>
+      <div class="empty-state" th:if="${searchResult.items.isEmpty()}">
+        <div class="title" th:text="${#locale.language == 'vi' ? 'Không tìm được kết quả nào.' : 'No results found.'}">No results</div>
+      </div>
+      <div class="search-item" th:each="item : ${searchResult.items}">
+        <h4>
+          <a th:if="${item.url != null}" th:href="${item.url}" target="_blank" th:text="${item.title}">Title</a>
+          <span th:unless="${item.url != null}" th:text="${item.title}">Title</span>
+        </h4>
+        <p th:if="${item.excerpt != null}" th:text="${item.excerpt}">Excerpt</p>
+        <p class="meta" th:if="${item.note != null}" th:text="${item.note}">Note</p>
+      </div>
+    </section>
+  </div></div>
+</div>
+<script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+</body>
+</html>

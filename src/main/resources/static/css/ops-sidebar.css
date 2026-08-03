@@ -28,6 +28,16 @@
   background: var(--slate-700); color: var(--slate-200); border-radius: var(--radius-pill); padding: 1px 6px; }
 .ops-nav-item.is-active .nav-badge { background: rgba(255,255,255,0.25); color: #fff; }
 
+/* Sub-item under a non-clickable group heading (e.g. "Web Search" -> Create/Management) —
+   same interaction states as .ops-nav-item, just indented + smaller to read as nested. */
+.ops-nav-heading { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--slate-400);
+  padding: 6px 10px 2px; }
+.ops-nav-subitem { display: block; text-decoration: none; background: transparent; color: var(--text-nav);
+  font-size: var(--text-xs); padding: 6px 10px 6px 20px; border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-standard); }
+.ops-nav-subitem:hover { background: var(--border-nav); }
+.ops-nav-subitem.is-active { background: var(--brand-red-500); color: var(--text-nav-active); font-weight: var(--weight-semibold); }
+
 .ops-nav-advanced { margin: 0; }
 .ops-nav-advanced summary { position: relative; cursor: pointer; list-style: none; user-select: none;
   font-size: var(--text-2xs); font-weight: var(--weight-bold); color: var(--slate-500);

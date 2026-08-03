@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+  <meta charset="UTF-8"/><title th:text="${#locale.language == 'vi' ? 'Deep Research · Market Radar' : 'Deep Research · Market Radar'}">Deep Research</title>
+  <link rel="stylesheet" href="/css/fonts.css"/><link rel="stylesheet" href="/css/colors.css"/>
+  <link rel="stylesheet" href="/css/typography.css"/><link rel="stylesheet" href="/css/spacing.css"/>
+  <link rel="stylesheet" href="/css/base.css"/><link rel="stylesheet" href="/css/patterns.css"/>
+  <link rel="stylesheet" href="/css/ops-components.css"/><link rel="stylesheet" href="/css/ops-sidebar.css"/>
+  <style>
+    .research-card { max-width:760px; padding:26px; border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--surface-card); margin-bottom:20px; }
+    .research-card h2 { margin:0 0 8px; font-size:var(--text-xl); } .research-card p { color:var(--text-secondary); line-height:1.55; }
+    .research-control { margin:18px 0 14px; } .research-control textarea.ops-input { min-height:160px; font-family:inherit; resize:vertical; }
+    .notice { padding:14px 16px; border-radius:var(--radius-md); margin:0 0 18px; }
+    .notice.err { background:var(--rose-50); color:var(--rose-700); }
+    .prompt-hint { font-size:var(--text-xs); color:var(--text-tertiary); margin-top:6px; }
+    .how-it-works { margin-top:22px; padding:14px 16px; background:var(--slate-50); border-left:3px solid var(--brand-red-500); color:var(--text-secondary); font-size:var(--text-sm); line-height:1.6; }
+    .how-it-works ol { margin:8px 0 0; padding-left:20px; }
+  </style>
+</head>
+<body><div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('deepresearchcreate', ${null})}"></th:block>
+  <div class="ops-main"><div class="ops-content">
+    <div class="page-header"><div>
+      <h1 th:text="${#locale.language == 'vi' ? 'Deep Research — Tạo mới' : 'Deep Research — Create'}">Deep Research — Create</h1>
+      <p th:text="${#locale.language == 'vi' ? 'AI tự lặp nhiều vòng: quyết định tìm kiếm mở hay đọc 1 URL cụ thể qua trình duyệt thật, tự dừng khi đủ thông tin. Mỗi nguồn thật tìm được vừa được tổng hợp thành báo cáo xem nhanh, VỪA được nạp riêng vào pipeline xác thực đầy đủ — chờ duyệt ở Reviewer Queue trước khi vào báo cáo BI chính thức.' : 'AI iterates over multiple rounds: deciding to search openly or render a specific URL with a real browser, stopping on its own once satisfied. Every real source found is both synthesized into a preview report AND separately fed into the full verification pipeline — held in the Reviewer Queue before it can reach the official BI report.'}">Description</p>
+    </div></div>
+
+    <p class="notice err" th:if="${promptError}" th:text="${promptError}">Error.</p>
+
+    <section class="research-card">
+      <h2 th:text="${#locale.language == 'vi' ? 'Nộp yêu cầu nghiên cứu' : 'Submit research requests'}">Submit research requests</h2>
+      <p th:text="${#locale.language == 'vi' ? 'Nhập MỖI DÒNG 1 yêu cầu — nộp được nhiều yêu cầu cùng lúc, hệ thống tự xếp hàng và xử lý lần lượt (không chạy song song, để tránh đụng độ dữ liệu). Nộp xong chuyển sang trang Quản lý để xem tiến trình.' : 'Enter ONE request PER LINE — submit several at once, the system queues and processes them one at a time (not in parallel, to avoid data collisions). After submitting you\'ll land on the Management page to watch progress.'}">Description</p>
+      <form method="post" action="/research/deep/enqueue" id="deep-form">
+        <div class="research-control">
+          <label class="lbl" for="prompts" th:text="${#locale.language == 'vi' ? 'Yêu cầu nghiên cứu (mỗi dòng 1 yêu cầu)' : 'Research requests (one per line)'}">Research requests</label>
+          <textarea id="prompts" class="ops-input" name="prompts" required></textarea>
+          <div class="prompt-hint" th:text="${#locale.language == 'vi' ? 'Ví dụ: dán 3-6 câu hỏi khác nhau, mỗi câu 1 dòng — tất cả sẽ được xếp hàng chạy lần lượt, không cần ngồi canh từng câu.' : 'Example: paste 3-6 different questions, one per line — all get queued and run one after another, no need to babysit each one.'}">Hint</div>
+        </div>
+        <button class="btn btn-primary" type="submit" id="deep-submit" th:text="${#locale.language == 'vi' ? 'Xếp hàng chạy' : 'Queue for processing'}">Queue for processing</button>
+      </form>
+      <p style="margin-top:14px"><a th:href="@{/research/history}" th:text="${#locale.language == 'vi' ? 'Xem hàng đợi / lịch sử →' : 'View queue / history →'}">View queue / history →</a></p>
+      <div class="how-it-works">
+        <strong th:text="${#locale.language == 'vi' ? 'Cách hoạt động' : 'How it works'}">How it works</strong>
+        <ol>
+          <li th:text="${#locale.language == 'vi' ? 'Mỗi dòng trở thành 1 job riêng, xử lý TUẦN TỰ — tối đa 12 vòng lặp, tối đa 25 nguồn mỗi job, AI tự dừng sớm nếu đã đủ thông tin.' : 'Each line becomes its own job, processed ONE AT A TIME — up to 12 iterations, up to 25 sources per job, the AI stops early once it has enough.'}">step</li>
+          <li th:text="${#locale.language == 'vi' ? 'Trang Quản lý hiện hàng đợi + tiến trình job đang chạy trực tiếp (tự cập nhật, không cần tải lại trang) — đóng tab vẫn không mất tiến trình, vào lại xem tiếp được.' : 'The Management page shows the queue plus live progress of the running job (auto-updating, no reload needed) — closing the tab does not lose progress, come back anytime.'}">step</li>
+          <li th:text="${#locale.language == 'vi' ? 'Mỗi nguồn thật đọc được cũng được nạp vào kho evidence và chạy qua đúng pipeline xác thực (Gate L1 + Gate L2) — xem tiến trình duyệt ở Reviewer Queue.' : 'Every real source read is also ingested into the evidence store and run through the same verification pipeline (Gate L1 + Gate L2) — track review progress in the Reviewer Queue.'}">step</li>
+        </ol>
+      </div>
+    </section>
+  </div></div>
+</div>
+<script src="/js/ops-session.js"></script><script src="/js/ops-sidebar.js"></script>
+</body>
+</html>

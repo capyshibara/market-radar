@@ -6,5 +6,9 @@ import java.util.List;
 
 public interface DeepResearchRunRepository extends JpaRepository<DeepResearchRun, Long> {
 
-    List<DeepResearchRun> findAllByOrderByCreatedAtDesc();
+    List<DeepResearchRun> findAllByOrderByQueuedAtDesc();
+
+    List<DeepResearchRun> findByStatusIn(List<DeepResearchRun.Status> statuses);
+
+    List<DeepResearchRun> findByStatusOrderByQueuedAtAsc(DeepResearchRun.Status status);
 }
