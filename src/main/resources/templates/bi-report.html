@@ -207,6 +207,7 @@
     </span>
     <a class="download" th:href="${pdfHref}" th:text="${vi ? 'Tải PDF' : 'Download PDF'}">Download PDF</a>
     <a th:href="${docxHref}" th:text="${vi ? 'Tải .docx' : 'Download .docx'}">Download .docx</a>
+    <a th:if="${pptxHref != null}" th:href="${pptxHref}" th:text="${vi ? 'Tải PPTX (deck)' : 'Download PPTX (deck)'}">Download PPTX</a>
     <a href="/pipeline" th:text="${vi ? 'Vận hành' : 'Operations'}">Operations</a>
   </div>
 </div>

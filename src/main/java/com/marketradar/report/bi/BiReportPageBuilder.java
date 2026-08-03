@@ -172,7 +172,7 @@ public final class BiReportPageBuilder {
      *  "our_read_foreign_scale_advantage") thay vì tên cặp so sánh dễ đọc, không nên hiện nguyên
      *  trạng làm tiêu đề trang cho CFO. Chỉ prettify khi rõ ràng LÀ slug (toàn chữ thường/số/gạch
      *  dưới) — key đã là tên hiển thị tự nhiên (có hoa/khoảng trắng/dấu) thì giữ nguyên. */
-    private static String displayLabel(String key) {
+    static String displayLabel(String key) {
         if (!key.matches("[a-z0-9_]+")) return key;
         StringBuilder sb = new StringBuilder();
         for (String w : key.split("_")) {

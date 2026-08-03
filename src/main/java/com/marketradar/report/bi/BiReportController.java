@@ -28,15 +28,17 @@ public class BiReportController {
     private final PeriodicalBiAdapter biAdapter;
     private final PdfExportService pdfExport;
     private final BiReportDocxService docxExport;
+    private final BiReportPptxService pptxExport;
     private final RawDocRepository rawDocs;
 
     public BiReportController(ProductReportAdapter reports, PeriodicalBiAdapter biAdapter,
                               PdfExportService pdfExport, BiReportDocxService docxExport,
-                              RawDocRepository rawDocs) {
+                              BiReportPptxService pptxExport, RawDocRepository rawDocs) {
         this.reports = reports;
         this.biAdapter = biAdapter;
         this.pdfExport = pdfExport;
         this.docxExport = docxExport;
+        this.pptxExport = pptxExport;
         this.rawDocs = rawDocs;
     }
 
@@ -73,6 +75,22 @@ public class BiReportController {
                 .body(docx);
     }
 
+    @GetMapping("/report/bi.pptx")
+    public ResponseEntity<byte[]> biReportPptx(@RequestParam(defaultValue = "weekly") String cadence) {
+        ProductReportCadence c = parseCadence(cadence);
+        var content = biAdapter.adapt("Business Intelligence Report — " + c.label(true),
+                c.periodLabel(LocalDate.now(ProductReportModel.REPORT_ZONE), true),
+                reports.current(c, LocalDate.now(ProductReportModel.REPORT_ZONE)),
+                rawDocs.count());
+        byte[] pptx = pptxExport.render(content);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"market-radar-bi-report-" + cadence + ".pptx\"")
+                .body(pptx);
+    }
+
     private Map<String, Object> buildModel(ProductReportCadence cadence, String cadenceParam, boolean vi) {
         LocalDate asOf = LocalDate.now(ProductReportModel.REPORT_ZONE);
         ProductReportAdapter.Snapshot snapshot = reports.current(cadence, asOf);
@@ -82,6 +100,7 @@ public class BiReportController {
         String langParam = vi ? "vi" : "en";
         model.put("pdfHref", "/report/bi.pdf?cadence=" + cadenceParam + "&lang=" + langParam);
         model.put("docxHref", "/report/bi.docx?cadence=" + cadenceParam);
+        model.put("pptxHref", "/report/bi.pptx?cadence=" + cadenceParam);
         model.put("langHrefVi", "/report/bi?cadence=" + cadenceParam + "&lang=vi");
         model.put("langHrefEn", "/report/bi?cadence=" + cadenceParam + "&lang=en");
         model.put("cadenceParam", cadenceParam);

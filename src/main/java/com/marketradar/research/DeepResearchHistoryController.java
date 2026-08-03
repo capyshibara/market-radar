@@ -8,6 +8,7 @@ import com.marketradar.report.PdfExportService;
 import com.marketradar.report.bi.BiReportContent;
 import com.marketradar.report.bi.BiReportDocxService;
 import com.marketradar.report.bi.BiReportPageBuilder;
+import com.marketradar.report.bi.BiReportPptxService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -46,6 +47,7 @@ public class DeepResearchHistoryController {
     private final InterpretedClaimRepository claims;
     private final PdfExportService pdfExport;
     private final BiReportDocxService docxExport;
+    private final BiReportPptxService pptxExport;
     // FAIL_ON_UNKNOWN_PROPERTIES=false: contentJson của các run đã lưu TRƯỚC bản sửa
     // BiFinding#isVietnamMarket() (@JsonIgnore) vẫn còn trường thừa "vietnamMarket" — nới lỏng ở
     // đây để đọc lại được NGAY các báo cáo cũ mà không cần chạy lại Deep Research. An toàn: đây
@@ -54,11 +56,13 @@ public class DeepResearchHistoryController {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     public DeepResearchHistoryController(DeepResearchRunRepository runs, InterpretedClaimRepository claims,
-                                         PdfExportService pdfExport, BiReportDocxService docxExport) {
+                                         PdfExportService pdfExport, BiReportDocxService docxExport,
+                                         BiReportPptxService pptxExport) {
         this.runs = runs;
         this.claims = claims;
         this.pdfExport = pdfExport;
         this.docxExport = docxExport;
+        this.pptxExport = pptxExport;
     }
 
     public record RunRow(Long id, String shortPrompt, String status, String queuedAtLabel,
@@ -125,6 +129,7 @@ public class DeepResearchHistoryController {
         Map<String, Object> reportModel = BiReportPageBuilder.toTemplateModel(content, vi);
         reportModel.put("pdfHref", "/research/history/" + id + ".pdf?lang=" + (vi ? "vi" : "en"));
         reportModel.put("docxHref", "/research/history/" + id + ".docx");
+        reportModel.put("pptxHref", "/research/history/" + id + ".pptx");
         reportModel.put("langHrefVi", "/research/history/" + id + "?lang=vi");
         reportModel.put("langHrefEn", "/research/history/" + id + "?lang=en");
         reportModel.put("claimFlow", claimFlow(run));
@@ -168,6 +173,18 @@ public class DeepResearchHistoryController {
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"deep-research-" + id + ".docx\"")
                 .body(docx);
+    }
+
+    @GetMapping("/research/history/{id}.pptx")
+    public ResponseEntity<byte[]> pptx(@PathVariable Long id) {
+        BiReportContent content = readContent(id);
+        if (content == null) return notFound();
+        byte[] pptx = pptxExport.render(content);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"deep-research-" + id + ".pptx\"")
+                .body(pptx);
     }
 
     private BiReportContent readContent(Long id) {
