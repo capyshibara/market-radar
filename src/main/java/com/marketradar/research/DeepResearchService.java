@@ -126,12 +126,14 @@ public class DeepResearchService {
                 break;
             }
             if ("SEARCH".equalsIgnoreCase(action.action()) && action.target() != null && !action.target().isBlank()) {
-                onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Tìm kiếm mở: \"" + action.target() + "\"");
+                String query = sanitizeQuery(action.target());
+                onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Tìm kiếm mở: \"" + query + "\""
+                        + (!query.equals(action.target().strip()) ? " (đã tự rút gọn từ: \"" + action.target() + "\")" : ""));
                 int before = gathered.size();
-                runSearch(action.target(), gathered);
+                runSearch(query, gathered);
                 int found = gathered.size() - before;
                 onStep.accept("→ Đọc được " + found + " nguồn mới (tổng " + gathered.size() + ")");
-                triedQueries.add(action.target() + " → " + found + " nguồn mới");
+                triedQueries.add(query + " → " + found + " nguồn mới");
             } else if ("BROWSE".equalsIgnoreCase(action.action()) && action.target() != null && !action.target().isBlank()) {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — Render trình duyệt: " + action.target());
                 int before = gathered.size();
@@ -300,6 +302,29 @@ public class DeepResearchService {
 
     private static boolean alreadyGathered(List<GatheredSource> gathered, String url) {
         return gathered.stream().anyMatch(g -> g.url().equals(url));
+    }
+
+    // 2026-08-03 (feedback: query vẫn dài dằng dặc dù prompt planner đã dặn 3-6 từ khoá/tối đa 1
+    // site: — dặn trong prompt không đủ, LLM (kể cả model thật, không chỉ STUB) vẫn hay nhét thêm
+    // "cho chắc" khi vài vòng trước ra 0 kết quả). Google/Bing News RSS AND-combine MỌI token,
+    // nên chặn cứng ở đây bất kể LLM có nghe lời hay không, thay vì tiếp tục whack-a-mole ở prompt.
+    private static final int MAX_QUERY_UNITS = 8;
+    private static final java.util.regex.Pattern SITE_FILTER = java.util.regex.Pattern.compile("site:\\S+");
+    private static final java.util.regex.Pattern QUERY_UNIT = java.util.regex.Pattern.compile("\"[^\"]*\"|\\S+");
+
+    static String sanitizeQuery(String raw) {
+        String q = raw.strip();
+        var siteMatcher = SITE_FILTER.matcher(q);
+        String firstSite = siteMatcher.find() ? siteMatcher.group() : null; // giữ tối đa 1 site:,
+        q = siteMatcher.replaceAll("").strip();                             // bỏ hết các cái sau
+
+        List<String> units = new ArrayList<>();
+        var unitMatcher = QUERY_UNIT.matcher(q);
+        while (unitMatcher.find() && units.size() < MAX_QUERY_UNITS) units.add(unitMatcher.group());
+
+        String result = String.join(" ", units);
+        if (firstSite != null) result = result.isBlank() ? firstSite : result + " " + firstSite;
+        return result.isBlank() ? q : result;
     }
 
     private record PlanAction(String action, String target, String reason) {}

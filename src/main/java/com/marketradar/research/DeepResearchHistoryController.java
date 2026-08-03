@@ -7,6 +7,8 @@ import com.marketradar.report.PdfExportService;
 import com.marketradar.report.bi.BiReportContent;
 import com.marketradar.report.bi.BiReportDocxService;
 import com.marketradar.report.bi.BiReportPageBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,6 +37,7 @@ import java.util.Map;
 @Controller
 public class DeepResearchHistoryController {
 
+    private static final Logger log = LoggerFactory.getLogger(DeepResearchHistoryController.class);
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
@@ -169,6 +172,9 @@ public class DeepResearchHistoryController {
         try {
             return mapper.readValue(run.getContentJson(), BiReportContent.class);
         } catch (Exception e) {
+            // 2026-08-03: trước đây nuốt luôn exception, người dùng chỉ thấy "không đọc được"
+            // chung chung không rõ vì sao — log nguyên nhân thật để lần sau chẩn đoán được.
+            log.warn("Deep Research history: run #{} có contentJson nhưng không parse được: {}", id, e.toString());
             return null;
         }
     }
