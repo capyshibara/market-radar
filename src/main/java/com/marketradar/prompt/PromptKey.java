@@ -16,6 +16,8 @@ public enum PromptKey {
             "Tổng hợp toàn kỳ thành vài câu briefing (kể chuyện trước, kết luận sau)."),
     INTERPRET_NARRATIVE("Tổng hợp chương (bài phân tích)",
             "Viết bài phân tích liền mạch cho mỗi chương của báo cáo tháng/quý — kể chuyện, có mạch, có từ nối, gắn hàm ý cho từng phòng ban."),
+    INTERPRET_DEEP_DIVE("Đào sâu (bucket DEEP_DIVE)",
+            "Tổng hợp NHIỀU claim đã duyệt (có thể khác bucket, cùng 1 chủ thể) thành 1 bài phân tích dài hơn — Connector đề xuất chủ thể, Analyst viết luận điểm từ dữ kiện đã có, không suy đoán."),
     PRODUCT_INSIGHT("Product insight có cấu trúc",
             "Viết What / comparison-pattern / So what / Product-owned Now what / caveat song ngữ từ evidence pack Product; JSON schema đóng, không thêm fact."),
     STORY_EXPLAIN("Kể lại câu chuyện nguồn (song ngữ)",

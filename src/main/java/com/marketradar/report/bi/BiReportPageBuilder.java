@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
  *  TECH_AI_SIGNAL        -> tách theo severity: null -> AI_SIZING (danh sách); có giá trị ->
  *                           AI_THREATMAP (bảng với SeverityBadge)
  *  STRATEGIC_COMPARISON  -> COMPARISON (danh sách nhận định), 1 trang / cặp subjectKey
+ *  DEEP_DIVE             -> 1 trang / finding (Connector đề xuất chủ thể, Analyst viết narrative
+ *                           dài xuyên fact/bucket — xem InterpretationJob#runDeepDiveSynthesis;
+ *                           không có subjectKey để nhóm vì bài tự nêu rõ chủ thể trong văn bản)
  */
 public final class BiReportPageBuilder {
 
@@ -112,6 +115,14 @@ public final class BiReportPageBuilder {
                         LinkedHashMap::new, Collectors.toList()));
         model.put("comparisonPages", comparisonPages);
 
+        // DEEP_DIVE: mỗi finding = 1 trang riêng (subjectKey null theo thiết kế — bài Deep Dive
+        // tự nêu rõ chủ thể ngay trong văn bản, xem InterpretationJob#runDeepDiveSynthesis) —
+        // khoá tổng hợp bằng index vì không có subjectKey để nhóm.
+        List<BiFinding> deepDives = byBucket.getOrDefault(BiFinding.DEEP_DIVE, List.of());
+        Map<String, BiFinding> deepDiveByKey = new LinkedHashMap<>();
+        for (int i = 0; i < deepDives.size(); i++) deepDiveByKey.put("DEEP_DIVE_" + i, deepDives.get(i));
+        model.put("deepDiveByKey", deepDiveByKey);
+
         model.put("hasAnyContent", !all.isEmpty());
         model.put("bucketsCovered", byBucket.size());
         model.put("findingsTotal", all.size());
@@ -129,7 +140,7 @@ public final class BiReportPageBuilder {
         model.put("sourcesTotal", allCitations.size());
 
         List<BiPage> pages = plan(vi, macro, theme, pressCalendar, companyEvents, marketShare,
-                aiSizing, aiThreat, highlightGroups, comparisonPages);
+                aiSizing, aiThreat, highlightGroups, comparisonPages, deepDiveByKey);
         model.put("pages", pages);
         List<BiPage> tocEntries = pages.stream()
                 .filter(pg -> !pg.type().equals("COVER") && !pg.type().equals("TOC") && !pg.type().equals("BACK"))
@@ -187,7 +198,8 @@ public final class BiReportPageBuilder {
     private static List<BiPage> plan(boolean vi, List<BiFinding> macro, List<BiFinding> theme,
                                      List<BiFinding> pressCalendar, List<BiFinding> companyEvents,
                                      List<BiFinding> marketShare, List<BiFinding> aiSizing, List<BiFinding> aiThreat,
-                                     Map<String, List<BiFinding>> highlightGroups, Map<String, List<BiFinding>> comparisonPages) {
+                                     Map<String, List<BiFinding>> highlightGroups, Map<String, List<BiFinding>> comparisonPages,
+                                     Map<String, BiFinding> deepDiveByKey) {
         List<BiPage> pages = new ArrayList<>();
         int n = 1;
         pages.add(new BiPage(n++, "COVER", vi ? "Bìa" : "Cover", null));
@@ -205,6 +217,11 @@ public final class BiReportPageBuilder {
         }
         for (String key : comparisonPages.keySet()) {
             pages.add(new BiPage(n++, "COMPARISON", key, key));
+        }
+        for (Map.Entry<String, BiFinding> entry : deepDiveByKey.entrySet()) {
+            String text = entry.getValue().text(vi);
+            String label = text.length() <= 50 ? text : text.substring(0, 50) + "…";
+            pages.add(new BiPage(n++, "DEEP_DIVE", label, entry.getKey()));
         }
         pages.add(new BiPage(n++, "SOURCES", vi ? "Nguồn & Phương pháp" : "Sources & method", null));
         pages.add(new BiPage(n, "BACK", vi ? "Trang cuối" : "Back cover", null));

@@ -18,6 +18,9 @@ import com.marketradar.repo.InterpretedClaimRepository;
 import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.review.RiskTierRouter;
 import com.marketradar.llm.ProviderSafetyRules;
+import com.marketradar.report.bi.BiFinding;
+import com.marketradar.report.bi.Connector;
+import com.marketradar.report.bi.PeriodicalBiAdapter;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -54,11 +57,13 @@ public class InterpretationJob {
     private final RiskTierRouter tierRouter;
     private final PipelineRunStatusService progress;
     private final PipelineItemLogRepository itemLogs;
+    private final PeriodicalBiAdapter biAdapter;
 
     public InterpretationJob(EvidenceFactRepository facts, InterpretedClaimRepository claims,
                              Interpreter interpreter, GroundingGateL1 gate,
                              RiskTierRouter tierRouter, PipelineRunStatusService progress,
-                             PipelineItemLogRepository itemLogs) {
+                             PipelineItemLogRepository itemLogs,
+                             PeriodicalBiAdapter biAdapter) {
         this.facts = facts;
         this.claims = claims;
         this.interpreter = interpreter;
@@ -66,6 +71,7 @@ public class InterpretationJob {
         this.tierRouter = tierRouter;
         this.progress = progress;
         this.itemLogs = itemLogs;
+        this.biAdapter = biAdapter;
     }
 
     @Transactional
@@ -132,6 +138,10 @@ public class InterpretationJob {
         // ---- Chapter narrative (batch 10): tổng hợp xuyên tài liệu, sau khi mọi
         // claim doc-level của run này đã có mặt trong DB ----
         runChapterNarrative(byDoc, summary, runLogId);
+
+        // ---- DEEP_DIVE (2026-08-03): Connector đề xuất chủ thể từ claim ĐÃ DUYỆT, Analyst
+        // viết narrative — chạy SAU narrative vì cần đọc claim mới nhất đã lưu ở trên ----
+        runDeepDiveSynthesis(summary, runLogId);
 
         summary.insert(0, "Interpreted " + docsDone + " doc(s), skipped " + docsSkipped
                 + " (already interpreted). Provider: " + interpreter.providerName() + "\n");
@@ -209,6 +219,70 @@ public class InterpretationJob {
     }
 
     /**
+     * DEEP_DIVE (2026-08-03, feedback: "Sau đó sẽ đến Analyst và Fact Checker... Fact Checker
+     * sẽ đi kiểm tra lại và đẩy vào hàng đợi người duyệt nếu không tự tin"): Connector đề xuất
+     * chủ thể TỪ CLAIM ĐÃ DUYỆT (không phải fact thô — input đã qua ít nhất 1 vòng người duyệt),
+     * Analyst tổng hợp thành 1 bài phân tích xuyên bucket/tài liệu, rồi câu MỚI này lại đi qua
+     * ĐÚNG Gate L1 ngay dưới đây + Gate L2/Reviewer Queue ở stage verify/review riêng — không có
+     * đường tắt nào bỏ qua xác thực dù input đầu vào đã "đáng tin" từ trước.
+     */
+    private void runDeepDiveSynthesis(StringBuilder summary, Long runLogId) {
+        LocalDate today = LocalDate.now();
+        LocalDate winStart = com.marketradar.report.ReportWindow.narrativeStart(today);
+        List<PeriodicalBiAdapter.RoutedFinding> routedFindings = biAdapter.approvedFindings(winStart, today);
+        if (routedFindings.isEmpty()) {
+            summary.append("Deep dive: no approved findings in window — skipped.\n");
+            return;
+        }
+        Map<BiFinding, List<String>> factCodesByFinding = new HashMap<>();
+        for (var rf : routedFindings) factCodesByFinding.put(rf.finding(), rf.factCodes());
+        List<BiFinding> findingsOnly = routedFindings.stream().map(PeriodicalBiAdapter.RoutedFinding::finding).toList();
+        List<Connector.DeepDiveCandidate> candidates = Connector.proposeDeepDiveCandidates(findingsOnly);
+        if (candidates.isEmpty()) {
+            summary.append("Deep dive: no candidate subject met the threshold this run — skipped.\n");
+            return;
+        }
+        for (Connector.DeepDiveCandidate candidate : candidates) {
+            String chapterCode = sanitizeDeepDiveKey(candidate.subjectKey());
+            Set<String> codes = new LinkedHashSet<>();
+            for (BiFinding f : candidate.members()) codes.addAll(factCodesByFinding.getOrDefault(f, List.of()));
+            if (codes.isEmpty()) continue; // an toàn: không fact nào để trích dẫn thì bỏ qua, không viết mù
+            List<EvidenceFact> resolvedFacts = facts.findAllByFactCodeInForAudit(List.copyOf(codes));
+            if (resolvedFacts.isEmpty()) continue;
+            EvidencePack pack = new EvidencePack(null, resolvedFacts);
+            Interpreter.InterpretationPlan plan = interpreter.planDeepDive(pack);
+            if (hasCurrentDeepDiveEdition(chapterCode, plan)) {
+                summary.append("Deep dive \"").append(candidate.subjectKey())
+                        .append("\": current interpretation edition already exists — skipped.\n");
+                continue;
+            }
+            Interpreter.InterpretOutput out = interpreter.interpretDeepDive(pack, plan);
+            PersistResult stored = persist(out, pack.byCode(), pack.codes(), null, chapterCode, plan, runLogId, Slot.DEEP_DIVE);
+            if (stored.activatable()) claims.supersedePriorBySlotAndChapterCodeAndOrigin(
+                    Slot.DEEP_DIVE, chapterCode, Origin.PIPELINE, stored.editionId());
+            summary.append("Deep dive \"").append(candidate.subjectKey()).append("\" (")
+                    .append(candidate.reason()).append("): ").append(stored.summary());
+        }
+    }
+
+    private boolean hasCurrentDeepDiveEdition(String chapterCode, Interpreter.InterpretationPlan plan) {
+        var key = plan.editionKey();
+        return claims.existsBySlotAndChapterCodeAndOriginAndInterpretationSignatureAndInterpretationInputHashAndSupersededFalse(
+                Slot.DEEP_DIVE, chapterCode, Origin.PIPELINE, key.signature(), key.inputHash());
+    }
+
+    /** chapterCode column length=32 (@Column(length=32) trên InterpretedClaim#chapterCode) —
+     *  chuẩn hoá subjectKey (có thể có dấu/khoảng trắng) về ASCII ngắn gọn, không đoán trùng. */
+    private static String sanitizeDeepDiveKey(String subjectKey) {
+        String ascii = java.text.Normalizer.normalize(subjectKey, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "").toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "");
+        if (ascii.isBlank()) ascii = "SUBJECT";
+        String prefixed = "DD_" + ascii;
+        return prefixed.length() > 32 ? prefixed.substring(0, 32) : prefixed;
+    }
+
+    /**
      * Chọn tập claim CÓ TRỌNG TÂM cho pack narrative (feedback reader 2026-07-15):
      *  - tối đa {@link #MAX_NARRATIVE_CLAIMS_PER_DOC} claim/doc (chống 1 bài chiếm cả chương);
      *  - ưu tiên doc có fact NÊU TÊN CÔNG TY (cụ thể hơn tin số liệu ngành/không tên);
@@ -256,6 +330,16 @@ public class InterpretationJob {
     private PersistResult persist(Interpreter.InterpretOutput out, Map<String, EvidenceFact> byCode,
                                   Set<String> allCodes, RawDoc doc, String chapterCode,
                                   Interpreter.InterpretationPlan plan, Long runLogId) {
+        Slot rejectSlot = chapterCode != null ? Slot.NARRATIVE : (doc == null ? Slot.EXEC_SUMMARY : Slot.WHY_MATTERS);
+        return persist(out, byCode, allCodes, doc, chapterCode, plan, runLogId, rejectSlot);
+    }
+
+    /** 2026-08-03: rejectSlot tường minh (thay vì tự suy từ chapterCode!=null) — DEEP_DIVE cũng
+     *  dùng chapterCode (khoá subjectKey) như NARRATIVE (chapterCode=chapter.name()), nên suy
+     *  ngầm sẽ gán NHẦM SCHEMA_REJECTED của DEEP_DIVE thành Slot.NARRATIVE. */
+    private PersistResult persist(Interpreter.InterpretOutput out, Map<String, EvidenceFact> byCode,
+                                  Set<String> allCodes, RawDoc doc, String chapterCode,
+                                  Interpreter.InterpretationPlan plan, Long runLogId, Slot rejectSlot) {
         StringBuilder sb = new StringBuilder();
         String docLabel = chapterCode != null ? "CHAPTER:" + chapterCode : (doc == null ? "EXEC" : "doc#" + doc.getId());
         String editionId = UUID.randomUUID().toString();
@@ -264,7 +348,6 @@ public class InterpretationJob {
             // Output không parse được → 1 record SCHEMA_REJECTED giữ raw để audit (fail loud).
             // Chỉ có raw response (chưa tách được vi/en) — lưu cùng raw vào cả hai cột.
             String raw = truncate(out.rawResponse(), 2000);
-            Slot rejectSlot = chapterCode != null ? Slot.NARRATIVE : (doc == null ? Slot.EXEC_SUMMARY : Slot.WHY_MATTERS);
             InterpretedClaim c = new InterpretedClaim(nextCode(),
                     doc, rejectSlot, Origin.PIPELINE,
                     raw, raw, null,

@@ -15,8 +15,12 @@ public class InterpretedClaim {
 
     /** Slot template mà câu này điền vào (template-first — AI chỉ điền slot).
      * NARRATIVE (batch 10): câu tổng hợp xuyên-tài-liệu cho 1 chương Monthly Highlight —
-     * cùng họ với EXEC_SUMMARY (rawDoc null, report-level), khác ở chỗ gắn 1 chapterCode. */
-    public enum Slot { WHY_MATTERS, IMPLICATION, EXEC_SUMMARY, NARRATIVE }
+     * cùng họ với EXEC_SUMMARY (rawDoc null, report-level), khác ở chỗ gắn 1 chapterCode.
+     * DEEP_DIVE (2026-08-03): bài phân tích dài tổng hợp NHIỀU claim/fact (có thể khác bucket
+     * nhau) đã DUYỆT — cùng họ rawDoc=null như NARRATIVE, chapterCode giữ khoá subjectKey đã
+     * sanitize (xem InterpretationJob#runDeepDiveSynthesis) để versioning theo từng chủ đề
+     * riêng thay vì theo Chapter cố định. */
+    public enum Slot { WHY_MATTERS, IMPLICATION, EXEC_SUMMARY, NARRATIVE, DEEP_DIVE }
 
     public enum Origin { PIPELINE, DEMO_INJECT }
 

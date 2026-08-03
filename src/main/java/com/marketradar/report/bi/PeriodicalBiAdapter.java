@@ -80,21 +80,23 @@ public class PeriodicalBiAdapter {
         this.registry = registry;
     }
 
-    public BiReportContent adapt(String title, String period, ProductReportAdapter.Snapshot snapshot, long docCount) {
-        List<BiFinding> findings = new ArrayList<>();
-        Set<String> sourceLines = new LinkedHashSet<>();
+    /** 1 finding kèm factCode nó thật sự trích — companion cho DeepDiveSynthesis (Connector chỉ
+     *  biết BiFinding, nhưng gate/synthesis cần trỏ lại đúng EvidenceFact gốc). adapt() chỉ dùng
+     *  finding(), bỏ qua factCodes(). */
+    public record RoutedFinding(BiFinding finding, List<String> factCodes) {}
 
-        // ---- Kênh 1: claim đã duyệt (người là cổng cuối) ----
+    /** Kênh 1 (claim đã duyệt) — dùng chung bởi adapt() và InterpretationJob#runDeepDiveSynthesis. */
+    public List<RoutedFinding> approvedFindings(LocalDate windowStart, LocalDate windowEnd) {
+        List<RoutedFinding> out = new ArrayList<>();
         List<InterpretedClaim> approved = claims.findForBiReport().stream()
-                .filter(c -> inWindow(c, snapshot.windowStart(), snapshot.windowEnd()))
+                .filter(c -> inWindow(c, windowStart, windowEnd))
                 .toList();
         for (InterpretedClaim claim : approved) {
             List<EvidenceFact> citedFacts = resolveFacts(claim);
             List<BiCitation> citations = citationsFor(claim, citedFacts);
-            citations.forEach(cit -> sourceLines.add(
-                    cit.label() + (cit.tierNote() != null ? " (" + cit.tierNote() + ")" : "")));
             boolean reportLevel = claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY
-                    || claim.getSlot() == InterpretedClaim.Slot.NARRATIVE;
+                    || claim.getSlot() == InterpretedClaim.Slot.NARRATIVE
+                    || claim.getSlot() == InterpretedClaim.Slot.DEEP_DIVE;
             RoutedLabels routed = resolveRouting(claim, citedFacts, reportLevel);
             // "company" KHÔNG được truyền = subject (tên đối thủ ĐÃ CHUẨN HOÁ theo registry, vd
             // "Prudential Việt Nam" cho mọi claim nhắc "Prudential"): làm vậy sẽ khiến MỌI claim
@@ -118,7 +120,7 @@ public class PeriodicalBiAdapter {
                                     + (claim.getRawDoc() != null && claim.getRawDoc().getTitle() != null
                                             ? claim.getRawDoc().getTitle() : ""))
                             .orElse(null);
-            findings.add(new BiFinding(
+            BiFinding finding = new BiFinding(
                     routed.bucket(), subject,
                     claim.getTextVi(), claim.getTextEn(),
                     routed.highlight(),
@@ -126,15 +128,26 @@ public class PeriodicalBiAdapter {
                     market.scope(), market.geography(), null,
                     routed.highlightCardLabel(), routed.severityTrend(),
                     routed.kpiLabel(), routed.kpiValue(),
-                    routed.eventDateRangeStart(), routed.eventDateRangeEnd()));
+                    routed.eventDateRangeStart(), routed.eventDateRangeEnd());
+            out.add(new RoutedFinding(finding, citedFacts.stream().map(EvidenceFact::getFactCode).toList()));
         }
+        return out;
+    }
+
+    public BiReportContent adapt(String title, String period, ProductReportAdapter.Snapshot snapshot, long docCount) {
+        List<RoutedFinding> routedFindings = approvedFindings(snapshot.windowStart(), snapshot.windowEnd());
+        List<BiFinding> findings = new ArrayList<>(routedFindings.stream().map(RoutedFinding::finding).toList());
+        Set<String> sourceLines = new LinkedHashSet<>();
+        int approvedCount = findings.size();
+        findings.forEach(f -> f.citations().forEach(cit -> sourceLines.add(
+                cit.label() + (cit.tierNote() != null ? " (" + cit.tierNote() + ")" : ""))));
 
         for (EvidenceFact f : snapshot.references()) {
             sourceLines.add(f.getRawDoc().getSource().getName() + " (T" + f.getRawDoc().getSource().getTier() + ")");
         }
 
         List<String> openGaps = new ArrayList<>();
-        if (approved.isEmpty()) {
+        if (approvedCount == 0) {
             openGaps.add("Chưa có nhận định nào được duyệt ở Reviewer Console (/review) trong kỳ này — "
                     + "duyệt claim ở đó là cách trực tiếp nhất để làm dày báo cáo (mỗi claim duyệt "
                     + "xong xuất hiện ngay tại đây).");
@@ -205,6 +218,12 @@ public class PeriodicalBiAdapter {
                                 boolean highlight) {}
 
     private RoutedLabels resolveRouting(InterpretedClaim claim, List<EvidenceFact> citedFacts, boolean reportLevel) {
+        // DEEP_DIVE tự khai báo bucket của chính nó (DeepDiveSynthesis đặt claim.biBucket=
+        // DEEP_DIVE khi lưu) — KHÔNG được để rơi về bucket gốc của từng fact nó trích (1 bài
+        // Deep Dive cố tình trích fact từ NHIỀU bucket khác nhau, xem Connector#DeepDiveCandidate).
+        if (claim.getSlot() == InterpretedClaim.Slot.DEEP_DIVE) {
+            return new RoutedLabels(BiFinding.DEEP_DIVE, null, null, null, null, null, null, null, null, false);
+        }
         EvidenceFact routed = citedFacts.stream().filter(f -> f.getBiBucket() != null).findFirst().orElse(null);
         if (routed != null) {
             return new RoutedLabels(routed.getBiBucket(), routed.getSubjectKey(), routed.getHighlightCardLabel(),

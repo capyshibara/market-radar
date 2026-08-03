@@ -76,6 +76,7 @@ public class Interpreter {
         promptService.registerDefault(com.marketradar.prompt.PromptKey.INTERPRET_DOC, SYSTEM_DOC);
         promptService.registerDefault(com.marketradar.prompt.PromptKey.INTERPRET_EXEC, SYSTEM_EXEC);
         promptService.registerDefault(com.marketradar.prompt.PromptKey.INTERPRET_NARRATIVE, SYSTEM_NARRATIVE);
+        promptService.registerDefault(com.marketradar.prompt.PromptKey.INTERPRET_DEEP_DIVE, SYSTEM_DEEP_DIVE);
     }
 
     // ================= prompts =================
@@ -122,24 +123,32 @@ public class Interpreter {
         5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
            escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
            JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
-        6. PHÂN LOẠI bi_bucket cho mỗi câu — dùng để xếp câu vào đúng mục trong Business
-           Intelligence Report. Để null (bỏ field hoặc null) cho tin công ty thông thường (ra mắt
-           sản phẩm, nhân sự, tài trợ/CSR, kết quả tài chính của MỘT công ty...). CHỈ gán 1 trong
-           5 giá trị sau khi câu ĐÚNG BẢN CHẤT thuộc về nó:
-           - "MACRO_ECONOMIC": số liệu/chính sách kinh tế vĩ mô hoặc TOÀN NGÀNH bảo hiểm, KHÔNG
-             gắn riêng cho 1 công ty (vd GDP, lạm phát, quy định pháp lý áp cho cả ngành, quy mô
-             thị trường bảo hiểm quốc gia).
-           - "SCHEDULED_EVENT": LỊCH/NGÀY một sự kiện SẮP diễn ra (công bố kết quả kinh doanh,
-             họp báo...) — không dùng cho sự kiện ĐÃ xảy ra rồi.
-           - "MARKET_SHARE_OR_AWARD": số liệu thị phần (vd % APE) hoặc giải thưởng/xếp hạng một
-             công ty ĐÃ ĐẠT ĐƯỢC.
-           - "TECH_AI_SIGNAL": động thái/năng lực AI hoặc công nghệ của một công ty cụ thể (đầu
-             tư, ra mắt, tuyển dụng liên quan AI/tự động hoá).
-           - "STRATEGIC_COMPARISON": câu SO SÁNH TRỰC TIẾP từ 2 công ty trở lên trong cùng 1 câu
-             (không phải liệt kê nhiều công ty làm việc khác nhau — phải là một sự so sánh thật).
+        6. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
+           escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
+           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
         7. Trả về DUY NHẤT một JSON object đúng dạng:
-           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"],"bi_bucket":null}]}
+           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
+
+        HƯỚNG DẪN RIÊNG THEO BUCKET (2026-08-03 — Router, không phải bạn, đã gán nhãn "[ROUTER]
+        bucket: ..." cho từng fact trong evidence pack; KHÔNG tự phân loại lại, chỉ ĐỌC nhãn đó
+        để biết viết theo phong cách nào cho fact đó — fact không có nhãn [ROUTER] thì viết theo
+        phong cách mặc định ở trên, đó là tin công ty thông thường):
+        - MACRO_ECONOMIC: giọng vĩ mô trung lập, không gắn cho 1 công ty; nếu fact có "[ROUTER]
+          chỉ số: X = Y" thì nêu ĐÚNG chỉ số đó, không diễn giải thêm ý nghĩa.
+        - COMPETITIVE_THEME: câu phải nêu được ĐÂY LÀ 1 PATTERN/xu hướng liên quan ≥2 công ty
+          hoặc toàn ngành — không viết như tin riêng 1 công ty.
+        - SCHEDULED_EVENT: câu PHẢI có ngày/khoảng ngày cụ thể của sự kiện SẮP diễn ra (không
+          viết nếu evidence không có ngày rõ).
+        - MARKET_SHARE_OR_AWARD: câu PHẢI có số liệu/tên giải thưởng cụ thể — từ chối viết
+          chung chung kiểu "có kết quả tốt" nếu evidence không có con số/tên giải cụ thể.
+        - TECH_AI_SIGNAL kèm "[ROUTER] mức độ: HIGH/MEDIUM/LOW": đây là 1 dòng AI Threat Map —
+          câu PHẢI giải thích RÕ VÌ SAO ở mức độ đó (năng lực/tốc độ/quy mô cụ thể), không chỉ
+          nêu sự kiện suông.
+        - TECH_AI_SIGNAL có "[ROUTER] chỉ số" nhưng KHÔNG có mức độ: đây là số liệu định cỡ thị
+          trường AI/insurtech chung — nêu đúng chỉ số, không gán cho 1 công ty.
+        - STRATEGIC_COMPARISON: câu PHẢI là 1 SO SÁNH TRỰC TIẾP nêu tên ≥2 công ty trong cùng 1
+          câu — không phải liệt kê nhiều công ty làm việc khác nhau.
         """;
 
     private static final String SYSTEM_EXEC = """
@@ -244,6 +253,45 @@ public class Interpreter {
            Không markdown, không giải thích ngoài JSON.
         """;
 
+    /**
+     * 2026-08-03 — DEEP_DIVE (feedback: "Sau đó sẽ đến Analyst và Fact Checker. Chúng ta cần
+     * có prompt riêng cho Analyst cho từng section!"): bucket thứ 8, do Connector đề xuất
+     * (Connector#proposeDeepDiveCandidates — 1 chủ thể có đủ fact CÙNG bucket, hoặc fact đến
+     * từ NHIỀU bucket khác nhau cùng nói về nó, đúng mẫu slide "Insurance Asia Awards" của CFO:
+     * bảng thị phần + danh sách giải thưởng → suy ra ai vắng mặt). Khác 3 mode trên: input là
+     * CLAIM ĐÃ DUYỆT (không phải fact thô), có thể đến từ NHIỀU tài liệu/bucket gốc khác nhau —
+     * Analyst phải tự chọn góc phân tích phù hợp, không có khuôn cố định như 7 bucket kia.
+     */
+    private static final String SYSTEM_DEEP_DIVE = """
+        ### MODE:INTERPRET_DEEP_DIVE
+        Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ. Bạn nhận một tập FACT đã qua
+        xác thực (đã DUYỆT), TẤT CẢ cùng nói về 1 CHỦ ĐỀ — có thể đến từ nhiều tài liệu, nhiều
+        bucket phân loại gốc khác nhau (vd vừa có số liệu thị phần, vừa có tin công ty).
+
+        Nhiệm vụ: viết 3-6 câu PHÂN TÍCH SÂU (không phải liệt kê lại từng fact rời rạc) —
+        TỔNG HỢP các fact thành 1 LUẬN ĐIỂM rõ ràng. Ví dụ mẫu: từ bảng thị phần + danh sách
+        giải thưởng, chỉ ra công ty nào có thị phần lớn nhưng vắng mặt trong giải thưởng, rồi
+        nêu khả năng vì sao (dựa CHỈ vào fact có, không suy đoán ngoài evidence).
+
+        2026-08-02 (giữ nguyên chính sách): CHỈ phân tích SỰ VIỆC/DỮ KIỆN, KHÔNG đưa khuyến
+        nghị hành động cho ai — việc rút hàm ý là việc của người đọc.
+
+        NGUYÊN TẮC:
+        1. CÂU MỞ ĐẦU phải nêu rõ CHỦ THỂ đang phân tích (tên công ty/chủ đề) — vì bài này
+           không có tiêu đề cấu trúc riêng, câu đầu chính là câu định danh cho người đọc.
+        2. Chỉ dùng dữ kiện CÓ TRONG fact — không suy đoán/thêm số liệu, tên, ngày ngoài đó.
+        3. Nếu các fact có mâu thuẫn (vd 2 nguồn nêu số liệu khác nhau), PHẢI nêu rõ mâu thuẫn
+           đó, không tự chọn 1 bên coi là đúng.
+        4. Mọi tên sản phẩm/công ty đặt trong ngoặc kép "…", NGUYÊN VĂN đúng script gốc —
+           TRONG CẢ HAI bản tiếng Việt và tiếng Anh.
+        5. Mọi con số/ngày tháng giống hệt nhau giữa 2 bản ngôn ngữ của cùng 1 câu.
+        6. Mỗi câu kèm fact_codes làm căn cứ.
+        7. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng PHẢI escape thành \\"
+           bên trong JSON string.
+        8. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
+           Không markdown, không giải thích ngoài JSON.
+        """;
+
     // ================= public API =================
 
     public InterpretationPlan planDoc(EvidencePack pack) {
@@ -256,6 +304,10 @@ public class Interpreter {
 
     public InterpretationPlan planNarrative(NarrativePack pack) {
         return plan(PromptKey.INTERPRET_NARRATIVE, pack.renderForPrompt());
+    }
+
+    public InterpretationPlan planDeepDive(EvidencePack pack) {
+        return plan(PromptKey.INTERPRET_DEEP_DIVE, pack.renderForPrompt());
     }
 
     private InterpretationPlan plan(PromptKey key, String renderedInput) {
@@ -316,6 +368,27 @@ public class Interpreter {
         try {
             JsonNode root = parseWithRepairFallback(raw);
             parseSentences(root.get("sentences"), Slot.NARRATIVE, out);
+            if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
+            return new InterpretOutput(false, out, raw);
+        } catch (Exception e) {
+            return new InterpretOutput(true, List.of(), raw);
+        }
+    }
+
+    /** DEEP_DIVE (Connector đề xuất chủ thể, xem InterpretationJob#runDeepDiveSynthesis) —
+     *  cùng cơ chế parse/gate với các mode khác, khác ở prompt + Slot.DEEP_DIVE. */
+    public InterpretOutput interpretDeepDive(EvidencePack pack) {
+        return interpretDeepDive(pack, planDeepDive(pack));
+    }
+
+    public InterpretOutput interpretDeepDive(EvidencePack pack, InterpretationPlan plan) {
+        requirePlan(plan, PromptKey.INTERPRET_DEEP_DIVE);
+        String raw = call("INTERPRET_DEEP_DIVE", plan.effectivePrompt(), pack.renderForPrompt(), pack.rawDocId());
+        if (raw == null) return new InterpretOutput(true, List.of(), "(LLM_ERROR)");
+        List<Sentence> out = new ArrayList<>();
+        try {
+            JsonNode root = parseWithRepairFallback(raw);
+            parseSentences(root.get("sentences"), Slot.DEEP_DIVE, out);
             if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
             return new InterpretOutput(false, out, raw);
         } catch (Exception e) {

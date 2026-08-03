@@ -549,6 +549,29 @@
     <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">12</span></div>
   </div>
 
+  <!-- ============ DEEP DIVE (lặp động, 1 trang / chủ đề Connector đề xuất) ============ -->
+  <div th:case="'DEEP_DIVE'" class="bi-frame" th:with="f=${deepDiveByKey.get(p.subjectKey)}">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'ĐÀO SÂU' : 'DEEP DIVE'}">DEEP DIVE</div>
+        <div class="bi-title" th:text="${p.label}">Deep dive</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div class="bi-finding-block">
+        <span th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
+        <div th:if="${!f.citations.isEmpty()}">
+          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">13</span></div>
+  </div>
+
   <!-- ============ SOURCES & METHOD ============ -->
   <div th:case="'SOURCES'" class="bi-frame">
     <div class="bi-header">
