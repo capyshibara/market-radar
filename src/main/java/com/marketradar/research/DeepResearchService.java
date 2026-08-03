@@ -648,7 +648,10 @@ public class DeepResearchService {
                             f.path("metric_percent").isNull() || !f.path("metric_percent").isNumber() ? null
                                     : f.path("metric_percent").asInt(),
                             market.scope(), market.geography(),
-                            f.path("event_date").isNull() ? null : f.path("event_date").asText(null)));
+                            f.path("event_date").isNull() ? null : f.path("event_date").asText(null),
+                            // Router (highlightCardLabel/severityTrend/kpi/eventDateRange) chưa có
+                            // trong schema JSON tổng hợp Deep Research — để trống, không phải lỗi.
+                            null, null, null, null, null, null));
                 }
             } catch (Exception e) {
                 log.warn("Deep Research: synthesis JSON không đọc được, dùng bản dự phòng nguyên văn: {}", e.getMessage());

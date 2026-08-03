@@ -3,6 +3,7 @@ package com.marketradar.report.bi;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.marketradar.product.ProductMarketScope;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -40,11 +41,26 @@ import java.util.List;
  *                   Deep Research điền field này (LLM tổng hợp tức thời, xem DeepResearchService);
  *                   report định kỳ đọc claim đã duyệt từ trước, chưa có field ngày cấu trúc ở tầng
  *                   Interpreter/InterpretedClaim — để dành cho một đợt sau nếu cần.
+ * @param highlightCardLabel nhãn thẻ Router tự đặt (PRODUCT_LAUNCH, BANCASSURANCE, PARENT_GROUP...)
+ *                   — CHỈ áp dụng cho COMPANY_EVENT, null cho mọi bucket khác (xem
+ *                   EvidenceFact#highlightCardLabel — Router gán, nguồn gốc từ file mẫu CFO).
+ * @param severityTrend RISING/FALLING/STABLE — cờ phụ của severity (CHỈ TECH_AI_SIGNAL có
+ *                   severity), null nếu nguồn không nêu rõ xu hướng.
+ * @param kpiLabel/kpiValue CHỈ áp dụng khi finding là 1 CHỈ SỐ độc lập không gắn 1 công ty (vd
+ *                   kpiLabel="GDP Growth", kpiValue="7.9%") — dùng cho MACRO_ECONOMIC và nhánh
+ *                   định cỡ thị trường của TECH_AI_SIGNAL (severity null). null nếu finding là
+ *                   câu văn tường thuật thông thường, không phải 1 KPI độc lập.
+ * @param eventDateRangeStart/End ngày/khoảng ngày CÓ CẤU TRÚC (khác eventDateLabel tự do phía
+ *                   trên) — CHỈ SCHEDULED_EVENT/COMPANY_EVENT khi Router xác định được ngày thật
+ *                   từ EvidenceFact, dùng để dựng lưới lịch thật (file mẫu CFO có lưới tháng thật,
+ *                   không phải bảng 2 cột).
  */
 public record BiFinding(String bucket, String subjectKey, String textVi, String textEn,
                         boolean highlight, List<BiCitation> citations, String severity,
                         Integer metricPercent, ProductMarketScope scope, String geography,
-                        String eventDateLabel) {
+                        String eventDateLabel, String highlightCardLabel, String severityTrend,
+                        String kpiLabel, String kpiValue,
+                        LocalDate eventDateRangeStart, LocalDate eventDateRangeEnd) {
 
     public BiFinding {
         citations = citations == null ? List.of() : List.copyOf(citations);
@@ -55,24 +71,36 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
                 default -> null;
             };
         }
+        if (severityTrend != null) {
+            String normalized = severityTrend.strip().toUpperCase(java.util.Locale.ROOT);
+            severityTrend = switch (normalized) {
+                case "RISING", "FALLING", "STABLE" -> normalized;
+                default -> null;
+            };
+        }
         if (metricPercent != null) metricPercent = Math.max(0, Math.min(100, metricPercent));
         scope = scope == null ? ProductMarketScope.INTERNATIONAL : scope;
         geography = geography == null || geography.isBlank() ? "Global / regional" : geography.strip();
         eventDateLabel = eventDateLabel == null || eventDateLabel.isBlank() ? null : eventDateLabel.strip();
+        highlightCardLabel = highlightCardLabel == null || highlightCardLabel.isBlank() ? null : highlightCardLabel.strip();
+        kpiLabel = kpiLabel == null || kpiLabel.isBlank() ? null : kpiLabel.strip();
+        kpiValue = kpiValue == null || kpiValue.isBlank() ? null : kpiValue.strip();
     }
 
-    /** Convenience constructor for the common case of no severity/metric/event date. */
+    /** Convenience constructor for the common case of no severity/metric/event date/Router labels. */
     public BiFinding(String bucket, String subjectKey, String textVi, String textEn,
                      boolean highlight, List<BiCitation> citations,
                      ProductMarketScope scope, String geography) {
-        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null, scope, geography, null);
+        this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null, scope, geography,
+                null, null, null, null, null, null, null);
     }
 
     /** Convenience constructor for VI-only content (no English translation available yet). */
     public BiFinding(String bucket, String subjectKey, String textVi,
                      boolean highlight, List<BiCitation> citations,
                      ProductMarketScope scope, String geography) {
-        this(bucket, subjectKey, textVi, null, highlight, citations, null, null, scope, geography, null);
+        this(bucket, subjectKey, textVi, null, highlight, citations, null, null, scope, geography,
+                null, null, null, null, null, null, null);
     }
 
     /** The finding text in the requested language — falls back to Vietnamese rather than
