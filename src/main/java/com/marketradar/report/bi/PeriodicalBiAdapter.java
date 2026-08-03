@@ -186,19 +186,27 @@ public class PeriodicalBiAdapter {
     }
 
     /**
-     * Giữ báo cáo trung thực với KỲ của nó: claim vào kỳ theo ngày đăng của tài liệu
-     * gốc; tài liệu không có ngày đăng (nguồn không cung cấp — không đoán) hoặc claim
-     * cấp report (rawDoc null) thì theo ngày claim được tạo.
+     * Giữ báo cáo trung thực với KỲ của nó: claim vào kỳ theo ngày đăng của tài liệu gốc; claim
+     * cấp report (rawDoc null, vd tóm tắt điều hành) thì theo ngày claim được tạo — đây là ngày
+     * DUY NHẤT có ý nghĩa cho loại claim này nên không phải "đoán".
+     *
+     * 2026-08-03 (feedback: Deep Research tìm rộng khắp web, gặp nhiều trang không có metadata
+     * ngày rõ ràng hơn hẳn so với crawl whitelist đã chọn lọc từ trước): TRƯỚC ĐÂY, khi RawDoc CÓ
+     * nhưng không xác định được publishedAt, code từng fallback về ngày TẠO CLAIM — vô tình biến
+     * 1 sự kiện cũ (vd hợp tác ký từ 2015) thành như thể mới xảy ra tuần này chỉ vì trang nguồn
+     * thiếu metadata ngày. Giờ trường hợp đó bị LOẠI khỏi báo cáo theo kỳ thẳng — "không xác định
+     * được ngày thật" phải nghĩa là "không đưa vào kỳ nào", không phải "coi như hôm nay".
      */
     private static boolean inWindow(InterpretedClaim claim, LocalDate start, LocalDate end) {
         if (start == null || end == null) return true;
-        LocalDate anchor = null;
-        if (claim.getRawDoc() != null && claim.getRawDoc().getPublishedAt() != null) {
-            anchor = claim.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
-        } else if (claim.getCreatedAt() != null) {
+        LocalDate anchor;
+        if (claim.getRawDoc() == null) {
+            if (claim.getCreatedAt() == null) return false;
             anchor = claim.getCreatedAt().atZone(REPORT_ZONE).toLocalDate();
+        } else {
+            if (claim.getRawDoc().getPublishedAt() == null) return false; // ngày thật không rõ — loại, không đoán
+            anchor = claim.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
         }
-        if (anchor == null) return false;
         return !anchor.isBefore(start) && !anchor.isAfter(end);
     }
 
