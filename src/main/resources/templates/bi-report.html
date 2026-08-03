@@ -49,6 +49,9 @@
   .lang{display:inline-block;border:1px solid #cbd1db;border-radius:5px;overflow:hidden}
   .lang a{display:inline-block;padding:7px 10px;font-size:12px}
   .lang .active{background:#172442;color:#fff}
+  .cadence{display:inline-block;border:1px solid #cbd1db;border-radius:5px;overflow:hidden}
+  .cadence a{display:inline-block;padding:7px 10px;font-size:12px}
+  .cadence .active{background:#C00000;color:#fff}
   .download{padding:8px 12px;background:#C00000!important;color:#fff!important;border-radius:4px}
   .report-canvas{padding:36px 0 60px}
 
@@ -186,6 +189,11 @@
 <div class="report-toolbar no-print">
   <div class="toolbar-title" th:text="${reportTitle}">Market Radar — Business Intelligence Report</div>
   <div class="toolbar-actions">
+    <span class="cadence">
+      <a th:href="${cadenceHrefWeekly}" th:classappend="${cadenceParam == 'weekly'} ? ' active'" th:text="${vi ? '7 ngày' : '7 days'}">7 days</a>
+      <a th:href="${cadenceHrefMonthly}" th:classappend="${cadenceParam == 'monthly'} ? ' active'" th:text="${vi ? '30 ngày' : '30 days'}">30 days</a>
+      <a th:href="${cadenceHrefQuarterly}" th:classappend="${cadenceParam == 'quarterly'} ? ' active'" th:text="${vi ? '90 ngày' : '90 days'}">90 days</a>
+    </span>
     <span class="lang">
       <a th:href="${langHrefVi}" th:classappend="${vi} ? ' active'">VI</a>
       <a th:href="${langHrefEn}" th:classappend="${!vi} ? ' active'">EN</a>

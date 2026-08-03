@@ -84,6 +84,10 @@ public class BiReportController {
         model.put("docxHref", "/report/bi.docx?cadence=" + cadenceParam);
         model.put("langHrefVi", "/report/bi?cadence=" + cadenceParam + "&lang=vi");
         model.put("langHrefEn", "/report/bi?cadence=" + cadenceParam + "&lang=en");
+        model.put("cadenceParam", cadenceParam);
+        model.put("cadenceHrefWeekly", "/report/bi?cadence=weekly&lang=" + langParam);
+        model.put("cadenceHrefMonthly", "/report/bi?cadence=monthly&lang=" + langParam);
+        model.put("cadenceHrefQuarterly", "/report/bi?cadence=quarterly&lang=" + langParam);
         return model;
     }
 
