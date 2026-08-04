@@ -74,6 +74,10 @@ done
 printf '[standalone] Running %d root test classes with assertions enabled...\n' "${#test_sources[@]}"
 for source in "${test_sources[@]}"; do
   test_class="$(basename "$source" .java)"
+  package_name="$(sed -n 's/^package[[:space:]]\{1,\}\([^;]*\);/\1/p' "$source" | head -1)"
+  if [[ -n "$package_name" ]]; then
+    test_class="$package_name.$test_class"
+  fi
   printf '  run %s\n' "$test_class"
   java -ea -cp "$runtime_classpath" "$test_class"
 done
