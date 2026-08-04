@@ -91,6 +91,14 @@
           <option value="IMPLICATION">Implication</option>
           <option value="NARRATIVE">Narrative (chapter)</option>
         </select>
+        <label for="f-source" th:text="#{ops.review.queue.filterSource}">Source</label>
+        <select id="f-source">
+          <option value="">All</option>
+          <option value="DEEP_RESEARCH" th:text="#{ops.review.source.deepResearch}">Deep Research</option>
+          <option value="CRAWL" th:text="#{ops.review.source.crawl}">Crawl</option>
+          <option value="MANUAL" th:text="#{ops.review.source.manual}">Manual entry</option>
+          <option value="FILE_UPLOAD" th:text="#{ops.review.source.fileUpload}">File upload</option>
+        </select>
         <button type="button" class="q-clear" id="q-clear">Clear filters</button>
         <span class="q-filter-count" id="q-filter-count"></span>
       </div>
@@ -120,12 +128,14 @@
           </div>
           <a class="q-row" th:each="it : ${urgent}" th:href="@{'/review/' + ${it.claim.id}}"
              th:classappend="'tier-' + ${it.claim.riskTier}"
-             th:attr="data-gate=${it.claim.gateStatus},data-verdict=${it.verdict},data-tier=${it.claim.riskTier},data-slot=${it.claim.slot}">
+             th:attr="data-gate=${it.claim.gateStatus},data-verdict=${it.verdict},data-tier=${it.claim.riskTier},data-slot=${it.claim.slot},data-source=${it.sourceOrigin}">
             <span class="badge" th:classappend="'badge-tier-' + ${it.claim.riskTier}" th:text="${it.claim.riskTier}">T3</span>
             <span class="code-chip code-chip-sm" th:text="${it.claim.claimCode}">C-001</span>
             <span class="preview" th:text="${#strings.abbreviate(it.claim.textVi, 140)}">preview</span>
             <span class="badge" th:classappend="'badge-gate-' + ${it.claim.gateStatus}" th:text="${it.claim.gateStatus}">PASS</span>
             <span class="badge badge-info" th:text="${it.verdict}">NEUTRAL</span>
+            <span class="badge" th:classappend="${it.sourceOrigin == 'DEEP_RESEARCH'} ? 'badge-override' : 'badge-neutral'"
+                  th:text="${it.sourceOrigin == 'DEEP_RESEARCH'} ? #{ops.review.source.deepResearch} : (${it.sourceOrigin == 'MANUAL'} ? #{ops.review.source.manual} : (${it.sourceOrigin == 'FILE_UPLOAD'} ? #{ops.review.source.fileUpload} : #{ops.review.source.crawl}))">Crawl</span>
             <span class="open-link" th:text="#{ops.review.queue.openLink}">Open →</span>
           </a>
         </div>
@@ -187,13 +197,15 @@
     var verdict = document.getElementById('f-verdict').value;
     var tier = document.getElementById('f-tier').value;
     var slot = document.getElementById('f-slot').value;
+    var source = document.getElementById('f-source').value;
     var rows = document.querySelectorAll('.q-row');
     var shown = 0;
     rows.forEach(function (row) {
       var match = (!gate || row.dataset.gate === gate)
           && (!verdict || row.dataset.verdict === verdict)
           && (!tier || row.dataset.tier === tier)
-          && (!slot || row.dataset.slot === slot);
+          && (!slot || row.dataset.slot === slot)
+          && (!source || row.dataset.source === source);
       row.classList.toggle('q-hidden', !match);
       if (match) shown++;
     });
@@ -209,11 +221,11 @@
   document.addEventListener('DOMContentLoaded', function () {
     var bar = document.getElementById('q-filters');
     if (!bar) return;
-    ['f-gate', 'f-verdict', 'f-tier', 'f-slot'].forEach(function (id) {
+    ['f-gate', 'f-verdict', 'f-tier', 'f-slot', 'f-source'].forEach(function (id) {
       document.getElementById(id).addEventListener('change', applyFilters);
     });
     document.getElementById('q-clear').addEventListener('click', function () {
-      ['f-gate', 'f-verdict', 'f-tier', 'f-slot'].forEach(function (id) {
+      ['f-gate', 'f-verdict', 'f-tier', 'f-slot', 'f-source'].forEach(function (id) {
         document.getElementById(id).value = '';
       });
       applyFilters();

@@ -62,16 +62,30 @@ public class ReviewController {
 
     // ---------- Queue ----------
 
-    public record QueueItem(InterpretedClaim claim, String verdict) {}
+    public record QueueItem(InterpretedClaim claim, String verdict, String sourceOrigin) {}
 
     @GetMapping("/review")
     public String queue(Model model) {
         List<InterpretedClaim> pending = claims.findByReviewStatusFetched(ReviewStatus.PENDING_REVIEW);
         List<QueueItem> items = pending.stream()
-                .map(c -> new QueueItem(c, latestVerdict(c)))
+                .map(c -> new QueueItem(c, latestVerdict(c), sourceOrigin(c.getRawDoc())))
                 .toList();
         model.addAttribute("items", items);
         return "review-queue";
+    }
+
+    /** 2026-08-04 (feedback: "bổ sung signal để biết mỗi record có nguồn từ đâu — deep research
+     *  hay crawl"): claim đi qua ĐÚNG một pipeline xác thực bất kể nguồn gốc (không có bảng/cột
+     *  riêng) — tín hiệu duy nhất phân biệt được là RawDoc#intakeMethod, cùng quy ước đã dùng ở
+     *  PeriodicalBiAdapter#tierLabel (OPEN_SEARCH/BROWSER_RENDER = Deep Research). */
+    private static String sourceOrigin(RawDoc rawDoc) {
+        if (rawDoc == null) return "CRAWL";
+        return switch (rawDoc.getIntakeMethod()) {
+            case OPEN_SEARCH, BROWSER_RENDER -> "DEEP_RESEARCH";
+            case MANUAL_TEXT -> "MANUAL";
+            case FILE_UPLOAD -> "FILE_UPLOAD";
+            case CRAWLED -> "CRAWL";
+        };
     }
 
     // ---------- Detail ----------
@@ -85,6 +99,7 @@ public class ReviewController {
         model.addAttribute("citedFacts", evidence.facts());
         model.addAttribute("missingFactCodes", evidence.missingCodes());
         model.addAttribute("evidenceComplete", evidence.complete());
+        model.addAttribute("sourceOrigin", sourceOrigin(c.getRawDoc()));
         model.addAttribute("verification",
                 verifications.findFirstByClaimOrderByCreatedAtDescIdDesc(c).orElse(null));
         // Chốt chặn quy kết thực thể (deterministic, không LLM): cảnh báo ngay tại

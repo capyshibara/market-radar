@@ -180,7 +180,7 @@ public class DeepResearchService {
         runVerificationPipeline(newDocIds, onStep);
 
         onStep.accept("Đang tổng hợp báo cáo từ " + gathered.size() + " nguồn…");
-        BiReportContent content = appendPipelineNote(synthesize(prompt, gathered), newDocIds.size());
+        BiReportContent content = appendPipelineNote(synthesize(prompt, gathered, onStep), newDocIds.size());
         onStep.accept("Hoàn tất — " + content.findings().size() + " nhận định qua " + gathered.size() + " nguồn.");
         return new ResearchResult(content, gathered.size(), newDocIds);
     }
@@ -606,7 +606,7 @@ public class DeepResearchService {
         }
     }
 
-    private BiReportContent synthesize(String prompt, List<GatheredSource> gathered) {
+    private BiReportContent synthesize(String prompt, List<GatheredSource> gathered, Consumer<String> onStep) {
         String generatedAt = ZonedDateTime.now().format(TS_FMT);
         String period = "Ad-hoc · " + generatedAt;
 
@@ -668,8 +668,23 @@ public class DeepResearchService {
         user.append("- Không bịa: nếu không đủ dữ liệu cho bucket nào thì bỏ qua bucket đó hoàn toàn. Một câu ngắn nêu rõ ")
                 .append("khoảng trống còn hơn là làm dày nội dung bằng dữ kiện yếu.");
 
-        String raw = safeComplete("MODE:DEEP_RESEARCH_SYNTHESIS\nBạn tổng hợp tài liệu nghiên cứu thành nhận định BI có căn cứ.",
-                user.toString());
+        // 2026-08-04 (feedback: "file kết quả vẫn chả ra gì" — bản xem nhanh chỉ toàn tài liệu thô,
+        // không có nhận định có cấu trúc, KHÔNG kèm lý do gì). Nguyên nhân thật: gọi complete() 1
+        // LẦN DUY NHẤT để tổng hợp TẤT CẢ nguồn (có thể 20-25+ nguồn, song ngữ) thành 1 khối JSON —
+        // dễ vượt quá "Max tokens" đã cấu hình ở /llm-settings (mặc định 1024, quá nhỏ cho việc
+        // này), JSON bị cắt giữa chừng → parse lỗi → rơi vào nhánh dự phòng (raw excerpt) một cách
+        // ÂM THẦM (trước đây chỉ log.warn, không có onStep). Giờ báo rõ nguyên nhân + gợi ý sửa
+        // ngay tại UI, đúng bài học đã áp dụng cho plan()/discover() ở trên.
+        String raw;
+        try {
+            raw = llm.complete("MODE:DEEP_RESEARCH_SYNTHESIS\nBạn tổng hợp tài liệu nghiên cứu thành nhận định BI có căn cứ.",
+                    user.toString(), null);
+        } catch (LlmException e) {
+            onStep.accept("→ Lỗi gọi LLM khi tổng hợp báo cáo (" + e.getMessage()
+                    + ") — dùng bản dự phòng (tài liệu thô, chưa có nhận định có cấu trúc).");
+            log.warn("Deep Research: LLM lỗi khi tổng hợp: {}", e.getMessage());
+            raw = null;
+        }
 
         List<BiFinding> findings = new ArrayList<>();
         String title = "Deep Research — " + shortLabel(prompt);
@@ -718,6 +733,14 @@ public class DeepResearchService {
                             null, null, null, null, null, null));
                 }
             } catch (Exception e) {
+                boolean looksTruncated = !raw.strip().endsWith("}") && !raw.strip().endsWith("```");
+                onStep.accept("→ JSON tổng hợp không đọc được (" + e.getMessage() + ")"
+                        + (looksTruncated
+                                ? " — có vẻ bị CẮT GIỮA CHỪNG (không kết thúc bằng dấu \"}\"), khả năng cao do "
+                                        + "\"Max tokens\" của Writer ở /llm-settings đang quá thấp cho " + gathered.size()
+                                        + " nguồn — tăng lên (vd 8000) rồi chạy lại."
+                                : ".")
+                        + " Dùng bản dự phòng (tài liệu thô, chưa có nhận định có cấu trúc).");
                 log.warn("Deep Research: synthesis JSON không đọc được, dùng bản dự phòng nguyên văn: {}", e.getMessage());
             }
         }
@@ -740,15 +763,6 @@ public class DeepResearchService {
 
         return new BiReportContent(title, period, null, generatedAt, gathered.size(),
                 findings, List.copyOf(sourceLines), openGaps);
-    }
-
-    private String safeComplete(String systemPrompt, String userPrompt) {
-        try {
-            return llm.complete(systemPrompt, userPrompt, null);
-        } catch (LlmException e) {
-            log.warn("Deep Research: LLM lỗi: {}", e.getMessage());
-            return null;
-        }
     }
 
     private JsonNode parseJson(String raw) throws Exception {

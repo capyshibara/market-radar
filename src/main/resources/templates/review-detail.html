@@ -53,6 +53,8 @@
         <span class="badge badge-info" th:text="${verification != null ? verification.verdict : 'PENDING'}">NEUTRAL</span>
         <span class="badge badge-neutral" th:text="${claim.slot}">WHY_MATTERS</span>
         <span class="badge badge-override" th:if="${claim.origin.name() == 'DEMO_INJECT'}">DEMO_INJECT</span>
+        <span class="badge" th:classappend="${sourceOrigin == 'DEEP_RESEARCH'} ? 'badge-override' : 'badge-neutral'"
+              th:text="${sourceOrigin == 'DEEP_RESEARCH'} ? #{ops.review.source.deepResearch} : (${sourceOrigin == 'MANUAL'} ? #{ops.review.source.manual} : (${sourceOrigin == 'FILE_UPLOAD'} ? #{ops.review.source.fileUpload} : #{ops.review.source.crawl}))">Crawl</span>
         <span class="provider-tag" th:classappend="${claim.llmProvider == 'STUB' or claim.llmProvider == 'DEMO'} ? 'provider-stub' : 'provider-ai'"
               th:text="${claim.llmProvider == 'STUB' or claim.llmProvider == 'DEMO'} ? 'STUB' : 'AI'">AI</span>
       </div>
