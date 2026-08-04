@@ -65,6 +65,12 @@ public class LlmSettingsController {
             return "redirect:/llm-settings";
         }
 
+        // Trim trước khi dùng: copy/paste API key từ trình duyệt/note hay dính khoảng trắng
+        // hoặc newline ở đầu/cuối — UI vẫn trông "đúng" nhưng Anthropic sẽ trả 401 invalid x-api-key.
+        apiKey = apiKey == null ? null : apiKey.trim();
+        baseUrl = baseUrl == null ? null : baseUrl.trim();
+        model = model == null ? null : model.trim();
+
         try {
             LlmClient newDelegate;
             SwitchableLlmClient.Config newConfig;
