@@ -212,7 +212,14 @@ public class SafeFetcher {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(requestTimeout)
                 .header("User-Agent", "MarketRadar-MVP/0.1 (internal research; contact: market-radar)")
-                .header("Accept", acceptHeaderFor(kind));
+                .header("Accept", acceptHeaderFor(kind))
+                // 2026-08-04 (feedback: bản BI xem nhanh có 1 nguồn hiện chữ RÁC — hoá ra byte gzip
+                // bị đọc thẳng như text). java.net.http.HttpClient KHÔNG tự giải nén — trước đây
+                // không khai Accept-Encoding nên nhiều server (CDN/proxy) vẫn nén mặc định bất kể
+                // client có xin hay không, và body nén bị parseArticleHtml() đọc như UTF-8 → rác.
+                // Khai rõ để server biết ta hỗ trợ, rồi tự giải nén đúng Content-Encoding trả về
+                // (xem decodeCompressedBody) — không còn im lặng chấp nhận byte nén làm "đọc được".
+                .header("Accept-Encoding", "gzip, deflate");
         if (postJsonBody != null) {
             builder.header("Content-Type", "application/json")
                    .POST(HttpRequest.BodyPublishers.ofString(postJsonBody, StandardCharsets.UTF_8));
@@ -248,8 +255,38 @@ public class SafeFetcher {
 
         // #6 đọc body có giới hạn dung lượng
         byte[] body = readWithCap(response.body(), effectiveCap, url);
-        log.info("Fetched OK: {} ({} bytes, {})", url, body.length, contentType);
+        String contentEncoding = response.headers().firstValue("Content-Encoding")
+                .orElse("").split(";")[0].trim().toLowerCase(Locale.ROOT);
+        if (!contentEncoding.isEmpty() && !"identity".equals(contentEncoding)) {
+            body = decodeCompressedBody(body, contentEncoding, effectiveCap, url);
+        }
+        log.info("Fetched OK: {} ({} bytes, {}{})", url, body.length, contentType,
+                contentEncoding.isEmpty() ? "" : ", was " + contentEncoding);
         return new FetchResult(body, contentType);
+    }
+
+    /** Giải nén body theo ĐÚNG Content-Encoding server khai báo — không đoán, không im lặng đọc
+     *  byte nén như text. br (Brotli) chưa có decoder built-in trong JDK và app chưa có thư viện
+     *  ngoài cho việc này — fail loud thay vì trả về rác, còn hơn 1 "nguồn đọc được" thực ra là
+     *  byte nén lọt vào báo cáo (xem lịch sử: đúng ca thật đã xảy ra với gzip). Cap dung lượng SAU
+     *  giải nén giữ nguyên effectiveCap của lần gọi này — chặn decompression-bomb dù nguồn đã qua
+     *  SSRF/host-whitelist. */
+    private byte[] decodeCompressedBody(byte[] compressed, String contentEncoding, long cap, String url)
+            throws FetchRejectedException {
+        InputStream raw = switch (contentEncoding) {
+            case "gzip", "x-gzip" -> {
+                try {
+                    yield new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(compressed));
+                } catch (IOException e) {
+                    throw new FetchRejectedException("Content-Encoding: gzip nhưng body không phải gzip hợp lệ ("
+                            + url + "): " + e.getMessage());
+                }
+            }
+            case "deflate" -> new java.util.zip.InflaterInputStream(new java.io.ByteArrayInputStream(compressed));
+            default -> throw new FetchRejectedException("Server trả Content-Encoding '" + contentEncoding
+                    + "' không hỗ trợ giải nén (" + url + ") — từ chối đọc byte nén như text thô.");
+        };
+        return readWithCap(raw, cap, url);
     }
 
     /**
