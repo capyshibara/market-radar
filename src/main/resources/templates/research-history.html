@@ -62,6 +62,8 @@
             <a th:if="${r.status == 'DONE'}" class="prompt-link" th:href="@{'/research/history/' + ${r.id}}" th:text="${r.shortPrompt}">Prompt</a>
             <span th:unless="${r.status == 'DONE'}" class="prompt-plain" th:text="${r.shortPrompt}">Prompt</span>
             <div class="progress-box" th:if="${r.progressTail != null}" th:text="${r.progressTail}">log…</div>
+            <div><a class="prompt-link" style="font-size:12px" th:href="@{'/research/history/' + ${r.id} + '/log'}" target="_blank"
+                    th:text="${#locale.language == 'vi' ? 'Xem log đầy đủ →' : 'View full log →'}">View full log →</a></div>
           </td>
           <td><span th:class="'status-badge status-' + ${r.status}" th:text="${r.status}">QUEUED</span></td>
           <td class="meta-num" th:text="${r.sourceCount}">0</td>

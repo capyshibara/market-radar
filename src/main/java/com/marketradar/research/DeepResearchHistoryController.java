@@ -137,6 +137,17 @@ public class DeepResearchHistoryController {
         return "bi-report";
     }
 
+    @GetMapping(value = "/research/history/{id}/log", produces = MediaType.TEXT_PLAIN_VALUE)
+    @ResponseBody
+    public ResponseEntity<String> log(@PathVariable Long id) {
+        DeepResearchRun run = runs.findById(id).orElse(null);
+        if (run == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Không tìm thấy lần chạy này.");
+        }
+        String log = run.getProgressLog();
+        return ResponseEntity.ok().body(log == null || log.isBlank() ? "(chưa có log)" : log);
+    }
+
     private static String statusMessage(DeepResearchRun run) {
         return switch (run.getStatus()) {
             case QUEUED -> "Đang chờ trong hàng đợi — chưa tới lượt xử lý.";
