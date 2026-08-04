@@ -72,6 +72,9 @@ public class LlmSettingsController {
         model = model == null ? null : model.trim();
 
         try {
+            if (maxTokens < 64 || maxTokens > 64_000) {
+                throw new IllegalArgumentException("Max tokens must be between 64 and 64000.");
+            }
             LlmClient newDelegate;
             SwitchableLlmClient.Config newConfig;
             switch (kind) {

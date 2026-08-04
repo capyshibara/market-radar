@@ -20,9 +20,14 @@ import java.util.regex.Pattern;
 public final class DocumentMetadataDetector {
     private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final Pattern ISO_DATE = Pattern.compile("(20\\d{2}-\\d{2}-\\d{2})");
-    private static final Pattern DMY_DATE = Pattern.compile("(?<!\\d)(\\d{1,2}/\\d{1,2}/20\\d{2})(?!\\d)");
+    private static final Pattern DMY_DATE = Pattern.compile(
+            "(?<!\\d)(\\d{1,2})[./-](\\d{1,2})[./-](20\\d{2})(?!\\d)");
+    private static final Pattern VI_LONG_DATE = Pattern.compile(
+            "(?iu)(?:ngày\\s+)?(\\d{1,2})\\s+tháng\\s+(\\d{1,2})\\s+năm\\s+(20\\d{2})");
     private static final Pattern EN_DATE = Pattern.compile(
             "(?i)\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(\\d{1,2}),\\s+(20\\d{2})\\b");
+    private static final Pattern EN_DMY_DATE = Pattern.compile(
+            "(?i)\\b(\\d{1,2})\\s+(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(20\\d{2})\\b");
     private static final DateTimeFormatter ENGLISH_DATE = new DateTimeFormatterBuilder()
             .parseCaseInsensitive().appendPattern("MMMM d, uuuu").toFormatter(Locale.ENGLISH);
     private static final Map<String, String> KNOWN_PUBLISHERS = Map.ofEntries(
@@ -31,6 +36,7 @@ public final class DocumentMetadataDetector {
             Map.entry("web-assets.bcg.com", "Boston Consulting Group"),
             Map.entry("swissre.com", "Swiss Re Institute"),
             Map.entry("mckinsey.com", "McKinsey & Company"),
+            Map.entry("milliman.com", "Milliman"),
             Map.entry("munichre.com", "Munich Re"),
             Map.entry("mof.gov.vn", "Bộ Tài chính Việt Nam"),
             Map.entry("iav.vn", "Hiệp hội Bảo hiểm Việt Nam"));
@@ -112,8 +118,22 @@ public final class DocumentMetadataDetector {
         if (iso.find()) try { return LocalDate.parse(iso.group(1)); } catch (Exception ignored) {}
         var en = EN_DATE.matcher(sample);
         if (en.find()) try { return LocalDate.parse(en.group(), ENGLISH_DATE); } catch (Exception ignored) {}
+        var enDmy = EN_DMY_DATE.matcher(sample);
+        if (enDmy.find()) try {
+            return LocalDate.of(Integer.parseInt(enDmy.group(3)),
+                    java.time.Month.valueOf(enDmy.group(2).toUpperCase(Locale.ENGLISH)).getValue(),
+                    Integer.parseInt(enDmy.group(1)));
+        } catch (Exception ignored) {}
         var dmy = DMY_DATE.matcher(sample);
-        if (dmy.find()) try { return LocalDate.parse(dmy.group(1), DateTimeFormatter.ofPattern("d/M/uuuu")); } catch (Exception ignored) {}
+        if (dmy.find()) try {
+            return LocalDate.of(Integer.parseInt(dmy.group(3)),
+                    Integer.parseInt(dmy.group(2)), Integer.parseInt(dmy.group(1)));
+        } catch (Exception ignored) {}
+        var viLong = VI_LONG_DATE.matcher(sample);
+        if (viLong.find()) try {
+            return LocalDate.of(Integer.parseInt(viLong.group(3)),
+                    Integer.parseInt(viLong.group(2)), Integer.parseInt(viLong.group(1)));
+        } catch (Exception ignored) {}
         return null;
     }
 
@@ -147,6 +167,7 @@ public final class DocumentMetadataDetector {
         if (lower.contains("boston consulting group") || lower.contains("©2026 bcg")) return "Boston Consulting Group";
         if (lower.contains("swiss re institute")) return "Swiss Re Institute";
         if (lower.contains("mckinsey & company")) return "McKinsey & Company";
+        if (lower.contains("milliman asia") || lower.contains("milliman")) return "Milliman";
         if (lower.contains("aia việt nam")) return "AIA Việt Nam";
         if (lower.contains("bộ tài chính")) return "Bộ Tài chính Việt Nam";
         return null;

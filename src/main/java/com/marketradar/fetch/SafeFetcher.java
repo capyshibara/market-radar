@@ -19,8 +19,15 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.net.ssl.SSLException;
 
 /**
@@ -32,8 +39,9 @@ import javax.net.ssl.SSLException;
  *     lấy từ trong RSS entry cũng phải qua kiểm tra này.
  *  3. SSRF guard: resolve DNS rồi CHẶN mọi IP private/loopback/link-local/multicast
  *     (chống trường hợp nguồn bị chiếm quyền trả về redirect/URL trỏ vào mạng nội bộ).
- *  4. KHÔNG follow redirect (Redirect.NEVER) — 3xx là fail-loud, log và skip,
- *     vì redirect là vector phổ biến để thoát whitelist.
+ *  4. Redirect.NEVER ở HttpClient. SafeFetcher chỉ tự theo tối đa 3 redirect GET
+ *     CÙNG exact allowedHost, và chạy lại scheme/SSRF/host guard ở từng hop.
+ *     Redirect POST hoặc cross-host vẫn fail-loud.
  *  5. Content-Type phải khớp loại nguồn khai báo (HTML/RSS/PDF) — file .exe đội lốt bị chặn.
  *  6. Giới hạn dung lượng body (đọc stream có cap) + timeout kết nối/request.
  *  7. Nội dung tải về chỉ được xử lý như DỮ LIỆU: trích text bằng parser,
@@ -47,13 +55,24 @@ import javax.net.ssl.SSLException;
 public class SafeFetcher {
 
     private static final Logger log = LoggerFactory.getLogger(SafeFetcher.class);
+    private static final String MAP_LIFE_HOST = "www.map-life.com.vn";
+    private static final String HNX_HOST = "hnx.vn";
+    private static final String CA_MAU_POLICE_HOST = "congan.camau.gov.vn";
 
     private final HttpClient client;
+    private final HttpClient mapLifeClient;
+    private final HttpClient hnxClient;
+    private final HttpClient caMauPoliceClient;
     private final long maxBodyBytes;
     private final Duration requestTimeout;
     private final boolean httpsOnly;
     private final int maxTransientRetries;
     private final long retryBackoffMillis;
+    private final ExecutorService bodyReadExecutor = Executors.newCachedThreadPool(r -> {
+        Thread t = new Thread(r, "safe-fetch-body-reader");
+        t.setDaemon(true);
+        return t;
+    });
 
     public SafeFetcher(
             @Value("${marketradar.fetch.connect-timeout-seconds:10}") long connectTimeoutSec,
@@ -66,6 +85,24 @@ public class SafeFetcher {
                 .connectTimeout(Duration.ofSeconds(connectTimeoutSec))
                 .followRedirects(HttpClient.Redirect.NEVER)   // phòng thủ #4
                 .build();
+        this.mapLifeClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(connectTimeoutSec))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .sslContext(PinnedIntermediateSslContext.create(
+                        "/tls/globalsign-rsa-ov-ssl-ca-2018.pem"))
+                .build();
+        this.hnxClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(connectTimeoutSec))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .sslContext(PinnedIntermediateSslContext.create(
+                        "/tls/globalsign-gcc-r3-ev-tls-ca-2025.pem"))
+                .build();
+        this.caMauPoliceClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(connectTimeoutSec))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .sslContext(PinnedIntermediateSslContext.create(
+                        "/tls/globalsign-gcc-r3-dv-tls-ca-2020.pem"))
+                .build();
         this.requestTimeout = Duration.ofSeconds(requestTimeoutSec);
         this.maxBodyBytes = maxBodyBytes;
         this.httpsOnly = httpsOnly;
@@ -77,12 +114,13 @@ public class SafeFetcher {
 
     /** Content-Type hợp lệ theo loại nguồn */
     private static final Set<String> HTML_TYPES = Set.of("text/html", "application/xhtml+xml");
-    private static final Set<String> RSS_TYPES  = Set.of("application/rss+xml", "application/atom+xml",
+    private static final Set<String> XML_TYPES  = Set.of("application/rss+xml", "application/atom+xml",
                                                          "application/xml", "text/xml");
     private static final Set<String> PDF_TYPES  = Set.of("application/pdf");
     private static final Set<String> JSON_TYPES = Set.of("application/json", "text/json");
+    private static final Set<String> TEXT_TYPES = Set.of("text/plain", "text/markdown");
 
-    public enum ExpectedKind { HTML, RSS, PDF, JSON }
+    public enum ExpectedKind { HTML, RSS, SITEMAP, PDF, JSON, TEXT }
 
     /**
      * One-shot operator import for a specific public article or PDF. The URL's
@@ -177,7 +215,7 @@ public class SafeFetcher {
     }
 
     /** Trần cứng cho maxBytesOverride — vẫn phải bảo vệ chống payload tấn công dù nguồn cần cap lớn hơn. */
-    private static final long MAX_BYTES_OVERRIDE_CEILING = 15L * 1024 * 1024;
+    private static final long MAX_BYTES_OVERRIDE_CEILING = 32L * 1024 * 1024;
 
     /**
      * Biến thể cho phép NÂNG cap #6 (readWithCap) trên MỘT lần gọi, dùng khi một nguồn cụ thể
@@ -209,6 +247,106 @@ public class SafeFetcher {
                     "Host '" + host + "' does not match whitelist '" + allowedHost + "'");
         }
 
+        URI currentUri = uri;
+        HttpRequest request = buildRequest(currentUri, kind, postJsonBody);
+
+        // A network failure can leave the remote side uncertain about whether a POST
+        // was received. GET is safe to retry; POST remains single-attempt even though
+        // current registry POST endpoints are read APIs.
+        HttpResponse<InputStream> response = sendWithTransientRetry(
+                request, currentUri.toString(), postJsonBody == null);
+
+        // Several legitimate Vietnam sites canonicalise paths within the same host
+        // (for example /news -> /tin-tuc). Following those redirects is required to
+        // reach the article body, but every hop remains inside the exact source host
+        // and is re-checked for SSRF. Cross-host redirects are never followed.
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        visited.add(currentUri.normalize().toString());
+        int redirects = 0;
+        while (response.statusCode() >= 300 && response.statusCode() < 400) {
+            String location = response.headers().firstValue("Location").orElse("").strip();
+            if (postJsonBody != null) {
+                closeQuietly(response.body());
+                throw new FetchRejectedException("Source returned redirect " + response.statusCode()
+                        + " for POST — not followed (safety policy): " + currentUri);
+            }
+            if (location.isBlank()) {
+                closeQuietly(response.body());
+                throw new FetchRejectedException("Source returned redirect " + response.statusCode()
+                        + " without Location header: " + currentUri);
+            }
+            if (redirects++ >= 3) {
+                closeQuietly(response.body());
+                throw new FetchRejectedException("More than 3 redirects from " + url + " — rejected");
+            }
+            final URI next;
+            try {
+                next = currentUri.resolve(location);
+            } catch (IllegalArgumentException invalid) {
+                closeQuietly(response.body());
+                throw new FetchRejectedException("Invalid redirect Location '" + location + "' from " + currentUri);
+            }
+            assertSafeUri(next);
+            String nextHost = next.getHost();
+            if (nextHost == null || !nextHost.equalsIgnoreCase(allowedHost)) {
+                closeQuietly(response.body());
+                throw new FetchRejectedException("Cross-host redirect rejected: " + currentUri
+                        + " → " + next + " (allowed host: " + allowedHost + ")");
+            }
+            String normalized = next.normalize().toString();
+            if (!visited.add(normalized)) {
+                closeQuietly(response.body());
+                throw new FetchRejectedException("Redirect loop rejected at " + next);
+            }
+            closeQuietly(response.body());
+            currentUri = next;
+            request = buildRequest(currentUri, kind, null);
+            response = sendWithTransientRetry(request, currentUri.toString(), true);
+        }
+
+        int status = response.statusCode();
+        if (status != 200) {
+            closeQuietly(response.body());
+            throw new FetchRejectedException("HTTP " + status + " from " + currentUri);
+        }
+
+        // #5 content-type check
+        String contentType = response.headers().firstValue("Content-Type")
+                .orElse("").split(";")[0].trim().toLowerCase(Locale.ROOT);
+        if (!allowedTypesFor(kind).contains(contentType)) {
+            closeQuietly(response.body());
+            throw new FetchRejectedException(
+                    "Content-Type '" + contentType + "' does not match source type " + kind);
+        }
+
+        // #6 đọc body có giới hạn dung lượng
+        // HttpRequest.timeout() stops at the point where BodyHandlers.ofInputStream()
+        // hands us the response stream. A server can therefore send headers and then
+        // stall the body forever unless the stream read has its own deadline.
+        byte[] body = readWithCapTimed(response.body(), effectiveCap, currentUri.toString());
+        String contentEncoding = response.headers().firstValue("Content-Encoding")
+                .orElse("").split(";")[0].trim().toLowerCase(Locale.ROOT);
+        if (!contentEncoding.isEmpty() && !"identity".equals(contentEncoding)) {
+            body = decodeCompressedBody(body, contentEncoding, effectiveCap, currentUri.toString());
+        }
+        Instant lastModified = response.headers().firstValue("Last-Modified")
+                .flatMap(SafeFetcher::parseHttpInstant)
+                .orElse(null);
+        log.info("Fetched OK: {} ({} bytes, {}{})", currentUri, body.length, contentType,
+                contentEncoding.isEmpty() ? "" : ", was " + contentEncoding);
+        return new FetchResult(body, contentType, lastModified);
+    }
+
+    private static java.util.Optional<Instant> parseHttpInstant(String raw) {
+        try {
+            return java.util.Optional.of(java.time.ZonedDateTime.parse(raw,
+                    java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant());
+        } catch (Exception ignored) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    private HttpRequest buildRequest(URI uri, ExpectedKind kind, String postJsonBody) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(requestTimeout)
                 .header("User-Agent", "MarketRadar-MVP/0.1 (internal research; contact: market-radar)")
@@ -226,43 +364,38 @@ public class SafeFetcher {
         } else {
             builder.GET();
         }
-        HttpRequest request = builder.build();
+        return builder.build();
+    }
 
-        // A network failure can leave the remote side uncertain about whether a POST
-        // was received. GET is safe to retry; POST remains single-attempt even though
-        // current registry POST endpoints are read APIs.
-        HttpResponse<InputStream> response = sendWithTransientRetry(request, url, postJsonBody == null);
+    private static void closeQuietly(InputStream in) {
+        try {
+            if (in != null) in.close();
+        } catch (IOException ignored) {
+            // Best-effort connection release on a rejected response.
+        }
+    }
 
-        int status = response.statusCode();
-        // #4 redirect = fail loud
-        if (status >= 300 && status < 400) {
-            String location = response.headers().firstValue("Location").orElse("(no Location header)");
-            throw new FetchRejectedException(
-                    "Source returned redirect " + status + " → " + location
-                    + " — not followed (safety policy). Update fetchUrl in the registry if the URL changed.");
+    private byte[] readWithCapTimed(InputStream in, long cap, String url)
+            throws FetchRejectedException {
+        Future<byte[]> read = bodyReadExecutor.submit(() -> readWithCap(in, cap, url));
+        try {
+            return read.get(requestTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException timedOut) {
+            try { in.close(); } catch (IOException ignored) {}
+            read.cancel(true);
+            throw new FetchRejectedException("Timed out reading response body after "
+                    + requestTimeout.toSeconds() + "s: " + url);
+        } catch (InterruptedException interrupted) {
+            try { in.close(); } catch (IOException ignored) {}
+            read.cancel(true);
+            Thread.currentThread().interrupt();
+            throw new FetchRejectedException("Fetch interrupted while reading body: " + url);
+        } catch (ExecutionException failed) {
+            Throwable cause = failed.getCause();
+            if (cause instanceof FetchRejectedException rejected) throw rejected;
+            throw new FetchRejectedException("Error reading body from " + url + ": "
+                    + (cause == null ? failed.getMessage() : cause.getMessage()));
         }
-        if (status != 200) {
-            throw new FetchRejectedException("HTTP " + status + " from " + url);
-        }
-
-        // #5 content-type check
-        String contentType = response.headers().firstValue("Content-Type")
-                .orElse("").split(";")[0].trim().toLowerCase(Locale.ROOT);
-        if (!allowedTypesFor(kind).contains(contentType)) {
-            throw new FetchRejectedException(
-                    "Content-Type '" + contentType + "' does not match source type " + kind);
-        }
-
-        // #6 đọc body có giới hạn dung lượng
-        byte[] body = readWithCap(response.body(), effectiveCap, url);
-        String contentEncoding = response.headers().firstValue("Content-Encoding")
-                .orElse("").split(";")[0].trim().toLowerCase(Locale.ROOT);
-        if (!contentEncoding.isEmpty() && !"identity".equals(contentEncoding)) {
-            body = decodeCompressedBody(body, contentEncoding, effectiveCap, url);
-        }
-        log.info("Fetched OK: {} ({} bytes, {}{})", url, body.length, contentType,
-                contentEncoding.isEmpty() ? "" : ", was " + contentEncoding);
-        return new FetchResult(body, contentType);
     }
 
     /** Giải nén body theo ĐÚNG Content-Encoding server khai báo — không đoán, không im lặng đọc
@@ -271,7 +404,7 @@ public class SafeFetcher {
      *  byte nén lọt vào báo cáo (xem lịch sử: đúng ca thật đã xảy ra với gzip). Cap dung lượng SAU
      *  giải nén giữ nguyên effectiveCap của lần gọi này — chặn decompression-bomb dù nguồn đã qua
      *  SSRF/host-whitelist. */
-    private byte[] decodeCompressedBody(byte[] compressed, String contentEncoding, long cap, String url)
+    static byte[] decodeCompressedBody(byte[] compressed, String contentEncoding, long cap, String url)
             throws FetchRejectedException {
         InputStream raw = switch (contentEncoding) {
             case "gzip", "x-gzip" -> {
@@ -299,7 +432,14 @@ public class SafeFetcher {
             throws FetchRejectedException {
         for (int attempt = 0; ; attempt++) {
             try {
-                return client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                String requestHost = request.uri().getHost();
+                HttpClient selectedClient = MAP_LIFE_HOST.equalsIgnoreCase(requestHost)
+                        ? mapLifeClient
+                        : HNX_HOST.equalsIgnoreCase(requestHost) || ("www." + HNX_HOST).equalsIgnoreCase(requestHost)
+                                ? hnxClient
+                                : CA_MAU_POLICE_HOST.equalsIgnoreCase(requestHost)
+                                        ? caMauPoliceClient : client;
+                return selectedClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 throw new FetchRejectedException("Fetch interrupted for " + url);
@@ -346,7 +486,7 @@ public class SafeFetcher {
         return true;
     }
 
-    private byte[] readWithCap(InputStream in, long cap, String url) throws FetchRejectedException {
+    private static byte[] readWithCap(InputStream in, long cap, String url) throws FetchRejectedException {
         try (in) {
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             byte[] buf = new byte[8192];
@@ -369,22 +509,29 @@ public class SafeFetcher {
     private static String acceptHeaderFor(ExpectedKind kind) {
         return switch (kind) {
             case HTML -> "text/html,application/xhtml+xml";
-            case RSS  -> "application/rss+xml,application/atom+xml,application/xml,text/xml";
+            case RSS, SITEMAP -> "application/rss+xml,application/atom+xml,application/xml,text/xml";
             case PDF  -> "application/pdf";
             case JSON -> "application/json";
+            case TEXT -> "text/plain,text/markdown";
         };
     }
 
     private static Set<String> allowedTypesFor(ExpectedKind kind) {
         return switch (kind) {
             case HTML -> HTML_TYPES;
-            case RSS  -> RSS_TYPES;
+            case RSS, SITEMAP -> XML_TYPES;
             case PDF  -> PDF_TYPES;
             case JSON -> JSON_TYPES;
+            case TEXT -> TEXT_TYPES;
         };
     }
 
-    public record FetchResult(byte[] body, String contentType) {}
+    public record FetchResult(byte[] body, String contentType, Instant lastModified) {
+        /** Compatibility constructor retained for focused unit-test fakes. */
+        public FetchResult(byte[] body, String contentType) {
+            this(body, contentType, null);
+        }
+    }
 
     public static class FetchRejectedException extends Exception {
         public FetchRejectedException(String message) { super(message); }

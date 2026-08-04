@@ -195,7 +195,9 @@ public class SourceRegistryService {
         boolean verified = command.testPassed() && serverTest.success();
         // Tier 3 (nước ngoài) không bao giờ được kích hoạt qua form thêm nguồn — cùng quy tắc
         // active=(tier<=2) mà TierReclassificationMigration áp cho 60 nguồn seed sẵn.
-        boolean active = command.active() && verified && serverTest.recommendedActive() && tier <= 2;
+        // Tier describes geography/audience, not technical crawlability. A verified
+        // international source must not be disabled merely because it is Tier 3.
+        boolean active = command.active() && verified && serverTest.recommendedActive();
 
         Source source = new Source(code, name, validatedUrl.fetchUrl(), validatedUrl.allowedHost(),
                 type, tier, language);
@@ -220,6 +222,7 @@ public class SourceRegistryService {
     private static SafeFetcher.ExpectedKind expectedKind(Source.SourceType type) {
         return switch (type) {
             case RSS -> SafeFetcher.ExpectedKind.RSS;
+            case SITEMAP -> SafeFetcher.ExpectedKind.SITEMAP;
             case HTML -> SafeFetcher.ExpectedKind.HTML;
             case PDF -> SafeFetcher.ExpectedKind.PDF;
             case JSON -> SafeFetcher.ExpectedKind.JSON;

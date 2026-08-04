@@ -52,7 +52,15 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @Override
     public String complete(String systemPrompt, String userPrompt, Double temperature)
             throws LlmException {
-        ObjectNode body = baseRequestBody(systemPrompt, userPrompt, temperature);
+        return completeWithMaxTokens(systemPrompt, userPrompt, temperature, maxTokens);
+    }
+
+    @Override
+    public String completeWithMaxTokens(String systemPrompt, String userPrompt,
+                                        Double temperature, int maxOutputTokens)
+            throws LlmException {
+        ObjectNode body = baseRequestBody(systemPrompt, userPrompt, temperature,
+                Math.max(1, maxOutputTokens));
         JsonNode root = sendWithRetry(body);
         JsonNode content = root.path("choices").path(0).path("message").path("content");
         if (content.isMissingNode() || content.asText().isBlank()) {
@@ -73,7 +81,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     @Override
     public ToolChoice completeWithTools(String systemPrompt, String userPrompt,
                                         List<LlmTool> tools, Double temperature) throws LlmException {
-        ObjectNode body = baseRequestBody(systemPrompt, userPrompt, temperature);
+        ObjectNode body = baseRequestBody(systemPrompt, userPrompt, temperature, maxTokens);
         ArrayNode toolsNode = body.putArray("tools");
         for (LlmTool tool : tools) {
             ObjectNode fn = toolsNode.addObject();
@@ -102,7 +110,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         }
     }
 
-    private ObjectNode baseRequestBody(String systemPrompt, String userPrompt, Double temperature) {
+    private ObjectNode baseRequestBody(String systemPrompt, String userPrompt,
+                                       Double temperature, int outputTokenBudget) {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
         // 2026-07-15 (writer → gpt-5-mini): họ reasoning của OpenAI (gpt-5*, o*) TỪ CHỐI
@@ -110,12 +119,12 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
         // định. Các provider compat khác (DeepSeek, Qwen, Gemini-compat) vẫn theo chuẩn cũ —
         // switch theo model, không đổi hành vi nguồn nào đang chạy.
         if (isOpenAiReasoningModel()) {
-            body.put("max_completion_tokens", maxTokens);
+            body.put("max_completion_tokens", outputTokenBudget);
             // reasoning "low": đủ cho task schema hẹp (extract/interpret slot), không đốt
             // phần lớn budget token vào reasoning ẩn.
             body.put("reasoning_effort", "low");
         } else {
-            body.put("max_tokens", maxTokens);
+            body.put("max_tokens", outputTokenBudget);
             if (temperature != null) body.put("temperature", temperature);
         }
         ArrayNode messages = body.putArray("messages");

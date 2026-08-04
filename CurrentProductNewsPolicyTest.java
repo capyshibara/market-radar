@@ -21,8 +21,8 @@ public class CurrentProductNewsPolicyTest {
         rejectsShortOrTitleOnlyItem();
         rejectsAlteredEvidenceSpan();
         rejectsUnconfirmedAndIrrelevantLabels();
-        rejectsNonLifeAndClaimsItems();
-        rejectsAwardsAndMarketingNoise();
+        rejectsNonLifeButAcceptsClaimsSignals();
+        acceptsAwardAndMarketingSignalsButKeepsNonLifeOut();
         rejectsDuplicateAndLowTierItems();
         System.out.println("CurrentProductNewsPolicyTest: " + checks + " checks passed");
     }
@@ -55,13 +55,16 @@ public class CurrentProductNewsPolicyTest {
         check(!decision(irrelevant).eligible(), "unknown classification label must be excluded");
     }
 
-    private static void rejectsNonLifeAndClaimsItems() {
+    private static void rejectsNonLifeButAcceptsClaimsSignals() {
         var nonLife = copy(base(), null, null, null, null, null,
                 "Non-life insurer changes property coverage", null, null, null);
-        var claims = copy(base(), null, null, null, null, null,
-                "Insurer completes claims payout", "The insurer completed a claims payment and claim payout for a policyholder. " + "x".repeat(90), null, null);
+        String claimsSpan = "The insurer completed a claims payment and claim payout for a policyholder. "
+                + "x".repeat(90);
+        var claims = copy(base(), null, claimsSpan + " " + "x".repeat(600), null, null, null,
+                "Insurer completes claims payout", claimsSpan, null, null);
         check(!decision(nonLife).eligible(), "non-life evidence must stay out of life Product news");
-        check(!decision(claims).eligible(), "claims-payment evidence must stay out of Product news");
+        check(decision(claims).eligible(),
+                "claims-payment evidence is no longer silently suppressed; downstream routing decides its report use");
     }
 
     private static void rejectsDuplicateAndLowTierItems() {
@@ -71,12 +74,17 @@ public class CurrentProductNewsPolicyTest {
         check(!decision(tierFour).eligible(), "tier four source must be excluded");
     }
 
-    private static void rejectsAwardsAndMarketingNoise() {
+    private static void acceptsAwardAndMarketingSignalsButKeepsNonLifeOut() {
         var award = copy(base(), null, null, null, null, null,
                 "Life insurer wins global insurance awards", null, null, null);
         var travel = copy(base(), null, null, null, null, null,
                 "Insurer promotes travel insurance", null, null, null);
-        check(!decision(award).eligible(), "awards must not become Product news");
+        var marketing = copy(base(), null, null, null, null, null,
+                "Life insurer launches an anniversary customer campaign", null, null, null);
+        check(decision(award).eligible(),
+                "award signals are retained for the MARKET_SHARE_OR_AWARD report bucket");
+        check(decision(marketing).eligible(),
+                "marketing signals are retained and routed instead of being silently discarded");
         check(!decision(travel).eligible(), "travel insurance is outside life Product scope");
     }
 

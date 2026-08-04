@@ -158,4 +158,12 @@ public class RawDoc {
         this.note = note;
         this.fullTextFetched = true;
     }
+
+    /** Backfill full text and deterministic metadata discovered on the article page. */
+    public void upgradeToFullText(String contentHash, String rawText, String note,
+                                  String detectedTitle, Instant detectedPublishedAt) {
+        upgradeToFullText(contentHash, rawText, note);
+        if (detectedTitle != null && !detectedTitle.isBlank()) this.title = detectedTitle;
+        if (this.publishedAt == null && detectedPublishedAt != null) this.publishedAt = detectedPublishedAt;
+    }
 }

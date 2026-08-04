@@ -11,7 +11,12 @@ import jakarta.persistence.*;
 @Table(name = "source_registry")
 public class Source {
 
-    public enum SourceType { RSS, HTML, PDF, JSON }
+    /**
+     * SITEMAP is intentionally separate from RSS. Both are XML, but a sitemap is an
+     * archive/discovery index whose entries point at articles and carry lastmod,
+     * while RSS normally carries titles/descriptions and only a short recent window.
+     */
+    public enum SourceType { RSS, SITEMAP, HTML, PDF, JSON }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -115,4 +120,15 @@ public class Source {
     public void setUrlUnverified(boolean urlUnverified) { this.urlUnverified = urlUnverified; }
     public void setTier(int tier) { this.tier = tier; }
     public void setBrowseUrl(String browseUrl) { this.browseUrl = browseUrl; }
+
+    /** Startup migrations may repair a known source whose listing/API moved. */
+    public void reconfigure(String name, String fetchUrl, String allowedHost,
+                            SourceType type, int tier, String language) {
+        this.name = name;
+        this.fetchUrl = fetchUrl;
+        this.allowedHost = allowedHost;
+        this.type = type;
+        this.tier = tier;
+        this.language = language;
+    }
 }

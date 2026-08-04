@@ -20,12 +20,12 @@ public class ProductMaterialityRulesTest {
         prioritizesBenefitChange();
         prioritizesProductRegulation();
         prioritizesDistributionInnovation();
-        suppressesAwardEvenFromOfficialSource();
-        suppressesCsr();
+        retainsAwardSignalFromOfficialSource();
+        doesNotHardSuppressCsr();
         suppressesGenericBanking();
-        suppressesMarketingFluff();
-        suppressesPromotionMislabelledAsRegulation();
-        suppressesIndexMislabelledAsProductLaunch();
+        doesNotHardSuppressMarketingSignal();
+        doesNotHardSuppressPromotionMislabelledAsRegulation();
+        doesNotHardSuppressIndexMislabelledAsProductLaunch();
         rejectsTitleOnlyInput();
         rejectsShortVerifiedFullText();
         acceptsExactSharedContentFloor();
@@ -34,7 +34,7 @@ public class ProductMaterialityRulesTest {
         rejectsUnsupportedRegulationLabel();
         rejectsGenericAgentCampaign();
         suppressesNonLifeInsurance();
-        suppressesClaimsPaymentWithoutProductDesignChange();
+        doesNotHardSuppressClaimsPayment();
         keepsCredibilitySeparate();
         mapsCounterEvidenceKiq();
         System.out.println("ProductMaterialityRulesTest: " + checks + " checks passed");
@@ -67,19 +67,20 @@ public class ProductMaterialityRulesTest {
         check(score.productKiqs().contains(ProductMaterialityRules.ProductKiq.KIQ_4_TRANSFERABLE_INNOVATION), "maps innovation KIQ");
     }
 
-    private static void suppressesAwardEvenFromOfficialSource() {
+    private static void retainsAwardSignalFromOfficialSource() {
         var score = score("PRODUCT_LAUNCH", Set.of("PRODUCT_LAUNCH"),
                 "Insurer wins best product award",
                 article("The company received a best product award at an annual ceremony for its insurance product."), 1, true);
-        check(!score.publishEligible(), "award must be suppressed");
-        check(score.noisePenalty() <= -40, "award receives hard penalty");
+        check(score.noisePenalty() == 0, "award no longer receives a hidden editorial penalty");
+        check(score.reasons().stream().noneMatch(r -> r.toLowerCase().contains("award")),
+                "award is evaluated by ordinary materiality rather than a retired blacklist");
         check(score.sourceCredibility() == ProductMaterialityRules.SourceCredibility.OFFICIAL, "credibility remains separate");
     }
 
-    private static void suppressesCsr() {
+    private static void doesNotHardSuppressCsr() {
         var score = score("EVENT", Set.of(), "Insurer CSR charity scholarship program",
                 article("The insurer made a charity donation and awarded community scholarships as corporate social responsibility."), 2, true);
-        check(!score.publishEligible(), "CSR must be suppressed");
+        check(score.noisePenalty() == 0, "CSR is scored on materiality instead of being hard-suppressed");
     }
 
     private static void suppressesGenericBanking() {
@@ -88,25 +89,28 @@ public class ProductMaterialityRulesTest {
         check(!score.publishEligible(), "generic banking must be suppressed");
     }
 
-    private static void suppressesMarketingFluff() {
+    private static void doesNotHardSuppressMarketingSignal() {
         var score = score("EVENT", Set.of(), "Brand ambassador joins anniversary music festival",
                 article("A brand ambassador attended the anniversary music festival and customer appreciation giveaway."), 2, true);
-        check(!score.publishEligible(), "marketing activation must be suppressed");
+        check(score.noisePenalty() == 0,
+                "marketing activation is retained as a signal and may still miss the materiality threshold");
     }
 
-    private static void suppressesPromotionMislabelledAsRegulation() {
+    private static void doesNotHardSuppressPromotionMislabelledAsRegulation() {
         var score = score("REGULATION", Set.of("PRODUCT_REGULATION"),
                 "Insurance promotion offers e-vouchers",
                 article("The promotional program gives customers an e-voucher subject to campaign terms."), 2, true);
-        check(!score.publishEligible(), "promotion cannot become regulation because its terms mention legal boilerplate");
-        check(score.noisePenalty() <= -35, "promotion receives a hard editorial-noise penalty");
+        check(!score.publishEligible(), "a promotion still cannot become regulation without semantic support");
+        check(score.noisePenalty() == 0,
+                "the item is rejected by materiality/semantic support, not a hidden promotion blacklist");
     }
 
-    private static void suppressesIndexMislabelledAsProductLaunch() {
+    private static void doesNotHardSuppressIndexMislabelledAsProductLaunch() {
         var score = score("PRODUCT_LAUNCH", Set.of("PRODUCT_LAUNCH"),
                 "Insurer unveils longevity index for wealthy families",
                 article("The company launched a research index scoring family longevity preparedness."), 2, true);
-        check(!score.publishEligible(), "a research index cannot become a product launch");
+        check(score.noisePenalty() == 0,
+                "a research index is no longer silently suppressed; semantic support controls its eligibility");
     }
 
     private static void rejectsTitleOnlyInput() {
@@ -177,12 +181,13 @@ public class ProductMaterialityRulesTest {
                 "non-life suppression is auditable");
     }
 
-    private static void suppressesClaimsPaymentWithoutProductDesignChange() {
+    private static void doesNotHardSuppressClaimsPayment() {
         var score = score("EVENT", Set.of(), "Insurer completes a claims payout",
                 article("The insurer completed a claims payment and claim payout for a policyholder."), 1, true);
-        check(!score.publishEligible(), "claims payment without a product-design consequence must not publish");
-        check(score.reasons().stream().anyMatch(r -> r.contains("claims-payment")),
-                "claims-payment suppression is auditable");
+        check(score.noisePenalty() == 0,
+                "claims payment is retained for Router/Analyst handling instead of hard suppression");
+        check(score.reasons().stream().noneMatch(r -> r.contains("claims-payment")),
+                "the retired claims-payment blacklist no longer appears in the audit reason");
     }
 
     private static void keepsCredibilitySeparate() {

@@ -28,15 +28,9 @@ import java.util.Set;
  * credibility. Only the ~60 codes this codebase itself seeded are touched; a source an
  * operator added later through /sources is left alone (this migration doesn't know its intent).
  *
- * 2026-08-03 (Strategy request): active status for these ~60 seed sources is now a HARD RULE
- * derived from tier — Tier 1/2 always active, Tier 3 always inactive — enforced on EVERY boot,
- * not just once. Before this, active/inactive was set ad hoc per source at seed time for
- * unrelated technical reasons (WAF blocks, dead certs, gone RSS feeds), which left several
- * VN Tier 1/2 sources inactive while many Tier 3 foreign sources stayed active — the opposite
- * of what the taxonomy is meant to express. Re-enforcing this every boot is intentional: this
- * table is documented as a "bảng tier cố định (Invariant)" on Source.java, so an operator
- * manually reactivating one of these specific 60 sources is not an expected workflow (unlike
- * a source the operator added themselves through /sources, which this migration never touches).
+ * Active status is deliberately NOT derived from tier. Tier is geography; active is an
+ * operational fact (reachable + parser-owned). Coupling the two previously reactivated dead
+ * Vietnamese URLs on every boot and disabled useful international benchmark sources.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -71,7 +65,6 @@ public class TierReclassificationMigration implements ApplicationRunner {
         TIER3.forEach(code -> newTierByCode.put(code, 3));
 
         int retagged = 0;
-        int flippedActive = 0;
         for (Map.Entry<String, Integer> entry : newTierByCode.entrySet()) {
             Source source = sources.findByCode(entry.getKey()).orElse(null);
             if (source == null) continue;
@@ -82,20 +75,13 @@ public class TierReclassificationMigration implements ApplicationRunner {
                 retagged++;
                 changed = true;
             }
-            boolean shouldBeActive = newTier <= 2;
-            if (source.isActive() != shouldBeActive) {
-                source.setActive(shouldBeActive);
-                flippedActive++;
-                changed = true;
-            }
             if (changed) {
                 sources.save(source);
             }
         }
-        if (retagged > 0 || flippedActive > 0) {
-            log.info("Tier reclassification: retagged {} source(s) to the VN/media/foreign taxonomy, "
-                    + "flipped active status on {} source(s) to match active=(tier<=2).",
-                    retagged, flippedActive);
+        if (retagged > 0) {
+            log.info("Tier reclassification: retagged {} source(s) to the VN/media/foreign taxonomy; "
+                    + "active status was preserved because it represents crawl readiness.", retagged);
         }
     }
 }

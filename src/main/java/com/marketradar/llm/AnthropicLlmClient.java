@@ -45,9 +45,16 @@ public class AnthropicLlmClient implements LlmClient {
     @Override
     public String complete(String systemPrompt, String userPrompt, Double temperature)
             throws LlmException {
+        return completeWithMaxTokens(systemPrompt, userPrompt, temperature, maxTokens);
+    }
+
+    @Override
+    public String completeWithMaxTokens(String systemPrompt, String userPrompt,
+                                        Double temperature, int maxOutputTokens)
+            throws LlmException {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
-        body.put("max_tokens", maxTokens);
+        body.put("max_tokens", Math.max(1, maxOutputTokens));
         body.put("system", systemPrompt);
         if (temperature != null) body.put("temperature", temperature);
         ArrayNode messages = body.putArray("messages");

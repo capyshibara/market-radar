@@ -37,6 +37,13 @@ public class DocumentMetadataDetectorTest {
         check(fromPdf.publisher().equals("Boston Consulting Group"), "PDF publisher detected from content");
         check(fromPdf.publishedDate().equals(LocalDate.of(2026, 6, 25)),
                 "content publication date wins; PDF creation timestamp is ignored");
+        var fromEnglishDmyPdf = DocumentMetadataDetector.pdf(pdfBytes,
+                "MILLIMAN ASIA E-ALERT\nVietnam life insurance market 1 June 2026",
+                "vietnam-life-market.pdf");
+        check(fromEnglishDmyPdf.publisher().equals("Milliman"),
+                "Milliman PDF publisher detected from content");
+        check(fromEnglishDmyPdf.publishedDate().equals(LocalDate.of(2026, 6, 1)),
+                "day-month-year English PDF publication date detected");
 
         check(ManualDocumentRules.directImportUrl("https://www.bcg.com/report").contains("bcg.com"),
                 "official URL accepted");

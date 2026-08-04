@@ -22,7 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Kiểm tra hàng loạt: mỗi nguồn active trong whitelist có fetch được không, và
- * bằng đường nào — SafeFetcher (HTTP thường) trước, Playwright/BrowserRenderService
+ * bằng đường nào — SafeFetcher (HTTP thường), allow-listed Reader transport, hoặc
+ * Playwright/BrowserRenderService
  * (trình duyệt headless) làm phương án dự phòng khi HTTP thất bại.
  *
  * KHÔNG ghi RawDoc/EvidenceFact nào — đây thuần là chẩn đoán trước khi crawl thật,
@@ -50,7 +51,7 @@ public class SourceHealthCheckService {
     /** Ngưỡng loại "vỏ trang trống" (SPA chưa render xong) khỏi bị tính là thành công. */
     private static final int MIN_MEANINGFUL_HTML_CHARS = 200;
 
-    public enum Method { HTTP, BROWSER, NONE }
+    public enum Method { HTTP, READER, BROWSER, NONE }
 
     public record Result(String code, String name, int tier, Method method, boolean ok,
                          String detail, long elapsedMs) {}
@@ -120,6 +121,17 @@ public class SourceHealthCheckService {
     private Result checkOne(Source source) {
         long t0 = System.currentTimeMillis();
         try {
+            if (SourceFetchOverrides.usesReaderProxy(source.getCode())) {
+                SafeFetcher.FetchResult r = fetcher.fetch(
+                        SourceFetchOverrides.readerUrl(source.getFetchUrl()),
+                        SourceFetchOverrides.READER_PROXY_HOST,
+                        SafeFetcher.ExpectedKind.TEXT);
+                markVerified(source);
+                return new Result(source.getCode(), source.getName(), source.getTier(), Method.READER, true,
+                        "OK via allow-listed Reader transport — official URL and attribution preserved; "
+                                + r.body().length + " bytes, " + r.contentType(),
+                        System.currentTimeMillis() - t0);
+            }
             // Một số nguồn cần POST kèm body cụ thể (MOF_ISA/CATHAY_VN/DAIICHI_VN/HKIA) hoặc cap
             // byte cao hơn mặc định (FWD_VN) để khớp đúng cách IngestionJob thật sự fetch —
             // SourceFetchOverrides là nguồn sự thật DUY NHẤT cho cả 2 nơi, tránh lệch nhau (đã
@@ -187,6 +199,7 @@ public class SourceHealthCheckService {
     private static SafeFetcher.ExpectedKind expectedKind(Source.SourceType type) {
         return switch (type) {
             case RSS -> SafeFetcher.ExpectedKind.RSS;
+            case SITEMAP -> SafeFetcher.ExpectedKind.SITEMAP;
             case HTML -> SafeFetcher.ExpectedKind.HTML;
             case PDF -> SafeFetcher.ExpectedKind.PDF;
             case JSON -> SafeFetcher.ExpectedKind.JSON;

@@ -66,7 +66,7 @@ public final class SourceRegistryRules {
         try {
             return Source.SourceType.valueOf(normalized);
         } catch (IllegalArgumentException exception) {
-            throw new ValidationException("Parser type must be RSS, HTML, PDF, or JSON.");
+            throw new ValidationException("Parser type must be RSS, SITEMAP, HTML, PDF, or JSON.");
         }
     }
 
@@ -105,9 +105,10 @@ public final class SourceRegistryRules {
         return normalized;
     }
 
-    /** Generic RSS/PDF ingestion is safe; HTML/JSON need a confirmed source-specific listing parser. */
+    /** Generic RSS/sitemap/PDF ingestion is safe; HTML/JSON need a confirmed source-specific parser. */
     public static boolean parserSupportedForActivation(Source.SourceType type) {
-        return type == Source.SourceType.RSS || type == Source.SourceType.PDF;
+        return type == Source.SourceType.RSS || type == Source.SourceType.SITEMAP
+                || type == Source.SourceType.PDF;
     }
 
     private static String required(String value, String label) {

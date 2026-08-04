@@ -14,7 +14,14 @@ public final class TargetedRefetchPolicy {
 
     private static final Map<String, String> ARTICLE_HOST_OVERRIDE = Map.of(
             "CHUBB_VN", "chubb.mediaroom.com",
-            "DAIICHI_VN", "kh.dai-ichi-life.com.vn");
+            "DAIICHI_VN", "kh.dai-ichi-life.com.vn",
+            // AIA publishes its statutory summary as an official Scene7 image; requesting
+            // fmt=pdf yields the same asset in a deterministic OCR-friendly container.
+            "AIA_VN_FINANCIALS", "s7ap1.scene7.com",
+            // Techcom Life publishes its signed statutory PDF on this fixed CDN host.
+            "TECHCOM_LIFE_FINANCIALS", "d2pbhagi66anjy.cloudfront.net",
+            // FWD's own page publishes statutory PDFs from this fixed Contentstack host.
+            "FWD_VN_FINANCIALS", "assets.contentstack.io");
 
     private TargetedRefetchPolicy() {}
 

@@ -12,6 +12,24 @@ package com.marketradar.fetch;
 public final class SourceFetchOverrides {
     private SourceFetchOverrides() {}
 
+    /**
+     * Reader proxy used only for official sites whose WAF consistently rejects a
+     * standards-compliant server-side HTTP client.  The original URL remains the
+     * document URL and attribution; the proxy is only the transport.  Keeping the
+     * allow-list here makes the exception explicit and auditable instead of silently
+     * proxying arbitrary registry rows.
+     */
+    public static final String READER_PROXY_HOST = "r.jina.ai";
+    private static final java.util.Set<String> READER_PROXY_SOURCE_CODES =
+            java.util.Set.of("BVNT", "SUNLIFE_VN", "BAOVIET_HOLDINGS_NEWS",
+                    "SUNLIFE_VN_FINANCIALS", "BVNT_FINANCIALS",
+                    // BizHub's origin intermittently fails DNS from the Java runtime,
+                    // while the public Reader rendering exposes the same dated archive.
+                    "BIZHUB_INSURANCE",
+                    // Shinhan's financial archive is client-rendered; Reader exposes the
+                    // official same-host PDFs and publisher dates deterministically.
+                    "SHINHAN_VN_FINANCIALS");
+
     /** rootCategoryId của chuyên mục "Quản lý giám sát bảo hiểm" trên portal MOF (xác nhận live 2026-07-14). */
     private static final String MOF_INSURANCE_ROOT_CATEGORY = "8dc0b2a0-38bd-427c-b6d5-c97a6f9952b4";
 
@@ -45,5 +63,17 @@ public final class SourceFetchOverrides {
     /** Trần byte nâng riêng cho nguồn này, hoặc -1 nếu dùng cap mặc định của SafeFetcher. */
     public static long maxBytesOverrideFor(String sourceCode) {
         return "FWD_VN".equals(sourceCode) ? FWD_VN_MAX_BYTES : -1;
+    }
+
+    public static boolean usesReaderProxy(String sourceCode) {
+        return READER_PROXY_SOURCE_CODES.contains(sourceCode);
+    }
+
+    /** Convert one already-whitelisted public HTTPS URL to the fixed reader endpoint. */
+    public static String readerUrl(String officialUrl) {
+        if (officialUrl == null || !officialUrl.startsWith("https://")) {
+            throw new IllegalArgumentException("Reader proxy accepts official HTTPS URLs only");
+        }
+        return "https://" + READER_PROXY_HOST + "/" + officialUrl;
     }
 }

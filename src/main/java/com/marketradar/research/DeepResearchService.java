@@ -60,6 +60,11 @@ public class DeepResearchService {
     private static final int MAX_NEW_SOURCES_PER_SEARCH = 5;
     private static final int EXCERPT_CHARS_FOR_SYNTHESIS = 1500;
     private static final int EXCERPT_CHARS_FOR_PLANNER = 200;
+    /** Dedicated budget for the one unusually large bilingual preview call. It deliberately
+     * does not change the Writer's normal Extract/Interpret budget in /llm-settings. */
+    static final int SYNTHESIS_MAX_OUTPUT_TOKENS = 8192;
+    /** Bound both report size and JSON output. Related sources must be combined into a finding. */
+    static final int MAX_SYNTHESIS_FINDINGS = 12;
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     private static final Set<String> VALID_BUCKETS = Set.of(
@@ -104,8 +109,8 @@ public class DeepResearchService {
      *  field ngày nào, planner/synthesis phải tự đoán độ mới từ văn bản) — trích bằng ĐÚNG
      *  DocumentMetadataDetector dùng cho mọi nguồn khác trong app, null nếu không xác định được
      *  (không đoán). */
-    private record GatheredSource(String label, String url, String acquisition, String excerpt,
-                                  LocalDate publishedDate, byte[] renderedHtml) {
+    record GatheredSource(String label, String url, String acquisition, String excerpt,
+                          LocalDate publishedDate, byte[] renderedHtml) {
         GatheredSource(String label, String url, String acquisition, String excerpt, LocalDate publishedDate) {
             this(label, url, acquisition, excerpt, publishedDate, null);
         }
@@ -606,7 +611,7 @@ public class DeepResearchService {
         }
     }
 
-    private BiReportContent synthesize(String prompt, List<GatheredSource> gathered, Consumer<String> onStep) {
+    BiReportContent synthesize(String prompt, List<GatheredSource> gathered, Consumer<String> onStep) {
         String generatedAt = ZonedDateTime.now().format(TS_FMT);
         String period = "Ad-hoc · " + generatedAt;
 
@@ -649,6 +654,10 @@ public class DeepResearchService {
                 .append("(vd \"our_read_foreign_scale_advantage\" là SAI, sẽ hiện nguyên trạng lên báo cáo CFO đọc).\n");
         user.append("- text_vi và text_en PHẢI cùng mức độ cụ thể/hedging (số liệu ước tính phải hedge ở CẢ hai bản, không chỉ 1 bản).\n");
         user.append("- source_refs: BẮT BUỘC ít nhất 1 số thứ tự nguồn ở trên làm căn cứ cho finding này.\n");
+        user.append("- Tối đa ").append(MAX_SYNTHESIS_FINDINGS).append(" finding cho TOÀN báo cáo. Nhiều nguồn cùng nói ")
+                .append("một chủ đề phải được GỘP thành một finding có nhiều source_refs; không viết một finding cho mỗi nguồn.\n");
+        user.append("- Mỗi text_vi/text_en viết gọn trong 2-4 câu, ưu tiên câu chuyện cụ thể, ý nghĩa và giới hạn; ")
+                .append("không lặp lại toàn bộ excerpt.\n");
         user.append("- highlight=true cho tối đa 3 finding quan trọng nhất (lên trang Tóm tắt điều hành).\n");
         user.append("- severity: CHỈ set khi bucket=TECH_AI_SIGNAL và finding là đánh giá rủi ro AI theo 1 công ty cụ thể ")
                 .append("(subject_key=tên công ty) — HIGH nếu công ty đã triển khai AI tại thị trường này VÀ có bằng chứng ")
@@ -673,12 +682,16 @@ public class DeepResearchService {
         // LẦN DUY NHẤT để tổng hợp TẤT CẢ nguồn (có thể 20-25+ nguồn, song ngữ) thành 1 khối JSON —
         // dễ vượt quá "Max tokens" đã cấu hình ở /llm-settings (mặc định 1024, quá nhỏ cho việc
         // này), JSON bị cắt giữa chừng → parse lỗi → rơi vào nhánh dự phòng (raw excerpt) một cách
-        // ÂM THẦM (trước đây chỉ log.warn, không có onStep). Giờ báo rõ nguyên nhân + gợi ý sửa
-        // ngay tại UI, đúng bài học đã áp dụng cho plan()/discover() ở trên.
+        // ÂM THẦM (trước đây chỉ log.warn, không có onStep). Fix tận gốc: completion này dùng
+        // ngân sách 8.192 token RIÊNG, không phụ thuộc Max tokens chung của Writer; prompt đồng
+        // thời giới hạn 12 finding và bắt gộp nguồn liên quan để output có trần thực tế.
         String raw;
         try {
-            raw = llm.complete("MODE:DEEP_RESEARCH_SYNTHESIS\nBạn tổng hợp tài liệu nghiên cứu thành nhận định BI có căn cứ.",
-                    user.toString(), null);
+            onStep.accept("→ Tổng hợp với ngân sách đầu ra riêng " + SYNTHESIS_MAX_OUTPUT_TOKENS
+                    + " token (không phụ thuộc Max tokens chung của Writer).");
+            raw = llm.completeWithMaxTokens(
+                    "MODE:DEEP_RESEARCH_SYNTHESIS\nBạn tổng hợp tài liệu nghiên cứu thành nhận định BI có căn cứ.",
+                    user.toString(), null, SYNTHESIS_MAX_OUTPUT_TOKENS);
         } catch (LlmException e) {
             onStep.accept("→ Lỗi gọi LLM khi tổng hợp báo cáo (" + e.getMessage()
                     + ") — dùng bản dự phòng (tài liệu thô, chưa có nhận định có cấu trúc).");
@@ -696,6 +709,7 @@ public class DeepResearchService {
                     title = root.get("title").asText();
                 }
                 for (JsonNode f : root.path("findings")) {
+                    if (findings.size() >= MAX_SYNTHESIS_FINDINGS) break;
                     String bucket = f.path("bucket").asText("");
                     if (!VALID_BUCKETS.contains(bucket)) continue; // schema đóng — bucket lạ bị loại, không đoán
                     String textVi = f.path("text_vi").asText("");
@@ -736,9 +750,9 @@ public class DeepResearchService {
                 boolean looksTruncated = !raw.strip().endsWith("}") && !raw.strip().endsWith("```");
                 onStep.accept("→ JSON tổng hợp không đọc được (" + e.getMessage() + ")"
                         + (looksTruncated
-                                ? " — có vẻ bị CẮT GIỮA CHỪNG (không kết thúc bằng dấu \"}\"), khả năng cao do "
-                                        + "\"Max tokens\" của Writer ở /llm-settings đang quá thấp cho " + gathered.size()
-                                        + " nguồn — tăng lên (vd 8000) rồi chạy lại."
+                                ? " — vẫn bị CẮT GIỮA CHỪNG dù đã dùng ngân sách tổng hợp riêng "
+                                        + SYNTHESIS_MAX_OUTPUT_TOKENS + " token cho " + gathered.size()
+                                        + " nguồn; kiểm tra giới hạn đầu ra của model/provider trong log."
                                 : ".")
                         + " Dùng bản dự phòng (tài liệu thô, chưa có nhận định có cấu trúc).");
                 log.warn("Deep Research: synthesis JSON không đọc được, dùng bản dự phòng nguyên văn: {}", e.getMessage());

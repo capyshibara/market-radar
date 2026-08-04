@@ -74,7 +74,7 @@
         <!-- WRITER -->
         <div class="slot-card">
           <div class="slot-head"><h2>Writer (AI#2 Extract + AI#3 Interpret + dedup pairwise)</h2></div>
-          <p class="slot-desc">Quality-critical stage — bilingual claim writing and verbatim span selection. Low call volume.</p>
+          <p class="slot-desc">Quality-critical stage — bilingual claim writing and verbatim span selection. Low call volume. Deep Research preview synthesis automatically uses its own 8,192-token output budget, so this value can stay tuned for normal Extract/Interpret calls.</p>
           <div class="slot-current" th:text="'Current: ' + ${writerProvider} + ' — kind=' + ${writer.kind()} + ', model=' + ${writer.model()} + (${writer.baseUrl() != null} ? (', base-url=' + ${writer.baseUrl()}) : '')">current</div>
           <form class="slot-form" method="post" action="/llm-settings/writer">
             <div><label>Provider kind</label>
@@ -87,7 +87,7 @@
             <div><label>Base URL (OpenAI-compat only)</label><input type="text" name="baseUrl" placeholder="https://generativelanguage.googleapis.com/v1beta/openai"/></div>
             <div><label>Model</label><input type="text" name="model" placeholder="claude-sonnet-4-6 or gemini-3.5-flash"/></div>
             <div><label>API key</label><input type="password" name="apiKey"/></div>
-            <div><label>Max tokens</label><input type="number" name="maxTokens" value="1024"/></div>
+            <div><label>Max tokens</label><input type="number" name="maxTokens" value="1024" min="64" max="64000"/></div>
             <div class="actions"><button class="btn btn-primary" type="submit">Apply to Writer</button></div>
           </form>
         </div>

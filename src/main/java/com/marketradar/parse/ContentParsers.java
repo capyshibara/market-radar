@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import org.jsoup.nodes.Element;
+import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,16 +22,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Bộ parser chuẩn hoá về text. Nguyên tắc an toàn:
@@ -44,10 +49,14 @@ public class ContentParsers {
 
     private static final Logger log = LoggerFactory.getLogger(ContentParsers.class);
     private static final int PDF_MAX_PAGES = 100;
+    private static final int PDF_OCR_MAX_PAGES = 30;
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter IAV_FMT_EN = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter IAV_FMT_VI = DateTimeFormatter.ofPattern("dd/MM/yyyy h:mm:ss a", Locale.ENGLISH);
-    private static final DateTimeFormatter AIA_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.ENGLISH);
+    // AIA emits both zero-padded and non-padded dates (for example 07/04/2026 and
+    // 7/4/2026).  Use variable-width day/month so genuine current articles do not
+    // fall back to a year-only timestamp.
+    private static final DateTimeFormatter AIA_FMT = DateTimeFormatter.ofPattern("d/M/uuuu", Locale.ENGLISH);
     private static final DateTimeFormatter PRU_FMT = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.ENGLISH);
     // Chubb "vn-en" press page is the ENGLISH/US edition — dates confirmed MM/dd/yyyy
     // (xác nhận qua item "09/22/2023": ngày 22 không thể là tháng → thứ tự phải là MM/dd).
@@ -191,6 +200,1126 @@ public class ContentParsers {
         }
     }
 
+    /** XML sitemap -> article discovery index. lastmod is retained as the best
+     * deterministic date available; article metadata may replace/fill it later. */
+    public List<ListingItem> parseSitemap(byte[] body, String requiredPathFragment)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), "", Parser.xmlParser());
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element url : doc.select("url")) {
+                Element locEl = url.selectFirst("loc");
+                if (locEl == null) continue;
+                String link = locEl.text().strip().replaceFirst("^http://", "https://");
+                if (link.isBlank() || (requiredPathFragment != null
+                        && !link.contains(requiredPathFragment))) continue;
+                Instant modified = null;
+                Element lastmod = url.selectFirst("lastmod");
+                if (lastmod != null) modified = parseSitemapInstant(lastmod.text());
+                unique.putIfAbsent(link, new ListingItem(titleFromUrl(link), link, modified));
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("Sitemap không có URL bài viết phù hợp");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Sitemap XML lỗi: " + e.getMessage());
+        }
+    }
+
+    private static Instant parseSitemapInstant(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try { return Instant.parse(raw.strip()); } catch (Exception ignored) {}
+        try { return OffsetDateTime.parse(raw.strip()).toInstant(); } catch (Exception ignored) {}
+        try { return LocalDate.parse(raw.strip()).atStartOfDay(VN_ZONE).toInstant(); }
+        catch (Exception ignored) { return null; }
+    }
+
+    private static String titleFromUrl(String link) {
+        try {
+            String path = URI.create(link).getPath();
+            String slug = path == null ? link : path.replaceFirst("/$", "")
+                    .substring(path.replaceFirst("/$", "").lastIndexOf('/') + 1);
+            slug = slug.replaceFirst("-\\d+$", "").replace('-', ' ').replace('_', ' ').strip();
+            return slug.isBlank() ? link : Character.toUpperCase(slug.charAt(0)) + slug.substring(1);
+        } catch (Exception ignored) {
+            return link;
+        }
+    }
+
+    /** MVI Life's AEM news cards. Dates are completed from article metadata during ingest. */
+    public List<ListingItem> parseMviLife(byte[] body, String baseUrl) throws ParseFailedException {
+        return parseCardLinks(body, baseUrl, "a.cmp-content-teaser__link", null, "MVI_LIFE");
+    }
+
+    /** AIA's notices are accordion rows, not the promotion cards used on its press page. */
+    public List<ListingItem> parseAiaNotices(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element row : doc.select(".cmp-accordion__item")) {
+                Element titleEl = row.selectFirst(".cmp-accordion__header span");
+                Element linkEl = row.selectFirst(".cmp-accordion__body a[href]");
+                if (titleEl == null || linkEl == null) continue;
+                String title = titleEl.text().strip();
+                String link = linkEl.absUrl("href");
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, dateFromText(title + " " + link)));
+                }
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("AIA_NOTICES: không tìm thấy notice accordion");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("AIA_NOTICES: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** Vietnam Investment Review's dedicated insurance vertical. */
+    public List<ListingItem> parseVirInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMMM d, yyyy | HH:mm", Locale.ENGLISH);
+            for (Element row : doc.select("div.article")) {
+                Element a = row.selectFirst("h2.article-title a.article-link, h3.article-title a.article-link");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                if (!isVietnamLifeInsuranceRelevant(title)) continue;
+                String link = a.absUrl("href");
+                Instant date = null;
+                Element dateEl = row.selectFirst("span.article-date");
+                if (dateEl != null) {
+                    try { date = LocalDateTime.parse(dateEl.text().strip(), fmt).atZone(VN_ZONE).toInstant(); }
+                    catch (Exception ignored) {}
+                }
+                if (!title.isBlank() && !link.isBlank()) unique.putIfAbsent(link, new ListingItem(title, link, date));
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("VIR_INSURANCE: không tìm thấy article card");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("VIR_INSURANCE: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** VietnamNet life-insurance tag. Article detail metadata supplies publish dates. */
+    public List<ListingItem> parseVietnamNetLife(byte[] body, String baseUrl) throws ParseFailedException {
+        return parseCardLinks(body, baseUrl, ".horizontalPost__main-title a[href]", null, "VIETNAMNET_LIFE");
+    }
+
+    /** Tin nhanh Chứng khoán dedicated insurance category. */
+    public List<ListingItem> parseTnckInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxx");
+            for (Element row : doc.select("article.story")) {
+                Element a = row.selectFirst(".story__heading a[href]");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                // The category template appends site-wide event/market cards using the
+                // same article.story markup.  Do not mistake those recommendations for
+                // insurance-category evidence.
+                if (!isVietnamLifeInsuranceRelevant(title)) continue;
+                String link = a.absUrl("href");
+                Instant date = null;
+                Element time = row.selectFirst("time[datetime]");
+                if (time != null) {
+                    try { date = OffsetDateTime.parse(time.attr("datetime"), fmt).toInstant(); }
+                    catch (Exception ignored) {}
+                }
+                if (!title.isBlank() && !link.isBlank()) unique.putIfAbsent(link, new ListingItem(title, link, date));
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("TNCK_VN: không tìm thấy article.story");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("TNCK_VN: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /**
+     * VietnamPlus' insurance tag. Keep this separate from the TNCK parser even though
+     * both use article.story cards: VietnamPlus emits ISO-8601 offsets with a colon
+     * (for example +07:00), while TNCK currently emits +0700.
+     */
+    public List<ListingItem> parseVietnamPlusInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element row : doc.select("article.story")) {
+                Element a = row.selectFirst(".story__heading a[href], h2 a[href], h3 a[href]");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                if (!isVietnamLifeInsuranceRelevant(title)) continue;
+                String link = a.absUrl("href");
+                Instant date = null;
+                Element time = row.selectFirst("time[datetime]");
+                if (time != null) {
+                    try { date = OffsetDateTime.parse(time.attr("datetime")).toInstant(); }
+                    catch (Exception ignored) {}
+                }
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, date));
+                }
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("VIETNAMPLUS_INSURANCE: khong tim thay article.story");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("VIETNAMPLUS_INSURANCE: loi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** Vietnam News/BizHub's dedicated Vietnam insurance vertical (English). */
+    public List<ListingItem> parseBizhubInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, MMM d, uuuu", Locale.ENGLISH);
+            for (Element row : doc.select(".vnn-small-news, .meta-data")) {
+                Element a = row.selectFirst("h3.meta-data-tit a[href]");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                if (!isBizhubLifeOrIndustryTechnology(title)) continue;
+                String link = a.absUrl("href");
+                Instant date = null;
+                Element time = row.selectFirst("time.meta-data-source");
+                if (time != null) {
+                    try {
+                        date = LocalDate.parse(time.text().strip(), fmt).atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException ignored) {
+                        log.warn("BIZHUB_INSURANCE: không parse được ngày '{}'", time.text());
+                    }
+                }
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, date));
+                }
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("BIZHUB_INSURANCE: không tìm thấy bài");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("BIZHUB_INSURANCE: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Reader fallback for BizHub's dedicated insurance vertical. The origin has shown
+     * intermittent DNS failures from Java, but Reader exposes the same public archive.
+     * Only article-shaped post URLs are accepted; navigation and unrelated finance
+     * links cannot become corpus documents.
+     */
+    public List<ListingItem> parseBizhubReaderListing(byte[] body) throws ParseFailedException {
+        try {
+            String markdown = new String(body, StandardCharsets.UTF_8).replace("\r\n", "\n");
+            var headings = java.util.regex.Pattern.compile(
+                    "(?m)^### \\[([^]\\r\\n]+)]\\((https://bizhub\\.vietnamnews\\.vn/"
+                            + "[^)\\s]+-post\\d+\\.html)\\)\\s*$")
+                    .matcher(markdown);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            while (headings.find()) {
+                int next = markdown.indexOf("\n### [", headings.end());
+                if (next < 0) next = markdown.length();
+                String block = markdown.substring(headings.start(), next);
+                String title = headings.group(1).strip();
+                // Dedicated insurance page still mixes non-life stories. Preserve explicit
+                // life/bancassurance evidence plus cross-sector technology shifts; claims
+                // from typhoons and P&C company milestones do not serve a life-product brief.
+                if (!isBizhubLifeOrIndustryTechnology(title)) continue;
+                Instant date = dateFromEnglishNewsText(block);
+                unique.putIfAbsent(headings.group(2).strip(),
+                        new ListingItem(title, headings.group(2).strip(), date));
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("BIZHUB_INSURANCE reader returned no qualified post links");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("BIZHUB_INSURANCE reader parse failed: " + e.getMessage());
+        }
+    }
+
+    private static boolean isBizhubLifeOrIndustryTechnology(String title) {
+        if (title == null || title.isBlank()) return false;
+        String folded = title.toLowerCase(Locale.ROOT);
+        // BizHub's /insurance vertical covers both life and non-life. PVI/Bảo Minh
+        // milestones and property/casualty loss stories are not competitor evidence
+        // for a life-insurance Product brief, even when the headline says
+        // "Vietnamese insurer(s)" and would otherwise pass the broad VN predicate.
+        boolean explicitNonLife = folded.contains("pvi insurance")
+                || folded.contains("bao minh") || folded.contains("bảo minh")
+                || folded.contains("non-life") || folded.contains("nonlife")
+                || folded.contains("property and casualty") || folded.contains("p&c")
+                || folded.contains("motor insurance") || folded.contains("hurricane")
+                || folded.contains("typhoon");
+        if (explicitNonLife) return false;
+        boolean industryTechnology = folded.contains("insurance industry")
+                && (folded.contains("data") || folded.matches(".*\\bai\\b.*")
+                || folded.contains("digital") || folded.contains("technology"));
+        return isVietnamLifeInsuranceRelevant(title) || industryTechnology;
+    }
+
+    private static Instant dateFromEnglishNewsText(String text) {
+        if (text == null) return null;
+        var matcher = java.util.regex.Pattern.compile(
+                "(?m)(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\\s+"
+                        + "([A-Z][a-z]{2}\\s+\\d{1,2},\\s+20\\d{2})")
+                .matcher(text);
+        if (!matcher.find()) return null;
+        try {
+            return LocalDate.parse(matcher.group(1),
+                    DateTimeFormatter.ofPattern("MMM d, uuuu", Locale.ENGLISH))
+                    .atStartOfDay(VN_ZONE).toInstant();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /** Báo Chính phủ's official insurance tag: legislation, decrees and policy implementation. */
+    public List<ListingItem> parseBaoChinhPhuInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element row : doc.select(".box-stream-item")) {
+                Element a = row.selectFirst("a.box-stream-link-title[href]");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                String foldedTitle = foldVietnamese(title);
+                // This archive mixes life, non-life and social-insurance policy. A
+                // broad "doanh nghiệp bảo hiểm" headline is not enough: it previously
+                // admitted a vessel-casualty story. Keep only explicit life markers or
+                // cross-industry policy subjects Strategy genuinely needs.
+                boolean lifePolicy = hasExplicitVietnamLifeMarker(foldedTitle)
+                        || foldedTitle.contains("huu tri bo sung")
+                        || foldedTitle.contains("luat kinh doanh bao hiem")
+                        || (foldedTitle.contains("dai ly bao hiem")
+                        && !foldedTitle.contains("bao hiem xa hoi"));
+                if (!lifePolicy) continue;
+                String link = a.absUrl("href");
+                Element time = row.selectFirst(".box-stream-time");
+                Instant date = time == null ? null : dateFromText(time.text());
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, date));
+                }
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("BAOCHINHPHU_INSURANCE: không tìm thấy bài");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("BAOCHINHPHU_INSURANCE: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** VnExpress' dedicated business/insurance archive. Detail metadata supplies exact dates. */
+    public List<ListingItem> parseVnExpressInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element row : doc.select("article.item-news")) {
+                Element a = row.selectFirst("h2.title-news a[href], h3.title-news a[href]");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                if (!isVietnamLifeInsuranceRelevant(title)) continue;
+                String link = a.absUrl("href");
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, null));
+                }
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("VNEXPRESS_INSURANCE: không tìm thấy bài");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("VNEXPRESS_INSURANCE: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** Báo Đầu tư's exact life-insurance tag; article pages provide authoritative dates. */
+    public List<ListingItem> parseBaoDauTuLife(byte[] body, String baseUrl) throws ParseFailedException {
+        return parseCardLinks(body, baseUrl,
+                "ul.list_news_home article .desc_list_news_home > a.fs22[href]",
+                null, "BAODAUTU_LIFE");
+    }
+
+    /**
+     * Thoi bao Tai chinh Viet Nam's category and advertised RSS currently return
+     * an empty/general shell. Its own public search is the stable discovery surface.
+     * Scope the selector to the result container so header tickers never become docs.
+     */
+    public List<ListingItem> parseTbtcoLifeSearch(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        return parseCardLinks(body, baseUrl,
+                ".bx-results .bx-cat-content.__MB_LIST_ITEM .article "
+                        + "h3.article-title a.article-link[href]",
+                null, "TBTCO_LIFE_SEARCH");
+    }
+
+    /**
+     * VietnamFinance has a high-yield consumer-finance archive but mixes tax, credit
+     * and private-insurance stories. Select only private/life-insurance evidence before
+     * downloading article bodies so irrelevant news never enters the corpus.
+     */
+    public List<ListingItem> parseVietnamFinanceLife(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            for (Element row : doc.select(".article.article_last")) {
+                Element a = row.selectFirst(".article__title a[href]");
+                if (a == null) continue;
+                String title = nonBlank(a.attr("title"), a.text());
+                if (!isVietnamLifeInsuranceRelevant(title)) continue;
+                String link = a.absUrl("href");
+                Instant date = null;
+                String rawDate = row.attr("last-push").strip();
+                if (!rawDate.isBlank()) {
+                    try { date = LocalDateTime.parse(rawDate, fmt).atZone(VN_ZONE).toInstant(); }
+                    catch (Exception ignored) {}
+                }
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, date));
+                }
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("VIETNAMFINANCE_LIFE: khong tim thay bai bao hiem nhan tho");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("VIETNAMFINANCE_LIFE: loi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** Keep a broad RSS useful without importing an entire finance newsroom. */
+    public List<RssItem> selectVietnamLifeInsurance(List<RssItem> items) throws ParseFailedException {
+        List<RssItem> selected = items.stream()
+                .filter(item -> isVietnamLifeInsuranceRelevant(
+                        item.title() + " " + item.descriptionText()))
+                .toList();
+        if (selected.isEmpty()) {
+            throw new ParseFailedException("Feed hien tai khong co bai bao hiem tu nhan/nhan tho");
+        }
+        return selected;
+    }
+
+    static boolean isVietnamLifeInsuranceRelevant(String value) {
+        if (value == null || value.isBlank()) return false;
+        String folded = foldVietnamese(value);
+        boolean explicitLife = hasExplicitVietnamLifeMarker(folded);
+        boolean explicitNonLife = folded.contains("bao hiem phi nhan tho")
+                || folded.contains("phi nhan tho") || folded.contains("non-life")
+                || folded.contains("nonlife") || folded.contains("property and casualty")
+                || folded.contains("p&c") || folded.contains("pvi insurance")
+                || folded.matches(".*\\bbao minh\\b.*") || folded.matches(".*\\bbic\\b.*")
+                || folded.matches(".*\\bopes\\b.*");
+        if (explicitNonLife && !explicitLife) return false;
+        return folded.contains("bao hiem nhan tho")
+                || folded.contains("nganh bao hiem viet nam")
+                || folded.contains("thi truong bao hiem")
+                || folded.contains("doanh nghiep bao hiem")
+                || folded.contains("bao hiem lien ket")
+                || folded.contains("bao hiem huu tri")
+                || folded.contains("bao hiem nhom")
+                || folded.contains("bancassurance")
+                || folded.contains("insurtech")
+                || folded.contains("vietnam life insurance")
+                || folded.contains("vietnam's life insurance")
+                || folded.contains("vietnam insurance market")
+                || folded.contains("vietnamese insurer")
+                || folded.contains("vietnam insurer")
+                || explicitLife;
+    }
+
+    /** Caller supplies already accent-folded, lower-case text. */
+    private static boolean hasExplicitVietnamLifeMarker(String folded) {
+        return folded.contains("bao hiem nhan tho")
+                || folded.contains("life insurance") || folded.contains("life insurer")
+                || folded.contains("bao hiem huu tri") || folded.contains("huu tri bo sung")
+                || folded.contains("bancassurance") || folded.contains("insurtech")
+                || folded.contains("bao hiem lien ket") || folded.contains("bao hiem nhom")
+                || folded.contains("prudential") || folded.contains("manulife")
+                || folded.contains("dai-ichi") || folded.contains("daiichi life")
+                || folded.contains("generali") || folded.contains("chubb life")
+                || folded.contains("sun life") || folded.contains("fwd viet nam")
+                || folded.contains("aia viet nam") || folded.contains("bao viet life")
+                || folded.contains("bao viet nhan tho") || folded.contains("mb life")
+                || folded.contains("mb ageas") || folded.contains("techcom life")
+                || folded.contains("cathay life") || folded.contains("shinhan life")
+                || folded.contains("hanwha life") || folded.contains("fubon life")
+                || folded.contains("phu hung life") || folded.contains("bidv metlife")
+                || folded.contains("mvi life") || folded.contains("lpbank life")
+                || folded.contains("lp life");
+    }
+
+    private static String foldVietnamese(String value) {
+        return Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('đ', 'd').replace('Đ', 'D')
+                .toLowerCase(Locale.ROOT);
+    }
+
+    /** VnEconomy's insurance category; dates are present on article detail pages. */
+    public List<ListingItem> parseVnEconomyInsurance(byte[] body, String baseUrl) throws ParseFailedException {
+        List<ListingItem> cards = parseCardLinks(body, baseUrl, "article.new-item_vertical h3 a[href], "
+                + "article.new-item_horizontal h3 a[href]", null, "VNECONOMY");
+        // The right rail and "latest" modules reuse the category-card classes. Filter
+        // before article fetch so gold, tax, equities and generic banking never enter
+        // the insurance corpus merely because they were recommended on this page.
+        return cards.stream()
+                .filter(item -> isVietnamLifeInsuranceRelevant(item.title()))
+                .toList();
+    }
+
+    /** National Statistics Office monthly macro releases—the time spine for every report. */
+    public List<ListingItem> parseNsoMonthly(byte[] body, String baseUrl) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element section : doc.select(".archive-container section.item")) {
+                Element heading = section.selectFirst("h3");
+                Element anchor = section.parent();
+                while (anchor != null && !anchor.is("a[href]")) anchor = anchor.parent();
+                if (heading == null || anchor == null) continue;
+                String title = heading.text().strip();
+                String link = anchor.absUrl("href");
+                Element date = section.selectFirst(".archive-issue-date");
+                Instant published = date == null ? null : dateFromText(date.text());
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, published));
+                }
+            }
+            // Some HTML parsers close the intentionally malformed <p><a><section> structure.
+            // Pair anchors and sections by their original order as a deterministic fallback.
+            if (unique.isEmpty()) {
+                Elements anchors = doc.select(".archive-container > p > a[href]");
+                Elements sections = doc.select(".archive-container section.item");
+                for (int i = 0; i < Math.min(anchors.size(), sections.size()); i++) {
+                    String title = sections.get(i).selectFirst("h3").text().strip();
+                    String link = anchors.get(i).absUrl("href");
+                    Element date = sections.get(i).selectFirst(".archive-issue-date");
+                    unique.putIfAbsent(link, new ListingItem(title, link,
+                            date == null ? null : dateFromText(date.text())));
+                }
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("NSO_VN: không tìm thấy monthly releases");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("NSO_VN: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    private List<ListingItem> parseCardLinks(byte[] body, String baseUrl, String selector,
+                                             String dateSelector, String code) throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element a : doc.select(selector)) {
+                String title = nonBlank(a.attr("title"), Jsoup.parse(a.attr("aria-label")).text(), a.text());
+                String link = a.absUrl("href");
+                Instant date = dateFromText(title + " " + link);
+                if (!title.isBlank() && !link.isBlank()) unique.putIfAbsent(link, new ListingItem(title, link, date));
+            }
+            if (unique.isEmpty()) throw new ParseFailedException(code + ": listing selector returned no articles");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException(code + ": lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    private static String nonBlank(String... values) {
+        for (String value : values) if (value != null && !value.isBlank()) return value.strip();
+        return "";
+    }
+
+    /**
+     * Official statutory-report pages are a distinct evidence lane from company news.
+     * This parser keeps only current reporting periods and returns the actual report
+     * document/intermediate URL, never the generic landing page.  It intentionally does
+     * not infer a publication date from the accounting period; the closest explicit page
+     * date (or the HTTP Last-Modified header during download) supplies that evidence.
+     */
+    public List<ListingItem> parseFinancialReportLinks(byte[] body, String baseUrl, String code)
+            throws ParseFailedException {
+        try {
+            String rawHtml = new String(body, StandardCharsets.UTF_8);
+            Document doc = Jsoup.parse(rawHtml, baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element a : doc.select("a[href]")) {
+                addFinancialLink(unique, a.absUrl("href"),
+                        nonBlank(a.attr("title"), a.attr("aria-label"), a.text()),
+                        financialContext(a), code);
+            }
+            // Some official CMS pages (notably Phu Hung Life) serialise the real
+            // report anchors inside a JavaScript JSON string. Jsoup correctly treats
+            // script contents as data, so perform one bounded, deterministic pass over
+            // decoded anchor markup rather than executing the script.
+            String decoded = rawHtml.replace("\\\"", "\"")
+                    .replace("\\/", "/")
+                    .replace("\\u003c", "<")
+                    .replace("\\u003e", ">");
+            var embeddedAnchors = java.util.regex.Pattern.compile(
+                    "(?is)<a\\s+[^>]*href=\"([^\"]+)\"[^>]*>(.*?)</a>")
+                    .matcher(decoded);
+            while (embeddedAnchors.find()) {
+                String href = embeddedAnchors.group(1).strip();
+                String link;
+                try {
+                    link = URI.create(baseUrl).resolve(href.replace(" ", "%20")).toASCIIString();
+                } catch (Exception invalid) {
+                    continue;
+                }
+                int from = Math.max(0, embeddedAnchors.start() - 240);
+                int to = Math.min(decoded.length(), embeddedAnchors.end() + 240);
+                addFinancialLink(unique, link, Jsoup.parse(embeddedAnchors.group(2)).text(),
+                        Jsoup.parse(decoded.substring(from, to)).text(), code);
+            }
+            // Dai-ichi uses a same-host PDF.js wrapper whose only real document URL is
+            // carried in iframe ?file=.  Resolve and store that official PDF URL.
+            for (Element iframe : doc.select("iframe[src*='file=']")) {
+                String src = iframe.absUrl("src");
+                int fileAt = src.indexOf("file=");
+                if (fileAt < 0) continue;
+                String encoded = src.substring(fileAt + 5);
+                int amp = encoded.indexOf('&');
+                if (amp >= 0) encoded = encoded.substring(0, amp);
+                String decodedFile = java.net.URLDecoder.decode(encoded, StandardCharsets.UTF_8);
+                String link = URI.create(baseUrl).resolve(decodedFile.replace(" ", "%20")).toString();
+                addFinancialLink(unique, link, titleFromUrl(link), doc.title(), code);
+            }
+            // AIA Vietnam publishes the statutory summary as a first-party Dynamic
+            // Media image. Scene7 deterministically serves the exact same asset as PDF
+            // with fmt=pdf, allowing the existing bounded PDF/OCR path to extract the
+            // figures instead of storing an empty HTML wrapper or relying on vision AI.
+            if ("AIA_VN_FINANCIALS".equals(code)) {
+                for (Element image : doc.select("img[src*='scene7.com/is/image/aia/']")) {
+                    String src = image.absUrl("src");
+                    try {
+                        URI uri = URI.create(src);
+                        if (!"s7ap1.scene7.com".equalsIgnoreCase(uri.getHost())) continue;
+                        String link = new URI("https", uri.getAuthority(), uri.getPath(),
+                                "fmt=pdf", null).toASCIIString();
+                        String title = nonBlank(doc.title(), image.attr("alt"), titleFromUrl(link));
+                        addFinancialLink(unique, link, title, doc.text(), code);
+                    } catch (Exception ignored) {
+                        // A malformed image URL is skipped; it never weakens host checks.
+                    }
+                }
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException(code + ": no current statutory financial-report links found");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException(code + ": financial listing parse failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Techcombank investor releases are an official view of bancassurance economics.
+     * Keep only current quarterly press-release PDFs; the bank's generic IR page also
+     * contains ratings, shareholder notices and unrelated bank documents.
+     */
+    public List<ListingItem> parseTechcombankLifeResults(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element a : doc.select("a.list-row-content_item[href$=.pdf]")) {
+                String link = a.absUrl("href");
+                String title = nonBlank(a.select("h3.list-row-content_title").text(), a.attr("title"));
+                String primary = title + " " + link;
+                int currentYear = LocalDate.now(VN_ZONE).getYear();
+                boolean current = primary.contains(String.valueOf(currentYear))
+                        || link.toLowerCase(Locale.ROOT).matches(".*(?:1q|2q|3q|4q)"
+                                + String.valueOf(currentYear).substring(2) + ".*");
+                boolean resultRelease = link.toLowerCase(Locale.ROOT).contains("press-release")
+                        || Normalizer.normalize(title, Normalizer.Form.NFD)
+                        .replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT)
+                        .contains("cap nhat kqkd");
+                if (!current || !resultRelease || link.isBlank()) continue;
+                unique.putIfAbsent(link, new ListingItem(title, link, dateFromText(a.text())));
+            }
+            if (unique.isEmpty()) throw new ParseFailedException(
+                    "TECHCOMBANK_IR_LIFE_RESULTS: no current quarterly press-release PDF");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("TECHCOMBANK_IR_LIFE_RESULTS parse failed: " + e.getMessage());
+        }
+    }
+
+    /** FWD's Next.js payload publishes official statutory PDFs on its fixed CDN. */
+    public List<ListingItem> parseFwdFinancialLinks(byte[] body) throws ParseFailedException {
+        try {
+            String text = new String(body, StandardCharsets.UTF_8)
+                    .replace("\\u002D", "-").replace("\\/", "/");
+            var links = java.util.regex.Pattern.compile(
+                    "https://assets\\.contentstack\\.io/[A-Za-z0-9_./%~-]+\\.pdf",
+                    java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            while (links.find()) {
+                String link = links.group().strip();
+                String title = titleFromUrl(link);
+                if (!isCurrentFinancialReport(title + " " + link)) continue;
+                unique.putIfAbsent(link, new ListingItem(title, link, null));
+            }
+            if (unique.isEmpty()) throw new ParseFailedException(
+                    "FWD_VN_FINANCIALS: no current official CDN report PDFs");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("FWD_VN_FINANCIALS parse failed: " + e.getMessage());
+        }
+    }
+
+    /** Generali's Next.js HTML serialises the report routes as React-flight data. */
+    public List<ListingItem> parseGeneraliFinancialLinks(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            String text = new String(body, StandardCharsets.UTF_8)
+                    .replace("\\\"", "\"")
+                    .replace("\\u003c", "<")
+                    .replace("\\u003e", ">");
+            var matcher = java.util.regex.Pattern.compile(
+                    "\\\"display_name\\\":\\\"([^\\\"]+)\\\",\\\"slug\\\":\\\"([^\\\"]+)\\\",\\\"announce\\\":(null|\\\"([^\\\"]*)\\\")")
+                    .matcher(text);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            while (matcher.find()) {
+                String title = matcher.group(1).strip();
+                if (!isCurrentFinancialReport(title)) continue;
+                String link = origin + "/page/thu-vien-thong-tin/tai-lieu-bieu-mau/"
+                        + matcher.group(2).strip();
+                String announce = matcher.group(4) == null ? "" : Jsoup.parse(matcher.group(4)).text();
+                unique.putIfAbsent(link, new ListingItem(title, link, dateFromText(announce)));
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("GENERALI_VN_FINANCIALS: no current report routes in Next data");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("GENERALI_VN_FINANCIALS parse failed: " + e.getMessage());
+        }
+    }
+
+    /** BIDV MetLife's public forms-library endpoint is the data source used by its own UI. */
+    public List<ListingItem> parseBidvMetlifeFinancials(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            JsonNode docs = JSON.readTree(body).path("response").path("docs");
+            if (!docs.isArray()) throw new ParseFailedException("BIDV_METLIFE_FINANCIALS: docs array missing");
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (JsonNode doc : docs) {
+                String title = doc.path("file_title").asText("").strip();
+                String file = doc.path("file_url").asText("").strip();
+                if (title.isBlank() || file.isBlank() || !isCurrentFinancialReport(title + " " + file)) continue;
+                JsonNode uploaded = doc.path("file_uploaded");
+                Instant date = null;
+                if (uploaded.isObject()) {
+                    try {
+                        // The MetLife component exposes java.time.MonthValue (zero-based in JSON).
+                        date = LocalDate.of(uploaded.path("year").asInt(),
+                                        uploaded.path("month").asInt() + 1,
+                                        uploaded.path("dayOfMonth").asInt())
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (Exception ignored) {}
+                }
+                String link = URI.create(origin + "/")
+                        .resolve(file.replace(" ", "%20")).toASCIIString();
+                unique.putIfAbsent(link, new ListingItem(title, link, date));
+            }
+            if (unique.isEmpty()) throw new ParseFailedException("BIDV_METLIFE_FINANCIALS: no current reports");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("BIDV_METLIFE_FINANCIALS parse failed: " + e.getMessage());
+        }
+    }
+
+    /** Sun Life's WAF requires the explicitly allow-listed Reader transport. */
+    public List<ListingItem> parseSunLifeFinancialReader(byte[] body) throws ParseFailedException {
+        return parseReaderFinancialLinks(body, "www.sunlife.com.vn", "SUNLIFE_VN_FINANCIALS");
+    }
+
+    /** Reader-rendered official report page; PDF host must still match the declared publisher. */
+    public List<ListingItem> parseReaderFinancialLinks(byte[] body, String officialHost, String code)
+            throws ParseFailedException {
+        try {
+            String markdown = new String(body, StandardCharsets.UTF_8);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            // Bind each link to its own heading block. A sliding character window can
+            // leak "2025" from the adjacent section into a 2023/2024 report and falsely
+            // classify old evidence as current.
+            var sections = java.util.regex.Pattern.compile(
+                    "(?ms)^#{2,6}\\s+([^\\r\\n]+)\\R(.*?)(?=^#{2,6}\\s+|\\z)")
+                    .matcher(markdown);
+            while (sections.find()) {
+                // Some publisher headings are themselves links to "#". Preserve the
+                // visible label; deleting the whole Markdown link erased the report year
+                // and made a valid current PDF look undated (Bảo Việt Nhân thọ).
+                String heading = sections.group(1)
+                        .replaceAll("\\[([^]]*)]\\([^)]*\\)", "$1").strip();
+                String section = sections.group(2);
+                var links = java.util.regex.Pattern.compile(
+                        "\\[([^]\\r\\n]*)]\\((https://[^)]+\\.pdf)\\)",
+                        java.util.regex.Pattern.CASE_INSENSITIVE).matcher(section);
+                while (links.find()) {
+                    String link = links.group(2).strip();
+                    String host;
+                    try { host = URI.create(link).getHost(); } catch (Exception invalid) { continue; }
+                    if (host == null || !host.equalsIgnoreCase(officialHost)) continue;
+                    String title = nonBlank(heading, links.group(1), titleFromUrl(link));
+                    String context = heading + "\n" + section;
+                    addFinancialLink(unique, link, title, context, code);
+                }
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException(code + ": Reader exposed no current official PDF");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException(code + " parse failed: " + e.getMessage());
+        }
+    }
+
+    /** Shinhan's Reader page is a flat link list rather than heading-delimited sections. */
+    public List<ListingItem> parseShinhanFinancialReader(byte[] body) throws ParseFailedException {
+        try {
+            String markdown = new String(body, StandardCharsets.UTF_8).replace("\r\n", "\n");
+            var links = java.util.regex.Pattern.compile(
+                    "(?m)^\\[([^]\\r\\n]+)]\\((https://www\\.shinhanlifevn\\.com\\.vn/"
+                            + "media/[^)]+\\.pdf)\\)\\s*$",
+                    java.util.regex.Pattern.CASE_INSENSITIVE).matcher(markdown);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            while (links.find()) {
+                int to = Math.min(markdown.length(), links.end() + 100);
+                String context = markdown.substring(links.start(), to);
+                addFinancialLink(unique, links.group(2).strip(), links.group(1).strip(),
+                        context, "SHINHAN_VN_FINANCIALS");
+            }
+            if (unique.isEmpty()) throw new ParseFailedException(
+                    "SHINHAN_VN_FINANCIALS: Reader exposed no current HTTPS official PDF");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("SHINHAN_VN_FINANCIALS parse failed: " + e.getMessage());
+        }
+    }
+
+    private static void addFinancialLink(Map<String, ListingItem> unique, String link,
+                                         String title, String context, String code) {
+        if (link == null || link.isBlank() || !link.startsWith("https://")) return;
+        try {
+            URI uri = URI.create(link);
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            String foldedPath = path.toLowerCase(Locale.ROOT);
+            // Navigation/login links often sit inside the same DOM card as the report
+            // title. They are not evidence documents and must not consume crawl budget.
+            if (path.isBlank() || "/".equals(path) || foldedPath.contains("/auth/login")) return;
+            // Empty fragments create a second URL for the exact same page.
+            if (uri.getFragment() != null) {
+                link = new URI(uri.getScheme(), uri.getAuthority(), uri.getPath(),
+                        uri.getQuery(), null).toASCIIString();
+            }
+        } catch (Exception invalid) {
+            return;
+        }
+        String candidate = nonBlank(title, titleFromUrl(link));
+        // The URL is the strongest period signal, but the visible label still carries
+        // the semantic marker (for example "Báo cáo tài chính").  Preserve those words
+        // while stripping competing label/context years whenever the URL has its own
+        // year. This prevents a 2024 PDF under a 2025 heading from passing, without
+        // losing the document type merely because its filename uses English hyphens.
+        String decodedLink;
+        try {
+            decodedLink = java.net.URLDecoder.decode(link, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            decodedLink = link;
+        }
+        boolean urlHasYear = java.util.regex.Pattern.compile("(?<!\\d)20\\d{2}(?!\\d)")
+                .matcher(decodedLink).find();
+        String combined = urlHasYear
+                ? (candidate + " " + (context == null ? "" : context))
+                        .replaceAll("20\\d{2}", "") + " " + decodedLink
+                : financialEvidenceText(candidate + " " + decodedLink, context);
+        if (!isCurrentFinancialReport(combined)) return;
+        unique.putIfAbsent(link, new ListingItem(candidate, link, dateFromText(context)));
+    }
+
+    /**
+     * Prefer the report's own title/URL year. Only use surrounding section text when
+     * the primary link has no explicit year. This prevents a current section heading
+     * from making an adjacent 2023/2024 report look current.
+     */
+    private static String financialEvidenceText(String primary, String context) {
+        String safePrimary = primary == null ? "" : primary;
+        if (java.util.regex.Pattern.compile("20\\d{2}").matcher(safePrimary).find()) {
+            return safePrimary;
+        }
+        return safePrimary + " " + (context == null ? "" : context);
+    }
+
+    private static String financialContext(Element element) {
+        Element parent = element.closest("tr, li, article, .cmp-accordion__item, .document, .report-item, .item");
+        if (parent == null) parent = element.parent();
+        return parent == null ? element.text() : parent.text();
+    }
+
+    private static boolean isCurrentFinancialReport(String raw) {
+        if (raw == null) return false;
+        String folded = Normalizer.normalize(raw, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
+        boolean financial = folded.contains("bao cao tai chinh")
+                || folded.contains("financial statement")
+                || folded.contains("financial report")
+                || folded.contains("statutory report")
+                || folded.contains("ket qua kinh doanh")
+                || folded.contains("bc-kqkd")
+                || folded.contains("bc kqkd")
+                || folded.contains("bc-tc")
+                || folded.contains("bc tc")
+                || folded.matches("(?s).*\\bbctc\\b.*");
+        if (!financial || folded.contains("quy lien ket") || folded.contains("fund report")) return false;
+        int floor = LocalDate.now(VN_ZONE).getYear() - 1;
+        var year = java.util.regex.Pattern.compile("20\\d{2}").matcher(folded);
+        while (year.find()) {
+            int value = Integer.parseInt(year.group());
+            if (value >= floor && value <= floor + 1) return true;
+        }
+        return false;
+    }
+
+    private static Instant dateFromText(String text) {
+        if (text == null) return null;
+        var dmy = java.util.regex.Pattern.compile("(?<!\\d)(\\d{1,2}/\\d{1,2}/20\\d{2})(?!\\d)").matcher(text);
+        if (dmy.find()) {
+            try { return plausiblePublishedInstant(LocalDate.parse(
+                    dmy.group(1), DateTimeFormatter.ofPattern("d/M/uuuu"))); }
+            catch (Exception ignored) {}
+        }
+        var dotted = java.util.regex.Pattern.compile("(?<!\\d)(\\d{1,2}\\.\\d{1,2}\\.20\\d{2})(?!\\d)")
+                .matcher(text);
+        if (dotted.find()) {
+            try { return plausiblePublishedInstant(LocalDate.parse(
+                    dotted.group(1), DateTimeFormatter.ofPattern("d.M.uuuu"))); }
+            catch (Exception ignored) {}
+        }
+        var iso = ISO_YMD.matcher(text);
+        if (iso.find()) {
+            try { return plausiblePublishedInstant(LocalDate.parse(iso.group(1))); }
+            catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private static Instant plausiblePublishedInstant(LocalDate date) {
+        if (date == null || date.isAfter(LocalDate.now(VN_ZONE).plusDays(1))) return null;
+        return date.atStartOfDay(VN_ZONE).toInstant();
+    }
+
+    /**
+     * Jina Reader is an explicitly allow-listed transport fallback for official sites whose
+     * WAF rejects our server-side client.  It returns deterministic Markdown; attribution and
+     * the stored URL remain the official publisher URL.  These parsers deliberately accept
+     * only the two known official archive shapes, never arbitrary Reader search results.
+     */
+    public List<ListingItem> parseSunLifeReaderListing(byte[] body) throws ParseFailedException {
+        try {
+            String markdown = new String(body, StandardCharsets.UTF_8);
+            var pattern = java.util.regex.Pattern.compile(
+                    "(?m)^(\\d{1,2}/\\d{1,2}/20\\d{2})\\s*\\R+"
+                    + "\\[([^]\\r\\n]+)]\\((https://www\\.sunlife\\.com\\.vn/"
+                    + "vn/ve-chung-toi/tin-tuc-su-kien/20\\d{2}/(?!\\d+/)[^)]+)\\)");
+            var matcher = pattern.matcher(markdown);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            while (matcher.find()) {
+                String link = matcher.group(3).strip();
+                unique.putIfAbsent(link, new ListingItem(matcher.group(2).strip(), link,
+                        dateFromText(matcher.group(1))));
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("SUNLIFE_VN reader listing returned no dated official articles");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("SUNLIFE_VN reader listing parse failed: " + e.getMessage());
+        }
+    }
+
+    /** Return only same-year archive pagination links; article links are excluded by shape. */
+    public List<String> parseSunLifeReaderPagination(byte[] body) {
+        String markdown = new String(body, StandardCharsets.UTF_8);
+        var pattern = java.util.regex.Pattern.compile(
+                "https://www\\.sunlife\\.com\\.vn/vn/ve-chung-toi/tin-tuc-su-kien/20\\d{2}/\\d+/");
+        var matcher = pattern.matcher(markdown);
+        java.util.LinkedHashSet<String> unique = new java.util.LinkedHashSet<>();
+        while (matcher.find()) unique.add(matcher.group());
+        return List.copyOf(unique);
+    }
+
+    public List<ListingItem> parseBaoVietReaderListing(byte[] body) throws ParseFailedException {
+        try {
+            String markdown = new String(body, StandardCharsets.UTF_8);
+            var pattern = java.util.regex.Pattern.compile(
+                    "\\[([^]\\r\\n]+)]\\((https://www\\.baovietnhantho\\.com\\.vn/"
+                    + "tin-tuc/(?!danh-muc(?:/|\\)))[^)\\s]+)(?:\\s+\"[^\"]*\")?\\)");
+            var matcher = pattern.matcher(markdown);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            while (matcher.find()) {
+                String title = matcher.group(1).strip();
+                String link = matcher.group(2).strip();
+                if (!title.isBlank() && !title.equalsIgnoreCase("Xem thêm")) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, null));
+                }
+            }
+            if (unique.isEmpty()) {
+                throw new ParseFailedException("BVNT reader listing returned no official articles");
+            }
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("BVNT reader listing parse failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Bao Viet Holdings is a separate legal/reporting entity from Bao Viet Life. Keep the
+     * source identity explicit and select only group results that contain useful life-insurer
+     * evidence; procurement and securities-administration notices are excluded upstream.
+     */
+    public List<ListingItem> parseBaoVietHoldingsReaderListing(byte[] body)
+            throws ParseFailedException {
+        try {
+            String markdown = new String(body, StandardCharsets.UTF_8);
+            var pattern = java.util.regex.Pattern.compile(
+                    "(?m)^### \\[([^]\\r\\n]+)]\\((https://www\\.baoviet\\.com\\.vn/"
+                    + "(?:vi|en)/[^)#?]+)\\)\\s*\\R+(\\d{1,2}[./]\\d{1,2}[./]20\\d{2})\\s*$");
+            var matcher = pattern.matcher(markdown);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            while (matcher.find()) {
+                String title = matcher.group(1).strip();
+                if (!isBaoVietHoldingsLifeEvidence(title)) continue;
+                String link = matcher.group(2).strip();
+                unique.putIfAbsent(link, new ListingItem(title, link, dateFromText(matcher.group(3))));
+            }
+            return List.copyOf(unique.values());
+        } catch (Exception e) {
+            throw new ParseFailedException("BAOVIET_HOLDINGS_NEWS reader parse failed: " + e.getMessage());
+        }
+    }
+
+    private static boolean isBaoVietHoldingsLifeEvidence(String title) {
+        if (isVietnamLifeInsuranceRelevant(title)) return true;
+        String folded = Normalizer.normalize(title == null ? "" : title, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('đ', 'd').replace('Đ', 'D')
+                .toLowerCase(Locale.ROOT);
+        boolean correctGroup = folded.contains("tap doan bao viet")
+                || folded.contains("bao viet (bvh)")
+                || folded.contains("baoviet holdings");
+        boolean resultEvidence = folded.contains("ket qua kinh doanh")
+                || folded.contains("doanh thu")
+                || folded.contains("loi nhuan")
+                || folded.contains("tong tai san")
+                || folded.contains("financial result");
+        return correctGroup && resultEvidence;
+    }
+
+    /** Parse one Reader-rendered official article into clean text and reliable page metadata. */
+    public ReaderArticle parseReaderArticle(byte[] body) throws ParseFailedException {
+        try {
+            String response = new String(body, StandardCharsets.UTF_8).replace("\r\n", "\n");
+            String title = "";
+            var titleMatcher = java.util.regex.Pattern.compile("(?m)^Title:\\s*(.+)$").matcher(response);
+            if (titleMatcher.find()) title = titleMatcher.group(1).strip();
+            int markdownMarker = response.indexOf("Markdown Content:");
+            String markdown = markdownMarker >= 0
+                    ? response.substring(markdownMarker + "Markdown Content:".length()).strip()
+                    : response.strip();
+
+            // Navigation precedes the article on both official sites.  The first H1 is the
+            // article's semantic boundary; keep no menus above it.
+            Instant boundaryPublishedAt = null;
+            var h1 = java.util.regex.Pattern.compile("(?m)^#\\s+(.+)$").matcher(markdown);
+            if (h1.find()) {
+                if (title.isBlank()) title = h1.group(1).strip();
+                // Some official Reader pages put the true publication date immediately
+                // before the article H1 (for example "Khuyến mãi 31/07/2026").  Dates
+                // inside the body may instead be programme end dates. Prefer the semantic
+                // boundary metadata before falling back to article text.
+                int contextStart = Math.max(0, h1.start() - 400);
+                boundaryPublishedAt = dateFromText(markdown.substring(contextStart, h1.start()));
+                markdown = markdown.substring(h1.start());
+            }
+            int cut = markdown.length();
+            for (String marker : List.of("\n### Truy cập nhanh", "\n## Tin liên quan",
+                    "\n### Liên hệ", "\nCopyright ©", "\n* * *\n### Sản phẩm")) {
+                int at = markdown.indexOf(marker);
+                if (at >= 0 && at < cut) cut = at;
+            }
+            markdown = markdown.substring(0, cut);
+            Instant publishedAt = boundaryPublishedAt == null
+                    ? dateFromText(markdown) : boundaryPublishedAt;
+
+            String text = markdown
+                    .replaceAll("!\\[[^]]*]\\([^)]*\\)", " ")
+                    .replaceAll("\\[([^]]+)]\\([^)]*\\)", "$1")
+                    .replaceAll("(?m)^#{1,6}\\s*", "")
+                    .replaceAll("(?m)^\\s*[-*]\\s+", "• ")
+                    .replaceAll("(?m)^\\s*\\|?[-: ]{3,}(?:\\|[-: ]{3,})+\\|?\\s*$", "")
+                    .replace("**", "")
+                    .replace("__", "")
+                    .replaceAll("[ \\t]+", " ")
+                    .replaceAll("\\n{3,}", "\\n\\n")
+                    .strip();
+            if (text.length() < 300) {
+                throw new ParseFailedException("Reader article contained only " + text.length()
+                        + " clean characters after navigation removal");
+            }
+            return new ReaderArticle(title, text, publishedAt);
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("Reader article parse failed: " + e.getMessage());
+        }
+    }
+
     /** PDF → text thuần, giới hạn trang. */
     public ParsedText parsePdf(byte[] body) throws ParseFailedException {
         try (PDDocument doc = PDDocument.load(body)) {
@@ -202,8 +1331,16 @@ public class ContentParsers {
             stripper.setStartPage(1);
             stripper.setEndPage(pages);
             String text = stripper.getText(doc);
-            if (text == null || text.isBlank()) {
-                throw new ParseFailedException("PDF không trích được text (có thể là scan ảnh)");
+            if (text == null || text.strip().length() < 200) {
+                int ocrPages = Math.min(doc.getNumberOfPages(), PDF_OCR_MAX_PAGES);
+                var ocr = MacVisionPdfOcr.extract(body, ocrPages);
+                if (ocr.isPresent()) {
+                    String note = "OCR cục bộ bằng macOS Vision: " + ocr.get().pages()
+                            + "/" + doc.getNumberOfPages() + " trang; không dùng API";
+                    return new ParsedText(null, ocr.get().text(), note);
+                }
+                throw new ParseFailedException(
+                        "PDF không có text nhúng và local OCR không khả dụng/không đọc được");
             }
             String note = doc.getNumberOfPages() > PDF_MAX_PAGES
                     ? "Cắt ở " + PDF_MAX_PAGES + "/" + doc.getNumberOfPages() + " trang" : null;
@@ -557,7 +1694,8 @@ public class ContentParsers {
 
     /**
      * Thời báo Ngân hàng (thoibaonganhang.vn) — trang chủ, server-rendered, KHÔNG có
-     * chuyên mục bảo hiểm riêng nên lấy trang chủ (Classifier lọc liên quan sau).
+     * chuyên mục bảo hiểm riêng nên lấy trang chủ, nhưng lọc tiêu đề bảo hiểm NGAY TẠI
+     * acquisition để tin ngân hàng chung không bao giờ làm bẩn corpus.
      * Cấu trúc xác nhận qua fetch trực tiếp 2026-07-14: mỗi tin là
      * {@code <div id="article-NNN" class="article"><h3 class="article-title">
      * <a class="article-link" href="...">Title</a></h3>...
@@ -575,6 +1713,7 @@ public class ContentParsers {
                 String title = a.text().strip();
                 String link = a.absUrl("href");
                 if (title.isBlank() || link.isBlank()) continue;
+                if (!isVietnamLifeInsuranceRelevant(title)) continue;
                 Element dateEl = item.selectFirst("span.format_date");
                 Instant publishedAt = null;
                 if (dateEl != null) {
@@ -587,14 +1726,171 @@ public class ContentParsers {
                 }
                 result.add(new ListingItem(title, link, publishedAt));
             }
-            if (result.isEmpty()) {
-                throw new ParseFailedException("TBNH: không tìm thấy div.article[id^=article-] nào — cấu trúc trang có thể đã đổi");
-            }
+            // A valid homepage can have no insurance story today. That is a truthful zero-yield
+            // cycle, not a parser failure. Structural breakage is detected from the raw cards.
+            if (items.isEmpty()) throw new ParseFailedException(
+                    "TBNH: không tìm thấy div.article[id^=article-] nào — cấu trúc trang có thể đã đổi");
             return result;
         } catch (ParseFailedException e) {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("Jsoup lỗi khi parse TBNH: " + e.getMessage());
+        }
+    }
+
+    /**
+     * HNX media-centre feed, reduced at acquisition time to the monthly Government-bond
+     * market review.  Those releases carry the auction yield curve and primary/secondary
+     * market volumes needed by an insurer's macro/asset-allocation briefing; issuer
+     * notices and exchange-event posts on the same page are intentionally excluded.
+     */
+    public List<ListingItem> parseHnxGovernmentBondMonthly(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements cards = doc.select("div.Box-Sukien");
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element card : cards) {
+                Element a = card.selectFirst("a.Box-News-Title[href]");
+                if (a == null) continue;
+                String title = a.text().strip();
+                String normalized = title.toLowerCase(java.util.Locale.ROOT);
+                if (!normalized.contains("thị trường trái phiếu chính phủ tháng")) continue;
+                String link = a.absUrl("href");
+                if (link.isBlank()) continue;
+                Element date = card.selectFirst("div.Box-Times p");
+                Instant publishedAt = date == null ? null : dateFromText(date.text());
+                unique.putIfAbsent(link, new ListingItem(title, link, publishedAt));
+            }
+            if (cards.isEmpty()) throw new ParseFailedException(
+                    "HNX_GOVERNMENT_BONDS: không tìm thấy div.Box-Sukien — cấu trúc media center đã đổi");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("HNX_GOVERNMENT_BONDS: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /**
+     * State Bank of Vietnam market-operation releases. These are the authoritative
+     * current inputs for credit conditions, deposit/lending rates, FX and interbank
+     * liquidity—the macro/asset-allocation spine of a life-insurance briefing.
+     */
+    public List<ListingItem> parseSbvMarketOperations(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Elements links = doc.select(".policy-title a.policy-title-link[href]");
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            for (Element a : links) {
+                String title = a.ownText().strip();
+                if (title.isBlank()) title = a.text().strip();
+                String folded = Normalizer.normalize(title, Normalizer.Form.NFD)
+                        .replaceAll("\\p{M}+", "").replace('đ', 'd').replace('Đ', 'D')
+                        .toLowerCase(Locale.ROOT);
+                boolean relevant = folded.contains("dien bien lai suat")
+                        || folded.contains("thi truong ngoai te")
+                        || folded.contains("thi truong lien ngan hang")
+                        || folded.contains("tang truong tin dung")
+                        || folded.contains("dieu hanh tin dung");
+                if (!relevant) continue;
+                String link = a.absUrl("href");
+                Element date = a.selectFirst(".policy-date");
+                if (!link.isBlank()) unique.putIfAbsent(link,
+                        new ListingItem(title, link, date == null ? null : dateFromText(date.text())));
+            }
+            if (links.isEmpty()) throw new ParseFailedException(
+                    "SBV_MARKET_OPERATIONS: policy listing structure changed");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("SBV_MARKET_OPERATIONS parse failed: " + e.getMessage());
+        }
+    }
+
+    /** The Investor's dedicated insurance search archive, constrained to Vietnam evidence. */
+    public List<ListingItem> parseTheInvestorInsurance(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            Elements candidates = doc.select("a[href~=-d[0-9]+\\.html(?:[?#].*)?$]");
+            for (Element a : candidates) {
+                String title = nonBlank(a.attr("title"), a.text());
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank() || !isVietnamLifeInsuranceRelevant(title)) continue;
+                Element container = a.closest("article, .article, .item, .news-item, li");
+                Instant date = dateFromText((container == null ? "" : container.text()) + " " + link);
+                unique.putIfAbsent(link, new ListingItem(title, link, date));
+            }
+            if (candidates.isEmpty()) throw new ParseFailedException(
+                    "THEINVESTOR_INSURANCE: article URL structure changed");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("THEINVESTOR_INSURANCE: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** Diễn đàn Doanh nghiệp financial-services archive; keep only Vietnam life-insurance rows. */
+    public List<ListingItem> parseDddFinancialServices(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            Elements candidates = doc.select("h2 a[href$=.html], h3 a[href$=.html], h4 a[href$=.html]");
+            for (Element a : candidates) {
+                String title = nonBlank(a.attr("title"), a.text());
+                String link = a.absUrl("href");
+                if (title.isBlank() || link.isBlank() || !isVietnamLifeInsuranceRelevant(title)) continue;
+                Element container = a.closest("article, .article, .item, .news-item, li");
+                Instant date = dateFromText((container == null ? "" : container.text()) + " " + link);
+                unique.putIfAbsent(link, new ListingItem(title, link, date));
+            }
+            if (candidates.isEmpty()) throw new ParseFailedException(
+                    "DDD_FINANCIAL_SERVICES: article cards changed");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("DDD_FINANCIAL_SERVICES: lỗi parse HTML: " + e.getMessage());
+        }
+    }
+
+    /** AIA Group results are parent-company evidence, kept separate from AIA Vietnam. */
+    public List<ListingItem> parseAiaGroupPress(byte[] body, String baseUrl)
+            throws ParseFailedException {
+        try {
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
+            Map<String, ListingItem> unique = new LinkedHashMap<>();
+            Elements cards = doc.select(".cmp-promotioncard[data-usage=press-release-nav]");
+            for (Element card : cards) {
+                Element a = card.selectFirst("a.cmp-promotioncard__link[href*=/press-releases/2026/]");
+                Element titleEl = card.selectFirst(".cmp-promotioncard__title");
+                if (a == null || titleEl == null) continue;
+                String title = titleEl.text().strip();
+                String link = a.absUrl("href");
+                Instant publishedAt = null;
+                Element dateEl = card.selectFirst(".cmp-promotioncard__date");
+                if (dateEl != null) {
+                    try {
+                        publishedAt = LocalDate.parse(dateEl.text().strip(), AIA_HK_FMT)
+                                .atStartOfDay(VN_ZONE).toInstant();
+                    } catch (DateTimeParseException ignored) {}
+                }
+                if (!title.isBlank() && !link.isBlank()) {
+                    unique.putIfAbsent(link, new ListingItem(title, link, publishedAt));
+                }
+            }
+            if (cards.isEmpty()) throw new ParseFailedException("AIA_GROUP_RESULTS: press cards changed");
+            return List.copyOf(unique.values());
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("AIA_GROUP_RESULTS: lỗi parse HTML: " + e.getMessage());
         }
     }
 
@@ -683,7 +1979,8 @@ public class ContentParsers {
                         if (publishedAt == null) log.warn("FWD_VN: không parse được post_date '{}'", postDate);
                     }
                 }
-                items.add(new ListingItem(displayTitle, origin + urlPath, publishedAt));
+                items.add(new ListingItem(displayTitle, origin + urlPath, publishedAt,
+                        embeddedFwdArticleText(a)));
             }
             if (items.isEmpty()) {
                 throw new ParseFailedException("FWD_VN: không tìm thấy article node nào trong __NEXT_DATA__ — cấu trúc trang có thể đã đổi");
@@ -693,6 +1990,33 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("FWD_VN: lỗi parse __NEXT_DATA__: " + e.getMessage());
+        }
+    }
+
+    /** FWD's Contentstack payload already contains each article's rich-text blocks. */
+    private String embeddedFwdArticleText(JsonNode article) {
+        List<String> parts = new ArrayList<>();
+        String subtitle = article.path("subtitle").asText("").strip();
+        String shortDescription = article.path("short_description").asText("").strip();
+        if (!subtitle.isBlank()) parts.add(Jsoup.parse(subtitle).text());
+        if (!shortDescription.isBlank()) parts.add(Jsoup.parse(shortDescription).text());
+        collectFwdRichText(article.path("article_content"), parts, 0);
+        return String.join("\n\n", parts).strip();
+    }
+
+    private void collectFwdRichText(JsonNode node, List<String> parts, int depth) {
+        if (node == null || node.isMissingNode() || depth > 30) return;
+        if (node.isObject()) {
+            JsonNode rich = node.get("rich_text_content");
+            if (rich != null && rich.isObject()) {
+                String html = rich.path("content").asText("");
+                String text = html.isBlank() ? "" : Jsoup.parse(html).text().strip();
+                if (!text.isBlank()) parts.add(text);
+            }
+            var fields = node.fields();
+            while (fields.hasNext()) collectFwdRichText(fields.next().getValue(), parts, depth + 1);
+        } else if (node.isArray()) {
+            for (JsonNode child : node) collectFwdRichText(child, parts, depth + 1);
         }
     }
 
@@ -774,32 +2098,24 @@ public class ContentParsers {
     }
 
     /**
-     * Dai-ichi Life Việt Nam (dai-ichi-life.com.vn) — trang chủ là SPA-ish (Alpine.js), tin
-     * tức "widget" nạp qua POST /api/news/home (body rỗng "{}" là đủ, xác nhận thủ công).
-     * Response KHÔNG phải JSON có field sạch — là JSON BỌC MỘT CHUỖI HTML đã render sẵn:
-     * {@code {"status":"success","data":"&lt;div class=\"item-news\"&gt;...&lt;/div&gt;..."}}.
+     * Dai-ichi Life Việt Nam — trang /tin-tuc server-rendered chứa các card có ngày thật.
      * Mỗi tin là {@code <div class="... item-news ...">} hoặc {@code item-news-horizontal}
      * (2 layout khác nhau cho cùng loại thẻ) chứa {@code <h3 class="card-title-2"><a href="...">
      * Title</a></h3>} và {@code <p class="publish_at">...&lt;span&gt;dd/MM/yyyy&lt;/span&gt;...}
      * (bản horizontal không có &lt;span&gt; quanh ngày — lấy text() rồi regex ngày, không phụ
-     * thuộc cấu trúc con). Link trỏ sang subdomain KHÁC (kh.dai-ichi-life.com.vn — health
-     * content) → ingestListing tự rơi về title-only (vẫn có ngày thật), không mở whitelist.
-     * Fix 2026-07-14 (Hanh: ưu tiên VN competitor, Case A — hidden JSON API).
+     * thuộc cấu trúc con). Dùng archive này thay cho /api/news/home vốn chỉ là widget nhỏ,
+     * thiên về health content và bỏ sót thông báo sản phẩm/hoạt động công ty.
      */
     public List<ListingItem> parseDaiichiVn(byte[] body, String baseUrl) throws ParseFailedException {
         try {
-            String html = JSON.readTree(body).path("data").asText("");
-            if (html.isBlank()) {
-                throw new ParseFailedException("DAIICHI_VN: JSON envelope không có field 'data' — endpoint có thể đã đổi");
-            }
-            Document doc = Jsoup.parse(html, baseUrl);
+            Document doc = Jsoup.parse(new String(body, StandardCharsets.UTF_8), baseUrl);
             Elements cards = doc.select(".item-news, .item-news-horizontal");
             List<ListingItem> items = new ArrayList<>();
             for (Element card : cards) {
                 Element a = card.selectFirst("h3.card-title-2 a");
                 if (a == null) continue;
                 String title = a.text().strip();
-                String link = a.attr("href").strip();
+                String link = a.absUrl("href").strip();
                 if (title.isBlank() || link.isBlank()) continue;
                 Instant publishedAt = null;
                 Element dateEl = card.selectFirst(".publish_at");
@@ -823,7 +2139,7 @@ public class ContentParsers {
         } catch (ParseFailedException e) {
             throw e;
         } catch (Exception e) {
-            throw new ParseFailedException("DAIICHI_VN: lỗi parse response: " + e.getMessage());
+            throw new ParseFailedException("DAIICHI_VN: lỗi parse HTML: " + e.getMessage());
         }
     }
 
@@ -939,6 +2255,8 @@ public class ContentParsers {
                 throw new ParseFailedException("SHINHAN_VN: listSitePost[0].contentVn rỗng");
             }
             Document doc = Jsoup.parse(contentVn, baseUrl);
+            URI base = URI.create(baseUrl);
+            String origin = base.getScheme() + "://" + base.getAuthority();
             Elements cards = doc.select(".dropshadowboxes-container");
             List<ListingItem> items = new ArrayList<>();
             for (Element card : cards) {
@@ -946,7 +2264,7 @@ public class ContentParsers {
                 Element linkA = card.selectFirst("a[class*=btn-shinhan]");
                 if (titleA == null || linkA == null) continue;
                 String title = titleA.text().strip();
-                String link = linkA.attr("href").strip();
+                String link = normalizeSameSiteLink(linkA.attr("href").strip(), origin, base.getHost());
                 if (title.isBlank() || link.isBlank()) continue;
                 Instant publishedAt = null;
                 var m = DDMMYYYY.matcher(card.text());
@@ -968,6 +2286,74 @@ public class ContentParsers {
             throw e;
         } catch (Exception e) {
             throw new ParseFailedException("SHINHAN_VN: lỗi parse response: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Shinhan's public article URLs are client-side routes: a plain HTML fetch returns the
+     * same application shell for every slug.  The site's own public content API exposes the
+     * real Vietnamese body.  Prefer the editorial dateline inside that body over the API's
+     * {@code publishedDate}, which can be a CMS creation timestamp several months earlier.
+     */
+    public ListingItem parseShinhanVnDetail(byte[] body, String officialArticleUrl)
+            throws ParseFailedException {
+        try {
+            JsonNode posts = JSON.readTree(body).path("data").path("listSitePost");
+            if (!posts.isArray() || posts.isEmpty()) {
+                throw new ParseFailedException("SHINHAN_VN detail: JSON không có data.listSitePost");
+            }
+            JsonNode post = posts.get(0);
+            String title = post.path("titleVn").asText("").strip();
+            String html = post.path("contentVn").asText("");
+            String text = Jsoup.parse(html).text().strip();
+            if (title.isBlank() || text.length() < 300) {
+                throw new ParseFailedException("SHINHAN_VN detail: title/body rỗng hoặc quá ngắn");
+            }
+
+            Instant publishedAt = vietnameseEditorialDateline(text);
+            if (publishedAt == null) {
+                publishedAt = parseFlexibleInstant(post.path("publishedDate").asText(""));
+            }
+            return new ListingItem(title, officialArticleUrl, publishedAt, text);
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("SHINHAN_VN detail parse failed: " + e.getMessage());
+        }
+    }
+
+    private static Instant vietnameseEditorialDateline(String text) {
+        var matcher = java.util.regex.Pattern.compile(
+                "(?iu)ngày\\s+(\\d{1,2})\\s+tháng\\s+(\\d{1,2})\\s+năm\\s+(20\\d{2})")
+                .matcher(text == null ? "" : text);
+        if (!matcher.find()) return null;
+        try {
+            return LocalDate.of(Integer.parseInt(matcher.group(3)),
+                            Integer.parseInt(matcher.group(2)), Integer.parseInt(matcher.group(1)))
+                    .atStartOfDay(VN_ZONE).toInstant();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String normalizeSameSiteLink(String raw, String origin, String allowedHost) {
+        if (raw == null || raw.isBlank()) return "";
+        try {
+            URI candidate = URI.create(raw.strip());
+            if (!candidate.isAbsolute()) {
+                String path = raw.startsWith("/") ? raw : "/" + raw;
+                return URI.create(origin).resolve(path).toString();
+            }
+            String host = candidate.getHost();
+            if (host != null && (host.equalsIgnoreCase(allowedHost)
+                    || ("www." + host).equalsIgnoreCase(allowedHost))) {
+                String path = candidate.getRawPath() == null ? "/" : candidate.getRawPath();
+                String query = candidate.getRawQuery() == null ? "" : "?" + candidate.getRawQuery();
+                return origin + path + query;
+            }
+            return candidate.toString();
+        } catch (Exception ignored) {
+            return "";
         }
     }
 
@@ -1027,6 +2413,25 @@ public class ContentParsers {
         }
     }
 
+    /** Phú Hưng article body is embedded as JSON in a deterministic JS assignment. */
+    public ParsedText parsePhuHungDetail(byte[] body) throws ParseFailedException {
+        try {
+            String html = new String(body, StandardCharsets.UTF_8);
+            String marker = "newsDetailPage.detailNews = ";
+            int markerIdx = html.indexOf(marker);
+            if (markerIdx < 0) throw new ParseFailedException("PHU_HUNG_LIFE: thiếu detailNews payload");
+            JsonNode detail = JSON.readTree(extractBalancedJsonObject(html, markerIdx + marker.length()));
+            String title = detail.path("title").asText("").strip();
+            String text = Jsoup.parse(detail.path("editor").asText("")).text().strip();
+            if (text.isBlank()) throw new ParseFailedException("PHU_HUNG_LIFE: editor rỗng");
+            return new ParsedText(title, text, "Full text extracted from embedded detail JSON");
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("PHU_HUNG_LIFE: lỗi parse detail payload: " + e.getMessage());
+        }
+    }
+
     /**
      * Cathay Life Việt Nam (cathaylife.com.vn) — trang /cathay/news, Vue SPA. Danh sách tin nạp
      * qua GraphQL: POST /cathay/api/graphql, body cố định (query + variables — xem query bên
@@ -1053,11 +2458,14 @@ public class ContentParsers {
                 if (newsId < 0) continue;
                 String contentRaw = n.path("content").asText("");
                 String title = "";
+                String embeddedText = "";
                 if (!contentRaw.isBlank()) {
                     try {
                         JsonNode content = JSON.readTree(contentRaw);
-                        title = content.path("vi_VN").path("title").asText("");
-                        if (title.isBlank()) title = content.path("en_US").path("title").asText("");
+                        JsonNode localized = content.path("vi_VN");
+                        if (localized.isMissingNode() || localized.isNull()) localized = content.path("en_US");
+                        title = localized.path("title").asText("");
+                        embeddedText = Jsoup.parse(localized.path("summary").asText("")).text().strip();
                     } catch (Exception e) {
                         log.warn("CATHAY_VN: content của news_id={} không phải JSON hợp lệ", newsId);
                     }
@@ -1072,7 +2480,8 @@ public class ContentParsers {
                         log.warn("CATHAY_VN: không parse được posted_at '{}'", posted);
                     }
                 }
-                items.add(new ListingItem(title.strip(), origin + "/cathay/news-detail?news_id=" + newsId, publishedAt));
+                items.add(new ListingItem(title.strip(), origin + "/cathay/news-detail?news_id=" + newsId,
+                        publishedAt, embeddedText));
             }
             if (items.isEmpty()) {
                 throw new ParseFailedException("CATHAY_VN: không có item hợp lệ sau khi lọc");
@@ -1789,6 +3198,31 @@ public class ContentParsers {
         }
     }
 
+    /**
+     * One high-value VIDI/MOF research article is outside the regulator list root
+     * used by MOF_ISA. Fetch its public detail API directly, while retaining the
+     * human-facing official page as the evidence URL.
+     */
+    public ListingItem parseMofDirectArticle(byte[] detailBody, String browseUrl)
+            throws ParseFailedException {
+        try {
+            JsonNode data = JSON.readTree(detailBody).path("data");
+            String title = data.path("title").asText("").strip();
+            String text = parseMofContent(detailBody);
+            Instant publishedAt = parseFlexibleInstant(data.path("publicationTime").asText(""));
+            if (title.isBlank() || text == null || text.length() < 600 || browseUrl == null
+                    || !browseUrl.startsWith("https://")) {
+                throw new ParseFailedException(
+                        "MOF direct article missing title, dated full text, or official browse URL");
+            }
+            return new ListingItem(title, browseUrl, publishedAt, text);
+        } catch (ParseFailedException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ParseFailedException("MOF direct article parse failed: " + e.getMessage());
+        }
+    }
+
     /** ISO có Z/millis (Instant.parse) hoặc không zone ("2025-04-10T08:31:01") → coi giờ VN. */
     /** Dùng chung cho mọi nguồn có ISO datetime lẫn lộn có/không zone (MOF_ISA, MB_AGEAS, FWD_VN). */
     private static Instant parseFlexibleInstant(String raw) {
@@ -1811,7 +3245,12 @@ public class ContentParsers {
      * (link của item là link trung gian news.google.com, không phải bài viết thật). */
     public record RssItem(String title, String link, String descriptionText, String descriptionHtml,
                           Instant publishedAt) {}
-    public record ListingItem(String title, String link, Instant publishedAt) {}
+    public record ListingItem(String title, String link, Instant publishedAt, String embeddedText) {
+        public ListingItem(String title, String link, Instant publishedAt) {
+            this(title, link, publishedAt, null);
+        }
+    }
+    public record ReaderArticle(String title, String text, Instant publishedAt) {}
     public record MofArticle(String title, String url, String slug, Instant publishedAt, String description) {}
 
     public static class ParseFailedException extends Exception {

@@ -11,6 +11,20 @@ public interface LlmClient {
      * @param temperature null = không gửi tham số (một số model mới từ chối temperature).
      */
     String complete(String systemPrompt, String userPrompt, Double temperature) throws LlmException;
+
+    /**
+     * Run one completion with a task-specific output budget. Most pipeline calls should keep
+     * using {@link #complete}; this seam exists for bounded, unusually large outputs such as
+     * the Deep Research preview synthesis. Providers that can control the budget override this
+     * method. Older/test clients remain source-compatible and safely fall back to their normal
+     * configured budget.
+     */
+    default String completeWithMaxTokens(String systemPrompt, String userPrompt,
+                                         Double temperature, int maxOutputTokens)
+            throws LlmException {
+        return complete(systemPrompt, userPrompt, temperature);
+    }
+
     String providerName();
 
     /** Một tool cho LLM chọn qua function-calling GỐC của provider (JSON Schema chuẩn) — thay

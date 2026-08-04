@@ -31,6 +31,12 @@ public class SwitchableLlmClient implements LlmClient {
     }
 
     @Override
+    public String completeWithMaxTokens(String systemPrompt, String userPrompt,
+                                        Double temperature, int maxOutputTokens) throws LlmException {
+        return delegate.completeWithMaxTokens(systemPrompt, userPrompt, temperature, maxOutputTokens);
+    }
+
+    @Override
     public ToolChoice completeWithTools(String systemPrompt, String userPrompt,
                                         List<LlmTool> tools, Double temperature) throws LlmException {
         return delegate.completeWithTools(systemPrompt, userPrompt, tools, temperature);

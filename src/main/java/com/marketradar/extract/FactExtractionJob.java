@@ -588,7 +588,7 @@ public class FactExtractionJob {
     private static final java.util.Set<String> VALID_SEVERITIES = java.util.Set.of("HIGH", "MEDIUM", "LOW");
     private static final java.util.Set<String> VALID_TRENDS = java.util.Set.of("RISING", "FALLING", "STABLE");
 
-    private void applyRouting(EvidenceFact fact, JsonNode args) {
+    static void applyRouting(EvidenceFact fact, JsonNode args) {
         String bucket = upperOrNull(args.path("bucket").asText(null));
         if (bucket != null && VALID_ROUTER_BUCKETS.contains(bucket)) fact.biBucket(bucket);
         String subjectKey = textOrNull(args, "subject_key");
