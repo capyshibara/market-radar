@@ -301,10 +301,11 @@ public class DeepResearchService {
                           boolean vietnamOnly, Consumer<String> onStep) {
         List<DiscoveredUrl> candidates = discover(query, onStep);
         if (candidates.isEmpty()) return;
-        int added = 0, skippedOutOfRange = 0, skippedForeign = 0;
+        int added = 0, skippedOutOfRange = 0, skippedForeign = 0, skippedDuplicate = 0, fetchFailed = 0;
         for (var c : candidates) {
             if (added >= MAX_NEW_SOURCES_PER_SEARCH || gathered.size() >= MAX_SOURCES) break;
-            if (c.url() == null || alreadyGathered(gathered, c.url())) continue;
+            if (c.url() == null) continue;
+            if (alreadyGathered(gathered, c.url())) { skippedDuplicate++; continue; }
             try {
                 var fetched = fetcher.fetchDocument(c.url());
                 boolean pdf = "application/pdf".equalsIgnoreCase(fetched.contentType());
@@ -324,8 +325,19 @@ public class DeepResearchService {
                 gathered.add(new GatheredSource(title, c.url(), "Tìm kiếm mở", excerpt, publishedDate));
                 added++;
             } catch (Exception e) {
+                fetchFailed++;
                 log.warn("Deep Research: bỏ qua nguồn {} ({})", c.url(), e.getMessage());
             }
+        }
+        // 2026-08-04 (cùng feedback quan sát): trước đây fetchFailed/skippedDuplicate chỉ log ở
+        // server console (log.warn), người dùng nhìn onStep không thấy — dễ hiểu nhầm "tìm được
+        // link nhưng chẳng có gì xảy ra" thành lỗi bí ẩn, trong khi thật ra là fetch bị chặn/lỗi.
+        if (fetchFailed > 0) {
+            onStep.accept("→ " + fetchFailed + "/" + candidates.size()
+                    + " nguồn không fetch/đọc được (mạng chặn, 404, hoặc định dạng không đọc được) — xem log server để biết chi tiết từng URL.");
+        }
+        if (skippedDuplicate > 0) {
+            onStep.accept("→ Bỏ qua " + skippedDuplicate + " nguồn trùng với nguồn đã có.");
         }
         if (skippedOutOfRange > 0) {
             onStep.accept("→ Bỏ qua " + skippedOutOfRange + " nguồn ngoài khung thời gian yêu cầu ("
@@ -359,8 +371,21 @@ public class DeepResearchService {
         }
         try {
             List<NewsDiscoveryService.Candidate> rss = discovery.discover(query);
-            return rss.stream().filter(c -> c.publisherUrl() != null)
+            List<DiscoveredUrl> resolved = rss.stream().filter(c -> c.publisherUrl() != null)
                     .map(c -> new DiscoveredUrl(c.title(), c.publisherUrl())).toList();
+            // 2026-08-04 (feedback: "chạy 12 vòng RSS đều 0 kết quả mà không rõ vì sao" — trước
+            // đây rss.isEmpty() và "có mục nhưng không giải được URL" đều im lặng như nhau, không
+            // phân biệt được "feed rỗng thật" (mạng chặn/query không khớp) với "giải link lỗi").
+            if (rss.isEmpty()) {
+                onStep.accept("→ RSS không trả về mục nào cho \"" + query
+                        + "\" (feed Google/Bing News rỗng — khả năng cao do mạng chặn truy cập tới "
+                        + "news.google.com/bing.com, hoặc query không khớp kết quả nào).");
+            } else if (resolved.isEmpty()) {
+                onStep.accept("→ RSS trả về " + rss.size() + " mục cho \"" + query
+                        + "\" nhưng không giải được URL nhà xuất bản nào (link trung gian Google/Bing "
+                        + "không giải mã được về trang gốc).");
+            }
+            return resolved;
         } catch (NewsDiscoveryService.DiscoveryFailedException e) {
             onStep.accept("→ RSS dự phòng cũng lỗi cho \"" + query + "\": " + e.getMessage());
             log.warn("Deep Research: tìm kiếm mở lỗi cho '{}': {}", query, e.getMessage());
