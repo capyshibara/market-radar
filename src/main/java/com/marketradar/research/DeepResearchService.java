@@ -153,7 +153,7 @@ public class DeepResearchService {
                 + (vietnamOnly ? " (chỉ giữ nguồn thực sự về thị trường Việt Nam)" : ""));
 
         for (int iteration = 0; iteration < MAX_ITERATIONS && gathered.size() < MAX_SOURCES; iteration++) {
-            PlanAction action = plan(prompt, gathered, triedQueries, iteration);
+            PlanAction action = plan(prompt, gathered, triedQueries, iteration, onStep);
             if (action == null || "STOP".equalsIgnoreCase(action.action())) {
                 onStep.accept("Vòng " + (iteration + 1) + "/" + MAX_ITERATIONS + " — AI quyết định: DỪNG"
                         + (action != null && !action.reason().isBlank() ? " (" + action.reason() + ")" : ""));
@@ -557,7 +557,8 @@ public class DeepResearchService {
                                 + "nguồn mới (không còn hướng tìm khả thi — dừng còn hơn lặp vô ích).", stopSchema));
     }
 
-    private PlanAction plan(String prompt, List<GatheredSource> gathered, List<String> triedQueries, int iteration) {
+    private PlanAction plan(String prompt, List<GatheredSource> gathered, List<String> triedQueries, int iteration,
+                            Consumer<String> onStep) {
         StringBuilder user = new StringBuilder();
         user.append("YÊU CẦU GỐC: ").append(prompt).append("\n---\n");
         user.append("Số nguồn đã thu thập: ").append(gathered.size()).append('\n');
@@ -588,11 +589,18 @@ public class DeepResearchService {
                         choice.arguments().path("reason").asText(""));
                 case "stop" -> new PlanAction("STOP", null, choice.arguments().path("reason").asText(""));
                 default -> {
+                    onStep.accept("→ Lỗi lập kế hoạch: model gọi tool lạ \"" + choice.toolName()
+                            + "\" (không phải search/browse/stop) — dừng vòng lặp.");
                     log.warn("Deep Research: plan step gọi tool lạ '{}', dừng vòng lặp", choice.toolName());
                     yield null;
                 }
             };
         } catch (LlmException e) {
+            // 2026-08-04 (feedback: "Vòng 1/12 — AI quyết định: DỪNG" không kèm lý do gì — hoá ra
+            // là lỗi gọi API bị nuốt im lặng, không phải AI thật sự chọn dừng). KHÁC hẳn 1 STOP
+            // hợp lệ (luôn có action != null, in kèm reason ở research()) — case này PHẢI báo rõ
+            // qua onStep, không chỉ log server, nếu không người dùng thấy y hệt "dừng có chủ đích".
+            onStep.accept("→ Lỗi gọi LLM khi lập kế hoạch (" + e.getMessage() + ") — dừng vòng lặp.");
             log.warn("Deep Research: plan step lỗi LLM, dừng vòng lặp: {}", e.getMessage());
             return null;
         }
