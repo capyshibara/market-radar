@@ -99,6 +99,28 @@ public class MarketEvent {
     @Column(name = "source_tier", nullable = false)
     private int sourceTier;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_authority", length = 32)
+    private SourceAuthority sourceAuthority;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "intelligence_topic", length = 32)
+    private IntelligenceTopic intelligenceTopic;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "temporal_role", length = 24)
+    private TemporalRole temporalRole;
+
+    @Column(name = "market_code", length = 16)
+    private String marketCode;
+
+    @Column(name = "subject_entity_key", length = 64)
+    private String subjectEntityKey;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entity_resolution_status", length = 24)
+    private com.marketradar.intelligence.EntityResolutionRules.Status entityResolutionStatus;
+
     @Column(name = "pipeline_version", nullable = false, length = 64)
     private String pipelineVersion;
 
@@ -158,9 +180,30 @@ public class MarketEvent {
     public LocalDate getForecastHorizon() { return forecastHorizon; }
     public String getSourceCode() { return sourceCode; }
     public int getSourceTier() { return sourceTier; }
+    public SourceAuthority getSourceAuthority() { return sourceAuthority; }
+    public IntelligenceTopic getIntelligenceTopic() { return intelligenceTopic; }
+    public TemporalRole getTemporalRole() { return temporalRole; }
+    public String getMarketCode() { return marketCode; }
+    public String getSubjectEntityKey() { return subjectEntityKey; }
+    public com.marketradar.intelligence.EntityResolutionRules.Status getEntityResolutionStatus() { return entityResolutionStatus; }
     public String getPipelineVersion() { return pipelineVersion; }
     public String getModelVersion() { return modelVersion; }
     public MarketEventCluster getCluster() { return cluster; }
     public Instant getCreatedAt() { return createdAt; }
     public void assignCluster(MarketEventCluster cluster) { this.cluster = cluster; }
+
+    public MarketEvent curationMetadata(SourceAuthority sourceAuthority,
+                                        IntelligenceTopic intelligenceTopic,
+                                        TemporalRole temporalRole,
+                                        String marketCode,
+                                        String subjectEntityKey,
+                                        com.marketradar.intelligence.EntityResolutionRules.Status resolutionStatus) {
+        this.sourceAuthority = sourceAuthority;
+        this.intelligenceTopic = intelligenceTopic;
+        this.temporalRole = temporalRole;
+        this.marketCode = marketCode;
+        this.subjectEntityKey = subjectEntityKey;
+        this.entityResolutionStatus = resolutionStatus;
+        return this;
+    }
 }

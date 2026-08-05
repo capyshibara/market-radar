@@ -52,6 +52,7 @@ public class ProductMaterialityScorer {
                 doc != null && doc.isFullTextFetched(),
                 doc == null || doc.getParseStatus() == null ? null : doc.getParseStatus().name(),
                 doc != null && doc.getDuplicateOfId() != null,
+                doc == null || doc.getSource() == null ? null : doc.getSource().getAuthority().name(),
                 doc == null || doc.getSource() == null ? null : doc.getSource().getTier());
         return ProductMaterialityRules.score(input);
     }

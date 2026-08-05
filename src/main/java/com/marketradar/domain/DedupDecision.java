@@ -6,7 +6,7 @@ import java.time.Instant;
 /**
  * dedup_decisions — append-only, mỗi record là quyết định cho MỘT cặp raw_docs
  * (Batch 5, bước 9). docAId luôn < docBId (cặp không lặp, không phụ thuộc thứ tự duyệt).
- * Verdict NEEDS_REVIEW = hệ thống KHÔNG tự quyết (LLM không chắc / cùng tier
+ * Verdict NEEDS_REVIEW = hệ thống KHÔNG tự quyết (LLM không chắc / cùng authority
  * không phân định được / chạy stub) — người nhìn ở trang /dedup.
  */
 @Entity
@@ -17,7 +17,16 @@ public class DedupDecision {
 
     public enum Method { EXACT_URL, EXACT_HASH, JACCARD_TITLE, LLM_PAIRWISE }
 
-    public enum Verdict { SAME_EVENT, DIFFERENT, NEEDS_REVIEW }
+    public enum Verdict {
+        /** Copied/reposted/substantially identical content: one document is excluded. */
+        DUPLICATE_CONTENT,
+        /** Independent reporting/analysis of the same event: retain both for corroboration. */
+        SAME_EVENT_INDEPENDENT,
+        DIFFERENT,
+        NEEDS_REVIEW,
+        /** Legacy rows created before duplicate and corroboration were separated. */
+        SAME_EVENT
+    }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -38,7 +47,7 @@ public class DedupDecision {
     @Enumerated(EnumType.STRING) @Column(nullable = false)
     private Verdict verdict;
 
-    /** Doc được GIỮ khi SAME_EVENT; null khi DIFFERENT/NEEDS_REVIEW */
+    /** Doc được GIỮ khi DUPLICATE_CONTENT (hoặc legacy SAME_EVENT); null otherwise. */
     private Long winnerDocId;
 
     /** Lý do đọc được: rule nào quyết, vì sao flag — fail loud có chữ */

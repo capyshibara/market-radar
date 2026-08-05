@@ -18,6 +18,27 @@ public class PublicationEligibilityRulesTest {
         reject("PASS", "APPROVED", "VERIFIER_ERROR", "verifier error");
         check(!PublicationEligibilityRules.isPublishable("PASS", "APPROVED", "ENTAILED", true),
                 "superseded edition cannot publish");
+        check(PublicationEligibilityRules.disposition("PASS", "APPROVED", "NEUTRAL", false, true)
+                        == PublicationEligibilityRules.Disposition.EDITORIAL_WATCH,
+                "human-approved neutral is watch, not fact");
+        check(PublicationEligibilityRules.disposition(
+                        "PASS", "APPROVED", "NEUTRAL", false, true, true)
+                        == PublicationEligibilityRules.Disposition.REVIEWED_ANALYSIS,
+                "human-approved neutral implication is labelled reviewed analysis");
+        check(PublicationEligibilityRules.disposition(
+                        "PASS", "AUTO_APPROVED", "NEUTRAL", false, true, true)
+                        == PublicationEligibilityRules.Disposition.EXCLUDE,
+                "machine cannot auto-publish neutral analysis");
+        check(PublicationEligibilityRules.disposition(
+                        "PASS", "APPROVED", "CONTRADICTED", false, true, true)
+                        == PublicationEligibilityRules.Disposition.EXCLUDE,
+                "contradicted analysis remains excluded after human review");
+        check(PublicationEligibilityRules.disposition("PASS", "AUTO_APPROVED", "NEUTRAL", false, true)
+                        == PublicationEligibilityRules.Disposition.EXCLUDE,
+                "machine cannot auto-publish neutral");
+        check(PublicationEligibilityRules.disposition("PASS", "APPROVED", "ENTAILED", false, false)
+                        == PublicationEligibilityRules.Disposition.EXCLUDE,
+                "unsafe entity attribution excludes even entailed text");
         check(PublicationEligibilityRules.isNarrativeInputEligible(
                 "PASS", "APPROVED", "ENTAILED", "WHY_MATTERS", "PIPELINE", true, false), "why enters narrative");
         check(PublicationEligibilityRules.isNarrativeInputEligible(

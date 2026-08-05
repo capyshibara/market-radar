@@ -29,6 +29,11 @@ public class RoutingRule {
     public RoutingRule(Category category, Department department) {
         this.category = category; this.department = department;
     }
+    public RoutingRule(Category category, Department department, boolean placeholder) {
+        this.category = category;
+        this.department = department;
+        this.placeholder = placeholder;
+    }
     public Category getCategory() { return category; }
     public Department getDepartment() { return department; }
     public boolean isPlaceholder() { return placeholder; }

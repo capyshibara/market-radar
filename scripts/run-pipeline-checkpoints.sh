@@ -18,6 +18,7 @@ OUT_DIR="data/run-artifacts/${RUN_ID}"
 BACKUP_DIR="data/backups/${RUN_ID}-pipeline-checkpoint"
 RUN_SCOUT="${RUN_SCOUT:-0}"
 RESTART_APP="${RESTART_APP:-true}"
+REGENERATE_LEGACY_PRODUCT="${REGENERATE_LEGACY_PRODUCT:-0}"
 POLL_SECONDS="${POLL_SECONDS:-20}"
 STAGE_TIMEOUT_SECONDS="${STAGE_TIMEOUT_SECONDS:-18000}"
 
@@ -193,12 +194,15 @@ run_stage extract
 run_stage interpret
 run_stage verify
 
-# Regenerate the three immutable Product editions only after verification has
-# completed without a systemic STOP. Each cadence is isolated by the endpoint:
-# one thin/failed cadence cannot prevent the other two from being recorded.
-curl -fsS -X POST "$BASE_URL/report/product/regenerate-all" \
-  > "$OUT_DIR/product-regeneration.json"
-python3 - "$OUT_DIR/product-regeneration.json" <<'PY'
+# The CFO/Strategy release publishes the BI report directly from curated,
+# verified lanes below. The older Product desk is feature-flagged off by
+# default, so calling its endpoint would correctly return 404 and must not
+# abort a Strategy run. It remains an explicit compatibility option for a
+# future Product-department deployment.
+if [ "$REGENERATE_LEGACY_PRODUCT" = "1" ]; then
+  curl -fsS -X POST "$BASE_URL/report/product/regenerate-all" \
+    > "$OUT_DIR/product-regeneration.json"
+  python3 - "$OUT_DIR/product-regeneration.json" <<'PY'
 import json, sys
 
 rows = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -210,6 +214,7 @@ for row in rows:
 if rows and all(row.get("status") == "GENERATION_FAILED" for row in rows):
     print("WARN: all Product editions failed generation; exports below preserve diagnostics/current-news views.")
 PY
+fi
 
 for cadence in weekly monthly quarterly; do
   for lang in vi en; do

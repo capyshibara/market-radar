@@ -71,7 +71,7 @@ public class ProductSourceStoryService {
         String fullText = doc.getRawText() == null ? "" : doc.getRawText();
         SourceText sourceText = splitSourceText(fullText, fact.getSpanText());
         return new SourceStory(factCode, doc.getId(), safeTitle(doc), sourceName,
-                doc.getSource().getCode(), doc.getSource().getTier(), doc.getUrl(),
+                doc.getSource().getCode(), doc.getSource().getAuthority().name(), doc.getUrl(),
                 hasExternalLink(doc.getUrl()), date(doc, vi), fetched(doc, vi),
                 fact.getFactType().name(), languageLabel(fact.getSpanLanguage(), vi),
                 intakeLabel(doc.getIntakeMethod(), vi), doc.isFullTextFetched(), fullText.length(),
@@ -203,7 +203,7 @@ public class ProductSourceStoryService {
     }
 
     public record SourceStory(String factCode, long rawDocId, String originalTitle,
-                              String sourceName, String sourceCode, int sourceTier,
+                              String sourceName, String sourceCode, String sourceAuthority,
                               String sourceUrl, boolean externalSourceLink,
                               String publishedLabel, String fetchedLabel, String factType,
                               String evidenceLanguageLabel, String intakeLabel,

@@ -59,5 +59,5 @@ public class SourceRegistryController {
     public record BatchAuditRequest(String candidatesText) {}
 
     public record SaveRequest(String code, String name, String fetchUrl, String type,
-                              int tier, String language, boolean active, boolean testPassed) {}
+                              Integer tier, String language, boolean active, boolean testPassed) {}
 }

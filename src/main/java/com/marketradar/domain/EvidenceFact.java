@@ -1,6 +1,7 @@
 package com.marketradar.domain;
 
 import jakarta.persistence.*;
+import com.marketradar.intelligence.EntityResolutionRules;
 import java.time.Instant;
 import java.time.LocalDate;
 
@@ -94,6 +95,44 @@ public class EvidenceFact {
     @Column(length = 128) private String kpiValue;
     private Boolean highlight;
 
+    // ---- reusable curation dimensions (independent from a report layout) ----
+    @Enumerated(EnumType.STRING)
+    @Column(name = "intelligence_topic", length = 32)
+    private IntelligenceTopic intelligenceTopic;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "temporal_role", length = 24)
+    private TemporalRole temporalRole;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_authority", length = 32)
+    private SourceAuthority sourceAuthority;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "geography_scope", length = 24)
+    private GeographyScope geographyScope;
+
+    @Column(name = "market_code", length = 16)
+    private String marketCode;
+
+    @Column(name = "subject_entity_key", length = 64)
+    private String subjectEntityKey;
+
+    @Column(name = "subject_entity_name", length = 256)
+    private String subjectEntityName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subject_entity_kind", length = 32)
+    private EntityResolutionRules.EntityKind subjectEntityKind;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entity_resolution_status", length = 24)
+    private EntityResolutionRules.Status entityResolutionStatus;
+
+    @Lob
+    @Column(name = "entity_resolution_detail", columnDefinition = "CLOB")
+    private String entityResolutionDetail;
+
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -150,6 +189,16 @@ public class EvidenceFact {
     public String getKpiLabel() { return kpiLabel; }
     public String getKpiValue() { return kpiValue; }
     public boolean isHighlight() { return Boolean.TRUE.equals(highlight); }
+    public IntelligenceTopic getIntelligenceTopic() { return intelligenceTopic; }
+    public TemporalRole getTemporalRole() { return temporalRole; }
+    public SourceAuthority getSourceAuthority() { return sourceAuthority; }
+    public GeographyScope getGeographyScope() { return geographyScope; }
+    public String getMarketCode() { return marketCode; }
+    public String getSubjectEntityKey() { return subjectEntityKey; }
+    public String getSubjectEntityName() { return subjectEntityName; }
+    public EntityResolutionRules.EntityKind getSubjectEntityKind() { return subjectEntityKind; }
+    public EntityResolutionRules.Status getEntityResolutionStatus() { return entityResolutionStatus; }
+    public String getEntityResolutionDetail() { return entityResolutionDetail; }
     public Instant getCreatedAt() { return createdAt; }
     public FactExtractionRun getExtractionRun() { return extractionRun; }
     public boolean isActive() { return active; }
@@ -223,4 +272,25 @@ public class EvidenceFact {
     public EvidenceFact kpiLabel(String l) { this.kpiLabel = l; return this; }
     public EvidenceFact kpiValue(String v) { this.kpiValue = v; return this; }
     public EvidenceFact highlight(boolean h) { this.highlight = h; return this; }
+    public EvidenceFact intelligenceTopic(IntelligenceTopic value) { this.intelligenceTopic = value; return this; }
+    public EvidenceFact temporalRole(TemporalRole value) { this.temporalRole = value; return this; }
+    public EvidenceFact sourceAuthority(SourceAuthority value) { this.sourceAuthority = value; return this; }
+    public EvidenceFact geography(GeographyScope scope, String code) {
+        this.geographyScope = scope;
+        this.marketCode = code == null || code.isBlank() ? null
+                : code.strip().toUpperCase(java.util.Locale.ROOT);
+        return this;
+    }
+    public EvidenceFact entityResolution(EntityResolutionRules.Resolution resolution) {
+        if (resolution == null) return this;
+        this.entityResolutionStatus = resolution.status();
+        this.entityResolutionDetail = resolution.reason();
+        EntityResolutionRules.Entity entity = resolution.singleEntity();
+        if (entity != null) {
+            this.subjectEntityKey = entity.key();
+            this.subjectEntityName = entity.canonicalName();
+            this.subjectEntityKind = entity.kind();
+        }
+        return this;
+    }
 }

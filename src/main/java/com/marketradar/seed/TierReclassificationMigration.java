@@ -6,15 +6,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Backfills the 2026-08-02 tier redefinition (Strategy request) into databases seeded before
+ * Historical one-off backfill for the retired tier model. It is intentionally no longer a
+ * Spring component: source authority and geography are now independent persisted axes and
+ * startup must not rewrite compatibility tiers or operator metadata.
+ *
+ * Previously backfilled the 2026-08-02 tier redefinition into databases seeded before
  * it existed. SeedData.java already reflects the new taxonomy for a fresh database, but this
  * app's H2 file DB persists across restarts — an existing database keeps whatever tier value
  * was written on first seed, so it needs a one-time correction on top.
@@ -32,8 +33,7 @@ import java.util.Set;
  * operational fact (reachable + parser-owned). Coupling the two previously reactivated dead
  * Vietnamese URLs on every boot and disabled useful international benchmark sources.
  */
-@Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 20)
+@Deprecated(forRemoval = false)
 public class TierReclassificationMigration implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(TierReclassificationMigration.class);

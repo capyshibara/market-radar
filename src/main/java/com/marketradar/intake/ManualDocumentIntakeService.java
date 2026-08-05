@@ -3,6 +3,7 @@ package com.marketradar.intake;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
 import com.marketradar.fetch.SafeFetcher;
+import com.marketradar.intelligence.SourceIntelligencePolicy;
 import com.marketradar.parse.ContentParsers;
 import com.marketradar.repo.RawDocRepository;
 import com.marketradar.repo.SourceRepository;
@@ -168,6 +169,8 @@ public class ManualDocumentIntakeService {
             Source.SourceType type = input.sourceUrl().toLowerCase(Locale.ROOT).contains(".pdf")
                     ? Source.SourceType.PDF : Source.SourceType.HTML;
             Source source = new Source(code, input.publisher(), fetchUrl, host, type, 3, input.language());
+            SourceIntelligencePolicy.Metadata metadata = SourceIntelligencePolicy.infer(source);
+            source.setIntelligenceMetadata(metadata.authority(), metadata.marketScope(), metadata.marketCode());
             source.setActive(false);
             source.setUrlUnverified(finalUri == null);
             return sources.save(source);

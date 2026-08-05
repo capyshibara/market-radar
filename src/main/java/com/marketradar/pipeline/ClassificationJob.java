@@ -72,7 +72,7 @@ public class ClassificationJob {
      * và Ctrl+C/crash mất TOÀN BỘ kết quả + LlmCallLog (mất luôn replay-cache đã trả tiền).
      * Giờ mỗi doc tự commit (save từng entity = transaction riêng): tiến độ nhìn được
      * ngay ở /classifications; mỗi doc được commit cùng attempt ledger riêng.
-     * DedupJob giữ @Transactional riêng của nó (gọi qua proxy — nhanh, ~10s).
+     * Dedup cũng gọi model ngoài transaction và chỉ commit từng quyết định sau đó.
      */
     public String runOnce() {
         return execute(false);

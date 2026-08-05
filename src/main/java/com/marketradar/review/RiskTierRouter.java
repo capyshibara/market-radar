@@ -3,13 +3,14 @@ package com.marketradar.review;
 import org.springframework.stereotype.Service;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.domain.RawDoc;
+import com.marketradar.domain.SourceAuthority;
 
 /**
  * ⚠️ PLACEHOLDER (Batch 4) — Impact Scorer thật (công thức P + 2 điểm
  * Consequence/Uncertainty, bước 9 sequence) sẽ THAY THẾ class này.
  * Rule tối thiểu, deterministic, auditable:
  *
- *   1. Doc từ nguồn tier 1 (chính phủ/regulator) → T3
+ *   1. Regulatory/statutory material → T3 because consequence is high.
  *   2. EXEC_SUMMARY (rawDoc null) → T3 — câu cấp report, consequence cao.
  *   3. DEMO_INJECT → T3 — đảm bảo demo claim dễ nhận diện trong audit.
  *   4. Còn lại (tin sản phẩm từ media, scope MVP) → T1
@@ -25,7 +26,10 @@ public class RiskTierRouter {
     public String assignTier(RawDoc doc, InterpretedClaim.Origin origin) {
         boolean demo = origin == InterpretedClaim.Origin.DEMO_INJECT;
         boolean exec = doc == null;
-        int sourceTier = (doc != null && doc.getSource() != null) ? doc.getSource().getTier() : 3;
-        return ReviewRules.assignTier(demo, exec, sourceTier);
+        SourceAuthority authority = (doc != null && doc.getSource() != null)
+                ? doc.getSource().getAuthority() : SourceAuthority.UNKNOWN;
+        boolean highConsequence = authority == SourceAuthority.REGULATOR
+                || authority == SourceAuthority.STATUTORY_DISCLOSURE;
+        return ReviewRules.assignTier(demo, exec, highConsequence);
     }
 }

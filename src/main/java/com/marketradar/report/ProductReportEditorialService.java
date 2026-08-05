@@ -5,6 +5,8 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.product.ProductReportCadence;
 import com.marketradar.product.ProductReportEditorialDraft;
 import com.marketradar.product.ProductMarketScopeClassifier;
+import com.marketradar.product.CurrentProductNewsItem;
+import com.marketradar.product.CurrentProductNewsService;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.ProductReportEditorialDraftRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,8 @@ import org.springframework.util.MultiValueMap;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -48,24 +52,29 @@ public class ProductReportEditorialService {
     private ProductReportEditorialDraftRepository drafts;
     private EvidenceFactRepository facts;
     private ObjectMapper json;
+    private CurrentProductNewsService currentNews;
 
     public ProductReportEditorialService() {}
 
     @Autowired
     public ProductReportEditorialService(ProductReportEditorialDraftRepository drafts,
-                                         EvidenceFactRepository facts, ObjectMapper json) {
+                                         EvidenceFactRepository facts, ObjectMapper json,
+                                         CurrentProductNewsService currentNews) {
         this.drafts = drafts;
         this.facts = facts;
         this.json = json;
+        this.currentNews = currentNews;
     }
 
     public EditorialBrief current(ProductReportCadence cadence, Locale locale) {
         boolean vi = isVi(locale);
         String language = vi ? "vi" : "en";
-        EditorialBrief memory = transientDrafts.get(key(cadence, language));
+        EvidenceContext evidence = evidenceContext(cadence);
+        EditorialBrief memory = transientDrafts.get(key(cadence, language, evidence.fingerprint()));
         if (memory != null) return memory;
         if (drafts != null && json != null) {
             EditorialBrief stored = drafts.findByCadenceAndLanguage(cadence, language)
+                    .filter(draft -> evidence.fingerprint().equals(draft.getEvidenceFingerprint()))
                     .map(draft -> read(draft.getContentJson()))
                     .orElse(null);
             if (stored != null) return completeLegacyDraft(cadence, vi, stored);
@@ -78,8 +87,11 @@ public class ProductReportEditorialService {
     public boolean hasCuratedDraft(ProductReportCadence cadence, Locale locale) {
         boolean vi = isVi(locale);
         String language = vi ? "vi" : "en";
-        if (transientDrafts.containsKey(key(cadence, language))) return true;
-        return drafts != null && drafts.findByCadenceAndLanguage(cadence, language).isPresent();
+        EvidenceContext evidence = evidenceContext(cadence);
+        if (transientDrafts.containsKey(key(cadence, language, evidence.fingerprint()))) return true;
+        return drafts != null && drafts.findByCadenceAndLanguage(cadence, language)
+                .filter(draft -> evidence.fingerprint().equals(draft.getEvidenceFingerprint()))
+                .isPresent();
     }
 
     @Transactional(readOnly = true)
@@ -89,13 +101,25 @@ public class ProductReportEditorialService {
 
     @Transactional(readOnly = true)
     public List<EditorialReference> references(EditorialBrief brief, Set<String> excludedFactCodes) {
-        if (facts == null || brief == null || brief.citedFactCodes().isEmpty()) return List.of();
+        if (brief == null) return List.of();
+        return references(brief.citedFactCodes(), excludedFactCodes);
+    }
+
+    /** Exact evidence set against which a new human signature will be recorded. */
+    @Transactional(readOnly = true)
+    public List<EditorialReference> lockedEvidenceReferences(ProductReportCadence cadence) {
+        return references(evidenceContext(cadence).factCodes(), Set.of());
+    }
+
+    private List<EditorialReference> references(List<String> factCodes,
+                                                Set<String> excludedFactCodes) {
+        if (facts == null || factCodes == null || factCodes.isEmpty()) return List.of();
         Map<String, EvidenceFact> byCode = facts.findAllByFactCodeInForAudit(
-                        brief.citedFactCodes()).stream()
+                        factCodes).stream()
                 .collect(Collectors.toMap(EvidenceFact::getFactCode, Function.identity(),
                         (first, ignored) -> first));
         Map<Long, EditorialReference> result = new LinkedHashMap<>();
-        for (String code : brief.citedFactCodes()) {
+        for (String code : factCodes) {
             if (excludedFactCodes != null && excludedFactCodes.contains(code)) continue;
             EvidenceFact fact = byCode.get(code);
             if (fact == null) continue;
@@ -117,15 +141,33 @@ public class ProductReportEditorialService {
     @Transactional
     public EditorialBrief save(ProductReportCadence cadence, Locale locale,
                                MultiValueMap<String, String> form) {
+        EvidenceContext evidence = evidenceContext(cadence);
+        if (currentNews != null && evidence.factCodes().isEmpty()) {
+            throw new IllegalStateException(
+                    "No current, attribution-safe evidence is available for human editorial sign-off.");
+        }
+        if (currentNews != null && !Boolean.parseBoolean(form.getFirst("confirmEvidence"))) {
+            throw new IllegalStateException(
+                    "Confirm that the narrative and every exhibit were checked against the locked evidence register.");
+        }
         EditorialBrief current = current(cadence, locale);
+        List<String> lockedFactCodes = evidence.factCodes().isEmpty()
+                ? current.citedFactCodes() : evidence.factCodes();
         List<EditorialTakeaway> takeaways = new ArrayList<>();
         for (int i = 0; i < current.takeaways().size(); i++) {
             EditorialTakeaway old = current.takeaways().get(i);
+            String takeawayCitations = safeCitations(
+                    value(form, "takeaway." + i + ".citationCodes", old.citationCodes()),
+                    lockedFactCodes, "");
+            if (takeawayCitations.isBlank()) {
+                throw new IllegalStateException(
+                        "Every evidence-led editorial insight must cite at least one fact in the locked register.");
+            }
             takeaways.add(new EditorialTakeaway(old.number(),
                     value(form, "takeaway." + i + ".title", old.title()),
                     value(form, "takeaway." + i + ".body", old.body()),
                     value(form, "takeaway." + i + ".implication", old.implication()),
-                    old.citationCodes()));
+                    takeawayCitations));
         }
         List<EditorialDecision> decisions = new ArrayList<>();
         for (int i = 0; i < current.decisions().size(); i++) {
@@ -170,8 +212,13 @@ public class ProductReportEditorialService {
                     value(form, "exhibit." + i + ".takeaway", old.takeaway()),
                     value(form, "exhibit." + i + ".note", old.note()),
                     safeCitations(value(form, "exhibit." + i + ".citationCodes",
-                                    old.citationCodes()), current.citedFactCodes(), old.citationCodes()),
+                                    old.citationCodes()), lockedFactCodes, ""),
                     List.copyOf(data)));
+        }
+        if (exhibits.stream().anyMatch(exhibit -> exhibit.enabled()
+                && (exhibit.citationCodes() == null || exhibit.citationCodes().isBlank()))) {
+            throw new IllegalStateException(
+                    "Every visible exhibit must cite at least one fact in the locked register.");
         }
         List<GlossaryTerm> glossary = new ArrayList<>();
         for (int i = 0; i < current.glossary().size(); i++) {
@@ -193,18 +240,19 @@ public class ProductReportEditorialService {
                 value(form, "watchlist", current.watchlist()),
                 List.copyOf(glossary),
                 value(form, "editorialBoundary", current.editorialBoundary()),
-                current.citedFactCodes(), editor,
+                lockedFactCodes, editor,
                 DateTimeFormatter.ofPattern(isVi(locale) ? "dd/MM/yyyy HH:mm" : "MMM d, yyyy HH:mm",
                         locale).withZone(REPORT_ZONE).format(Instant.now()),
                 "HUMAN_CURATED");
         String language = isVi(locale) ? "vi" : "en";
-        transientDrafts.put(key(cadence, language), revised);
+        transientDrafts.put(key(cadence, language, evidence.fingerprint()), revised);
         if (drafts != null && json != null) {
             try {
                 String content = json.writeValueAsString(revised);
                 ProductReportEditorialDraft draft = drafts.findByCadenceAndLanguage(cadence, language)
-                        .orElseGet(() -> new ProductReportEditorialDraft(cadence, language, content, editor));
-                draft.replace(content, editor);
+                        .orElseGet(() -> new ProductReportEditorialDraft(cadence, language,
+                                content, editor, evidence.fingerprint()));
+                draft.replace(content, editor, evidence.fingerprint());
                 drafts.save(draft);
             } catch (Exception error) {
                 throw new IllegalStateException("Could not save the Product report editorial draft", error);
@@ -315,7 +363,8 @@ public class ProductReportEditorialService {
                         term(vi, "Kênh phân phối", "Distribution channel", "Con đường đưa sản phẩm đến khách hàng, chẳng hạn đại lý, ngân hàng hoặc đối tác số.", "The route through which a product reaches customers, such as agents, banks or digital partners."),
                         term(vi, "Quản trị kênh", "Channel governance", "Quyền sở hữu và kiểm soát đối với đào tạo, tư vấn, giám sát, ngoại lệ và hậu kiểm.", "Ownership and controls for training, advice, supervision, exceptions and post-sale review.")),
                 boundary(vi), codes("F-1833,F-1836,F-1837,F-1707,F-1711,F-1712"),
-                DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
+                DEFAULT_EDITOR, t(vi, "Bản mẫu — chưa duyệt", "Template — not reviewed"),
+                "EDITORIAL_TEMPLATE");
     }
 
     private static EditorialBrief monthly(boolean vi) {
@@ -384,7 +433,8 @@ public class ProductReportEditorialService {
                         term(vi, "API", "API", "Giao diện cho phép các hệ thống trao đổi dữ liệu hoặc gọi chức năng theo cách có kiểm soát.", "A controlled interface through which systems exchange data or call a capability."),
                         term(vi, "Kinh tế đơn vị", "Unit economics", "Doanh thu, chi phí và biên lợi nhuận của một đơn vị đo cụ thể như một hợp đồng hoặc giao dịch.", "Revenue, cost and margin for a defined unit such as one policy or transaction.")),
                 boundary(vi), codes("F-1843,F-1844,F-1848,F-1849,F-819,F-820,F-821,F-822,F-823,F-717,F-1728,F-1730,F-1820"),
-                DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
+                DEFAULT_EDITOR, t(vi, "Bản mẫu — chưa duyệt", "Template — not reviewed"),
+                "EDITORIAL_TEMPLATE");
     }
 
     private static EditorialBrief quarterly(boolean vi) {
@@ -454,7 +504,8 @@ public class ProductReportEditorialService {
                         term(vi, "Số tiền bảo hiểm", "Sum assured", "Mức quyền lợi danh nghĩa được quy định trong hợp đồng khi xảy ra sự kiện được bảo hiểm.", "The contractual benefit amount payable when the specified insured event occurs."),
                         term(vi, "Mô hình vận hành", "Operating model", "Cách con người, quy trình, công nghệ, dữ liệu, đối tác và quyền ra quyết định phối hợp để cung cấp sản phẩm.", "How people, processes, technology, data, partners and decision rights work together to deliver the proposition.")),
                 boundary(vi), codes("F-1209,F-1210,F-1211,F-1212,F-1213,F-919,F-920,F-921,F-922,F-924,F-819,F-820,F-821,F-822,F-823,F-1842,F-1843,F-1844,F-1848,F-1811,F-1812,F-1813,F-1805,F-1820"),
-                DEFAULT_EDITOR, t(vi, "17/07/2026", "Jul 17, 2026"), "HUMAN_CURATED");
+                DEFAULT_EDITOR, t(vi, "Bản mẫu — chưa duyệt", "Template — not reviewed"),
+                "EDITORIAL_TEMPLATE");
     }
 
     private static List<EditorialExhibit> weeklyExhibits(boolean vi) {
@@ -662,8 +713,38 @@ public class ProductReportEditorialService {
         return Arrays.stream(csv.split(",")).map(String::strip).filter(s -> !s.isBlank()).toList();
     }
 
-    private static String key(ProductReportCadence cadence, String language) {
-        return cadence.name() + ":" + language;
+    private EvidenceContext evidenceContext(ProductReportCadence cadence) {
+        if (currentNews == null) {
+            return new EvidenceContext(sha256(cadence.name() + "|STANDALONE"), List.of());
+        }
+        List<CurrentProductNewsItem> items = currentNews.findCurrent(cadence).stream()
+                .sorted(java.util.Comparator.comparing(CurrentProductNewsItem::factCode))
+                .toList();
+        String material = cadence.name() + items.stream()
+                .map(item -> "|" + item.factCode() + ":" + item.rawDocId() + ":"
+                        + item.publishedDate() + ":" + item.sourceCode() + ":"
+                        + item.sourceAuthority())
+                .collect(Collectors.joining());
+        return new EvidenceContext(sha256(material),
+                items.stream().map(CurrentProductNewsItem::factCode).distinct().toList());
+    }
+
+    private static String key(ProductReportCadence cadence, String language,
+                              String evidenceFingerprint) {
+        return cadence.name() + ":" + language + ":" + evidenceFingerprint;
+    }
+
+    private static String sha256(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception error) {
+            throw new IllegalStateException(error);
+        }
+    }
+
+    private record EvidenceContext(String fingerprint, List<String> factCodes) {
+        private EvidenceContext { factCodes = List.copyOf(factCodes); }
     }
 
     private static String value(MultiValueMap<String, String> form, String key, String fallback) {

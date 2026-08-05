@@ -38,19 +38,27 @@ public class ProductReportEditorialDraft {
     @Column(nullable = false)
     private Instant updatedAt = Instant.now();
 
+    /** Fingerprint of the exact evidence ledger visible when the human signed.
+     * A null legacy value is intentionally treated as stale. */
+    @Column(length = 64)
+    private String evidenceFingerprint;
+
     protected ProductReportEditorialDraft() {}
 
     public ProductReportEditorialDraft(ProductReportCadence cadence, String language,
-                                       String contentJson, String editor) {
+                                       String contentJson, String editor,
+                                       String evidenceFingerprint) {
         this.cadence = cadence;
         this.language = language;
         this.contentJson = contentJson;
         this.editor = editor;
+        this.evidenceFingerprint = evidenceFingerprint;
     }
 
-    public void replace(String contentJson, String editor) {
+    public void replace(String contentJson, String editor, String evidenceFingerprint) {
         this.contentJson = contentJson;
         this.editor = editor;
+        this.evidenceFingerprint = evidenceFingerprint;
         this.updatedAt = Instant.now();
     }
 
@@ -59,4 +67,5 @@ public class ProductReportEditorialDraft {
     public String getContentJson() { return contentJson; }
     public String getEditor() { return editor; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public String getEvidenceFingerprint() { return evidenceFingerprint; }
 }

@@ -76,14 +76,19 @@ public final class ExtractionContentDiagnostics {
         long total = lengths.stream().mapToLong(Integer::longValue).sum();
         int n = lengths.size();
         int p90Index = Math.max(0, (int) Math.ceil(n * 0.90) - 1);
-        long truncated = lengths.stream().filter(v -> v > MAX_EXTRACT_INPUT_CHARS).count();
+        // Long documents are chunked with full coverage; this is a multi-chunk
+        // count retained under the old record component name for API compatibility.
+        long multiChunk = lengths.stream().filter(v -> v > MAX_EXTRACT_INPUT_CHARS).count();
         return new LengthStats(n, lengths.get(0), lengths.get(n / 2), lengths.get(p90Index),
-                lengths.get(n - 1), truncated, (double) total / n);
+                lengths.get(n - 1), multiChunk, (double) total / n);
     }
 
     public record LengthStats(int fullTextDocuments, int minChars, int medianChars,
                               int p90Chars, int maxChars, long inputTruncatedDocuments,
-                              double averageChars) {}
+                              double averageChars) {
+        /** Accurate semantic name; no characters are dropped by LongDocumentChunker. */
+        public long multiChunkDocuments() { return inputTruncatedDocuments; }
+    }
 
     public record Assessment(State state, String reasonCode, String reason, int inputChars,
                              int chunksPlanned, int coveredCharacters,

@@ -33,7 +33,7 @@ public class MarketEventService {
     public MaterializationResult materializeMissing() {
         int created = 0;
         int existing = 0;
-        for (EvidenceFact fact : facts.findAllActiveOrderById()) {
+        for (EvidenceFact fact : facts.findAllActiveForSynthesisOrderById()) {
             if (events.existsByEvidenceFactAndPipelineVersion(
                     fact, MarketEventNormalizer.PIPELINE_VERSION)) {
                 existing++;

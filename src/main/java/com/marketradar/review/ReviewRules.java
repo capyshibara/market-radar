@@ -16,19 +16,26 @@ public final class ReviewRules {
     public static final int MIN_FORCE_REASON = 10;
     public static final int MIN_REJECT_REASON = 5;
 
-    // ---------- Tier (PLACEHOLDER — Impact Scorer thật ở bước 9 thay thế) ----------
+    // ---------- Claim consequence tier (not source quality) ----------
 
     /**
      * @param isDemoInject  claim demo → luôn vào review
      * @param isExecSummary câu cấp report (rawDoc null) → consequence cao
-     * @param sourceTier    tier NGUỒN (1=chính phủ/regulator … 4=blog)
+     * @param highConsequenceSource true for regulatory/statutory material whose
+     *                              misreading can change a management decision
      * @return risk tier T1/T3 (rule tối thiểu — xem RiskTierRouter javadoc)
      */
-    public static String assignTier(boolean isDemoInject, boolean isExecSummary, int sourceTier) {
+    public static String assignTier(boolean isDemoInject, boolean isExecSummary,
+                                    boolean highConsequenceSource) {
         if (isDemoInject) return "T3";
         if (isExecSummary) return "T3";
-        // Hard-override kiến trúc đầy đủ: văn bản pháp lý chính thức → tối thiểu T3
-        return sourceTier == 1 ? "T3" : "T1";
+        return highConsequenceSource ? "T3" : "T1";
+    }
+
+    /** Legacy standalone-test seam; source tier is not used by production routing. */
+    @Deprecated(forRemoval = false)
+    public static String assignTier(boolean isDemoInject, boolean isExecSummary, int legacySourceTier) {
+        return assignTier(isDemoInject, isExecSummary, legacySourceTier == 1);
     }
 
     // ---------- Quyết định route sau Gate L2 ----------

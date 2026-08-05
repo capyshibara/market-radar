@@ -68,11 +68,23 @@ public final class ProductMaterialityRules {
             boolean fullTextFetched,
             String parseStatus,
             boolean duplicate,
+            String sourceAuthority,
             Integer sourceTier) {
 
         public Input {
             classificationLabels = classificationLabels == null ? Set.of() : Set.copyOf(classificationLabels);
             asOfDate = asOfDate == null ? LocalDate.now() : asOfDate;
+        }
+
+        /** Backward-compatible constructor for standalone fixtures created before source authority existed. */
+        public Input(String factType, Set<String> classificationLabels, String classificationStatus,
+                     String title, String evidenceSpan, String summary, String rawText,
+                     String company, String productName, LocalDate publishedDate,
+                     LocalDate eventDate, LocalDate asOfDate, boolean fullTextFetched,
+                     String parseStatus, boolean duplicate, Integer sourceTier) {
+            this(factType, classificationLabels, classificationStatus, title, evidenceSpan,
+                    summary, rawText, company, productName, publishedDate, eventDate, asOfDate,
+                    fullTextFetched, parseStatus, duplicate, null, sourceTier);
         }
     }
 
@@ -259,7 +271,7 @@ public final class ProductMaterialityRules {
         mapKiqs(kiqs, input, text, launch, feeBenefit, regulation, distribution, sales);
         if (kiqs.isEmpty()) reasons.add("No Product KIQ mapping; keep out of the decision brief.");
 
-        SourceCredibility credibility = credibility(input.sourceTier());
+        SourceCredibility credibility = credibility(input.sourceAuthority(), input.sourceTier());
         boolean credibleForPublication = credibility.score() >= SourceCredibility.SECONDARY.score();
         if (!credibleForPublication) {
             reasons.add("Source credibility warning: corroboration is required; credibility is not part of materiality points.");
@@ -315,7 +327,20 @@ public final class ProductMaterialityRules {
         return "Published " + days + " day(s) before scoring; timeliness score " + score + "/15.";
     }
 
-    private static SourceCredibility credibility(Integer tier) {
+    private static SourceCredibility credibility(String authority, Integer legacyTier) {
+        if (authority != null && !authority.isBlank()) {
+            return switch (authority.strip().toUpperCase(Locale.ROOT)) {
+                case "REGULATOR", "STATUTORY_DISCLOSURE", "OFFICIAL_COMPANY" -> SourceCredibility.OFFICIAL;
+                case "INDUSTRY_BODY", "SPECIALIST_RESEARCH", "ESTABLISHED_MEDIA", "PROFESSIONAL_SERVICES" ->
+                        SourceCredibility.ESTABLISHED_MEDIA;
+                case "OTHER_PUBLISHER" -> SourceCredibility.SECONDARY;
+                case "SOCIAL_OR_BLOG" -> SourceCredibility.BLOG_OR_SOCIAL;
+                default -> SourceCredibility.UNKNOWN;
+            };
+        }
+        // Compatibility only for old fixtures/databases. New application code always
+        // supplies sourceAuthority so geography-shaped legacy tier cannot affect trust.
+        Integer tier = legacyTier;
         if (tier == null) return SourceCredibility.UNKNOWN;
         return switch (tier) {
             case 1 -> SourceCredibility.OFFICIAL;

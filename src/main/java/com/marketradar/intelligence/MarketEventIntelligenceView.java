@@ -3,6 +3,10 @@ package com.marketradar.intelligence;
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.MarketEvent;
 import com.marketradar.domain.MarketEventCluster;
+import com.marketradar.domain.IntelligenceTopic;
+import com.marketradar.domain.SourceAuthority;
+import com.marketradar.domain.TemporalRole;
+import com.marketradar.intelligence.EntityResolutionRules;
 
 import java.time.LocalDate;
 
@@ -13,6 +17,12 @@ public record MarketEventIntelligenceView(
         EvidenceFact evidenceFact,
         String sourceCode,
         int sourceTier,
+        SourceAuthority sourceAuthority,
+        IntelligenceTopic intelligenceTopic,
+        TemporalRole temporalRole,
+        String marketCode,
+        String subjectEntityKey,
+        EntityResolutionRules.Status entityResolutionStatus,
         String pipelineVersion,
         String modelVersion,
         String clusterKey,
@@ -37,7 +47,10 @@ public record MarketEventIntelligenceView(
         MarketEventCluster cluster = event.getCluster();
         return new MarketEventIntelligenceView(
                 event.getEventKey(), event.getEvidenceFactCode(), event.getEvidenceFact(),
-                event.getSourceCode(), event.getSourceTier(), event.getPipelineVersion(),
+                event.getSourceCode(), event.getSourceTier(), event.getSourceAuthority(),
+                event.getIntelligenceTopic(), event.getTemporalRole(), event.getMarketCode(),
+                event.getSubjectEntityKey(), event.getEntityResolutionStatus(),
+                event.getPipelineVersion(),
                 event.getModelVersion(),
                 cluster == null ? event.getEventKey() : cluster.getClusterKey(),
                 cluster == null ? 1 : cluster.getFactCount(),

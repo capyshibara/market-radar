@@ -124,7 +124,7 @@
         <div class="source-panel"><small th:text="${story.factCode + ' · ' + story.evidenceLanguageLabel + ' · ' + (vi ? 'NGUYÊN VĂN' : 'VERBATIM')}">F-001</small><blockquote th:text="${story.originalEvidence}">Exact evidence.</blockquote></div>
         <aside class="source-audit"><dl>
           <dt th:text="${vi ? 'Tài liệu đã lưu' : 'Stored document'}">Document</dt><dd th:text="${'DOC #' + story.rawDocId + ' · ' + story.intakeLabel}">Doc</dd>
-          <dt th:text="${vi ? 'Nguồn hệ thống' : 'Registry source'}">Source</dt><dd th:text="${story.sourceCode + ' · Tier ' + story.sourceTier}">Source</dd>
+          <dt th:text="${vi ? 'Nguồn hệ thống' : 'Registry source'}">Source</dt><dd th:text="${story.sourceCode + ' · ' + #strings.replace(story.sourceAuthority, '_', ' ')}">Source</dd>
           <dt th:text="${vi ? 'Thời điểm thu thập' : 'Crawled / added'}">Fetched</dt><dd th:text="${story.fetchedLabel}">Fetched</dd>
           <dt th:text="${vi ? 'Liên kết nguồn gốc' : 'Original source'}">Original</dt><dd><a th:if="${story.externalSourceLink}" th:href="${story.sourceUrl}" target="_blank" rel="noopener" th:text="${vi ? 'Đọc tại nhà xuất bản ↗' : 'Read at publisher ↗'}">Publisher</a><span th:unless="${story.externalSourceLink}" th:text="${vi ? 'Tài liệu tải lên; không có URL công khai.' : 'Uploaded document; no public URL.'}">Uploaded</span></dd>
         </dl></aside>

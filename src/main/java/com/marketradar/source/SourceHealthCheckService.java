@@ -1,6 +1,7 @@
 package com.marketradar.source;
 
 import com.marketradar.domain.Source;
+import com.marketradar.domain.SourceAuthority;
 import com.marketradar.fetch.SafeFetcher;
 import com.marketradar.fetch.SourceFetchOverrides;
 import com.marketradar.repo.SourceRepository;
@@ -30,8 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * không phải một đường ingest. Chạy TUẦN TỰ (không song song) để không mở nhiều
  * Chromium cùng lúc (BrowserRenderService tự khởi/đóng trình duyệt mỗi lần gọi).
  *
- * NGOẠI LỆ DUY NHẤT với "không ghi gì" ở trên: một nguồn kiểm tra OK (HTTP hoặc
- * BROWSER) thì được set urlUnverified=false trên chính Source đó (không đụng
+ * NGOẠI LỆ DUY NHẤT với "không ghi gì" ở trên: một nguồn kiểm tra OK bằng đúng
+ * transport mà ingestion tự động sở hữu (HTTP hoặc READER) thì được set
+ * urlUnverified=false trên chính Source đó (không đụng
  * RawDoc/EvidenceFact/ingest). Trước khi có việc này, cờ "URL verified" trên
  * /sources đứng yên mãi mãi ở "Unverified" cho toàn bộ nguồn seed sẵn (được người
  * viết verify tay lúc phát triển nhưng chưa từng set cờ) — gây hiểu nhầm cờ đó
@@ -53,7 +55,8 @@ public class SourceHealthCheckService {
 
     public enum Method { HTTP, READER, BROWSER, NONE }
 
-    public record Result(String code, String name, int tier, Method method, boolean ok,
+    public record Result(String code, String name, SourceAuthority authority, String marketCode,
+                         Method method, boolean ok,
                          String detail, long elapsedMs) {}
 
     private final SourceRepository sources;
@@ -84,7 +87,9 @@ public class SourceHealthCheckService {
         if (running.get()) return false;
         List<Source> active = sources.findAll().stream()
                 .filter(Source::isActive)
-                .sorted(Comparator.comparingInt(Source::getTier).thenComparing(Source::getCode))
+                .sorted(Comparator.comparingInt((Source source) ->
+                                -source.getAuthority().credibilityScore())
+                        .thenComparing(Source::getCode))
                 .toList();
         results.clear();
         completed.set(0);
@@ -104,8 +109,7 @@ public class SourceHealthCheckService {
                         // đây chính là lỗi đã bắt được lúc kiểm thử (Playwright ném lỗi driver chưa
                         // từng thấy, chưa được khai báo, làm cả lượt kiểm tra im lặng dừng ở 0/42).
                         log.error("Health check crashed on {}, continuing with remaining sources", source.getCode(), crash);
-                        result = new Result(source.getCode(), source.getName(), source.getTier(), Method.NONE,
-                                false, "Crashed: " + crash, System.currentTimeMillis() - t0);
+                        result = result(source, Method.NONE, false, "Crashed: " + crash, t0);
                     }
                     results.put(source.getCode(), result);
                     completed.incrementAndGet();
@@ -127,10 +131,10 @@ public class SourceHealthCheckService {
                         SourceFetchOverrides.READER_PROXY_HOST,
                         SafeFetcher.ExpectedKind.TEXT);
                 markVerified(source);
-                return new Result(source.getCode(), source.getName(), source.getTier(), Method.READER, true,
+                return result(source, Method.READER, true,
                         "OK via allow-listed Reader transport — official URL and attribution preserved; "
                                 + r.body().length + " bytes, " + r.contentType(),
-                        System.currentTimeMillis() - t0);
+                        t0);
             }
             // Một số nguồn cần POST kèm body cụ thể (MOF_ISA/CATHAY_VN/DAIICHI_VN/HKIA) hoặc cap
             // byte cao hơn mặc định (FWD_VN) để khớp đúng cách IngestionJob thật sự fetch —
@@ -148,15 +152,13 @@ public class SourceHealthCheckService {
                         : fetcher.fetch(source.getFetchUrl(), source.getAllowedHost(),
                                 expectedKind(source.getType()));
             markVerified(source);
-            return new Result(source.getCode(), source.getName(), source.getTier(), Method.HTTP, true,
-                    "OK — " + r.body().length + " bytes, " + r.contentType(),
-                    System.currentTimeMillis() - t0);
+            return result(source, Method.HTTP, true,
+                    "OK — " + r.body().length + " bytes, " + r.contentType(), t0);
         } catch (SafeFetcher.FetchRejectedException httpFail) {
             return tryBrowser(source, httpFail.getMessage(), t0);
         } catch (Exception unexpected) {
             log.warn("Health check unexpected error for {}: {}", source.getCode(), unexpected.toString());
-            return new Result(source.getCode(), source.getName(), source.getTier(), Method.NONE, false,
-                    "Unexpected error: " + unexpected, System.currentTimeMillis() - t0);
+            return result(source, Method.NONE, false, "Unexpected error: " + unexpected, t0);
         }
     }
 
@@ -165,27 +167,31 @@ public class SourceHealthCheckService {
             String html = browserRender.renderHtml(source.getFetchUrl());
             int len = html == null ? 0 : html.strip().length();
             if (len >= MIN_MEANINGFUL_HTML_CHARS) {
-                markVerified(source);
-                return new Result(source.getCode(), source.getName(), source.getTier(), Method.BROWSER, true,
+                return result(source, Method.BROWSER, true,
                         "HTTP failed (" + httpReason + ") — headless browser succeeded, " + len
-                                + " chars. Not auto-wired into scheduled ingest yet; import manually via"
+                                + " chars. MANUAL-ONLY: source remains unverified for automatic ingest; import via"
                                 + " Research → Browser Render until it is.",
-                        System.currentTimeMillis() - t0);
+                        t0);
             }
-            return new Result(source.getCode(), source.getName(), source.getTier(), Method.NONE, false,
+            return result(source, Method.NONE, false,
                     "HTTP failed (" + httpReason + "); browser render returned only " + len
                             + " chars — likely still blocked or an empty shell.",
-                    System.currentTimeMillis() - t0);
+                    t0);
         } catch (Exception browserFail) {
             // Bắt Exception rộng, không chỉ BrowserRenderException khai báo: driver Playwright có
             // thể ném RuntimeException chưa từng thấy (vd lần đầu chạy tự tải trình duyệt thiếu mà
             // mạng bị chặn) — một nguồn lỗi kiểu này không được phép làm chết cả lượt kiểm tra 42
             // nguồn còn lại (đã từng xảy ra: completed dừng ở 0, toàn bộ batch im lặng thoát).
             log.warn("Health check browser fallback failed for {}: {}", source.getCode(), browserFail.toString());
-            return new Result(source.getCode(), source.getName(), source.getTier(), Method.NONE, false,
-                    "HTTP failed (" + httpReason + "); browser also failed (" + browserFail.getMessage() + ").",
-                    System.currentTimeMillis() - t0);
+            return result(source, Method.NONE, false,
+                    "HTTP failed (" + httpReason + "); browser also failed (" + browserFail.getMessage() + ").", t0);
         }
+    }
+
+    private static Result result(Source source, Method method, boolean ok, String detail, long startedAtMs) {
+        return new Result(source.getCode(), source.getName(), source.getAuthority(),
+                source.getDefaultMarketCode(), method, ok, detail,
+                System.currentTimeMillis() - startedAtMs);
     }
 
     /** Chỉ set false khi hiện đang true — tránh ghi/flush thừa cho nguồn đã verified từ trước. */
@@ -211,7 +217,9 @@ public class SourceHealthCheckService {
 
     public Status status() {
         List<Result> sorted = results.values().stream()
-                .sorted(Comparator.comparingInt(Result::tier).thenComparing(Result::code))
+                .sorted(Comparator.comparingInt((Result result) ->
+                                -result.authority().credibilityScore())
+                        .thenComparing(Result::code))
                 .toList();
         return new Status(running.get(), completed.get(), total, startedAt, finishedAt, sorted);
     }

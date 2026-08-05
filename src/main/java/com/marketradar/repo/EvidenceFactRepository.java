@@ -23,6 +23,7 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
     @Query("select f from EvidenceFact f " +
            "join fetch f.rawDoc d join fetch d.source " +
            "where f.active = true " +
+           "and d.duplicateOfId is null and d.sampleData = false " +
            "order by f.eventDate desc")
     List<EvidenceFact> findAllForReport();
 
@@ -37,11 +38,19 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
            "join fetch f.rawDoc d join fetch d.source s " +
            "where f.active = true and s.active = true " +
            "and d.fullTextFetched = true and d.sampleData = false " +
-           "and d.duplicateOfId is null and s.tier between 1 and 3")
+           "and d.duplicateOfId is null")
     List<EvidenceFact> findCurrentProductNewsCandidates();
 
     @Query("select f from EvidenceFact f where f.active = true order by f.id")
     List<EvidenceFact> findAllActiveOrderById();
+
+    /** Active facts eligible for synthesis; copied/reposted and demo documents stay in
+     * the audit corpus but cannot inflate corroboration or global narratives. */
+    @Query("select f from EvidenceFact f " +
+           "join fetch f.rawDoc d join fetch d.source " +
+           "where f.active = true and d.duplicateOfId is null and d.sampleData = false " +
+           "order by f.id")
+    List<EvidenceFact> findAllActiveForSynthesisOrderById();
 
     /** Desk feed: resolve one story link per routed document. Read-only. */
     @Query("select f from EvidenceFact f where f.rawDoc.id in :rawDocIds and f.active = true order by f.id")

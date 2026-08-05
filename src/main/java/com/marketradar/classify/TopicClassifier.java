@@ -32,8 +32,8 @@ import java.util.*;
 public class TopicClassifier {
 
     private static final Logger log = LoggerFactory.getLogger(TopicClassifier.class);
-    private static final int MAX_INPUT_CHARS = 4000; // cắt input, không cắt giữa multi-byte vì substring theo char
-    private static final String USER_PROMPT_TEMPLATE_VERSION = "title-plus-stripped-raw-text-v2";
+    private static final int MAX_INPUT_CHARS = 12000;
+    private static final String USER_PROMPT_TEMPLATE_VERSION = "representative-head-middle-tail-plus-source-time-v4";
 
     private final LlmClient llm;
     private final LlmCallLogRepository callLog;
@@ -175,8 +175,36 @@ public class TopicClassifier {
     // ---------- Prompt ----------
 
     private static final String SYSTEM_PROMPT = """
-        Bạn là bộ phân loại tin tức ngành bảo hiểm nhân thọ (thị trường Việt Nam và Trung Quốc).
-        Nhiệm vụ: gán 0, 1 hoặc nhiều nhãn category cho văn bản, CHỈ từ danh sách sau:
+        Bạn là Librarian cho hệ thống market intelligence ngành bảo hiểm nhân thọ.
+        Nhiệm vụ: CURATE tài liệu trước khi phân tích, gán 0, 1 hoặc nhiều nhãn
+        category CHỈ từ danh sách sau. Taxonomy này không gắn cứng vào một quốc gia
+        hay phòng ban; bảng routing deterministic sẽ chọn audience sau.
+
+        NHÓM THÔNG TIN THỊ TRƯỜNG/CHIẾN LƯỢC:
+        - MACRO_ECONOMIC: GDP, lãi suất, lạm phát, dân số, thu nhập, thị trường vốn
+          hoặc bối cảnh vĩ mô có liên hệ rõ tới bảo hiểm/tiết kiệm dài hạn.
+        - INDUSTRY_REGULATION: luật, nghị định, thông tư, giám sát, vốn, dự phòng,
+          dữ liệu, phân phối hoặc bảo vệ người tiêu dùng áp dụng cho ngành bảo hiểm.
+        - MARKET_STRUCTURE: quy mô ngành, thị phần, tăng trưởng, nhiều doanh nghiệp,
+          pattern cạnh tranh hoặc thay đổi cấu trúc thị trường.
+        - COMPANY_FINANCIAL_PERFORMANCE: doanh thu/phí, APE/NBAPE, lợi nhuận, vốn,
+          solvency, giá trị kinh doanh mới hoặc chỉ số của một doanh nghiệp/tập đoàn.
+        - CORPORATE_ACTION: M&A, thoái vốn, đầu tư, hợp tác chiến lược, thay đổi
+          sở hữu, mở/đóng hoạt động hoặc quyết định doanh nghiệp quan trọng.
+        - TECHNOLOGY_AI: AI, data, cloud, automation, insurtech, an ninh mạng hoặc chuyển đổi số.
+        - CUSTOMER_EXPERIENCE: nhu cầu/hành vi khách hàng, complaints, claims journey,
+          onboarding, retention, engagement hoặc research người tiêu dùng.
+        - PEOPLE_TALENT: bổ nhiệm lãnh đạo, tuyển dụng chiến lược, tái cơ cấu nhân sự.
+        - BRAND_REPUTATION: giải thưởng, xếp hạng, scandal, niềm tin hoặc tín hiệu danh tiếng.
+        - STRATEGIC_RESEARCH: báo cáo nghiên cứu chuyên sâu, benchmark hoặc operating model
+          có thể giúp management hiểu/cân nhắc một quyết định.
+
+        NGOẠI LỆ VĨ MÔ CÓ KIỂM SOÁT: tài liệu về GDP, lãi suất, lạm phát, thu nhập,
+        dân số hoặc thị trường vốn do REGULATOR/cơ quan thống kê chính thức công bố
+        cho một thị trường đã xác định được phép gán MACRO_ECONOMIC dù không lặp lại
+        từ "bảo hiểm". Không áp dụng ngoại lệ này cho báo chí/blog hay tin tài chính chung.
+
+        NHÓM THÔNG TIN SẢN PHẨM/PHÂN PHỐI:
         - PRODUCT_LAUNCH: ra mắt, phê duyệt, hoặc nộp hồ sơ sản phẩm BẢO HIỂM NHÂN THỌ mới
         - FEE_BENEFIT_COMMISSION_CHANGE: thay đổi phí, quyền lợi, hoặc hoa hồng của sản phẩm BẢO HIỂM
         - PRODUCT_REGULATION: quy định pháp lý ảnh hưởng trực tiếp đến thiết kế/bán sản phẩm
@@ -186,7 +214,8 @@ public class TopicClassifier {
         - DISTRIBUTION_CHANNEL: kênh phân phối BẢO HIỂM (đại lý, bancassurance, digital)
 
         QUAN TRỌNG — kiểm tra liên quan trước khi gán nhãn: chỉ gán nhãn nếu văn bản nói RÕ
-        về sản phẩm, công ty, hoặc quy định của ngành BẢO HIỂM NHÂN THỌ (hoặc bancassurance).
+        về ngành/công ty/sản phẩm bảo hiểm nhân thọ, HOẶC bối cảnh vĩ mô/công nghệ/
+        hành vi khách hàng có liên hệ cụ thể và có thể kiểm chứng với ngành.
         Tin ngân hàng/tín dụng/ngoại hối/chứng khoán nói chung — kể cả khi xuất bản bởi một
         nguồn tài chính uy tín, hoặc khi nội dung nghe có vẻ là "quy định tài chính" — KHÔNG
         được gán bất kỳ nhãn nào nếu không có liên hệ rõ ràng, cụ thể đến bảo hiểm nhân thọ.
@@ -208,9 +237,33 @@ public class TopicClassifier {
 
     private String buildUserPrompt(RawDoc doc) {
         String title = doc.getTitle() == null ? "" : doc.getTitle();
-        String text = doc.getRawText() == null ? "" : doc.getRawText().strip();
-        if (text.length() > MAX_INPUT_CHARS) text = text.substring(0, MAX_INPUT_CHARS);
-        return "TIÊU ĐỀ: " + title + "\n\nNỘI DUNG:\n" + text;
+        String text = representativeText(doc.getRawText(), MAX_INPUT_CHARS);
+        String sourceContext = doc.getSource() == null ? ""
+                : "NGUỒN: authority=" + doc.getSource().getAuthority().name()
+                    + "; default_market=" + java.util.Objects.toString(
+                            doc.getSource().getDefaultMarketCode(), "UNKNOWN")
+                    + "; language=" + doc.getSource().getLanguage()
+                    + "; published_at=" + java.util.Objects.toString(doc.getPublishedAt(), "UNKNOWN") + "\n";
+        return sourceContext + "TIÊU ĐỀ: " + title + "\n\nNỘI DUNG:\n" + text;
+    }
+
+    /**
+     * Long PDFs often begin with a cover and table of contents. Read representative
+     * head/middle/tail excerpts instead of silently classifying only the cover pages.
+     */
+    public static String representativeText(String rawText, int maxCharacters) {
+        if (rawText == null || rawText.isBlank() || maxCharacters <= 0) return "";
+        String text = rawText.strip();
+        if (text.length() <= maxCharacters) return text;
+        int segment = Math.max(1, maxCharacters / 3);
+        int middleStart = Math.max(segment, (text.length() - segment) / 2);
+        int tailStart = Math.max(middleStart + segment, text.length() - segment);
+        String head = text.substring(0, Math.min(segment, text.length()));
+        String middle = text.substring(middleStart, Math.min(middleStart + segment, text.length()));
+        String tail = text.substring(tailStart);
+        return "[ĐẦU TÀI LIỆU]\n" + head
+                + "\n\n[GIỮA TÀI LIỆU]\n" + middle
+                + "\n\n[CUỐI TÀI LIỆU]\n" + tail;
     }
 
     /**

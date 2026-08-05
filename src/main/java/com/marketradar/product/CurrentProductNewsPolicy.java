@@ -1,5 +1,6 @@
 package com.marketradar.product;
 
+import com.marketradar.domain.SourceAuthority;
 import com.marketradar.intelligence.ProductMaterialityRules;
 
 import java.time.LocalDate;
@@ -17,7 +18,7 @@ import java.util.Set;
  */
 public final class CurrentProductNewsPolicy {
 
-    public static final String VERSION = "current-product-news-v1";
+    public static final String VERSION = "current-product-news-v3-authority-entity";
 
     private static final Set<String> PRODUCT_LABELS = Set.of(
             "PRODUCT_LAUNCH",
@@ -45,9 +46,34 @@ public final class CurrentProductNewsPolicy {
             String classificationStatus,
             Set<String> classificationLabels,
             String title,
-            String verbatimEvidenceSpan) {
+            String verbatimEvidenceSpan,
+            String sourceAuthority,
+            boolean attributionSafe) {
         public Input {
             classificationLabels = classificationLabels == null ? Set.of() : Set.copyOf(classificationLabels);
+        }
+
+        /** Compatibility for standalone policy callers while persisted sources migrate. */
+        public Input(boolean factActive, boolean sourceActive, String rawText,
+                     boolean fullTextFetched, String parseStatus, boolean sampleData,
+                     boolean duplicate, Integer sourceTier, LocalDate publishedDate,
+                     String classificationStatus, Set<String> classificationLabels,
+                     String title, String verbatimEvidenceSpan) {
+            this(factActive, sourceActive, rawText, fullTextFetched, parseStatus, sampleData,
+                    duplicate, sourceTier, publishedDate, classificationStatus,
+                    classificationLabels, title, verbatimEvidenceSpan,
+                    legacyAuthority(sourceTier).name(), true);
+        }
+
+        /** Compatibility for callers that already provide explicit authority metadata. */
+        public Input(boolean factActive, boolean sourceActive, String rawText,
+                     boolean fullTextFetched, String parseStatus, boolean sampleData,
+                     boolean duplicate, Integer sourceTier, LocalDate publishedDate,
+                     String classificationStatus, Set<String> classificationLabels,
+                     String title, String verbatimEvidenceSpan, String sourceAuthority) {
+            this(factActive, sourceActive, rawText, fullTextFetched, parseStatus, sampleData,
+                    duplicate, sourceTier, publishedDate, classificationStatus,
+                    classificationLabels, title, verbatimEvidenceSpan, sourceAuthority, true);
         }
     }
 
@@ -61,11 +87,15 @@ public final class CurrentProductNewsPolicy {
         if (!"OK".equalsIgnoreCase(input.parseStatus())) return reject("source document did not parse successfully");
         if (input.sampleData()) return reject("sample data is never current news");
         if (input.duplicate()) return reject("duplicate document");
+        if (!input.attributionSafe()) {
+            return reject("entity attribution is unresolved, ambiguous, or conflicting");
+        }
         if (!input.fullTextFetched() || length(input.rawText()) < ProductMaterialityRules.MIN_FULL_TEXT_CHARS) {
             return reject("full article text is unavailable or below the shared content floor");
         }
-        if (input.sourceTier() == null || input.sourceTier() < 1 || input.sourceTier() > 3) {
-            return reject("source tier is outside the current-news credibility range");
+        SourceAuthority authority = parseAuthority(input.sourceAuthority(), input.sourceTier());
+        if (authority == SourceAuthority.UNKNOWN || authority == SourceAuthority.SOCIAL_OR_BLOG) {
+            return reject("source authority is unknown or social-only");
         }
         if (input.publishedDate() == null || input.publishedDate().isBefore(cadence.start(asOf))
                 || input.publishedDate().isAfter(asOf)) {
@@ -104,5 +134,26 @@ public final class CurrentProductNewsPolicy {
     private static boolean containsAny(String text, String[] terms) {
         for (String term : terms) if (text.contains(term)) return true;
         return false;
+    }
+
+    private static SourceAuthority parseAuthority(String value, Integer legacyTier) {
+        if (value != null && !value.isBlank()) {
+            try {
+                return SourceAuthority.valueOf(value.strip().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return SourceAuthority.UNKNOWN;
+            }
+        }
+        return legacyAuthority(legacyTier);
+    }
+
+    private static SourceAuthority legacyAuthority(Integer tier) {
+        if (tier == null) return SourceAuthority.UNKNOWN;
+        return switch (tier) {
+            case 1 -> SourceAuthority.OFFICIAL_COMPANY;
+            case 2 -> SourceAuthority.ESTABLISHED_MEDIA;
+            case 3 -> SourceAuthority.OTHER_PUBLISHER;
+            default -> SourceAuthority.UNKNOWN;
+        };
     }
 }

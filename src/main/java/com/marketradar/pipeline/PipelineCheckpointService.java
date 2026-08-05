@@ -6,6 +6,7 @@ import com.marketradar.domain.Classification;
 import com.marketradar.domain.FactExtractionRun;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.domain.RawDoc;
+import com.marketradar.review.PublicationEligibilityRules;
 import com.marketradar.repo.ClaimVerificationRepository;
 import com.marketradar.repo.ClassificationRepository;
 import com.marketradar.repo.EvidenceFactRepository;
@@ -33,13 +34,16 @@ public class PipelineCheckpointService {
                            long uncertainReview, long noLabelReview) {}
     public record Evidence(long activeFacts, long activeFactDocuments,
                            long latestAttempts, long successfulDocuments,
-                           long emptyResults, long llmErrors, long schemaRejected) {}
+                           long emptyResults, long llmErrors, long schemaRejected,
+                           long coreDimensionCompleteFacts, long entityQuarantinedFacts) {}
     public record Analysis(long activePipelineClaims, long gateL1Passed,
                            Map<InterpretedClaim.GateStatus, Long> gateStatuses,
                            Map<InterpretedClaim.ReviewStatus, Long> reviewStatuses) {}
     public record Verification(long latestVerdicts, long entailed, long neutral,
                                long contradicted, long verifierErrors,
-                               long reportEligibleClaims) {}
+                               long reportEligibleClaims, long reviewedAnalysisClaims,
+                               long editorialWatchClaims,
+                               long excludedClaims) {}
     public record Snapshot(Instant generatedAt, Corpus corpus, Curation curation,
                            Evidence evidence, Analysis analysis, Verification verification,
                            List<PipelineCheckpointRules.Checkpoint> checkpoints) {}
@@ -91,12 +95,19 @@ public class PipelineCheckpointService {
                 latestExtractionRuns, FactExtractionRun::getStatus, FactExtractionRun.Status.class);
         var activeFacts = facts.findAllForReport();
         long factDocuments = activeFacts.stream().map(f -> f.getRawDoc().getId()).distinct().count();
+        long coreComplete = activeFacts.stream().filter(f -> f.getSourceAuthority() != null)
+                .filter(f -> f.getIntelligenceTopic() != null)
+                .filter(f -> f.getGeographyScope() != null)
+                .filter(f -> f.getTemporalRole() != null).count();
+        long entityQuarantined = activeFacts.stream().filter(f ->
+                !com.marketradar.review.EntityAttributionGuard.isFactAttributionSafe(f)).count();
         Evidence evidence = new Evidence(activeFacts.size(), factDocuments,
                 latestExtractionRuns.size(),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.SUCCESS, 0L),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.EMPTY_RESULT, 0L),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.LLM_ERROR, 0L),
-                extractionStatuses.getOrDefault(FactExtractionRun.Status.SCHEMA_REJECTED, 0L));
+                extractionStatuses.getOrDefault(FactExtractionRun.Status.SCHEMA_REJECTED, 0L),
+                coreComplete, entityQuarantined);
 
         List<InterpretedClaim> activeClaims = claims.findAllForAudit().stream()
                 .filter(c -> !c.isSuperseded())
@@ -121,22 +132,46 @@ public class PipelineCheckpointService {
         Map<ClaimVerification.Verdict, Long> verdicts = counts(
                 List.copyOf(latestByClaim.values()), ClaimVerification::getVerdict,
                 ClaimVerification.Verdict.class);
-        long reportEligible = claims.findForBiReport().size();
+        Map<String, com.marketradar.domain.EvidenceFact> factByCode = activeFacts.stream()
+                .collect(Collectors.toMap(com.marketradar.domain.EvidenceFact::getFactCode,
+                        Function.identity(), (left, right) -> left));
+        long decisionGrade = 0;
+        long reviewedAnalysis = 0;
+        long editorialWatch = 0;
+        long excluded = 0;
+        for (InterpretedClaim claim : activeClaims) {
+            ClaimVerification latest = latestByClaim.get(claim.getId());
+            String verdict = latest == null ? null : latest.getVerdict().name();
+            List<com.marketradar.domain.EvidenceFact> cited = citedFacts(claim, factByCode);
+            boolean entitySafe = !cited.isEmpty()
+                    && cited.stream().allMatch(com.marketradar.review.EntityAttributionGuard::isFactAttributionSafe);
+            PublicationEligibilityRules.Disposition disposition = PublicationEligibilityRules.disposition(
+                    claim.getGateStatus().name(), claim.getReviewStatus().name(), verdict,
+                    claim.isSuperseded(), entitySafe, isAnalyticalContent(claim.getSlot()));
+            switch (disposition) {
+                case DECISION_GRADE -> decisionGrade++;
+                case REVIEWED_ANALYSIS -> reviewedAnalysis++;
+                case EDITORIAL_WATCH -> editorialWatch++;
+                case EXCLUDE -> excluded++;
+            }
+        }
         Verification verification = new Verification(latestByClaim.size(),
                 verdicts.getOrDefault(ClaimVerification.Verdict.ENTAILED, 0L),
                 verdicts.getOrDefault(ClaimVerification.Verdict.NEUTRAL, 0L),
                 verdicts.getOrDefault(ClaimVerification.Verdict.CONTRADICTED, 0L),
                 verdicts.getOrDefault(ClaimVerification.Verdict.VERIFIER_ERROR, 0L),
-                reportEligible);
+                decisionGrade, reviewedAnalysis, editorialWatch, excluded);
 
         PipelineCheckpointRules.Metrics metrics = new PipelineCheckpointRules.Metrics(
                 corpus.documents(), corpus.usableDocuments(), curation.classifications(),
                 curation.confirmed(), evidence.latestAttempts(), evidence.successfulDocuments(),
                 evidence.llmErrors() + evidence.schemaRejected(), evidence.activeFacts(),
-                evidence.activeFactDocuments(), analysis.activePipelineClaims(),
+                evidence.activeFactDocuments(), evidence.coreDimensionCompleteFacts(),
+                evidence.entityQuarantinedFacts(), analysis.activePipelineClaims(),
                 analysis.gateL1Passed(), verification.latestVerdicts(), verification.entailed(),
                 verification.neutral(), verification.contradicted(), verification.verifierErrors(),
-                verification.reportEligibleClaims());
+                verification.reportEligibleClaims(), verification.reviewedAnalysisClaims(),
+                verification.editorialWatchClaims());
         return new Snapshot(Instant.now(), corpus, curation, evidence, analysis, verification,
                 PipelineCheckpointRules.evaluate(metrics));
     }
@@ -156,5 +191,19 @@ public class PipelineCheckpointService {
                 .collect(Collectors.groupingBy(Function.identity(),
                         () -> new EnumMap<>(enumType), Collectors.counting()));
         return Map.copyOf(counted);
+    }
+
+    private static List<com.marketradar.domain.EvidenceFact> citedFacts(
+            InterpretedClaim claim,
+            Map<String, com.marketradar.domain.EvidenceFact> factByCode) {
+        if (claim.getFactCodesCsv() == null || claim.getFactCodesCsv().isBlank()) return List.of();
+        return java.util.Arrays.stream(claim.getFactCodesCsv().split(","))
+                .map(String::strip).map(factByCode::get).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private static boolean isAnalyticalContent(InterpretedClaim.Slot slot) {
+        return slot == InterpretedClaim.Slot.IMPLICATION
+                || slot == InterpretedClaim.Slot.NARRATIVE
+                || slot == InterpretedClaim.Slot.DEEP_DIVE;
     }
 }

@@ -12,6 +12,10 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.FactExtractionRun;
 import com.marketradar.domain.LlmCallLog;
 import com.marketradar.domain.RawDoc;
+import com.marketradar.domain.GeographyScope;
+import com.marketradar.domain.IntelligenceTopic;
+import com.marketradar.domain.TemporalRole;
+import com.marketradar.intelligence.EntityResolutionRules;
 import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
@@ -69,10 +73,16 @@ public class FactExtractionJob {
     private static final int MAX_FACTS_PER_CHUNK = 20;
 
     private static final String SYSTEM = """
-            MODE:EXTRACT_FACTS — Bạn nhận TIÊU ĐỀ + NỘI DUNG một tài liệu tin tức ngành
-            bảo hiểm nhân thọ. Nhiệm vụ: trích tối đa %d ĐOẠN NGUYÊN VĂN (span) trong
-            MỖI CHUNK chứa
-            sự kiện/sản phẩm/quy định/số liệu đáng đưa vào evidence store.
+            MODE:EXTRACT_FACTS — Bạn là Researcher cho hệ thống market intelligence.
+            Bạn nhận TIÊU ĐỀ + NỘI DUNG của một tài liệu đã được Librarian
+            xác nhận nằm trong phạm vi. Nhiệm vụ: trích tối đa %d ĐOẠN NGUYÊN VĂN
+            (span) trong MỖI CHUNK chứa quan sát có thể kiểm chứng và hữu ích cho
+            intelligence: vĩ mô, quy định, cấu trúc/thị phần ngành, kết quả doanh nghiệp,
+            sản phẩm, phân phối, customer, công nghệ/AI, corporate action, nhân sự,
+            danh tiếng hoặc benchmark/operating model có giá trị chiến lược.
+
+            Không tự giới hạn vào Product hay Việt Nam. Geography, legal entity,
+            intelligence topic và audience/phòng ban sẽ được Router gán ở bước sau.
 
             CHỌN SPAN GIÀU DỮ KIỆN: ưu tiên những đoạn chứa CON SỐ cụ thể (phí, quyền lợi,
             doanh thu, tỷ lệ, ngày) VÀ nêu rõ CHỦ THỂ + CƠ CHẾ (ai làm gì, điều kiện gì) —
@@ -92,6 +102,8 @@ public class FactExtractionJob {
             - KHÔNG bịa thông tin không có trong tài liệu. Tài liệu không có gì đáng
               trích → trả {"facts": []}.
             - company / product_name: chỉ điền nếu tên đó nằm NGUYÊN VĂN trong span.
+              company là pháp nhân/chủ thể mà span thực sự nói tới; không thay tên
+              công ty mẹ, công ty con hoặc công ty trùng thương hiệu cho nhau.
             - event_date: ngày sự kiện XẢY RA; effective_date: ngày bắt đầu hiệu lực;
               expiry_date: ngày hết hiệu lực/kết thúc; forecast_horizon: mốc dự báo/mục tiêu.
               Chỉ điền khi văn bản ghi rõ, dạng YYYY-MM-DD. Không dùng ngày xuất bản thay thế.
@@ -101,10 +113,8 @@ public class FactExtractionJob {
               "Bài viết nói về…", không lặp nguyên văn span. GIỌNG TRUNG LẬP, khách quan:
               KHÔNG khen ngợi/PR (cấm "dẫn đầu", "hàng đầu", "uy tín", "danh giá", "vinh dự",
               "khẳng định vị thế") — nêu dữ kiện, không tán dương, kể cả với đối thủ.
-            - Nếu phần NGỮ CẢNH ghi thị trường là REGIONAL (nguồn ngoài Việt Nam —
-              không phải đối thủ trực tiếp): viết summary theo hướng BÀI HỌC/GỢI Ý
-              cho công ty bảo hiểm nhân thọ Việt Nam (ý tưởng sản phẩm, quy trình,
-              mô hình vận hành có thể tham khảo), không viết như tin đối thủ.
+            - summary chỉ tóm tắt SỰ VIỆC của nguồn. Không viết bài học, hàm ý hay
+              khuyến nghị ở bước Researcher; đó là trách nhiệm tách biệt của Analyst.
 
             Trả về DUY NHẤT JSON đúng dạng (không markdown, không giải thích):
             {"facts":[{"span":"...","fact_type":"EVENT|PRODUCT_LAUNCH|FEE_CHANGE|REGULATION|METRIC",
@@ -126,11 +136,16 @@ public class FactExtractionJob {
      */
     private static final String ROUTER_SYSTEM = """
             MODE:ROUTE_FACT
-            Bạn phân loại 1 fact (đoạn nguyên văn đã trích) vào đúng vị trí trong Business
-            Intelligence Report, dựa trên NỘI DUNG THẬT — không đoán, không suy diễn ngoài
-            những gì đoạn văn nói.
+            Bạn phân loại 1 fact (đoạn nguyên văn đã trích) theo HAI TRỤC độc lập,
+            dựa trên NỘI DUNG THẬT — không đoán, không suy diễn ngoài những gì đoạn văn nói.
 
-            1. "bucket" — bắt buộc, đúng 1 trong 7 giá trị:
+            0. "intelligence_topic" — trục core tái sử dụng cho mọi thị trường/phòng ban,
+               bắt buộc đúng 1 trong: MACRO_ECONOMIC, REGULATION_POLICY, PRODUCT_OFFER,
+               DISTRIBUTION, FINANCIAL_PERFORMANCE, MARKET_SHARE, CORPORATE_ACTION,
+               TECHNOLOGY_AI, CUSTOMER_ENGAGEMENT, PEOPLE_TALENT, BRAND_REPUTATION,
+               MARKET_STRUCTURE, OTHER.
+
+            1. "bucket" — profile trình bày của Strategy report, bắt buộc đúng 1 trong 7 giá trị:
                - MACRO_ECONOMIC: chỉ số/chính sách kinh tế vĩ mô hoặc TOÀN NGÀNH bảo hiểm,
                  KHÔNG gắn riêng 1 công ty (vd GDP, lạm phát, FDI, quy định áp cho cả ngành).
                - COMPETITIVE_THEME: một PATTERN/xu hướng liên quan từ 2 công ty trở lên hoặc
@@ -195,6 +210,10 @@ public class FactExtractionJob {
         ObjectNode schema = m.createObjectNode();
         schema.put("type", "object");
         ObjectNode props = schema.putObject("properties");
+        props.putObject("intelligence_topic").put("type", "string").put("description",
+                "MACRO_ECONOMIC|REGULATION_POLICY|PRODUCT_OFFER|DISTRIBUTION|"
+                        + "FINANCIAL_PERFORMANCE|MARKET_SHARE|CORPORATE_ACTION|TECHNOLOGY_AI|"
+                        + "CUSTOMER_ENGAGEMENT|PEOPLE_TALENT|BRAND_REPUTATION|MARKET_STRUCTURE|OTHER");
         props.putObject("bucket").put("type", "string").put("description",
                 "MACRO_ECONOMIC|COMPETITIVE_THEME|SCHEDULED_EVENT|COMPANY_EVENT|"
                         + "MARKET_SHARE_OR_AWARD|TECH_AI_SIGNAL|STRATEGIC_COMPARISON");
@@ -207,7 +226,7 @@ public class FactExtractionJob {
         props.putObject("kpi_label").put("type", "string");
         props.putObject("kpi_value").put("type", "string");
         props.putObject("highlight").put("type", "boolean");
-        schema.putArray("required").add("bucket").add("highlight");
+        schema.putArray("required").add("intelligence_topic").add("bucket").add("highlight");
         return java.util.List.of(new LlmClient.LlmTool("route",
                 "Gán nhãn Router cho 1 fact — chủ đề, chủ thể, vị trí trên report.", schema));
     }
@@ -441,15 +460,17 @@ public class FactExtractionJob {
                 + "\n\nNỘI DUNG CHUNK (chuỗi con nguyên văn của toàn bài):\n" + chunk.text();
     }
 
-    /**
-     * VN = đối thủ trực tiếp (competitor watch); REGIONAL = nguồn khu vực/toàn cầu —
-     * đọc như bài học/cảm hứng, không phải động thái đối thủ (feedback Hanh 2026-07-13).
-     * Suy deterministic từ nguồn: ngôn ngữ vi hoặc host .vn → VN.
-     */
+    /** Source-level extraction context. Fact-level resolution may narrow this later. */
     public static String market(RawDoc doc) {
-        String host = doc.getSource().getAllowedHost();
-        return "vi".equals(doc.getSource().getLanguage())
-                || (host != null && host.endsWith(".vn")) ? "VN" : "REGIONAL";
+        return switch (doc.getSource().getDefaultMarketScope()) {
+            case VIETNAM -> "VN";
+            case COUNTRY -> "COUNTRY:" + java.util.Objects.toString(
+                    doc.getSource().getDefaultMarketCode(), "UNKNOWN");
+            case REGIONAL -> "REGIONAL:" + java.util.Objects.toString(
+                    doc.getSource().getDefaultMarketCode(), "UNKNOWN");
+            case GLOBAL, MULTI_MARKET -> "GLOBAL";
+            case UNKNOWN -> "UNKNOWN";
+        };
     }
 
     // ---------- Parse + gate nguyên văn ----------
@@ -546,10 +567,71 @@ public class FactExtractionJob {
                     .effectiveDate(d.effectiveDate()).expiryDate(d.expiryDate())
                     .forecastHorizon(d.forecastHorizon())
                     .summaryVi(d.summaryVi()).summaryEn(d.summaryEn());
+            enrichCoreDimensions(fact, doc);
             route(fact, doc);
             result.add(fact);
         }
         return result;
+    }
+
+    /**
+     * Deterministic dimensions run before the report-profile Router. The LLM may
+     * choose a presentation bucket, but it is never allowed to invent a legal
+     * entity, source authority, geography, or date semantics.
+     */
+    static void enrichCoreDimensions(EvidenceFact fact, RawDoc doc) {
+        var source = doc.getSource();
+        fact.sourceAuthority(source.getAuthority());
+
+        // Resolve ONLY from the exact cited span. The extractor's company field and
+        // surrounding article title are model/context metadata, not cited evidence;
+        // either could otherwise attribute a number to the wrong legal entity.
+        String factEntityText = fact.getSpanText();
+        EntityResolutionRules.Resolution resolution = EntityResolutionRules.resolve(
+                factEntityText, source.getDefaultMarketCode());
+        fact.entityResolution(resolution);
+
+        EntityResolutionRules.Entity entity = resolution.singleEntity();
+        if (entity != null) {
+            GeographyScope scope = switch (entity.marketCode()) {
+                case "VN" -> GeographyScope.VIETNAM;
+                case "GLOBAL" -> GeographyScope.GLOBAL;
+                default -> GeographyScope.COUNTRY;
+            };
+            fact.geography(scope, entity.marketCode()).subjectKey(entity.canonicalName());
+        } else {
+            fact.geography(source.getDefaultMarketScope(), source.getDefaultMarketCode());
+        }
+
+        fact.temporalRole(temporalRole(fact));
+        fact.intelligenceTopic(topicFor(fact.getFactType(), null));
+    }
+
+    private static TemporalRole temporalRole(EvidenceFact fact) {
+        if (fact.getForecastHorizon() != null) return TemporalRole.FORECAST;
+        if (fact.getExpiryDate() != null) return TemporalRole.EXPIRING;
+        if (fact.getEffectiveDate() != null) return TemporalRole.EFFECTIVE;
+        if (fact.getOccurredDate() != null || fact.getEventDate() != null) return TemporalRole.OCCURRED;
+        if (fact.getRawDoc() != null && fact.getRawDoc().getPublishedAt() != null) {
+            return TemporalRole.PUBLICATION_ONLY;
+        }
+        return TemporalRole.UNDATED;
+    }
+
+    private static IntelligenceTopic topicFor(EvidenceFact.FactType type, String bucket) {
+        if ("MACRO_ECONOMIC".equals(bucket)) return IntelligenceTopic.MACRO_ECONOMIC;
+        if ("MARKET_SHARE_OR_AWARD".equals(bucket)) return IntelligenceTopic.MARKET_SHARE;
+        if ("TECH_AI_SIGNAL".equals(bucket)) return IntelligenceTopic.TECHNOLOGY_AI;
+        if ("COMPETITIVE_THEME".equals(bucket) || "STRATEGIC_COMPARISON".equals(bucket)) {
+            return IntelligenceTopic.MARKET_STRUCTURE;
+        }
+        if (type == null) return IntelligenceTopic.OTHER;
+        return switch (type) {
+            case PRODUCT_LAUNCH, FEE_CHANGE -> IntelligenceTopic.PRODUCT_OFFER;
+            case REGULATION -> IntelligenceTopic.REGULATION_POLICY;
+            case METRIC -> IntelligenceTopic.FINANCIAL_PERFORMANCE;
+            case EVENT -> IntelligenceTopic.CORPORATE_ACTION;
+        };
     }
 
     /**
@@ -589,23 +671,43 @@ public class FactExtractionJob {
     private static final java.util.Set<String> VALID_TRENDS = java.util.Set.of("RISING", "FALLING", "STABLE");
 
     static void applyRouting(EvidenceFact fact, JsonNode args) {
+        String topic = upperOrNull(args.path("intelligence_topic").asText(null));
+        if (topic != null) {
+            try { fact.intelligenceTopic(IntelligenceTopic.valueOf(topic)); }
+            catch (IllegalArgumentException ignored) { /* retain deterministic fallback */ }
+        }
         String bucket = upperOrNull(args.path("bucket").asText(null));
-        if (bucket != null && VALID_ROUTER_BUCKETS.contains(bucket)) fact.biBucket(bucket);
+        if (bucket != null && VALID_ROUTER_BUCKETS.contains(bucket)) {
+            fact.biBucket(bucket);
+            if (topic == null) fact.intelligenceTopic(topicFor(fact.getFactType(), bucket));
+            if ("SCHEDULED_EVENT".equals(bucket)) fact.temporalRole(TemporalRole.SCHEDULED);
+        }
         String subjectKey = textOrNull(args, "subject_key");
-        if (subjectKey != null) fact.subjectKey(subjectKey);
+        if (fact.getSubjectEntityName() != null) {
+            fact.subjectKey(fact.getSubjectEntityName());
+        } else if (subjectKey != null && !requiresResolvedEntity(bucket)) {
+            fact.subjectKey(subjectKey);
+        }
         String cardLabel = textOrNull(args, "highlight_card_label");
         if (cardLabel != null) fact.highlightCardLabel(cardLabel.strip().toUpperCase(java.util.Locale.ROOT).replace(' ', '_'));
         String severity = upperOrNull(args.path("severity").asText(null));
         if (severity != null && VALID_SEVERITIES.contains(severity)) fact.severity(severity);
         String trend = upperOrNull(args.path("severity_trend").asText(null));
         if (trend != null && VALID_TRENDS.contains(trend)) fact.severityTrend(trend);
-        parseIsoDateSafe(textOrNull(args, "event_date_range_start")).ifPresent(fact::eventDateRangeStart);
-        parseIsoDateSafe(textOrNull(args, "event_date_range_end")).ifPresent(fact::eventDateRangeEnd);
+        parseGroundedRouterDate(textOrNull(args, "event_date_range_start"), fact.getSpanText())
+                .ifPresent(fact::eventDateRangeStart);
+        parseGroundedRouterDate(textOrNull(args, "event_date_range_end"), fact.getSpanText())
+                .ifPresent(fact::eventDateRangeEnd);
         String kpiLabel = textOrNull(args, "kpi_label");
         if (kpiLabel != null) fact.kpiLabel(kpiLabel);
         String kpiValue = textOrNull(args, "kpi_value");
-        if (kpiValue != null) fact.kpiValue(kpiValue);
+        if (kpiValue != null && fact.getSpanText().contains(kpiValue)) fact.kpiValue(kpiValue);
         fact.highlight(args.path("highlight").asBoolean(false));
+    }
+
+    private static boolean requiresResolvedEntity(String bucket) {
+        return "COMPANY_EVENT".equals(bucket) || "SCHEDULED_EVENT".equals(bucket)
+                || "MARKET_SHARE_OR_AWARD".equals(bucket) || "TECH_AI_SIGNAL".equals(bucket);
     }
 
     private static String textOrNull(JsonNode args, String field) {
@@ -621,6 +723,11 @@ public class FactExtractionJob {
         if (s == null) return java.util.Optional.empty();
         try { return java.util.Optional.of(LocalDate.parse(s.strip())); }
         catch (Exception e) { return java.util.Optional.empty(); }
+    }
+
+    private static java.util.Optional<LocalDate> parseGroundedRouterDate(String value, String span) {
+        java.util.Optional<LocalDate> parsed = parseIsoDateSafe(value);
+        return parsed.filter(date -> EvidenceDateGrounding.datesIn(span).contains(date));
     }
 
     /** Cùng cơ chế replay-cache với callWithCache(chunk) phía trên, khác purpose="ROUTE". */

@@ -115,7 +115,9 @@
               <div class="citation-head">
                 <span class="citation-lang" th:text="${f.spanLanguage.toUpperCase()}">VI</span>
                 <span class="citation-source" th:text="${f.rawDoc.source.name} + ' · ' + ${f.factCode}">Source · F-001</span>
-                <span class="badge" th:classappend="${f.rawDoc.source.tier <= 2} ? 'badge-success' : 'badge-neutral'" th:text="'Tier ' + ${f.rawDoc.source.tier}">Tier 1</span>
+                <span class="badge" th:classappend="${f.rawDoc.source.authority.primaryEvidence} ? 'badge-success' : 'badge-neutral'"
+                      th:text="${#strings.replace(f.rawDoc.source.authority.name(), '_', ' ')}">OFFICIAL COMPANY</span>
+                <span class="badge badge-neutral" th:text="${f.marketCode != null ? f.marketCode : (f.rawDoc.source.defaultMarketCode != null ? f.rawDoc.source.defaultMarketCode : 'UNKNOWN MARKET')}">VN</span>
                 <span class="badge badge-neutral" th:if="${!f.active}" th:text="#{ops.review.detail.archivedEvidence}">Archived evidence</span>
                 <span class="citation-published" th:if="${f.rawDoc.publishedAt != null}"
                       th:text="#{ops.review.detail.publishedAt(${#temporals.format(f.rawDoc.publishedAt.atZone(T(java.time.ZoneId).systemDefault()), 'MMM d, yyyy')})}">Published Jul 16, 2026</span>

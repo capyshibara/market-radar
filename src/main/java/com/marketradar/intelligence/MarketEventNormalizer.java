@@ -17,7 +17,7 @@ import java.util.Locale;
 @Component
 public class MarketEventNormalizer {
 
-    public static final String PIPELINE_VERSION = "market-event-v2-temporal";
+    public static final String PIPELINE_VERSION = "market-event-v4-entity-time-taxonomy";
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public MarketEvent normalize(EvidenceFact fact, String modelVersion) {
@@ -38,15 +38,17 @@ public class MarketEventNormalizer {
         LocalDate effective = first(fact.getEffectiveDate(), legacyDates.effectiveDate());
         LocalDate expiry = fact.getExpiryDate();
         LocalDate forecast = first(fact.getForecastHorizon(), legacyDates.forecastHorizon());
-        MarketEvent.MarketScope scope = marketScope(source);
+        MarketEvent.MarketScope scope = marketScope(fact, source);
 
         return new MarketEvent(
                 eventKey(fact.getFactCode(), PIPELINE_VERSION),
                 fact,
                 MarketEvent.EventType.valueOf(fact.getFactType().name()),
                 scope,
-                geography(source, scope),
-                clean(fact.getCompany()),
+                geography(fact, source, scope),
+                // Never promote an extractor-proposed company to normalized event
+                // identity unless the exact span resolved it deterministically.
+                clean(fact.getSubjectEntityName()),
                 clean(fact.getProductName()),
                 publishedDate,
                 sourceDate,
@@ -57,7 +59,12 @@ public class MarketEventNormalizer {
                 source.getCode(),
                 source.getTier(),
                 PIPELINE_VERSION,
-                clean(modelVersion) == null ? "UNKNOWN_LEGACY" : clean(modelVersion));
+                clean(modelVersion) == null ? "UNKNOWN_LEGACY" : clean(modelVersion))
+                .curationMetadata(
+                        fact.getSourceAuthority() == null ? source.getAuthority() : fact.getSourceAuthority(),
+                        fact.getIntelligenceTopic(), fact.getTemporalRole(),
+                        fact.getMarketCode() == null ? source.getDefaultMarketCode() : fact.getMarketCode(),
+                        fact.getSubjectEntityKey(), fact.getEntityResolutionStatus());
     }
 
     /**
@@ -86,15 +93,37 @@ public class MarketEventNormalizer {
         };
     }
 
-    static MarketEvent.MarketScope marketScope(Source source) {
-        String host = lower(source.getAllowedHost());
-        return "vi".equals(source.getLanguage()) || host.endsWith(".vn")
+    static MarketEvent.MarketScope marketScope(EvidenceFact fact, Source source) {
+        com.marketradar.domain.GeographyScope scope = fact.getGeographyScope() == null
+                ? source.getDefaultMarketScope() : fact.getGeographyScope();
+        return scope == com.marketradar.domain.GeographyScope.VIETNAM
                 ? MarketEvent.MarketScope.VIETNAM
                 : MarketEvent.MarketScope.REGIONAL;
     }
 
-    static String geography(Source source, MarketEvent.MarketScope scope) {
+    static String geography(EvidenceFact fact, Source source, MarketEvent.MarketScope scope) {
         if (scope == MarketEvent.MarketScope.VIETNAM) return "Vietnam";
+
+        String marketCode = fact.getMarketCode() == null
+                ? source.getDefaultMarketCode() : fact.getMarketCode();
+        if (marketCode != null) {
+            return switch (marketCode) {
+                case "HK" -> "Hong Kong";
+                case "SG" -> "Singapore";
+                case "TW" -> "Taiwan";
+                case "KR" -> "South Korea";
+                case "JP" -> "Japan";
+                case "CN" -> "China";
+                case "ID" -> "Indonesia";
+                case "MY" -> "Malaysia";
+                case "PH" -> "Philippines";
+                case "TH" -> "Thailand";
+                case "US" -> "United States";
+                case "GB" -> "United Kingdom";
+                case "GLOBAL" -> "Global";
+                default -> marketCode;
+            };
+        }
 
         String code = "_" + upper(source.getCode()) + "_";
         String host = lower(source.getAllowedHost());

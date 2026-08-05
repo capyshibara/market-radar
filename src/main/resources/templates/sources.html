@@ -131,7 +131,8 @@
             <div class="data-table-wrap"><div class="data-table-scroll">
               <table class="data-table">
                 <thead><tr>
-                  <th th:text="#{ops.sources.colTier}">Tier</th>
+                  <th th:text="#{ops.sources.colAuthority}">Authority</th>
+                  <th th:text="#{ops.sources.colMarket}">Market</th>
                   <th th:text="#{ops.sources.colCode}">Code</th>
                   <th th:text="#{ops.sources.healthColMethod}">Method</th>
                   <th th:text="#{ops.sources.healthColStatus}">Status</th>
@@ -147,7 +148,8 @@
           <table class="data-table">
             <thead><tr>
               <th th:text="#{ops.sources.colNo}">No.</th>
-              <th th:text="#{ops.sources.colTier}">Tier</th>
+              <th th:text="#{ops.sources.colAuthority}">Authority</th>
+              <th th:text="#{ops.sources.colMarket}">Market</th>
               <th th:text="#{ops.sources.colCode}">Code</th>
               <th th:text="#{ops.sources.colName}">Name</th>
               <th th:text="#{ops.sources.colFetchType}">Fetch type</th>
@@ -159,8 +161,10 @@
             <tbody>
               <tr th:each="s, iter : ${sources}">
                 <td th:text="${iter.count}">1</td>
-                <td><span class="badge" th:classappend="${s.tier == 1} ? 'badge-success' : (${s.tier == 2} ? 'badge-info' : (${s.tier == 3} ? 'badge-warn' : 'badge-neutral'))"
-                          th:text="'Tier ' + ${s.tier}">Tier 1</span></td>
+                <td><span class="badge badge-info"
+                          th:text="${#strings.replace(s.authority.name(), '_', ' ')}">OFFICIAL COMPANY</span></td>
+                <td><span class="badge badge-neutral"
+                          th:text="${s.defaultMarketCode != null ? s.defaultMarketCode : #strings.replace(s.defaultMarketScope.name(), '_', ' ')}">VN</span></td>
                 <td><a class="code-chip code-chip-sm" th:href="${s.displayUrl}" th:title="${s.displayUrl}" th:text="${s.code}" target="_blank" rel="noopener noreferrer">MOF_ISA</a></td>
                 <td th:text="${s.name}">Name</td>
                 <td th:text="${s.type}">HTML</td>
@@ -220,15 +224,6 @@
           <select id="source-parser" class="ops-select" name="type" required>
             <option value="RSS">RSS / Atom</option><option value="HTML">HTML</option>
             <option value="PDF">PDF</option><option value="JSON">JSON API</option>
-          </select>
-        </div>
-        <div>
-          <div class="field-label"><label class="lbl" for="source-tier" th:text="#{ops.sources.fieldTier}">Trust tier</label><span class="req">*</span></div>
-          <select id="source-tier" class="ops-select" name="tier" required>
-            <option value="1" th:text="#{ops.sources.tier1}">Tier 1 — MOF or an official Vietnam competitor site</option>
-            <option value="2" th:text="#{ops.sources.tier2}">Tier 2 — Vietnamese online press</option>
-            <option value="3" th:text="#{ops.sources.tier3}">Tier 3 — international source</option>
-            <option value="4" th:text="#{ops.sources.tier4}">Tier 4 — other / unclassified</option>
           </select>
         </div>
         <div>
@@ -295,7 +290,8 @@
      th:data-health-action="#{ops.sources.healthAction}" th:data-health-running-label="#{ops.sources.healthRunningLabel}"
      th:data-health-running="#{ops.sources.healthRunning}" th:data-health-complete="#{ops.sources.healthComplete}"
      th:data-health-ok="#{ops.sources.healthOk}" th:data-health-failed="#{ops.sources.healthFailed}"
-     th:data-health-method-http="#{ops.sources.healthMethodHttp}" th:data-health-method-browser="#{ops.sources.healthMethodBrowser}"
+     th:data-health-method-http="#{ops.sources.healthMethodHttp}" th:data-health-method-reader="#{ops.sources.healthMethodReader}"
+     th:data-health-method-browser="#{ops.sources.healthMethodBrowser}"
      th:data-health-method-none="#{ops.sources.healthMethodNone}"></div>
 <script src="/js/ops-session.js"></script>
 <script src="/js/ops-sidebar.js"></script>
@@ -378,7 +374,7 @@
     event.preventDefault(); if (!testPassed || !form.reportValidity()) return;
     saveButton.disabled = true; saveButton.textContent = words.saving; feedback.hidden = true;
     var payload = { code: field('code').value, name: field('name').value, fetchUrl: field('fetchUrl').value,
-      type: field('type').value, tier: Number(field('tier').value), language: field('language').value,
+      type: field('type').value, language: field('language').value,
       active: field('active').checked, testPassed: true };
     try {
       var response = await fetch('/sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -429,12 +425,14 @@
   var healthFeedback = document.getElementById('health-check-feedback');
   var healthBody = document.getElementById('health-check-body');
   var healthPollTimer = null;
-  var methodLabel = { HTTP: words.healthMethodHttp, BROWSER: words.healthMethodBrowser, NONE: words.healthMethodNone };
+  var methodLabel = { HTTP: words.healthMethodHttp, READER: words.healthMethodReader, BROWSER: words.healthMethodBrowser, NONE: words.healthMethodNone };
+  function intelligenceLabel(value) { return value ? value.replaceAll('_', ' ') : '—'; }
   function renderHealthRow(result) {
     var row = document.createElement('tr');
-    var tier = document.createElement('td');
-    var tierBadge = document.createElement('span'); tierBadge.className = 'badge ' + (result.tier === 1 ? 'badge-success' : result.tier === 2 ? 'badge-info' : result.tier === 3 ? 'badge-warn' : 'badge-neutral');
-    tierBadge.textContent = 'Tier ' + result.tier; tier.appendChild(tierBadge); row.appendChild(tier);
+    var authority = document.createElement('td');
+    var authorityBadge = document.createElement('span'); authorityBadge.className = 'badge badge-info';
+    authorityBadge.textContent = intelligenceLabel(result.authority); authority.appendChild(authorityBadge); row.appendChild(authority);
+    row.appendChild(cell(result.marketCode));
     var code = document.createElement('td'); var chip = document.createElement('span'); chip.className = 'code-chip code-chip-sm'; chip.textContent = result.code; code.appendChild(chip); row.appendChild(code);
     row.appendChild(cell(methodLabel[result.method] || result.method));
     var statusTd = document.createElement('td'); var statusBadge = document.createElement('span');

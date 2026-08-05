@@ -1,7 +1,9 @@
 import com.marketradar.domain.EvidenceFact;
+import com.marketradar.domain.GeographyScope;
 import com.marketradar.domain.MarketEvent;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
+import com.marketradar.domain.SourceAuthority;
 import com.marketradar.intelligence.MarketEventNormalizer;
 import com.marketradar.intelligence.MarketEventTemporalRules;
 
@@ -22,6 +24,8 @@ public class MarketEventNormalizerTest {
 
         Source vn = new Source("AIA_VN", "AIA Vietnam", "https://aia.com.vn/news",
                 "aia.com.vn", Source.SourceType.HTML, 2, "vi");
+        vn.setIntelligenceMetadata(SourceAuthority.OFFICIAL_COMPANY,
+                GeographyScope.VIETNAM, "VN");
         RawDoc launchDoc = doc(vn, Instant.parse("2026-07-15T20:00:00Z"));
         EvidenceFact launch = new EvidenceFact("F-901", launchDoc,
                 EvidenceFact.FactType.PRODUCT_LAUNCH, "AIA ra mắt Sống Khỏe.", "vi")
@@ -42,6 +46,8 @@ public class MarketEventNormalizerTest {
 
         Source sg = new Source("MAS_SG", "MAS", "https://mas.gov.sg/news",
                 "www.mas.gov.sg", Source.SourceType.HTML, 1, "en");
+        sg.setIntelligenceMetadata(SourceAuthority.REGULATOR,
+                GeographyScope.COUNTRY, "SG");
         RawDoc metricDoc = doc(sg, Instant.parse("2026-07-15T01:00:00Z"));
         EvidenceFact forecast = new EvidenceFact("F-902", metricDoc,
                 EvidenceFact.FactType.METRIC, "The ratio will reach 20% in 2030.", "en")

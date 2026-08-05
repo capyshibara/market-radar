@@ -129,7 +129,8 @@ public class HotAlertService {
         }
         if (c.getRawDoc() != null && c.getRawDoc().getSource() != null) {
             var s = c.getRawDoc().getSource();
-            sourceLine = s.getName() + " (tier " + s.getTier() + ") — " + c.getRawDoc().getUrl();
+            sourceLine = s.getName() + " (" + s.getAuthority().name().replace('_', ' ')
+                    + ") — " + c.getRawDoc().getUrl();
         }
         return AlertRules.buildAlertText(c.getClaimCode(), c.getRiskTier(),
                 c.getReviewStatus().name(), c.getTextVi(), factLine, sourceLine,

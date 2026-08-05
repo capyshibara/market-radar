@@ -9,9 +9,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * Per-source on/off toggle for the Source Registry screen — the operator control the CFO
- * demo restructure asked for (Tier 3 sources start auto-deactivated by
- * TierReclassificationMigration, but must stay reversible, not a one-way lockout).
+ * Per-source on/off toggle for the Source Registry screen. Activation represents
+ * operational crawl readiness, independent from source authority or geography.
  */
 @Controller
 public class SourceActivationController {

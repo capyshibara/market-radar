@@ -11,7 +11,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Acquisition-first remediation for the Vietnam market corpus.
@@ -36,6 +35,9 @@ public class VietnamAcquisitionExpansionMigration implements ApplicationRunner {
         int changed = 0;
         for (Definition definition : DEFINITIONS) {
             Source source = sources.findByCode(definition.code()).orElse(null);
+            boolean newlyCreated = source == null;
+            boolean firstMetadataMigration = source != null && !source.hasExplicitIntelligenceMetadata();
+            boolean configurationChanged = source != null && configurationChanged(source, definition);
             if (source == null) {
                 source = new Source(definition.code(), definition.name(), definition.fetchUrl(),
                         definition.allowedHost(), definition.type(), definition.tier(), definition.language());
@@ -43,65 +45,31 @@ public class VietnamAcquisitionExpansionMigration implements ApplicationRunner {
                 source.reconfigure(definition.name(), definition.fetchUrl(), definition.allowedHost(),
                         definition.type(), definition.tier(), definition.language());
             }
-            source.setBrowseUrl(definition.browseUrl());
-            source.setActive(definition.active());
-            // Configuration is parser-owned but live verification still belongs to the
-            // health/acquisition audit; do not claim a URL was verified at startup.
-            source.setUrlUnverified(true);
-            sources.save(source);
-            changed++;
-        }
-        // Qualify the legacy seed set explicitly. Constructor defaults must never decide
-        // production coverage, and operator-added sources outside this known set are untouched.
-        for (String code : LEGACY_SEED_CODES) {
-            Source source = sources.findByCode(code).orElse(null);
-            if (source == null) continue;
-            boolean shouldBeActive = OPERATIONAL_VIETNAM_CODES.contains(code);
-            if (source.isActive() != shouldBeActive) {
-                source.setActive(shouldBeActive);
-                sources.save(source);
+            if (newlyCreated || firstMetadataMigration || configurationChanged
+                    || source.getBrowseUrl() == null || source.getBrowseUrl().isBlank()) {
+                source.setBrowseUrl(definition.browseUrl());
             }
+            if (newlyCreated || firstMetadataMigration || configurationChanged) {
+                source.setActive(definition.active());
+                // A new/changed fetch contract needs a fresh health audit. On normal
+                // restarts preserve the operator's activation and verified state.
+                source.setUrlUnverified(true);
+                changed++;
+            }
+            sources.save(source);
         }
-        log.info("Vietnam acquisition expansion applied to {} parser-owned source channels", changed);
+        if (changed > 0) {
+            log.info("Vietnam acquisition expansion initialized/updated {} parser-owned source channels; "
+                    + "unchanged operator health decisions were preserved", changed);
+        }
     }
 
-    private static final Set<String> OPERATIONAL_VIETNAM_CODES = Set.of(
-            "MOF_ISA", "NSO_VN", "MVI_LIFE", "TECHCOM_LIFE", "AIA_VN_NOTICES",
-            "AIA_VN", "MANULIFE_VN", "PRUDENTIAL_VN", "MB_AGEAS", "PHU_HUNG_LIFE",
-            "BIDV_METLIFE", "MAP_LIFE", "FUBON_VN", "CATHAY_VN", "SHINHAN_VN", "CHUBB_VN",
-            "DAIICHI_VN", "FWD_VN", "GENERALI_VN", "HANWHA_VN",
-            "TNCK_VN", "VNECONOMY", "VIETNAMNET_LIFE", "VIR_INSURANCE",
-            "VIETNAMPLUS_INSURANCE", "BAODAUTU_LIFE", "VIETNAMFINANCE_LIFE",
-            "BNEWS_FINANCE_INSURANCE", "IAV_LIFE_PRODUCTS", "IAV_LIFE_DISCLOSURES",
-            "IAV_LIFE_ACTIVITIES", "BIZHUB_INSURANCE", "BAOCHINHPHU_INSURANCE",
-            "VNEXPRESS_INSURANCE", "BVNT", "SUNLIFE_VN", "TBNH",
-            "HNX_GOVERNMENT_BONDS", "SBV_MARKET_OPERATIONS",
-            "THEINVESTOR_INSURANCE", "DDD_FINANCIAL_SERVICES", "BAOVIET_HOLDINGS_NEWS",
-            "AIA_GROUP_RESULTS", "TECHCOMBANK_IR_LIFE_RESULTS",
-            "BIDV_METLIFE_AGENCY_2026", "VIETCOMBANK_FWD_DISTRIBUTION_2026",
-            "MOF_INSURANCE_CYBER_RISK_2026", "GOV_PERSONAL_DATA_INSURANCE_2026",
-            "IAV_CHUBB_IGLOO_2026", "MILLIMAN_VN_LIFE_LANDSCAPE_2026",
-            "FINANCE_RESEARCH_DATA_INSURANCE_2026", "LUATVIETNAM_ONLINE_INSURANCE_DATA_2026",
-            "BVNT_FINANCIALS", "AIA_VN_FINANCIALS", "PRUDENTIAL_VN_FINANCIALS",
-            "MANULIFE_VN_FINANCIALS", "MB_LIFE_FINANCIALS", "HANWHA_VN_FINANCIALS",
-            "CHUBB_VN_FINANCIALS", "FUBON_VN_FINANCIALS", "MAP_LIFE_FINANCIALS",
-            "MVI_LIFE_FINANCIALS", "TECHCOM_LIFE_FINANCIALS", "DAIICHI_VN_FINANCIALS",
-            "PHU_HUNG_LIFE_FINANCIALS", "GENERALI_VN_FINANCIALS",
-            "SUNLIFE_VN_FINANCIALS", "BIDV_METLIFE_FINANCIALS",
-            "FWD_VN_FINANCIALS", "SHINHAN_VN_FINANCIALS");
-
-    private static final Set<String> LEGACY_SEED_CODES = Set.of(
-            "MOF_ISA", "IAV_VN", "BVNT", "AIA_VN", "MANULIFE_VN", "PRUDENTIAL_VN",
-            "MB_AGEAS", "PHU_HUNG_LIFE", "BIDV_METLIFE", "MAP_LIFE", "FUBON_VN",
-            "CATHAY_VN", "SUNLIFE_VN", "SHINHAN_VN", "CHUBB_VN", "DAIICHI_VN", "FWD_VN",
-            "GENERALI_VN", "HANWHA_VN", "TNCK_VN", "VNECONOMY", "TBNH", "CAFEF",
-            "NFRA_CN", "CBIRC_NEWS", "FSA_JP", "FSC_TW", "HKMA", "AIR", "BT_SG",
-            "PINGAN_MEDIA", "CHINALIFE_HK", "HKIA", "AIA_HK", "PRU_HK", "FUBON_TW",
-            "CATHAY_TW", "FSC_KR", "FSS_KR", "HANWHA_GLOBAL", "TOKIO_MARINE", "MSAD",
-            "NIPPON_LIFE", "MAS_SG", "GREAT_EASTERN", "INCOME_SG", "AIA_SG", "OJK_ID",
-            "BNM_MY", "IC_PH", "THAILIFE_TH", "PRULIFE_PH", "PHILAM_PH", "NAIC",
-            "SWISSRE_INST", "MUNICHRE", "LIMRA", "MCKINSEY_INS", "INS_ASIA_NEWS",
-            "INS_BIZ_ASIA");
+    private static boolean configurationChanged(Source source, Definition definition) {
+        return !java.util.Objects.equals(source.getFetchUrl(), definition.fetchUrl())
+                || !java.util.Objects.equals(source.getAllowedHost(), definition.allowedHost())
+                || source.getType() != definition.type()
+                || !java.util.Objects.equals(source.getLanguage(), definition.language());
+    }
 
     private static final List<Definition> DEFINITIONS = List.of(
             // Official market/regulatory time series.

@@ -188,6 +188,7 @@ public class GroundedProductInsightWriter implements ProductInsightWriter {
             item.put("factCode", s.factCode());
             item.put("sourceCode", s.sourceCode());
             item.put("sourceTier", s.sourceTier());
+            item.put("sourceAuthority", s.sourceAuthority());
             item.put("rawDocId", s.rawDocId());
             item.put("publishedDate", s.publishedDate() == null ? null : s.publishedDate().toString());
             item.put("company", s.company());

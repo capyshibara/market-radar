@@ -4,7 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.marketradar.domain.DedupDecision;
 import com.marketradar.domain.DedupDecision.Method;
 import com.marketradar.domain.DedupDecision.Verdict;
@@ -27,9 +28,9 @@ import java.util.List;
  *
  *   exact URL/hash → Jaccard title → (vùng xám) LLM pairwise same-event
  *
- * SAME_EVENT → chọn bản GIỮ theo rule: official > media · mới > cũ ·
- * cùng tier không phân định → NEEDS_REVIEW (flag reviewer tại /dedup, KHÔNG tự quyết).
- * Bản THUA chỉ bị đánh dấu duplicateOfId (lọc khỏi report) — không xoá gì (audit).
+ * DUPLICATE_CONTENT → chọn bản GIỮ theo authority > recency. SAME_EVENT_INDEPENDENT
+ * giữ CẢ HAI tài liệu để fact clustering có thể corroborate đúng. Bản sao thua chỉ
+ * bị đánh dấu duplicateOfId (lọc khỏi synthesis) — không xoá gì (audit).
  *
  * LLM pairwise dùng WRITER client (@Primary). Đây KHÔNG phải bước verify đối kháng
  * (Invariant #2 chỉ ràng cặp writer/verifier của Gate L2) nên không cần khác họ.
@@ -41,12 +42,14 @@ public class DedupJob {
     private static final Logger log = LoggerFactory.getLogger(DedupJob.class);
 
     private static final String SYSTEM = """
-            MODE:DEDUP_PAIR — Bạn nhận TIÊU ĐỀ + trích đoạn đầu của HAI tài liệu tin tức.
-            Nhiệm vụ DUY NHẤT: hai tài liệu có nói về CÙNG MỘT SỰ KIỆN không
-            (cùng công ty, cùng hành động, cùng khung thời gian)?
-            Trả về DUY NHẤT JSON, không giải thích, không markdown:
-            {"same_event": true} hoặc {"same_event": false}
-            Nếu không chắc chắn, trả {"same_event": false} — hệ thống sẽ để người quyết.""";
+            MODE:DEDUP_PAIR — Phân loại quan hệ giữa HAI tài liệu.
+            DUPLICATE_CONTENT = sao chép/đăng lại/thông cáo được lặp lại, không có đóng góp
+            dữ kiện hay phân tích độc lập đáng kể. SAME_EVENT_INDEPENDENT = cùng sự kiện nhưng
+            bài viết có tường thuật, dữ kiện, phỏng vấn hoặc phân tích độc lập đáng kể.
+            DIFFERENT = khác sự kiện/chủ đề. Không được coi "cùng sự kiện" là "bản trùng".
+            Trả về DUY NHẤT JSON, không markdown:
+            {"relationship":"DUPLICATE_CONTENT|SAME_EVENT_INDEPENDENT|DIFFERENT"}
+            Nếu không chắc, output không đúng schema sẽ được chuyển cho người duyệt.""";
 
     private final RawDocRepository rawDocs;
     private final DedupDecisionRepository decisions;
@@ -54,26 +57,31 @@ public class DedupJob {
     private final LlmClient llm;   // WRITER (@Primary)
     private final double jaccardSame;
     private final double jaccardGray;
+    private final double contentDuplicate;
     private final long windowMillis;
     private final boolean replayCache;
+    private final TransactionTemplate transactions;
 
     public DedupJob(RawDocRepository rawDocs, DedupDecisionRepository decisions,
                     LlmCallLogRepository callLog, LlmClient llm,
                     @Value("${marketradar.dedup.jaccard-same:0.90}") double jaccardSame,
                     @Value("${marketradar.dedup.jaccard-gray:0.50}") double jaccardGray,
+                    @Value("${marketradar.dedup.content-duplicate:0.92}") double contentDuplicate,
                     @Value("${marketradar.dedup.window-hours:72}") long windowHours,
-                    @Value("${marketradar.llm.replay-cache:true}") boolean replayCache) {
+                    @Value("${marketradar.llm.replay-cache:true}") boolean replayCache,
+                    PlatformTransactionManager transactionManager) {
         this.rawDocs = rawDocs;
         this.decisions = decisions;
         this.callLog = callLog;
         this.llm = llm;
         this.jaccardSame = jaccardSame;
         this.jaccardGray = jaccardGray;
+        this.contentDuplicate = contentDuplicate;
         this.windowMillis = windowHours * 60L * 60 * 1000;
         this.replayCache = replayCache;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public String runOnce() {
         List<RawDoc> docs = rawDocs.findAll().stream()
                 .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
@@ -93,19 +101,27 @@ public class DedupJob {
                 if (!DedupRules.within72h(timeOf(a), timeOf(b))) continue;
 
                 Outcome o = decidePair(a, b);
-                DedupDecision d = new DedupDecision(a.getId(), b.getId(),
-                        a.getTitle(), b.getTitle(), o.method, o.score, o.verdict,
-                        o.winner == null ? null : o.winner.getId(), o.detail);
-                decisions.save(d);
+                try {
+                    transactions.executeWithoutResult(status -> persistPair(a, b, o));
+                } catch (RuntimeException persistenceError) {
+                    flagged++;
+                    log.error("Could not persist dedup pair doc#{} / doc#{}; continuing",
+                            a.getId(), b.getId(), persistenceError);
+                    sb.append("doc#").append(a.getId()).append(" ↔ doc#").append(b.getId())
+                            .append(" PERSISTENCE_ERROR — ").append(persistenceError.getMessage()).append('\n');
+                    continue;
+                }
 
-                if (o.verdict == Verdict.SAME_EVENT && o.winner != null) {
-                    RawDoc loser = (o.winner == a) ? b : a;
-                    loser.setDuplicateOfId(o.winner.getId());
-                    rawDocs.save(loser);
+                if (o.verdict == Verdict.DUPLICATE_CONTENT && o.winner != null) {
                     same++;
                     sb.append("doc#").append(a.getId()).append(" ↔ doc#").append(b.getId())
-                      .append(" [").append(o.method).append("] SAME_EVENT — kept doc#")
+                      .append(" [").append(o.method).append("] DUPLICATE_CONTENT — kept doc#")
                       .append(o.winner.getId()).append(" (").append(o.detail).append(")\n");
+                } else if (o.verdict == Verdict.SAME_EVENT_INDEPENDENT) {
+                    diff++;
+                    sb.append("doc#").append(a.getId()).append(" ↔ doc#").append(b.getId())
+                            .append(" [").append(o.method).append("] SAME_EVENT_INDEPENDENT")
+                            .append(" — retained both for corroboration\n");
                 } else if (o.verdict == Verdict.NEEDS_REVIEW) {
                     flagged++;
                     sb.append("doc#").append(a.getId()).append(" ↔ doc#").append(b.getId())
@@ -122,63 +138,88 @@ public class DedupJob {
         return sb.toString();
     }
 
+    /** One pair decision and its loser marker are committed atomically after any LLM call. */
+    private void persistPair(RawDoc a, RawDoc b, Outcome outcome) {
+        decisions.save(new DedupDecision(a.getId(), b.getId(), a.getTitle(), b.getTitle(),
+                outcome.method, outcome.score, outcome.verdict,
+                outcome.winner == null ? null : outcome.winner.getId(), outcome.detail));
+        if (outcome.verdict == Verdict.DUPLICATE_CONTENT && outcome.winner != null) {
+            RawDoc loser = outcome.winner == a ? b : a;
+            loser.setDuplicateOfId(outcome.winner.getId());
+            rawDocs.save(loser);
+        }
+    }
+
     // ---------- Thang quyết định (mirror DedupRules.decidePair, giữ lại method + detail) ----------
 
     private record Outcome(Method method, Double score, Verdict verdict, RawDoc winner, String detail) {}
 
     private Outcome decidePair(RawDoc a, RawDoc b) {
         if (a.getUrl() != null && a.getUrl().equals(b.getUrl()))
-            return sameEvent(a, b, Method.EXACT_URL, null);
+            return duplicateContent(a, b, Method.EXACT_URL, null);
         if (a.getContentHash() != null && a.getContentHash().equals(b.getContentHash()))
-            return sameEvent(a, b, Method.EXACT_HASH, null);
+            return duplicateContent(a, b, Method.EXACT_HASH, null);
+
+        double content = DedupRules.contentJaccard(a.getRawText(), b.getRawText());
+        if (content >= contentDuplicate) {
+            return duplicateContent(a, b, Method.JACCARD_TITLE, content);
+        }
 
         double j = DedupRules.titleJaccard(a.getTitle(), b.getTitle());
-        if (j >= jaccardSame) return sameEvent(a, b, Method.JACCARD_TITLE, j);
         if (j < jaccardGray)
             return new Outcome(Method.JACCARD_TITLE, j, Verdict.DIFFERENT, null,
                     "Jaccard " + fmt(j) + " < gray threshold " + fmt(jaccardGray));
 
-        // Vùng xám → LLM pairwise
+        // Even very high title overlap is only a candidate: publishers can use the
+        // same press-release headline while adding independent reporting. The high
+        // threshold controls diagnostics, never deterministic deletion.
+        String overlapBand = j >= jaccardSame ? "high headline overlap" : "gray headline overlap";
         if ("STUB".equals(llm.providerName()))
             return new Outcome(Method.LLM_PAIRWISE, j, Verdict.NEEDS_REVIEW, null,
-                    "Gray zone (Jaccard " + fmt(j) + ") + LLM is STUB — not guessing, awaiting human review.");
+                    overlapBand + " (Jaccard " + fmt(j) + ") + LLM is STUB — not guessing, awaiting human review.");
 
-        Boolean sameEvent = askLlm(a, b);
-        if (sameEvent == null)
+        DedupRules.ContentRelationship relationship = askLlm(a, b);
+        if (relationship == null)
             return new Outcome(Method.LLM_PAIRWISE, j, Verdict.NEEDS_REVIEW, null,
-                    "Gray zone (Jaccard " + fmt(j) + "), LLM output unparseable — awaiting human review.");
-        if (!sameEvent)
-            return new Outcome(Method.LLM_PAIRWISE, j, Verdict.DIFFERENT, null,
+                    overlapBand + " (Jaccard " + fmt(j) + "), LLM output unparseable — awaiting human review.");
+        return switch (relationship) {
+            case DUPLICATE_CONTENT -> duplicateContent(a, b, Method.LLM_PAIRWISE, j);
+            case SAME_EVENT_INDEPENDENT -> new Outcome(Method.LLM_PAIRWISE, j,
+                    Verdict.SAME_EVENT_INDEPENDENT, null,
+                    "Independent reporting retained for fact-level corroboration.");
+            case DIFFERENT -> new Outcome(Method.LLM_PAIRWISE, j, Verdict.DIFFERENT, null,
                     "LLM pairwise: different event (Jaccard " + fmt(j) + ").");
-        return sameEvent(a, b, Method.LLM_PAIRWISE, j);
+        };
     }
 
-    /** SAME_EVENT → áp rule xung đột chọn bản giữ; 'F' → NEEDS_REVIEW. */
-    private Outcome sameEvent(RawDoc a, RawDoc b, Method method, Double score) {
+    /** DUPLICATE_CONTENT → apply retention rule; 'F' means human review. */
+    private Outcome duplicateContent(RawDoc a, RawDoc b, Method method, Double score) {
         char w = DedupRules.pickWinner(
-                a.getSource().getTier(), publishedMillis(a),
-                b.getSource().getTier(), publishedMillis(b));
+                a.getSource().getAuthority().credibilityScore(), publishedMillis(a),
+                b.getSource().getAuthority().credibilityScore(), publishedMillis(b));
         return switch (w) {
-            case 'A' -> new Outcome(method, score, Verdict.SAME_EVENT, a,
+            case 'A' -> new Outcome(method, score, Verdict.DUPLICATE_CONTENT, a,
                     winReason(a, b));
-            case 'B' -> new Outcome(method, score, Verdict.SAME_EVENT, b,
+            case 'B' -> new Outcome(method, score, Verdict.DUPLICATE_CONTENT, b,
                     winReason(b, a));
             default -> new Outcome(method, score, Verdict.NEEDS_REVIEW, null,
-                    "Same event but SAME source tier and no clear time order"
+                    "Duplicate content but SAME source authority and no clear time order"
                     + " — flagged for reviewer (rule: never auto-decide).");
         };
     }
 
     private static String winReason(RawDoc winner, RawDoc loser) {
-        if (winner.getSource().getTier() != loser.getSource().getTier())
-            return "official > media: tier " + winner.getSource().getTier()
-                    + " beats tier " + loser.getSource().getTier();
-        return "newer > older: same tier, more recently published wins";
+        if (winner.getSource().getAuthority() != loser.getSource().getAuthority())
+            return winner.getSource().getAuthority() + " ("
+                    + winner.getSource().getAuthority().credibilityScore() + ") beats "
+                    + loser.getSource().getAuthority() + " ("
+                    + loser.getSource().getAuthority().credibilityScore() + ")";
+        return "newer > older: same source authority, more recently published wins";
     }
 
     // ---------- LLM pairwise + replay-cache (cùng cơ chế các job cũ) ----------
 
-    private Boolean askLlm(RawDoc a, RawDoc b) {
+    private DedupRules.ContentRelationship askLlm(RawDoc a, RawDoc b) {
         String user = "TÀI LIỆU A:\nTiêu đề: " + nvl(a.getTitle())
                 + "\nTrích đoạn: " + excerpt(a.getRawText())
                 + "\n\nTÀI LIỆU B:\nTiêu đề: " + nvl(b.getTitle())
@@ -189,7 +230,7 @@ public class DedupJob {
         String raw;
         if (replayCache) {
             var cached = callLog.findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(hash, 0);
-            if (cached.isPresent()) return DedupRules.parseSameEvent(cached.get().getResponseText());
+            if (cached.isPresent()) return DedupRules.parseRelationship(cached.get().getResponseText());
         }
         long t0 = System.currentTimeMillis();
         try {
@@ -201,7 +242,7 @@ public class DedupJob {
             log.error("DEDUP_PAIR lỗi LLM: {}", e.getMessage());
             return null;
         }
-        return DedupRules.parseSameEvent(raw);
+        return DedupRules.parseRelationship(raw);
     }
 
     // ---------- helpers ----------
@@ -218,7 +259,12 @@ public class DedupJob {
     private static String excerpt(String text) {
         if (text == null) return "(trống)";
         String t = text.strip();
-        return t.length() > 400 ? t.substring(0, 400) + "…" : t;
+        if (t.length() <= 1800) return t;
+        int segment = 600;
+        int middle = Math.max(segment, (t.length() - segment) / 2);
+        return t.substring(0, segment) + "\n[…MIDDLE…]\n"
+                + t.substring(middle, Math.min(t.length(), middle + segment))
+                + "\n[…END…]\n" + t.substring(t.length() - segment);
     }
 
     private static String nvl(String s) { return s == null ? "(không tiêu đề)" : s; }

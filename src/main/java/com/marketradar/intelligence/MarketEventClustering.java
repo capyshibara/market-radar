@@ -19,7 +19,7 @@ import java.util.TreeSet;
 /** Conservative deterministic fact-to-event clustering; no semantic guesswork or LLM. */
 public final class MarketEventClustering {
 
-    public static final String VERSION = "market-event-cluster-v1";
+    public static final String VERSION = "market-event-cluster-v2-dimension-safe";
 
     private MarketEventClustering() {}
 
@@ -33,17 +33,38 @@ public final class MarketEventClustering {
 
     public static String clusterKey(MarketEvent event) {
         Long docId = event.getEvidenceFact().getRawDoc().getId();
-        String company = normalize(event.getCompany());
+        String entity = normalize(event.getSubjectEntityKey());
+        if (entity.isEmpty()) entity = normalize(event.getCompany());
         String product = normalize(event.getProductName());
-        // Cross-document grouping requires both named entity and product. Missing
-        // dimensions fail closed to a document-local cluster to avoid false trends.
-        String identity = company.isEmpty() || product.isEmpty()
-                ? "DOC:" + (docId == null ? event.getEventKey() : docId)
-                : "ENTITY:" + company + "|PRODUCT:" + product;
+        String kpi = normalize(event.getEvidenceFact().getKpiLabel());
+        String topic = event.getIntelligenceTopic() == null
+                ? "" : event.getIntelligenceTopic().name();
+        String market = normalize(event.getMarketCode());
+
+        /*
+         * Cross-document grouping has two deliberately narrow lanes:
+         * 1) a resolved entity plus a verbatim product name; or
+         * 2) a named KPI plus entity/market and the reusable intelligence topic.
+         *
+         * Lane 2 lets two publishers corroborate market share, APE, GDP or another
+         * explicitly labelled metric. It does not group generic company articles,
+         * avoiding the old failure mode where unrelated news about one insurer was
+         * mistaken for one trend. Any missing discriminator fails closed to the
+         * originating document.
+         */
+        String identity;
+        if (!entity.isEmpty() && !product.isEmpty()) {
+            identity = "ENTITY:" + entity + "|PRODUCT:" + product;
+        } else if (!kpi.isEmpty() && !topic.isEmpty() && (!entity.isEmpty() || !market.isEmpty())) {
+            identity = "SUBJECT:" + (!entity.isEmpty() ? entity : "MARKET:" + market)
+                    + "|TOPIC:" + topic + "|KPI:" + kpi;
+        } else {
+            identity = "DOC:" + (docId == null ? event.getEventKey() : docId);
+        }
         LocalDate anchor = anchor(event);
         String month = anchor == null ? "UNDATED" : YearMonth.from(anchor).toString();
         String raw = VERSION + "|" + identity + "|" + event.getEventType()
-                + "|" + normalize(event.getGeography()) + "|" + month;
+                + "|MARKET:" + market + "|" + month;
         return sha256(raw);
     }
 

@@ -8,10 +8,14 @@ import com.marketradar.intelligence.MarketEventService;
 import com.marketradar.intelligence.ProductMaterialityRules;
 import com.marketradar.intelligence.ProductMaterialityScorer;
 import com.marketradar.intelligence.ProductEventTaxonomy;
+import com.marketradar.intelligence.ReportTimeWindowRules;
 import com.marketradar.repo.ClassificationRepository;
 import com.marketradar.repo.EvidenceFactRepository;
+import com.marketradar.review.EntityAttributionGuard;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.marketradar.quality.ProductPublicationQualityGate;
 
 import java.nio.charset.StandardCharsets;
@@ -38,6 +42,7 @@ public class ProductBriefService {
     private final EvidenceFactRepository facts;
     private final ProductInsightWriter writer;
     private final ProductInsightQualityGate qualityGate;
+    private final TransactionTemplate transactions;
 
     public ProductBriefService(MarketEventService eventService, MarketEventReadService eventReads,
                                ClassificationRepository classifications,
@@ -46,7 +51,8 @@ public class ProductBriefService {
                                ProductBriefInsightRepository insights,
                                EvidenceFactRepository facts,
                                ProductInsightWriter writer,
-                               ProductInsightQualityGate qualityGate) {
+                               ProductInsightQualityGate qualityGate,
+                               PlatformTransactionManager transactionManager) {
         this.eventService = eventService;
         this.eventReads = eventReads;
         this.classifications = classifications;
@@ -56,6 +62,7 @@ public class ProductBriefService {
         this.facts = facts;
         this.writer = writer;
         this.qualityGate = qualityGate;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -63,7 +70,6 @@ public class ProductBriefService {
      * returns the existing edition.  Freshness is based on publication date, not the
      * ambiguous legacy eventDate (which may be an effective date or 2030 forecast).
      */
-    @Transactional
     public ProductBriefEdition regenerate(int windowDays) {
         if (windowDays < 7 || windowDays > 365) {
             throw new IllegalArgumentException("windowDays must be between 7 and 365");
@@ -78,8 +84,10 @@ public class ProductBriefService {
 
         List<ScoredEvent> scored = eventReads.readForSynthesis(
                         MarketEventNormalizer.PIPELINE_VERSION, end).stream()
-                .filter(e -> e.publishedDate() != null
-                        && !e.publishedDate().isBefore(start) && !e.publishedDate().isAfter(end))
+                .filter(e -> ReportTimeWindowRules.classify(
+                        new ReportTimeWindowRules.Dates(e.publishedDate(), e.occurredDate(),
+                                e.effectiveDate(), e.expiryDate(), e.forecastHorizon()),
+                        start, end, 90) != ReportTimeWindowRules.Inclusion.EXCLUDE)
                 .map(e -> {
                     EvidenceFact fact = e.evidenceFact();
                     Classification classification = classificationByDoc.get(fact.getRawDoc().getId());
@@ -90,6 +98,11 @@ public class ProductBriefService {
 
         List<ProductBriefSynthesisRules.Signal> eligible = scored.stream()
                 .filter(se -> se.score().publishEligible())
+                // Materiality answers "is this important?"; attribution answers
+                // "is it about the entity management thinks it is about?". They are
+                // independent gates, so a high score never rescues an unsafe entity.
+                .filter(se -> EntityAttributionGuard.isFactAttributionSafe(
+                        se.event().evidenceFact()))
                 .map(ProductBriefService::toSignal)
                 .toList();
         List<ProductBriefSynthesisRules.Draft> drafts = ProductBriefSynthesisRules.synthesize(eligible);
@@ -146,19 +159,33 @@ public class ProductBriefService {
                     writerVersion, publicationQualitySignature, eligible.size(), publicationFailure);
         }
 
+        ProductBriefEdition committed = transactions.execute(status -> persistEdition(
+                baseEditionCode, start, end, fingerprint, writerVersion,
+                publicationQualitySignature, eligible.size(), prepared,
+                rejectedCandidates, publication));
+        if (committed == null) throw new IllegalStateException("Product edition commit returned null");
+        return committed;
+    }
+
+    /** The only write transaction in normal generation; all model calls are already finished. */
+    private ProductBriefEdition persistEdition(
+            String editionCode, LocalDate start, LocalDate end, String fingerprint,
+            ProductInsightWriter.Version writerVersion, String publicationQualitySignature,
+            int eligibleCount, List<PreparedInsight> prepared,
+            List<CandidateRejection> rejectedCandidates,
+            ProductPublicationGateAdapter.Evaluation publication) {
         ProductBriefEdition edition = editions.save(new ProductBriefEdition(
-                baseEditionCode, Department.PRODUCT, start, end,
+                editionCode, Department.PRODUCT, start, end,
                 ProductBriefSynthesisRules.ALGORITHM_VERSION, fingerprint,
                 writerVersion.providerModel(), writerVersion.promptSha256(),
                 writerVersion.schemaVersion(), publicationQualitySignature,
                 editionStatus(publication.magazine().status()),
-                eligible.size(), prepared.size(), candidateRejectionSummary(rejectedCandidates)));
+                eligibleCount, prepared.size(), candidateRejectionSummary(rejectedCandidates)));
 
         int rank = 1;
         for (int index = 0; index < prepared.size(); index++) {
             PreparedInsight p = prepared.get(index);
-            ProductPublicationQualityGate.InsightResult publicationResult =
-                    publication.insightResults().get(index);
+            ProductPublicationQualityGate.InsightResult publicationResult = publication.insightResults().get(index);
             ProductBriefSynthesisRules.Draft d = p.draft();
             ProductInsightWriter.WrittenInsight w = p.written();
             insights.save(new ProductBriefInsight(edition, rank++, d.kiqCode(), d.theme().name(),
@@ -170,8 +197,7 @@ public class ProductBriefService {
                     d.independentSourceCount(), d.conflictFree(), d.futureActionEligible(),
                     d.signals().stream().map(ProductBriefSynthesisRules.Signal::clusterKey)
                             .distinct().collect(Collectors.joining(",")),
-                    ProductBriefInsight.PublicationDisposition.valueOf(
-                            publicationResult.disposition().name()),
+                    ProductBriefInsight.PublicationDisposition.valueOf(publicationResult.disposition().name()),
                     publicationResult.failureCodes().stream().map(Enum::name).sorted()
                             .collect(Collectors.joining(",")),
                     publicationResult.resolvedEvidenceRatio(), ProductPublicationGateAdapter.VERSION));
@@ -186,12 +212,15 @@ public class ProductBriefService {
         String suffix = "-F" + Long.toUnsignedString(System.nanoTime(), 36)
                 .toUpperCase(Locale.ROOT);
         String code = (baseCode + suffix).substring(0, Math.min(48, baseCode.length() + suffix.length()));
-        return editions.save(new ProductBriefEdition(code, Department.PRODUCT, start, end,
-                ProductBriefSynthesisRules.ALGORITHM_VERSION, fingerprint,
-                writerVersion.providerModel(), writerVersion.promptSha256(),
-                writerVersion.schemaVersion(), qualitySignature,
-                ProductBriefEdition.Status.GENERATION_FAILED, eligibleCount, 0,
-                failure.getMessage()));
+        ProductBriefEdition failed = transactions.execute(status -> editions.save(
+                new ProductBriefEdition(code, Department.PRODUCT, start, end,
+                        ProductBriefSynthesisRules.ALGORITHM_VERSION, fingerprint,
+                        writerVersion.providerModel(), writerVersion.promptSha256(),
+                        writerVersion.schemaVersion(), qualitySignature,
+                        ProductBriefEdition.Status.GENERATION_FAILED, eligibleCount, 0,
+                        compact(failure.getMessage()))));
+        if (failed == null) throw new IllegalStateException("Failed-edition commit returned null", failure);
+        return failed;
     }
 
     private static ProductBriefEdition.Status editionStatus(
@@ -208,6 +237,10 @@ public class ProductBriefService {
         List<EvidenceFact> cited = facts.findAllByFactCodeInForAudit(written.citedFactCodes());
         if (cited.size() != new LinkedHashSet<>(written.citedFactCodes()).size()) {
             throw new ProductInsightWritingException("Product writer cited evidence that is not available for audit");
+        }
+        if (cited.stream().anyMatch(fact -> !EntityAttributionGuard.isFactAttributionSafe(fact))) {
+            throw new ProductInsightWritingException(
+                    "Product writer cited evidence with unresolved or conflicting entity attribution");
         }
         ProductInsightQualityGate.Result quality = qualityGate.evaluate(
                 written, cited, new LinkedHashSet<>(draft.factCodes()));
@@ -301,13 +334,15 @@ public class ProductBriefService {
                 e.independentSourceCount(), e.conflictState().name(),
                 e.effectiveDate(), e.expiryDate(), e.temporalStatus().name(),
                 e.futureActionEligible(), f.getSummaryVi(), f.getSummaryEn(),
-                scored.score().total(), kiqs);
+                scored.score().total(), kiqs,
+                f.getRawDoc().getSource().getAuthority().name());
     }
 
     private static boolean isVietnam(MarketEventIntelligenceView event, EvidenceFact fact) {
+        if ("VN".equalsIgnoreCase(event.marketCode())) return true;
+        if (fact.getGeographyScope() == com.marketradar.domain.GeographyScope.VIETNAM) return true;
         String geography = event.geography() == null ? "" : event.geography().toLowerCase(Locale.ROOT);
-        return geography.contains("vietnam") || geography.contains("việt nam")
-                || "vi".equalsIgnoreCase(fact.getRawDoc().getSource().getLanguage());
+        return geography.contains("vietnam") || geography.contains("việt nam");
     }
 
     private static String fingerprint(LocalDate start, LocalDate end, List<ScoredEvent> scored,
@@ -331,6 +366,10 @@ public class ProductBriefService {
                     .append(':').append(se.event().futureActionEligible())
                     .append(':').append(se.event().effectiveDate())
                     .append(':').append(se.event().expiryDate())
+                    .append(':').append(se.event().marketCode())
+                    .append(':').append(se.event().evidenceFact().getGeographyScope())
+                    .append(':').append(se.event().evidenceFact().getSubjectEntityKey())
+                    .append(':').append(se.event().evidenceFact().getEntityResolutionStatus())
                     .append(':').append(se.score().total())
                     .append(':').append(se.score().publishEligible());
         }

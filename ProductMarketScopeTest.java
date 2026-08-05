@@ -3,6 +3,7 @@ import com.marketradar.product.CurrentProductNewsScopeGroup;
 import com.marketradar.product.CurrentProductNewsTopic;
 import com.marketradar.product.ProductMarketScope;
 import com.marketradar.product.ProductMarketScopeClassifier;
+import com.marketradar.domain.GeographyScope;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,10 +22,21 @@ public class ProductMarketScopeTest {
                 "Hong Kong development remains international");
         check("Hong Kong".equals(hongKong.geography()), "international geography remains visible");
 
-        var manualVietnam = ProductMarketScopeClassifier.classify("MANUAL", "en",
-                "manual.local", "https://example.com/article", "Vietnam Insurance Association", null);
+        var manualVietnam = ProductMarketScopeClassifier.classify("VN", GeographyScope.VIETNAM);
         check(manualVietnam.scope() == ProductMarketScope.VIETNAM,
-                "manual intake can still use the event entity to identify Vietnam");
+                "manual intake uses normalized market metadata to identify Vietnam");
+
+        var vietnameseAboutGlobal = ProductMarketScopeClassifier.classify("MANUAL", "vi",
+                "manual.local", "https://example.com/article", "Bài tiếng Việt", "Prudential plc");
+        check(vietnameseAboutGlobal.scope() == ProductMarketScope.INTERNATIONAL,
+                "document language must never be used as event geography");
+        check("Global / regional".equals(vietnameseAboutGlobal.geography()),
+                "unclassified discovery content remains explicitly global/regional");
+
+        var vietnamHostWithoutMetadata = ProductMarketScopeClassifier.classify("MANUAL", "en",
+                "example.vn", "https://example.vn/global-story", "Global report", null);
+        check(vietnamHostWithoutMetadata.scope() == ProductMarketScope.INTERNATIONAL,
+                "a .vn publisher host must not silently turn a global event into domestic news");
 
         List<CurrentProductNewsScopeGroup> groups = CurrentProductNewsScopeGroup.from(List.of(
                 item("F-VN", ProductMarketScope.VIETNAM, "Vietnam"),

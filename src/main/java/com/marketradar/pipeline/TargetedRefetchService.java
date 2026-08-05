@@ -84,7 +84,6 @@ public class TargetedRefetchService {
     }
 
     /** Executes only explicit IDs; old content remains untouched on every non-success status. */
-    @Transactional
     public Execution execute(List<Long> requestedIds, boolean confirm) {
         if (!confirm) throw new IllegalArgumentException("confirm=true is required for mutation");
         List<Long> ids = TargetedRefetchPolicy.normalizeIds(requestedIds, true);

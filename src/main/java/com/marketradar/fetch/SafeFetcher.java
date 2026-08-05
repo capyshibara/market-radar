@@ -48,7 +48,7 @@ import javax.net.ssl.SSLException;
  *     không bao giờ thực thi, không render HTML thô (template chỉ dùng th:text).
  *
  * Lưu ý còn lại (nói thẳng): PDF độc hại nhắm vào lỗ hổng parser vẫn là rủi ro lý thuyết
- * — giảm thiểu bằng size cap + PDFBox bản vá mới + chỉ ingest PDF từ nguồn tier 1-2.
+     * — giảm thiểu bằng size cap + PDFBox bản vá mới + whitelist/authority review.
  * Muốn chặt hơn nữa (ngoài scope MVP): chạy parser trong sandbox/container riêng.
  */
 @Component

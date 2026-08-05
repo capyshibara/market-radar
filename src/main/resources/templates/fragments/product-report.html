@@ -20,9 +20,9 @@
         <div class="publication-name" th:text="${vi ? 'MARKET RADAR · TÌNH BÁO SẢN PHẨM' : 'MARKET RADAR · PRODUCT INTELLIGENCE'}">MARKET RADAR · PRODUCT INTELLIGENCE</div>
         <div class="edition-mark" th:text="${executiveBrief.modeLabel}">Evidence brief</div>
       </div>
-      <p class="eyebrow" th:text="${editorialBrief.leadLabel}">Editor’s brief</p>
-      <h1 th:text="${editorialBrief.title}">The market moved. What should Product know?</h1>
-      <p class="report-deck" th:text="${editorialBrief.deck}">Verified developments across Product priorities.</p>
+      <p class="eyebrow" th:text="${editorialIsPlaceholder ? (vi ? 'SỔ CÁI BẰNG CHỨNG · CHỜ PRODUCT SME' : 'EVIDENCE LEDGER · AWAITING PRODUCT SME') : editorialBrief.leadLabel}">Editor’s brief</p>
+      <h1 th:text="${editorialIsPlaceholder ? (vi ? 'Tình báo sản phẩm hiện tại' : 'Current product intelligence') : editorialBrief.title}">Current product intelligence</h1>
+      <p class="report-deck" th:text="${editorialIsPlaceholder ? (vi ? 'Các diễn biến nguồn đã qua cổng kỹ thuật; chưa có phần tổng hợp và khuyến nghị do con người ký duyệt.' : 'Source developments that passed technical gates; human-signed synthesis and recommendations are still pending.') : editorialBrief.deck}">Verified developments.</p>
 
       <div class="report-meta">
         <div class="meta-cell">
@@ -55,7 +55,7 @@
       <a href="/report/quarterly" th:classappend="${cadence.name() == 'QUARTERLY'} ? ' active' : ''" th:text="${vi ? '90 ngày' : '90 days'}">90 days</a>
     </nav>
 
-    <section class="report-section reader-orientation">
+    <section class="report-section reader-orientation" th:unless="${editorialIsPlaceholder}">
       <div class="orientation-head"><div><div class="section-kicker" th:text="${vi ? 'BẮT ĐẦU TỪ ĐÂY · DÀNH CHO NGƯỜI KHÔNG CHUYÊN PRODUCT' : 'START HERE · FOR NON-PRODUCT READERS'}">Start here</div><h2 th:text="${vi ? 'Hiểu báo cáo trong một phút' : 'Understand the report in one minute'}">Understand the report in one minute</h2><p th:text="${vi ? 'Đọc ba ô từ trái sang phải: bối cảnh cần biết, câu chuyện nối các tín hiệu, rồi khuyến nghị hành động.' : 'Read the three panels from left to right: the context you need, the story connecting the signals, then the recommended action.'}">Reading route.</p></div><div class="orientation-route"><span>01</span><i>→</i><span>02</span><i>→</i><span>03</span></div></div>
       <div class="orientation-grid">
         <article class="orientation-card context"><span class="orientation-number">01</span><div><small th:text="${vi ? 'BỐI CẢNH' : 'CONTEXT'}">Context</small><h3 th:text="${vi ? 'Cần biết gì trước khi đọc?' : 'What should I know first?'}">What should I know?</h3><p th:text="${editorialBrief.readerGuide.context}">Context.</p></div></article>
@@ -79,11 +79,12 @@
             <p class="lead-narrative" th:text="${editorialBrief.leadNarrative}">Narrative</p>
           </th:block>
         </article>
-        <aside class="editorial-chart exhibit-hero-shell" th:if="${editorialHeroExhibit != null}">
+        <aside class="editorial-chart exhibit-hero-shell" th:if="${!editorialIsPlaceholder and editorialHeroExhibit != null}">
           <th:block th:replace="~{fragments/product-report-exhibit :: card(${editorialHeroExhibit},${vi},true)}"></th:block>
         </aside>
       </div>
 
+      <th:block th:unless="${editorialIsPlaceholder}">
       <section class="market-bridge" aria-label="Vietnam applicability bridge">
         <div class="bridge-head"><div><div class="section-kicker" th:text="${vi ? 'BẢN ĐỒ THỊ TRƯỜNG' : 'MARKET MAP'}">Market map</div><h3 th:text="${vi ? 'Trong nước trước. Quốc tế để đối chiếu. Việt Nam là điểm đến của quyết định.' : 'Domestic first. International for comparison. Vietnam as the decision destination.'}">Domestic and international bridge</h3></div><span class="bridge-marker">VN</span></div>
         <div class="bridge-grid">
@@ -123,6 +124,7 @@
         <dl class="glossary-grid"><div class="glossary-term" th:each="entry:${editorialBrief.glossary}"><dt th:text="${entry.term}">Term</dt><dd th:text="${entry.definition}">Definition</dd></div></dl>
       </section>
       <p class="editorial-boundary"><strong th:text="${vi ? 'Ranh giới biên tập: ' : 'Editorial boundary: '}">Editorial boundary: </strong><span th:text="${editorialBrief.editorialBoundary}">Boundary</span></p>
+      </th:block>
     </section>
 
     <section class="report-section current-news" th:if="${hasCurrentProductNews}">
@@ -134,7 +136,7 @@
         </div>
         <div class="section-stat"><strong th:text="${currentProductNewsCount}">7</strong><span th:text="${vi ? 'diễn biến' : 'developments'}">developments</span></div>
       </div>
-      <p class="news-disclaimer" th:text="${vi ? 'Phần phân tích ở trên do con người biên tập. Các hồ sơ dưới đây là lớp bằng chứng bất biến; mở trích dẫn khi cần kiểm tra nguyên văn.' : 'The analysis above is human-curated. The records below are the immutable evidence layer; open a citation when verbatim checking is needed.'}">Evidence note.</p>
+      <p class="news-disclaimer" th:text="${editorialIsPlaceholder ? (vi ? 'Chưa có phân tích được ký duyệt cho tập evidence này. Các hồ sơ dưới đây là lớp bằng chứng bất biến để Product SME đọc và biên tập.' : 'No analysis has been signed for this evidence set yet. The records below are the immutable evidence layer for Product SME review and synthesis.') : (vi ? 'Phần phân tích ở trên do con người biên tập. Các hồ sơ dưới đây là lớp bằng chứng bất biến; mở trích dẫn khi cần kiểm tra nguyên văn.' : 'The analysis above is human-curated. The records below are the immutable evidence layer; open a citation when verbatim checking is needed.')}">Evidence note.</p>
 
       <div class="scope-summary" aria-label="Domestic and international coverage">
         <div class="scope-summary-cell vietnam"><span th:text="${vi ? 'VIỆT NAM' : 'VIETNAM'}">Vietnam</span><strong th:text="${vietnamProductNewsCount}">0</strong><small th:text="${vi ? 'diễn biến đủ điều kiện' : 'eligible developments'}">developments</small></div>
@@ -165,7 +167,7 @@
                 <dt th:text="${vi ? 'Nguồn' : 'Publisher'}">Publisher</dt><dd><a class="source-link" th:if="${n.externalSourceLink}" th:href="${n.sourceUrl}" th:text="${n.sourceName}">Source</a><span th:unless="${n.externalSourceLink}" th:text="${n.sourceName}">Uploaded source</span></dd>
                 <dt th:text="${vi ? 'Ngày công bố' : 'Published'}">Published</dt><dd th:text="${n.publishedDate}">2026-07-16</dd>
                 <dt th:text="${vi ? 'Thị trường' : 'Market'}">Market</dt><dd th:text="${vi ? n.geographyLabelVi : n.geographyLabelEn}">Vietnam</dd>
-                <dt th:text="${vi ? 'Cấp nguồn' : 'Source quality'}">Source quality</dt><dd th:text="${vi ? n.sourceTierLabelVi : n.sourceTierLabelEn}">Tier 1 source</dd>
+                <dt th:text="${vi ? 'Độ tin cậy nguồn' : 'Source authority'}">Source authority</dt><dd th:text="${vi ? n.sourceAuthorityLabelVi : n.sourceAuthorityLabelEn}">Official company</dd>
               </dl>
               <p class="original-language-label" th:if="${n.manuallySupplied}" th:text="${vi ? 'Tài liệu do người dùng cung cấp · cần đối chiếu với nguồn gốc' : 'Manually supplied document · cross-check against the original source'}">Manually supplied document</p>
               <span class="citation-code" th:text="${n.factCode + (vi ? ' · hồ sơ đã xác minh' : ' · verified record')}">F-001 · verified record</span>

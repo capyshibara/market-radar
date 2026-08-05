@@ -25,6 +25,8 @@ public final class PipelineCheckpointRules {
             long technicalExtractionFailures,
             long activeFacts,
             long activeFactDocuments,
+            long coreDimensionCompleteFacts,
+            long entityQuarantinedFacts,
             long activePipelineClaims,
             long gateL1PassedClaims,
             long latestVerifications,
@@ -32,7 +34,9 @@ public final class PipelineCheckpointRules {
             long neutralVerifications,
             long contradictedVerifications,
             long verifierErrors,
-            long reportEligibleClaims) {}
+            long reportEligibleClaims,
+            long reviewedAnalysisClaims,
+            long editorialWatchClaims) {}
 
     public record Checkpoint(String stage, String label, Decision decision, String message) {}
 
@@ -106,14 +110,22 @@ public final class PipelineCheckpointRules {
                     percent(technicalFailureRate)
                             + " of latest extraction attempts failed technically (LLM/schema).");
         }
-        if (technicalFailureRate >= 0.15d) {
+        double metadataCoverage = ratio(m.coreDimensionCompleteFacts(), m.activeFacts());
+        if (m.coreDimensionCompleteFacts() == 0) {
+            return checkpoint("extract", "Researcher + Connector", Decision.STOP,
+                    "Facts exist but none carry the authority/topic/market/time dimensions required downstream.");
+        }
+        if (technicalFailureRate >= 0.15d || metadataCoverage < 0.90d) {
             return checkpoint("extract", "Researcher + Connector", Decision.WARN,
-                    m.activeFacts() + " facts retained, but " + percent(technicalFailureRate)
-                            + " of latest attempts failed technically; inspect those documents.");
+                    m.activeFacts() + " facts retained; " + percent(metadataCoverage)
+                            + " have complete core dimensions, " + m.entityQuarantinedFacts()
+                            + " have ambiguous/conflicting entity attribution, and "
+                            + percent(technicalFailureRate) + " of latest attempts failed technically.");
         }
         return checkpoint("extract", "Researcher + Connector", Decision.PASS,
                 m.activeFacts() + " active facts across " + m.activeFactDocuments()
-                        + " documents; empty low-signal documents are not treated as system errors.");
+                        + " documents; core dimensions are complete. " + m.entityQuarantinedFacts()
+                        + " entity-risk facts remain quarantined for review.");
     }
 
     private static Checkpoint analystFactChecker(Metrics m) {
@@ -174,12 +186,15 @@ public final class PipelineCheckpointRules {
         }
         if (m.reportEligibleClaims() == 0) {
             return checkpoint("review", "Human Editor", Decision.WAITING,
-                    "No claim is report-eligible yet. Review NEUTRAL/non-error claims with their "
-                            + "evidence instead of weakening entity or citation gates.");
+                    "No decision-grade claim is ready yet. " + m.editorialWatchClaims()
+                            + " watch signal(s) and " + m.reviewedAnalysisClaims()
+                            + " human-reviewed analysis item(s) remain visibly separated; review evidence "
+                            + "instead of weakening entity or citation gates.");
         }
         return checkpoint("review", "Human Editor", Decision.PASS,
-                m.reportEligibleClaims() + " claims can feed the BI report; rejected and "
-                        + "contradicted claims remain excluded.");
+                m.reportEligibleClaims() + " decision-grade claim(s) can feed management sections; "
+                        + m.reviewedAnalysisClaims() + " reviewed analysis item(s) and "
+                        + m.editorialWatchClaims() + " watch signal(s) stay visibly separated.");
     }
 
     private static Checkpoint checkpoint(String stage, String label,

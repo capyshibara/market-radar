@@ -69,7 +69,7 @@ public final class ReprocessPreflightRules {
                             + ", p90Chars=" + lengths.p90Chars()
                             + ", averageChars=" + Math.round(lengths.averageChars())
                             + ", maxChars=" + lengths.maxChars()
-                            + ", multiChunkDocuments=" + lengths.inputTruncatedDocuments()));
+                            + ", multiChunkDocuments=" + lengths.multiChunkDocuments()));
         }
 
         boolean ready = checks.stream()

@@ -51,7 +51,7 @@ public class CompetitorRegistry {
     public CompetitorRegistry() {
         this.competitors = List.of(
                 new Competitor("Prudential Việt Nam",
-                        List.of("prudential việt nam", "prudential vietnam", "prudential plc", "prudential")),
+                        List.of("prudential việt nam", "prudential vietnam")),
                 new Competitor("Manulife Việt Nam", List.of("manulife")),
                 new Competitor("AIA Việt Nam", List.of("aia")),
                 new Competitor("Dai-ichi Life Việt Nam", List.of("dai-ichi", "daiichi")),
@@ -121,6 +121,11 @@ public class CompetitorRegistry {
             }
         }
         return List.copyOf(found);
+    }
+
+    /** Resolve a legal entity using explicit names plus the source's default market. */
+    public EntityResolutionRules.Resolution resolveEntity(String text, String defaultMarketCode) {
+        return EntityResolutionRules.resolve(text, defaultMarketCode);
     }
 
     /** true nếu văn bản có nhắc đối thủ canonicalName (qua bất kỳ bí danh nào). */

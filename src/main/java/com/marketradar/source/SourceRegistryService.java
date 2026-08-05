@@ -2,6 +2,7 @@ package com.marketradar.source;
 
 import com.marketradar.domain.Source;
 import com.marketradar.fetch.SafeFetcher;
+import com.marketradar.intelligence.SourceIntelligencePolicy;
 import com.marketradar.repo.SourceRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -176,8 +177,12 @@ public class SourceRegistryService {
         String name = SourceRegistryRules.validateName(command.name());
         SourceRegistryRules.ValidatedUrl validatedUrl = SourceRegistryRules.validateUrl(command.fetchUrl());
         Source.SourceType type = SourceRegistryRules.validateType(command.type());
-        int tier = SourceRegistryRules.validateTier(command.tier());
         String language = SourceRegistryRules.validateLanguage(command.language());
+        SourceIntelligencePolicy.Metadata metadata = SourceIntelligencePolicy.infer(
+                code, name, validatedUrl.allowedHost(), language);
+        int tier = command.tier() == null || command.tier() == 0
+                ? compatibilityTier(metadata)
+                : SourceRegistryRules.validateTier(command.tier());
 
         if (sources.existsByCodeIgnoreCase(code)) {
             throw new DuplicateSourceException("A source with code " + code + " already exists.");
@@ -193,14 +198,13 @@ public class SourceRegistryService {
                 : TestResult.notRun(validatedUrl.allowedHost(),
                         SourceRegistryRules.parserSupportedForActivation(type));
         boolean verified = command.testPassed() && serverTest.success();
-        // Tier 3 (nước ngoài) không bao giờ được kích hoạt qua form thêm nguồn — cùng quy tắc
-        // active=(tier<=2) mà TierReclassificationMigration áp cho 60 nguồn seed sẵn.
-        // Tier describes geography/audience, not technical crawlability. A verified
-        // international source must not be disabled merely because it is Tier 3.
+        // Activation is a technical crawlability decision. Geography and authority
+        // remain independent metadata and never disable a verified source by themselves.
         boolean active = command.active() && verified && serverTest.recommendedActive();
 
         Source source = new Source(code, name, validatedUrl.fetchUrl(), validatedUrl.allowedHost(),
                 type, tier, language);
+        source.setIntelligenceMetadata(metadata.authority(), metadata.marketScope(), metadata.marketCode());
         source.setUrlUnverified(!verified);
         source.setActive(active);
         try {
@@ -229,8 +233,18 @@ public class SourceRegistryService {
         };
     }
 
+    private static int compatibilityTier(SourceIntelligencePolicy.Metadata metadata) {
+        if (metadata.marketScope() == com.marketradar.domain.GeographyScope.VIETNAM) {
+            return switch (metadata.authority()) {
+                case ESTABLISHED_MEDIA, OTHER_PUBLISHER, SOCIAL_OR_BLOG -> 2;
+                default -> 1;
+            };
+        }
+        return metadata.marketScope() == com.marketradar.domain.GeographyScope.UNKNOWN ? 4 : 3;
+    }
+
     public record SaveCommand(String code, String name, String fetchUrl, String type,
-                              int tier, String language, boolean active, boolean testPassed) {}
+                              Integer tier, String language, boolean active, boolean testPassed) {}
 
     public record TestResult(boolean success, String message, String allowedHost,
                              String contentType, long bytes, boolean parserSupport,

@@ -3,7 +3,8 @@ package com.marketradar.interpret;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.domain.InterpretedClaim.GateStatus;
@@ -58,12 +59,14 @@ public class InterpretationJob {
     private final PipelineRunStatusService progress;
     private final PipelineItemLogRepository itemLogs;
     private final PeriodicalBiAdapter biAdapter;
+    private final TransactionTemplate transactions;
 
     public InterpretationJob(EvidenceFactRepository facts, InterpretedClaimRepository claims,
                              Interpreter interpreter, GroundingGateL1 gate,
                              RiskTierRouter tierRouter, PipelineRunStatusService progress,
                              PipelineItemLogRepository itemLogs,
-                             PeriodicalBiAdapter biAdapter) {
+                             PeriodicalBiAdapter biAdapter,
+                             PlatformTransactionManager transactionManager) {
         this.facts = facts;
         this.claims = claims;
         this.interpreter = interpreter;
@@ -72,9 +75,9 @@ public class InterpretationJob {
         this.progress = progress;
         this.itemLogs = itemLogs;
         this.biAdapter = biAdapter;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public String runOnce() {
         if (ProviderSafetyRules.isStub(interpreter.providerName())) {
             return "Interpretation refused: writer provider is STUB/missing. "
@@ -114,34 +117,66 @@ public class InterpretationJob {
             EvidencePack pack = new EvidencePack(doc.getId(), entry.getValue());
             Interpreter.InterpretationPlan plan = interpreter.planDoc(pack);
             if (hasCurrentDocEdition(doc, plan)) { docsSkipped++; continue; }
-            Interpreter.InterpretOutput out = interpreter.interpretDoc(pack, plan);
-            PersistResult stored = persist(out, pack.byCode(), pack.codes(), doc, null, plan, runLogId);
-            if (stored.activatable()) claims.supersedePriorByRawDocIdAndOrigin(
-                    doc.getId(), Origin.PIPELINE, stored.editionId());
-            summary.append(stored.summary());
-            docsDone++;
-            progress.stepProgress("interpret");
+            try {
+                Interpreter.InterpretOutput out = interpreter.interpretDoc(pack, plan);
+                PersistResult stored = transactions.execute(status -> {
+                    PersistResult persisted = persist(out, pack.byCode(), pack.codes(), doc, null, plan, runLogId);
+                    if (persisted.activatable()) claims.supersedePriorByRawDocIdAndOrigin(
+                            doc.getId(), Origin.PIPELINE, persisted.editionId());
+                    return persisted;
+                });
+                summary.append(stored.summary());
+                docsDone++;
+            } catch (RuntimeException e) {
+                log.error("Interpretation failed for doc#{}; prior edition preserved", doc.getId(), e);
+                summary.append("doc#").append(doc.getId()).append(": ERROR — prior edition preserved — ")
+                        .append(safeMessage(e)).append('\n');
+                logItem(runLogId, doc, null, "ERROR", safeMessage(e));
+            } finally {
+                progress.stepProgress("interpret");
+            }
         }
 
         // ---- Exec summary (pack toàn cục, 1 lần) ----
         if (execPending) {
-            Interpreter.InterpretOutput out = interpreter.interpretExecSummary(globalPack, execPlan);
-            PersistResult stored = persist(out, globalPack.byCode(), globalPack.codes(), null, null, execPlan, runLogId);
-            if (stored.activatable()) claims.supersedePriorBySlotAndOrigin(
-                    Slot.EXEC_SUMMARY, Origin.PIPELINE, stored.editionId());
-            summary.append(stored.summary());
-            progress.stepProgress("interpret");
+            try {
+                Interpreter.InterpretOutput out = interpreter.interpretExecSummary(globalPack, execPlan);
+                PersistResult stored = transactions.execute(status -> {
+                    PersistResult persisted = persist(out, globalPack.byCode(), globalPack.codes(), null, null, execPlan, runLogId);
+                    if (persisted.activatable()) claims.supersedePriorBySlotAndOrigin(
+                            Slot.EXEC_SUMMARY, Origin.PIPELINE, persisted.editionId());
+                    return persisted;
+                });
+                summary.append(stored.summary());
+            } catch (RuntimeException e) {
+                log.error("Executive synthesis failed; prior edition preserved", e);
+                summary.append("EXEC: ERROR — prior edition preserved — ")
+                        .append(safeMessage(e)).append('\n');
+                logItem(runLogId, null, null, "ERROR", safeMessage(e));
+            } finally {
+                progress.stepProgress("interpret");
+            }
         } else {
             summary.append("Exec summary already exists — skipped.\n");
         }
 
         // ---- Chapter narrative (batch 10): tổng hợp xuyên tài liệu, sau khi mọi
         // claim doc-level của run này đã có mặt trong DB ----
-        runChapterNarrative(byDoc, summary, runLogId);
+        try {
+            runChapterNarrative(byDoc, summary, runLogId);
+        } catch (RuntimeException e) {
+            log.error("Chapter narrative stage failed; document editions remain committed", e);
+            summary.append("Chapter narrative: ERROR — ").append(safeMessage(e)).append('\n');
+        }
 
         // ---- DEEP_DIVE (2026-08-03): Connector đề xuất chủ thể từ claim ĐÃ DUYỆT, Analyst
         // viết narrative — chạy SAU narrative vì cần đọc claim mới nhất đã lưu ở trên ----
-        runDeepDiveSynthesis(summary, runLogId);
+        try {
+            runDeepDiveSynthesis(summary, runLogId);
+        } catch (RuntimeException e) {
+            log.error("Deep-dive synthesis failed; earlier editions remain committed", e);
+            summary.append("Deep dive: ERROR — ").append(safeMessage(e)).append('\n');
+        }
 
         summary.insert(0, "Interpreted " + docsDone + " doc(s), skipped " + docsSkipped
                 + " (already interpreted). Provider: " + interpreter.providerName() + "\n");
@@ -174,47 +209,54 @@ public class InterpretationJob {
         LocalDate winStart = com.marketradar.report.ReportWindow.narrativeStart(today);
 
         for (Chapter chapter : Chapter.values()) {
-            List<InterpretedClaim> chapterCandidates = publishableInputs.stream()
+            try {
+                List<InterpretedClaim> chapterCandidates = publishableInputs.stream()
                     .filter(c -> factsByDocId.getOrDefault(c.getRawDoc().getId(), List.of())
                             .stream().anyMatch(chapter::matches))
                     .toList();
-            List<InterpretedClaim> eligible = NarrativeInputSelection.freshOnly(chapterCandidates,
+                List<InterpretedClaim> eligible = NarrativeInputSelection.freshOnly(chapterCandidates,
                     c -> com.marketradar.report.ReportWindow.docInWindow(c.getRawDoc(), winStart, today));
-            if (eligible.isEmpty()) {
-                int staleEditions = claims.supersedeStaleChapter(
-                        Slot.NARRATIVE, chapter.name(), Origin.PIPELINE);
+                if (eligible.isEmpty()) {
+                    Integer staleEditions = transactions.execute(status -> claims.supersedeStaleChapter(
+                            Slot.NARRATIVE, chapter.name(), Origin.PIPELINE));
+                    summary.append("Chapter ").append(chapter.name())
+                            .append(": no fresh verified + approved claims in window; superseded ")
+                            .append(staleEditions).append(" stale claim(s) — skipped.\n");
+                    logItem(runLogId, null, chapter.name(), "SKIPPED",
+                            "no fresh verified + approved claims in narrative window");
+                    continue;
+                }
+                // A focused pack prevents a broad corpus from producing generic prose.
+                List<InterpretedClaim> chapterClaims = selectNarrativeClaims(eligible, factsByDocId);
+                Set<String> codes = chapterClaims.stream()
+                        .flatMap(c -> Arrays.stream(c.getFactCodesCsv().split(",")))
+                        .map(String::strip).filter(s -> !s.isEmpty())
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                List<EvidenceFact> chapterFacts = codes.stream().map(factByCode::get).filter(Objects::nonNull).toList();
+                NarrativePack pack = new NarrativePack(chapter, chapterClaims, chapterFacts);
+                Interpreter.InterpretationPlan plan = interpreter.planNarrative(pack);
+                if (hasCurrentNarrativeEdition(chapter, plan)) {
+                    summary.append("Chapter ").append(chapter.name())
+                            .append(": current interpretation edition already exists — skipped.\n");
+                    continue;
+                }
+                Interpreter.InterpretOutput out = interpreter.interpretChapterNarrative(pack, plan);
+                PersistResult stored = transactions.execute(status -> {
+                    PersistResult persisted = persist(out, pack.byCode(), pack.codes(), null, chapter.name(), plan, runLogId);
+                    if (persisted.activatable()) claims.supersedePriorBySlotAndChapterCodeAndOrigin(
+                            Slot.NARRATIVE, chapter.name(), Origin.PIPELINE, persisted.editionId());
+                    return persisted;
+                });
+                summary.append(stored.summary());
+            } catch (RuntimeException e) {
+                log.error("Narrative failed for chapter {}; prior edition preserved", chapter, e);
                 summary.append("Chapter ").append(chapter.name())
-                        .append(": no fresh verified + approved claims in window; superseded ")
-                        .append(staleEditions).append(" stale claim(s) — skipped.\n");
-                logItem(runLogId, null, chapter.name(), "SKIPPED",
-                        "no fresh verified + approved claims in narrative window");
+                        .append(": ERROR — prior edition preserved — ")
+                        .append(safeMessage(e)).append('\n');
+                logItem(runLogId, null, chapter.name(), "ERROR", safeMessage(e));
+            } finally {
                 progress.stepProgress("interpret");
-                continue;
             }
-            // Chọn pack CÓ TRỌNG TÂM thay vì nhồi toàn bộ (feedback reader 2026-07-15: pack
-            // 100+ claim → model né chi tiết, viết chung chung). Ưu tiên tài liệu có fact
-            // nêu ĐÍCH DANH công ty (cụ thể hơn tin số liệu ngành), tối đa 2 claim/doc,
-            // trần MAX_NARRATIVE_CLAIMS — vẫn deterministic, auditable.
-            List<InterpretedClaim> chapterClaims = selectNarrativeClaims(eligible, factsByDocId);
-            Set<String> codes = chapterClaims.stream()
-                    .flatMap(c -> Arrays.stream(c.getFactCodesCsv().split(",")))
-                    .map(String::strip).filter(s -> !s.isEmpty())
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            List<EvidenceFact> chapterFacts = codes.stream().map(factByCode::get).filter(Objects::nonNull).toList();
-            NarrativePack pack = new NarrativePack(chapter, chapterClaims, chapterFacts);
-            Interpreter.InterpretationPlan plan = interpreter.planNarrative(pack);
-            if (hasCurrentNarrativeEdition(chapter, plan)) {
-                summary.append("Chapter ").append(chapter.name())
-                        .append(": current interpretation edition already exists — skipped.\n");
-                progress.stepProgress("interpret");
-                continue;
-            }
-            Interpreter.InterpretOutput out = interpreter.interpretChapterNarrative(pack, plan);
-            PersistResult stored = persist(out, pack.byCode(), pack.codes(), null, chapter.name(), plan, runLogId);
-            if (stored.activatable()) claims.supersedePriorBySlotAndChapterCodeAndOrigin(
-                    Slot.NARRATIVE, chapter.name(), Origin.PIPELINE, stored.editionId());
-            summary.append(stored.summary());
-            progress.stepProgress("interpret");
         }
     }
 
@@ -234,34 +276,50 @@ public class InterpretationJob {
             summary.append("Deep dive: no approved findings in window — skipped.\n");
             return;
         }
+        List<PeriodicalBiAdapter.RoutedFinding> decisionGrade = routedFindings.stream()
+                .filter(rf -> "DECISION_GRADE".equals(rf.finding().evidenceGrade())).toList();
+        if (decisionGrade.isEmpty()) {
+            summary.append("Deep dive: only Editorial Watch findings are available; synthesis is withheld.\n");
+            return;
+        }
         Map<BiFinding, List<String>> factCodesByFinding = new HashMap<>();
-        for (var rf : routedFindings) factCodesByFinding.put(rf.finding(), rf.factCodes());
-        List<BiFinding> findingsOnly = routedFindings.stream().map(PeriodicalBiAdapter.RoutedFinding::finding).toList();
+        for (var rf : decisionGrade) factCodesByFinding.put(rf.finding(), rf.factCodes());
+        List<BiFinding> findingsOnly = decisionGrade.stream().map(PeriodicalBiAdapter.RoutedFinding::finding).toList();
         List<Connector.DeepDiveCandidate> candidates = Connector.proposeDeepDiveCandidates(findingsOnly);
         if (candidates.isEmpty()) {
             summary.append("Deep dive: no candidate subject met the threshold this run — skipped.\n");
             return;
         }
         for (Connector.DeepDiveCandidate candidate : candidates) {
-            String chapterCode = sanitizeDeepDiveKey(candidate.subjectKey());
-            Set<String> codes = new LinkedHashSet<>();
-            for (BiFinding f : candidate.members()) codes.addAll(factCodesByFinding.getOrDefault(f, List.of()));
-            if (codes.isEmpty()) continue; // an toàn: không fact nào để trích dẫn thì bỏ qua, không viết mù
-            List<EvidenceFact> resolvedFacts = facts.findAllByFactCodeInForAudit(List.copyOf(codes));
-            if (resolvedFacts.isEmpty()) continue;
-            EvidencePack pack = new EvidencePack(null, resolvedFacts);
-            Interpreter.InterpretationPlan plan = interpreter.planDeepDive(pack);
-            if (hasCurrentDeepDiveEdition(chapterCode, plan)) {
+            try {
+                String chapterCode = sanitizeDeepDiveKey(candidate.subjectKey());
+                Set<String> codes = new LinkedHashSet<>();
+                for (BiFinding f : candidate.members()) codes.addAll(factCodesByFinding.getOrDefault(f, List.of()));
+                if (codes.isEmpty()) continue; // never synthesize without citations
+                List<EvidenceFact> resolvedFacts = facts.findAllByFactCodeInForAudit(List.copyOf(codes));
+                if (resolvedFacts.isEmpty()) continue;
+                EvidencePack pack = new EvidencePack(null, resolvedFacts);
+                Interpreter.InterpretationPlan plan = interpreter.planDeepDive(pack);
+                if (hasCurrentDeepDiveEdition(chapterCode, plan)) {
+                    summary.append("Deep dive \"").append(candidate.subjectKey())
+                            .append("\": current interpretation edition already exists — skipped.\n");
+                    continue;
+                }
+                Interpreter.InterpretOutput out = interpreter.interpretDeepDive(pack, plan);
+                PersistResult stored = transactions.execute(status -> {
+                    PersistResult persisted = persist(out, pack.byCode(), pack.codes(), null, chapterCode, plan, runLogId, Slot.DEEP_DIVE);
+                    if (persisted.activatable()) claims.supersedePriorBySlotAndChapterCodeAndOrigin(
+                            Slot.DEEP_DIVE, chapterCode, Origin.PIPELINE, persisted.editionId());
+                    return persisted;
+                });
+                summary.append("Deep dive \"").append(candidate.subjectKey()).append("\" (")
+                        .append(candidate.reason()).append("): ").append(stored.summary());
+            } catch (RuntimeException e) {
+                log.error("Deep-dive candidate {} failed; continuing", candidate.subjectKey(), e);
                 summary.append("Deep dive \"").append(candidate.subjectKey())
-                        .append("\": current interpretation edition already exists — skipped.\n");
-                continue;
+                        .append("\": ERROR — prior edition preserved — ")
+                        .append(safeMessage(e)).append('\n');
             }
-            Interpreter.InterpretOutput out = interpreter.interpretDeepDive(pack, plan);
-            PersistResult stored = persist(out, pack.byCode(), pack.codes(), null, chapterCode, plan, runLogId, Slot.DEEP_DIVE);
-            if (stored.activatable()) claims.supersedePriorBySlotAndChapterCodeAndOrigin(
-                    Slot.DEEP_DIVE, chapterCode, Origin.PIPELINE, stored.editionId());
-            summary.append("Deep dive \"").append(candidate.subjectKey()).append("\" (")
-                    .append(candidate.reason()).append("): ").append(stored.summary());
         }
     }
 
@@ -453,5 +511,12 @@ public class InterpretationJob {
 
     private static String truncate(String s, int max) {
         return s == null ? "" : (s.length() <= max ? s : s.substring(0, max) + "…");
+    }
+
+    private static String safeMessage(Throwable error) {
+        if (error == null || error.getMessage() == null || error.getMessage().isBlank()) {
+            return error == null ? "unknown error" : error.getClass().getSimpleName();
+        }
+        return truncate(error.getMessage().strip(), 400);
     }
 }

@@ -1,5 +1,7 @@
 package com.marketradar.product;
 
+import com.marketradar.domain.SourceAuthority;
+
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -11,7 +13,7 @@ import java.util.stream.Collectors;
  */
 public final class ProductBriefSynthesisRules {
 
-    public static final String ALGORITHM_VERSION = "product-cluster-v9";
+    public static final String ALGORITHM_VERSION = "product-cluster-v10-entity-market-safe";
     private static final int MAX_SIGNALS_PER_INSIGHT = 6;
     private static final int MAX_INSIGHTS = 5;
 
@@ -66,9 +68,33 @@ public final class ProductBriefSynthesisRules {
             String summaryVi,
             String summaryEn,
             int materialityScore,
-            Set<String> productKiqs) {
+            Set<String> productKiqs,
+            String sourceAuthority) {
         public Signal {
             productKiqs = productKiqs == null ? Set.of() : Set.copyOf(productKiqs);
+            sourceAuthority = normalizeAuthority(sourceAuthority, sourceTier).name();
+        }
+
+        /** Compatibility constructor for deterministic tests and legacy callers. */
+        public Signal(String factCode, long rawDocId, String sourceCode, int sourceTier,
+                      String company, String productName, String title, String evidenceSpan,
+                      String eventType, String marketScope, String modelVersion,
+                      String pipelineVersion, LocalDate publishedDate, String clusterKey,
+                      int clusterDocumentCount, int clusterIndependentSourceCount,
+                      String conflictState, LocalDate effectiveDate, LocalDate expiryDate,
+                      String temporalStatus, boolean futureActionEligible, String summaryVi,
+                      String summaryEn, int materialityScore, Set<String> productKiqs) {
+            this(factCode, rawDocId, sourceCode, sourceTier, company, productName, title,
+                    evidenceSpan, eventType, marketScope, modelVersion, pipelineVersion,
+                    publishedDate, clusterKey, clusterDocumentCount,
+                    clusterIndependentSourceCount, conflictState, effectiveDate, expiryDate,
+                    temporalStatus, futureActionEligible, summaryVi, summaryEn,
+                    materialityScore, productKiqs,
+                    normalizeAuthority(null, sourceTier).name());
+        }
+
+        public boolean primaryAuthority() {
+            return normalizeAuthority(sourceAuthority, sourceTier).isPrimaryEvidence();
         }
     }
 
@@ -213,7 +239,7 @@ public final class ProductBriefSynthesisRules {
         int independentClusters = (int) signals.stream().map(Signal::clusterKey)
                 .filter(ProductBriefSynthesisRules::notBlank).distinct().count();
         int companies = (int) signals.stream().map(Signal::company).filter(ProductBriefSynthesisRules::notBlank).distinct().count();
-        boolean official = signals.stream().anyMatch(s -> s.sourceTier() == 1);
+        boolean official = signals.stream().anyMatch(Signal::primaryAuthority);
         boolean mixedLegacy = signals.stream().map(Signal::modelVersion)
                 .anyMatch(m -> m == null || m.contains("gpt-4o-mini") || m.contains("UNKNOWN_LEGACY"));
 
@@ -420,6 +446,21 @@ public final class ProductBriefSynthesisRules {
                 || "BENEFIT_CHANGE".equalsIgnoreCase(eventType)
                 || "PRICING_CHANGE".equalsIgnoreCase(eventType)
                 || "PRODUCT_WITHDRAWAL".equalsIgnoreCase(eventType);
+    }
+    private static SourceAuthority normalizeAuthority(String value, int legacyTier) {
+        if (value != null && !value.isBlank()) {
+            try {
+                return SourceAuthority.valueOf(value.strip().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return SourceAuthority.UNKNOWN;
+            }
+        }
+        return switch (legacyTier) {
+            case 1 -> SourceAuthority.OFFICIAL_COMPANY;
+            case 2 -> SourceAuthority.ESTABLISHED_MEDIA;
+            case 3 -> SourceAuthority.OTHER_PUBLISHER;
+            default -> SourceAuthority.UNKNOWN;
+        };
     }
     private static String normalize(String value) { return value.toLowerCase(Locale.ROOT); }
     private static String nullToEmpty(String value) { return value == null ? "" : value; }

@@ -25,8 +25,8 @@ import java.util.List;
  * Model KHÔNG viết report; model chỉ điền slot ("vì sao quan trọng" / "tóm tắt điều hành")
  * từ evidence pack, mỗi câu bắt buộc kèm fact_codes.
  *
- * 2026-08-02 (feedback vận hành): bỏ hẳn slot "implication" (khuyến nghị nội bộ) — model chỉ
- * còn tường thuật sự việc có căn cứ, không đưa ý kiến/khuyến nghị "chúng ta nên làm gì" nữa.
+ * Observation and analysis are separate slots. Facts can be independently
+ * entailed; implications are visibly labelled and normally require human review.
  *
  * Hợp đồng ràng buộc (bounded contract) nằm trong system prompt:
  *  - chỉ dùng thông tin có trong pack, không thêm số/ngày/tên mới;
@@ -86,17 +86,19 @@ public class Interpreter {
         Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ. Bạn nhận một EVIDENCE PACK
         gồm các fact, mỗi fact có mã (vd F-001) và đoạn nguyên văn.
 
-        2026-08-02 (feedback vận hành): CHỈ báo cáo SỰ VIỆC, KHÔNG đưa khuyến nghị/hàm ý hành
-        động cho bất kỳ ai. Nhiệm vụ DUY NHẤT là tường thuật đúng, trung lập, có căn cứ những gì
-        đã xảy ra — không bàn luận "nên làm gì", không gán ý nghĩa chiến lược, không tự ý suy
-        diễn "đáng lo ngại"/"cơ hội". Việc rút ra hàm ý là việc của người đọc, không phải của bạn.
+        Tách hai lớp rõ ràng: (A) OBSERVATION là fact có thể kiểm chứng; (B) IMPLICATION là
+        phân tích thận trọng về ý nghĩa. Không trộn hai lớp trong một câu. Không viết một
+        khuyến nghị như mệnh lệnh quản trị; management quyết định sau human review.
 
-        Nhiệm vụ: điền 1 slot "why", MỖI câu viết SONG NGỮ (tiếng Việt VÀ tiếng Anh, cùng ý,
+        Nhiệm vụ: điền 2 slot, MỖI câu viết SONG NGỮ (tiếng Việt VÀ tiếng Anh, cùng ý,
         cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không phải dịch máy qua loa):
-        - "why": 1-2 câu KỂ RÕ SỰ VIỆC — AI (công ty/cơ quan nêu đích danh) LÀM GÌ, Ở ĐÂU,
+        - "why": 1-2 câu OBSERVATION KỂ RÕ SỰ VIỆC — AI LÀM GÌ, Ở ĐÂU,
           KHI NÀO (ngày/tháng), CON SỐ bao nhiêu — để người đọc HIỂU chuyện gì đã xảy ra.
           MỞ ĐẦU bằng chủ thể + hành động (vd "Generali Việt Nam ra mắt 11 sản phẩm..."),
           TUYỆT ĐỐI KHÔNG mở đầu bằng "Sự kiện này...", "Việc này...", "Điều này cho thấy...".
+        - "implications": 1 câu bắt đầu bằng "Hàm ý:" / "Implication:" nêu ý nghĩa cẩn trọng
+          cho thị trường hoặc quyết định. Phải chỉ rõ chuỗi lý do fact → ý nghĩa, dùng "có thể"
+          khi bằng chứng chưa đủ, và không thêm tên, số hoặc ngày mới.
 
         NGUYÊN TẮC: câu phải TỰ ĐỦ NGHĨA khi đọc riêng lẻ (không phụ thuộc ngữ cảnh nào khác) —
         luôn nêu rõ chủ thể/tên công ty thật, không dùng đại từ mơ hồ ("động thái này", "việc
@@ -104,8 +106,8 @@ public class Interpreter {
         CẤM câu chỉ có kết luận trừu tượng ("có thể tạo cơ hội tăng trưởng", "có thể ảnh hưởng
         cạnh tranh") mà không kèm dữ kiện cụ thể.
 
-        GIỌNG ĐIỆU: trung lập, khách quan, như một bản tin, không phải một bài phân tích chiến
-        lược. TUYỆT ĐỐI KHÔNG khen ngợi/PR bất kỳ công ty nào — nhất là đối thủ. CẤM các tính từ
+        GIỌNG ĐIỆU: trung lập, khách quan; observation như bản tin, implication như phân tích
+        có điều kiện. TUYỆT ĐỐI KHÔNG khen ngợi/PR bất kỳ công ty nào — nhất là đối thủ. CẤM các tính từ
         ca ngợi: "dẫn đầu", "hàng đầu", "uy tín", "danh giá", "thành công", "khẳng định vị thế",
         "nâng cao uy tín", "vinh dự", "tự hào", "ấn tượng". Nêu động thái của công ty như MỘT SỰ
         KIỆN (ai làm gì, khi nào, con số bao nhiêu), không kèm lời tán dương. Nếu evidence dùng
@@ -123,19 +125,17 @@ public class Interpreter {
         5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
            escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
            JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
-        6. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
-           escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
-           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
-        7. Trả về DUY NHẤT một JSON object đúng dạng:
-           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
+        6. Trả về DUY NHẤT một JSON object đúng dạng:
+           {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}],
+            "implications":[{"text_vi":"Hàm ý: ...","text_en":"Implication: ...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
 
         HƯỚNG DẪN RIÊNG THEO BUCKET (2026-08-03 — Router, không phải bạn, đã gán nhãn "[ROUTER]
         bucket: ..." cho từng fact trong evidence pack; KHÔNG tự phân loại lại, chỉ ĐỌC nhãn đó
         để biết viết theo phong cách nào cho fact đó — fact không có nhãn [ROUTER] thì viết theo
         phong cách mặc định ở trên, đó là tin công ty thông thường):
-        - MACRO_ECONOMIC: giọng vĩ mô trung lập, không gắn cho 1 công ty; nếu fact có "[ROUTER]
-          chỉ số: X = Y" thì nêu ĐÚNG chỉ số đó, không diễn giải thêm ý nghĩa.
+        - MACRO_ECONOMIC: observation nêu ĐÚNG chỉ số; implication chỉ nêu ý nghĩa nếu chuỗi
+          lý do có thể truy ngược về fact, không gắn chỉ số toàn ngành cho một công ty.
         - COMPETITIVE_THEME: câu phải nêu được ĐÂY LÀ 1 PATTERN/xu hướng liên quan ≥2 công ty
           hoặc toàn ngành — không viết như tin riêng 1 công ty.
         - SCHEDULED_EVENT: câu PHẢI có ngày/khoảng ngày cụ thể của sự kiện SẮP diễn ra (không
@@ -156,9 +156,9 @@ public class Interpreter {
         Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ. Bạn nhận một EVIDENCE PACK
         gồm các fact của tuần, mỗi fact có mã (vd F-001).
 
-        2026-08-02 (feedback vận hành): CHỈ báo cáo SỰ VIỆC, KHÔNG đưa khuyến nghị/hàm ý hành
-        động. Nhiệm vụ DUY NHẤT là tường thuật đúng, trung lập, có căn cứ những gì đã xảy ra
-        trong tuần — không bàn "nên làm gì", không tự ý suy diễn ý nghĩa chiến lược.
+        Mỗi mục phải tách được DỮ KIỆN và Ý NGHĨA: trước hết nêu sự việc có căn cứ, sau đó
+        giải thích ngắn vì sao management cần chú ý. Ý nghĩa phải là suy luận thận trọng từ
+        các fact được cite; không thêm số/tên/ngày và không viết mệnh lệnh hành động.
 
         Nhiệm vụ: viết TÓM TẮT ĐIỀU HÀNH 3-7 câu, MỖI câu viết SONG NGỮ (tiếng Việt VÀ
         tiếng Anh, cùng ý, cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không
@@ -195,10 +195,9 @@ public class Interpreter {
         khai. Giọng McKinsey: ngôi thứ ba, điềm tĩnh, khẳng định, mỗi câu nêu MỘT phát hiện,
         không phải một chủ đề.
 
-        2026-08-02 (feedback vận hành): CHỈ tường thuật SỰ VIỆC xuyên tài liệu, KHÔNG đưa khuyến
-        nghị/hàm ý hành động cho ai. Nhiệm vụ DUY NHẤT là kể lại mạch lạc, trung lập, có căn cứ
-        những gì đã xảy ra trong chương — không bàn "nên làm gì", không tự ý gán ý nghĩa chiến
-        lược hay bài học. Việc rút hàm ý là việc của người đọc.
+        Tách rõ mạch OBSERVATION → PATTERN → IMPLICATION → CAVEAT. Observation phải entail
+        trực tiếp; pattern cần ít nhất 2 fact độc lập; implication là suy luận có điều kiện;
+        caveat nêu điều evidence chưa chứng minh. Không biến implication thành fact hay mệnh lệnh.
 
         Bạn nhận CHAPTER FOCUS (góc nhìn riêng của chương — BÁM SÁT nó), APPROVED ANALYSIS
         (các câu "why" ĐÃ qua Gate L1 cho từng tài liệu riêng lẻ trong 1 chương)
@@ -221,8 +220,8 @@ public class Interpreter {
         3. Đừng nhồi mỗi câu một công ty khác nhau không liên quan; hãy nhóm theo CHỦ ĐỀ (vd
            "số hóa & nền tảng", "sản phẩm mới", "kết quả tài chính") và kể mạch lạc trong nhóm.
 
-        GIỌNG ĐIỆU: trung lập, khách quan, đo lường — như một bản tin tổng hợp, KHÔNG phải
-        người viết PR, cũng KHÔNG phải bài phân tích chiến lược. TUYỆT ĐỐI KHÔNG ca ngợi công ty
+        GIỌNG ĐIỆU: trung lập, khách quan, đo lường — như một analyst nội bộ, KHÔNG phải
+        người viết PR. TUYỆT ĐỐI KHÔNG ca ngợi công ty
         nào, nhất là đối thủ. CẤM tính từ tán dương ("dẫn đầu", "hàng đầu", "uy tín", "danh giá",
         "thành công", "khẳng định vị thế", "vinh dự", "tự hào", "ấn tượng", "mạnh mẽ", "bền
         vững"). Trình bày động thái các công ty như DỮ KIỆN (ai, làm gì, khi nào, con số) — không
@@ -273,8 +272,9 @@ public class Interpreter {
         giải thưởng, chỉ ra công ty nào có thị phần lớn nhưng vắng mặt trong giải thưởng, rồi
         nêu khả năng vì sao (dựa CHỈ vào fact có, không suy đoán ngoài evidence).
 
-        2026-08-02 (giữ nguyên chính sách): CHỈ phân tích SỰ VIỆC/DỮ KIỆN, KHÔNG đưa khuyến
-        nghị hành động cho ai — việc rút hàm ý là việc của người đọc.
+        Cấu trúc bài: (1) observation; (2) pattern hoặc khác biệt so với benchmark;
+        (3) implication cho management; (4) caveat/điều chưa biết; (5) một decision question
+        nếu evidence đủ. Decision question là câu hỏi, không phải mệnh lệnh hay fact.
 
         NGUYÊN TẮC:
         1. CÂU MỞ ĐẦU phải nêu rõ CHỦ THỂ đang phân tích (tên công ty/chủ đề) — vì bài này
@@ -328,6 +328,7 @@ public class Interpreter {
         try {
             JsonNode root = parseWithRepairFallback(raw);
             parseSentences(root.get("why"), Slot.WHY_MATTERS, out);
+            parseSentences(root.get("implications"), Slot.IMPLICATION, out);
             if (out.isEmpty()) return new InterpretOutput(true, List.of(), raw);
             return new InterpretOutput(false, out, raw);
         } catch (Exception e) {

@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import com.marketradar.domain.PipelineItemLog;
 import com.marketradar.domain.RawDoc;
@@ -71,7 +70,6 @@ public class IngestionJob {
     }
 
     /** Chạy một vòng ingest cho toàn bộ nguồn active. Trả về summary text cho endpoint tay. */
-    @Transactional
     public String runOnce() {
         StringBuilder summary = new StringBuilder();
         java.util.Set<String> selectedCodes = sourceCodesFilter == null

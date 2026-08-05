@@ -31,6 +31,17 @@ public record EvidencePack(Long rawDocId, List<EvidenceFact> facts) {
         for (EvidenceFact f : facts) {
             sb.append("--- FACT ").append(f.getFactCode()).append(" ---\n");
             sb.append("loại: ").append(f.getFactType()).append('\n');
+            sb.append("[CURATION] nguồn: ").append(f.getSourceAuthority() == null ? "UNKNOWN" : f.getSourceAuthority())
+                    .append("; chủ đề: ").append(f.getIntelligenceTopic() == null ? "OTHER" : f.getIntelligenceTopic())
+                    .append("; thị trường: ").append(f.getMarketCode() == null ? "UNKNOWN" : f.getMarketCode())
+                    .append("; vai trò thời gian: ").append(f.getTemporalRole() == null ? "UNKNOWN" : f.getTemporalRole())
+                    .append('\n');
+            if (f.getEntityResolutionStatus() != null) {
+                sb.append("[ENTITY] trạng thái: ").append(f.getEntityResolutionStatus());
+                if (f.getSubjectEntityKey() != null) sb.append("; pháp nhân: ").append(f.getSubjectEntityKey());
+                if (f.getSubjectEntityName() != null) sb.append(" (").append(f.getSubjectEntityName()).append(')');
+                sb.append('\n');
+            }
             if (f.getBiBucket() != null) sb.append("[ROUTER] bucket: ").append(f.getBiBucket()).append('\n');
             if (f.getSubjectKey() != null) sb.append("[ROUTER] chủ thể: ").append(f.getSubjectKey()).append('\n');
             if (f.getHighlightCardLabel() != null) sb.append("[ROUTER] nhãn thẻ: ").append(f.getHighlightCardLabel()).append('\n');

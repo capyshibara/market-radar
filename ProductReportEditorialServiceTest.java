@@ -2,6 +2,7 @@ import com.marketradar.product.ProductReportCadence;
 import com.marketradar.report.ProductReportEditorialService;
 
 import java.util.Locale;
+import org.springframework.util.LinkedMultiValueMap;
 
 /** Standalone regression for the separate human-curated Product report layer. */
 public class ProductReportEditorialServiceTest {
@@ -53,9 +54,18 @@ public class ProductReportEditorialServiceTest {
                     cadence + " has a substantive international read");
             check(en.marketBridge().decisionQuestion().endsWith("?"),
                     cadence + " bridge ends in a decision question");
-            check("HUMAN_CURATED".equals(en.status()), cadence + " is labelled human-curated");
+            check("EDITORIAL_TEMPLATE".equals(en.status()),
+                    cadence + " default copy is explicitly an unsigned editorial template");
             check(!en.citedFactCodes().isEmpty(), cadence + " retains an auditable fact register");
         }
+        LinkedMultiValueMap<String, String> signedForm = new LinkedMultiValueMap<>();
+        signedForm.add("editor", "Regression Product SME");
+        service.save(ProductReportCadence.WEEKLY, Locale.ENGLISH, signedForm);
+        check(service.hasCuratedDraft(ProductReportCadence.WEEKLY, Locale.ENGLISH),
+                "saving creates a human signature for the current evidence fingerprint");
+        check("HUMAN_CURATED".equals(
+                        service.current(ProductReportCadence.WEEKLY, Locale.ENGLISH).status()),
+                "only a saved draft is labelled human-curated");
         System.out.println("ProductReportEditorialServiceTest: ALL PASS");
     }
 

@@ -1,4 +1,8 @@
-# Market Radar — Engineering Handoff (updated 2026-07-17 quality-remediation session)
+# Market Radar — Engineering Handoff (historical log through 2026-07-17)
+
+> **Current handoff:** see `HANDOFF-2026-08-04.md`. Its 2026-08-05 sections supersede the
+> historical pipeline, source-tier, publication and operator-run guidance in this file and document
+> the CFO-aligned downstream audit completed before the next clean production run.
 
 > Special Issue design source of truth: `/Users/hanh/Downloads/workspace/hackathon/CLAUDE.md`.
 > The reader/export uses Libre Caslon Text + Work Sans, 1056×816 landscape pages, explicit

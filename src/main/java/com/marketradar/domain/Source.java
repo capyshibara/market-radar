@@ -46,12 +46,28 @@ public class Source {
     @Column(nullable = false)
     private SourceType type;
 
-    /** 1 = Bộ Tài chính + trang chính thức của đối thủ tại Việt Nam, 2 = báo mạng Việt Nam,
-     *  3 = nguồn nước ngoài, 4 = khác/chưa phân loại. Đổi định nghĩa 2026-08-02 theo yêu cầu
-     *  Strategy: trục chính giờ là trong nước/quốc tế (đúng thứ CFO quan tâm — không lẫn tin
-     *  quốc tế vào phần "đối thủ tại Việt Nam"), không còn là độ tin cậy nguồn thuần tuý. */
+    /**
+     * Legacy presentation tier retained for database/backward compatibility only.
+     * It used to mix geography and credibility and MUST NOT be used for new
+     * publication, weighting or corroboration decisions. Use authority and
+     * defaultMarketScope/defaultMarketCode instead.
+     */
     @Column(nullable = false)
     private int tier;
+
+    /** Source quality/authority: the CFO curation axis. Nullable during legacy backfill. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "authority", length = 32)
+    private SourceAuthority authority;
+
+    /** Default source coverage only; fact-level geography may override it. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "default_market_scope", length = 24)
+    private GeographyScope defaultMarketScope;
+
+    /** ISO-like market code such as VN, SG, GB, US, APAC or GLOBAL. */
+    @Column(name = "default_market_code", length = 16)
+    private String defaultMarketCode;
 
     @Column(nullable = false, length = 8)
     private String language;      // vi / zh / en
@@ -86,33 +102,53 @@ public class Source {
     public String getAllowedHost() { return allowedHost; }
     public SourceType getType() { return type; }
     public int getTier() { return tier; }
+    public SourceAuthority getAuthority() {
+        return authority == null ? legacyAuthority(tier) : authority;
+    }
+    public GeographyScope getDefaultMarketScope() {
+        return defaultMarketScope == null ? legacyMarketScope(tier) : defaultMarketScope;
+    }
+    public String getDefaultMarketCode() {
+        if (defaultMarketCode != null && !defaultMarketCode.isBlank()) return defaultMarketCode;
+        return getDefaultMarketScope() == GeographyScope.VIETNAM ? "VN" : null;
+    }
+    /** True when the new independent authority/market axes have been persisted. */
+    public boolean hasExplicitIntelligenceMetadata() {
+        return authority != null && defaultMarketScope != null;
+    }
     public String getLanguage() { return language; }
     public boolean isActive() { return active; }
     public boolean isUrlUnverified() { return urlUnverified; }
 
-    /**
-     * Nhãn thị trường hiển thị trong report (vd "Trung Quốc"), suy ra từ ngôn ngữ
-     * nguồn — domain KHÔNG có trường "country" riêng. Đây là suy luận HIỂN THỊ
-     * (xấp xỉ, vd "en" có thể là HK/SG/nhiều nơi), không phải fact; dùng cho dòng
-     * mô tả "Danh mục · Thị trường" trong report, không phải căn cứ đối chiếu.
-     * Batch 7 (i18n): tham số hoá theo ngôn ngữ hiển thị hiện tại.
-     */
+    /** Compatibility display helper backed by explicit source market metadata.
+     * Language is never used as a geography proxy. Fact-level market still wins. */
     public String getCountryLabel(String uiLang) {
+        String code = getDefaultMarketCode();
         if ("vi".equals(uiLang)) {
-            return switch (language) {
-                case "vi" -> "Việt Nam";
-                case "zh" -> "Trung Quốc";
-                case "ko" -> "Hàn Quốc";
-                case "ja" -> "Nhật Bản";
-                default -> "Quốc tế";
+            return switch (code == null ? "" : code) {
+                case "VN" -> "Việt Nam";
+                case "CN" -> "Trung Quốc";
+                case "KR" -> "Hàn Quốc";
+                case "JP" -> "Nhật Bản";
+                case "HK" -> "Hồng Kông";
+                case "SG" -> "Singapore";
+                case "US" -> "Hoa Kỳ";
+                case "GB" -> "Vương quốc Anh";
+                case "GLOBAL" -> "Toàn cầu";
+                default -> code == null ? "Chưa xác định" : code;
             };
         }
-        return switch (language) {
-            case "vi" -> "Vietnam";
-            case "zh" -> "China";
-            case "ko" -> "Korea";
-            case "ja" -> "Japan";
-            default -> "International";
+        return switch (code == null ? "" : code) {
+            case "VN" -> "Vietnam";
+            case "CN" -> "China";
+            case "KR" -> "South Korea";
+            case "JP" -> "Japan";
+            case "HK" -> "Hong Kong";
+            case "SG" -> "Singapore";
+            case "US" -> "United States";
+            case "GB" -> "United Kingdom";
+            case "GLOBAL" -> "Global";
+            default -> code == null ? "Unknown market" : code;
         };
     }
 
@@ -120,6 +156,33 @@ public class Source {
     public void setUrlUnverified(boolean urlUnverified) { this.urlUnverified = urlUnverified; }
     public void setTier(int tier) { this.tier = tier; }
     public void setBrowseUrl(String browseUrl) { this.browseUrl = browseUrl; }
+    public void setIntelligenceMetadata(SourceAuthority authority,
+                                        GeographyScope defaultMarketScope,
+                                        String defaultMarketCode) {
+        this.authority = authority == null ? SourceAuthority.UNKNOWN : authority;
+        this.defaultMarketScope = defaultMarketScope == null ? GeographyScope.UNKNOWN : defaultMarketScope;
+        this.defaultMarketCode = defaultMarketCode == null || defaultMarketCode.isBlank()
+                ? null : defaultMarketCode.strip().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private static SourceAuthority legacyAuthority(int tier) {
+        return switch (tier) {
+            case 1 -> SourceAuthority.OFFICIAL_COMPANY;
+            case 2 -> SourceAuthority.ESTABLISHED_MEDIA;
+            case 3 -> SourceAuthority.OTHER_PUBLISHER;
+            default -> SourceAuthority.UNKNOWN;
+        };
+    }
+
+    private static GeographyScope legacyMarketScope(int tier) {
+        // The old tier mixed authority and geography. A tier value therefore
+        // cannot safely recover market coverage: tier-1 includes Vietnamese
+        // regulators as well as foreign regulators, while tier-2 includes both
+        // domestic and international publishers. Startup metadata migration
+        // persists the real value for known sources; genuinely legacy rows stay
+        // UNKNOWN until an operator curates them.
+        return GeographyScope.UNKNOWN;
+    }
 
     /** Startup migrations may repair a known source whose listing/API moved. */
     public void reconfigure(String name, String fetchUrl, String allowedHost,

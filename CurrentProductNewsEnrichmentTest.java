@@ -66,7 +66,8 @@ public class CurrentProductNewsEnrichmentTest {
         CurrentProductNewsItem item = item("F-3", CurrentProductNewsTopic.PRODUCT_AND_BENEFITS, 1);
         check(item.getFreshnessLabelEn().equals("Published 1 day ago"), "singular freshness copy");
         check(item.getFreshnessLabelVi().equals("Công bố 1 ngày trước"), "Vietnamese freshness copy");
-        check(item.getSourceTierLabelEn().equals("Tier 1 source"), "source tier remains explicit");
+        check(item.getSourceAuthorityLabelEn().equals("OFFICIAL COMPANY"),
+                "source authority remains explicit and independent from geography");
     }
 
     private static CurrentProductNewsItem item(String code, CurrentProductNewsTopic topic, long age) {

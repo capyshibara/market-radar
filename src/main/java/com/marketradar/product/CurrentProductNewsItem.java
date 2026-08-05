@@ -1,5 +1,7 @@
 package com.marketradar.product;
 
+import com.marketradar.domain.SourceAuthority;
+
 import java.time.LocalDate;
 
 /** Source-backed item plus deterministic Product reading metadata. */
@@ -21,11 +23,27 @@ public record CurrentProductNewsItem(
         String evidenceLanguage,
         boolean manuallySupplied,
         ProductMarketScope marketScope,
-        String geography) {
+        String geography,
+        String sourceAuthority) {
 
     public CurrentProductNewsItem {
         marketScope = marketScope == null ? ProductMarketScope.INTERNATIONAL : marketScope;
         geography = geography == null || geography.isBlank() ? "Global / regional" : geography.strip();
+        sourceAuthority = normalizedAuthority(sourceAuthority, sourceTier).name();
+    }
+
+    /** Compatibility constructor for the previous immutable read-model shape. */
+    public CurrentProductNewsItem(String factCode, long rawDocId, String title,
+                                  String sourceCode, String sourceName, int sourceTier,
+                                  String sourceUrl, LocalDate publishedDate, String factType,
+                                  String verbatimEvidenceSpan, CurrentProductNewsTopic topic,
+                                  long ageDays, String displaySummaryVi, String displaySummaryEn,
+                                  String evidenceLanguage, boolean manuallySupplied,
+                                  ProductMarketScope marketScope, String geography) {
+        this(factCode, rawDocId, title, sourceCode, sourceName, sourceTier, sourceUrl,
+                publishedDate, factType, verbatimEvidenceSpan, topic, ageDays,
+                displaySummaryVi, displaySummaryEn, evidenceLanguage, manuallySupplied,
+                marketScope, geography, normalizedAuthority(null, sourceTier).name());
     }
 
     public CurrentProductNewsItem(String factCode, long rawDocId, String title,
@@ -115,8 +133,26 @@ public record CurrentProductNewsItem(
     /** JavaBean boolean accessor used by Thymeleaf's property resolver. */
     public boolean isExternalSourceLink() { return hasExternalSourceLink(); }
 
-    public String getSourceTierLabelEn() { return "Tier " + sourceTier + " source"; }
-    public String getSourceTierLabelVi() { return "Nguồn cấp " + sourceTier; }
+    /** Legacy template aliases now return the independent authority dimension. */
+    public String getSourceTierLabelEn() { return getSourceAuthorityLabelEn(); }
+    public String getSourceTierLabelVi() { return getSourceAuthorityLabelVi(); }
+    public String getSourceAuthorityLabelEn() { return sourceAuthority.replace('_', ' '); }
+    public String getSourceAuthorityLabelVi() {
+        return switch (authority()) {
+            case REGULATOR -> "Cơ quan quản lý";
+            case STATUTORY_DISCLOSURE -> "Công bố pháp định";
+            case OFFICIAL_COMPANY -> "Nguồn chính thức doanh nghiệp";
+            case INDUSTRY_BODY -> "Hiệp hội ngành";
+            case SPECIALIST_RESEARCH -> "Nghiên cứu chuyên ngành";
+            case ESTABLISHED_MEDIA -> "Báo chí uy tín";
+            case PROFESSIONAL_SERVICES -> "Tổ chức tư vấn chuyên môn";
+            case OTHER_PUBLISHER -> "Nhà xuất bản khác";
+            case SOCIAL_OR_BLOG -> "Mạng xã hội/blog";
+            case UNKNOWN -> "Chưa xác định";
+        };
+    }
+    public int getSourceAuthorityScore() { return authority().credibilityScore(); }
+    public boolean isPrimaryAuthority() { return authority().isPrimaryEvidence(); }
 
     public String getFreshnessLabelEn() {
         if (ageDays == 0) return "Published today";
@@ -127,5 +163,25 @@ public record CurrentProductNewsItem(
     public String getFreshnessLabelVi() {
         if (ageDays == 0) return "Công bố hôm nay";
         return "Công bố " + ageDays + " ngày trước";
+    }
+
+    private SourceAuthority authority() {
+        return normalizedAuthority(sourceAuthority, sourceTier);
+    }
+
+    private static SourceAuthority normalizedAuthority(String value, int tier) {
+        if (value != null && !value.isBlank()) {
+            try {
+                return SourceAuthority.valueOf(value.strip().toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                return SourceAuthority.UNKNOWN;
+            }
+        }
+        return switch (tier) {
+            case 1 -> SourceAuthority.OFFICIAL_COMPANY;
+            case 2 -> SourceAuthority.ESTABLISHED_MEDIA;
+            case 3 -> SourceAuthority.OTHER_PUBLISHER;
+            default -> SourceAuthority.UNKNOWN;
+        };
     }
 }

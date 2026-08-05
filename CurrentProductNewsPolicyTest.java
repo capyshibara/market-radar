@@ -24,6 +24,7 @@ public class CurrentProductNewsPolicyTest {
         rejectsNonLifeButAcceptsClaimsSignals();
         acceptsAwardAndMarketingSignalsButKeepsNonLifeOut();
         rejectsDuplicateAndLowTierItems();
+        rejectsUnsafeEntityAttribution();
         System.out.println("CurrentProductNewsPolicyTest: " + checks + " checks passed");
     }
 
@@ -86,6 +87,16 @@ public class CurrentProductNewsPolicyTest {
         check(decision(marketing).eligible(),
                 "marketing signals are retained and routed instead of being silently discarded");
         check(!decision(travel).eligible(), "travel insurance is outside life Product scope");
+    }
+
+    private static void rejectsUnsafeEntityAttribution() {
+        var b = base();
+        var unsafe = new CurrentProductNewsPolicy.Input(b.factActive(), b.sourceActive(),
+                b.rawText(), b.fullTextFetched(), b.parseStatus(), b.sampleData(), b.duplicate(),
+                b.sourceTier(), b.publishedDate(), b.classificationStatus(), b.classificationLabels(),
+                b.title(), b.verbatimEvidenceSpan(), "OFFICIAL_COMPANY", false);
+        check(!decision(unsafe).eligible(),
+                "a current item with ambiguous or conflicting entity attribution must be quarantined");
     }
 
     private static CurrentProductNewsPolicy.Decision decision(CurrentProductNewsPolicy.Input input) {

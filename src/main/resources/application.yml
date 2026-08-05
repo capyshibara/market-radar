@@ -105,8 +105,9 @@ marketradar:
     base-url: http://localhost:8080  # gốc link "hành động" trong alert
   dedup:                           # Batch 5 — Dedup/Conflict (bước 9)
     window-hours: 72               # chỉ so cặp tài liệu trong cửa sổ 72h
-    jaccard-same: 0.90             # >= ngưỡng này → trùng deterministic (không cần LLM)
-    jaccard-gray: 0.50             # vùng xám [gray, same) → hỏi LLM pairwise; STUB → chờ người
+    jaccard-same: 0.90             # >= ngưỡng này = overlap tiêu đề cao, vẫn hỏi pairwise; KHÔNG tự xoá
+    jaccard-gray: 0.50             # >= gray = candidate pairwise; STUB/parse lỗi → chờ người
+    content-duplicate: 0.92        # chỉ nội dung trigram gần như y hệt mới deterministic duplicate
   fetch:
     # One bounded retry improves resilience to temporary connect resets/timeouts;
     # redirects, non-200 responses, unsafe hosts, and body/content gates never retry.

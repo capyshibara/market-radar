@@ -59,13 +59,23 @@ public final class BiReportPageBuilder {
         model.put("openGaps", content.openGaps());
 
         List<BiFinding> all = content.findings();
-        List<BiFinding> keyFindings = all.stream().filter(BiFinding::highlight).limit(3).toList();
-        if (keyFindings.isEmpty() && !all.isEmpty()) {
-            keyFindings = all.stream().limit(3).toList();
+        List<BiFinding> decisionGrade = all.stream()
+                .filter(f -> "DECISION_GRADE".equals(f.evidenceGrade())).toList();
+        List<BiFinding> reviewedAnalysis = all.stream()
+                .filter(f -> "REVIEWED_ANALYSIS".equals(f.evidenceGrade())).toList();
+        List<BiFinding> watch = all.stream()
+                .filter(f -> "EDITORIAL_WATCH".equals(f.evidenceGrade())).toList();
+        model.put("reviewedAnalysisFindings", reviewedAnalysis);
+        model.put("reviewedAnalysisCount", reviewedAnalysis.size());
+        model.put("watchFindings", watch);
+        model.put("watchCount", watch.size());
+        List<BiFinding> keyFindings = decisionGrade.stream().filter(BiFinding::highlight).limit(3).toList();
+        if (keyFindings.isEmpty() && !decisionGrade.isEmpty()) {
+            keyFindings = decisionGrade.stream().limit(3).toList();
         }
         model.put("keyFindings", keyFindings);
 
-        Map<String, List<BiFinding>> byBucket = all.stream()
+        Map<String, List<BiFinding>> byBucket = decisionGrade.stream()
                 .collect(Collectors.groupingBy(BiFinding::bucket, LinkedHashMap::new, Collectors.toList()));
 
         List<BiFinding> macro = byBucket.getOrDefault(BiFinding.MACRO_ECONOMIC, List.of());
@@ -94,7 +104,7 @@ public final class BiReportPageBuilder {
         // ở đây — cùng logic (gộp theo subjectKey trong 1 bucket, cần >= MIN_HIGHLIGHT_GROUP_SIZE
         // finding mới đủ material cho 1 trang riêng).
         Map<String, List<BiFinding>> highlightGroups = new LinkedHashMap<>();
-        for (Connector.Group g : Connector.groupByBucketAndSubject(all, BiFinding.COMPANY_EVENT)) {
+        for (Connector.Group g : Connector.groupByBucketAndSubject(decisionGrade, BiFinding.COMPANY_EVENT)) {
             if (g.bigEnoughForOwnPage()) highlightGroups.put(g.subjectKey(), g.members());
         }
         // Row-paired (2 per row), not the classic even/odd-split trick — OpenHTMLtoPDF has no
@@ -123,24 +133,25 @@ public final class BiReportPageBuilder {
         for (int i = 0; i < deepDives.size(); i++) deepDiveByKey.put("DEEP_DIVE_" + i, deepDives.get(i));
         model.put("deepDiveByKey", deepDiveByKey);
 
-        model.put("hasAnyContent", !all.isEmpty());
+        model.put("hasAnyContent", !decisionGrade.isEmpty());
         model.put("bucketsCovered", byBucket.size());
-        model.put("findingsTotal", all.size());
+        model.put("findingsTotal", decisionGrade.size());
 
         List<BiCitation> allCitations = all.stream().flatMap(f -> f.citations().stream())
                 .collect(Collectors.toCollection(() -> new java.util.TreeSet<>(
                         java.util.Comparator.comparing(c -> c.label() + "|" + c.url()))))
                 .stream().toList();
         List<BiCitation> tierPrimary = allCitations.stream()
-                .filter(c -> isPrimaryTier(c.tierNote())).toList();
+                .filter(BiReportPageBuilder::isPrimaryAuthority).toList();
         List<BiCitation> tierSecondary = allCitations.stream()
-                .filter(c -> !isPrimaryTier(c.tierNote())).toList();
+                .filter(c -> !isPrimaryAuthority(c)).toList();
         model.put("sourcesPrimary", tierPrimary);
         model.put("sourcesSecondary", tierSecondary);
         model.put("sourcesTotal", allCitations.size());
 
         List<BiPage> pages = plan(vi, macro, theme, pressCalendar, companyEvents, marketShare,
-                aiSizing, aiThreat, highlightGroups, comparisonPages, deepDiveByKey);
+                aiSizing, aiThreat, highlightGroups, comparisonPages, deepDiveByKey,
+                reviewedAnalysis, watch);
         model.put("pages", pages);
         List<BiPage> tocEntries = pages.stream()
                 .filter(pg -> !pg.type().equals("COVER") && !pg.type().equals("TOC") && !pg.type().equals("BACK"))
@@ -160,14 +171,14 @@ public final class BiReportPageBuilder {
         return rows;
     }
 
-    /** T1/T2 (registry-verified tier or a named established publisher) read as primary;
-     *  everything else (T3/T4, unverified flags) reads as secondary/desk research. */
-    private static boolean isPrimaryTier(String tierNote) {
-        if (tierNote == null) return false;
-        // startsWith (không equals): PeriodicalBiAdapter#tierLabel giờ có thể nối thêm
-        // " · Deep Research" vào sau "T1"/"T2" — vẫn phải tính đúng là tier chính.
-        String t = tierNote.strip().toUpperCase(java.util.Locale.ROOT);
-        return t.startsWith("T1") || t.startsWith("T2");
+    /** Primary evidence is defined by publisher authority, independent from geography. */
+    private static boolean isPrimaryAuthority(BiCitation citation) {
+        if (citation == null || citation.authority() == null) return false;
+        try {
+            return com.marketradar.domain.SourceAuthority.valueOf(citation.authority()).isPrimaryEvidence();
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     /** Real, published brand colors for a small hand-verified set of competitors — never a
@@ -199,7 +210,8 @@ public final class BiReportPageBuilder {
                                      List<BiFinding> pressCalendar, List<BiFinding> companyEvents,
                                      List<BiFinding> marketShare, List<BiFinding> aiSizing, List<BiFinding> aiThreat,
                                      Map<String, List<BiFinding>> highlightGroups, Map<String, List<BiFinding>> comparisonPages,
-                                     Map<String, BiFinding> deepDiveByKey) {
+                                     Map<String, BiFinding> deepDiveByKey,
+                                     List<BiFinding> reviewedAnalysis, List<BiFinding> watch) {
         List<BiPage> pages = new ArrayList<>();
         int n = 1;
         pages.add(new BiPage(n++, "COVER", vi ? "Bìa" : "Cover", null));
@@ -222,6 +234,14 @@ public final class BiReportPageBuilder {
             String text = entry.getValue().text(vi);
             String label = text.length() <= 50 ? text : text.substring(0, 50) + "…";
             pages.add(new BiPage(n++, "DEEP_DIVE", label, entry.getKey()));
+        }
+        if (!reviewedAnalysis.isEmpty()) {
+            pages.add(new BiPage(n++, "REVIEWED_ANALYSIS",
+                    vi ? "Phân tích đã được biên tập" : "Human-reviewed analysis", null));
+        }
+        if (!watch.isEmpty()) {
+            pages.add(new BiPage(n++, "EDITORIAL_WATCH",
+                    vi ? "Tín hiệu cần theo dõi" : "Editorial watch", null));
         }
         pages.add(new BiPage(n++, "SOURCES", vi ? "Nguồn & Phương pháp" : "Sources & method", null));
         pages.add(new BiPage(n, "BACK", vi ? "Trang cuối" : "Back cover", null));

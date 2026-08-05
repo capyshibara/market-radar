@@ -49,7 +49,7 @@ public record ProductExecutiveBrief(
         Set<String> tierOneSources = new LinkedHashSet<>();
         for (CurrentProductNewsItem item : news) {
             sources.add(item.sourceCode());
-            if (item.sourceTier() == 1) tierOneSources.add(item.sourceCode());
+            if (item.isPrimaryAuthority()) tierOneSources.add(item.sourceCode());
         }
 
         Map<CurrentProductNewsTopic, ThemeCount> counts = new LinkedHashMap<>();

@@ -77,7 +77,9 @@
                 <td th:text="${d.method}">JACCARD_TITLE</td>
                 <td th:text="${d.jaccardScore != null} ? ${#numbers.formatDecimal(d.jaccardScore,1,2)} : '—'">0.95</td>
                 <td th:switch="${d.verdict.name()}">
-                  <span th:case="'SAME_EVENT'" class="badge badge-info">SAME EVENT</span>
+                  <span th:case="'DUPLICATE_CONTENT'" class="badge badge-info">DUPLICATE CONTENT</span>
+                  <span th:case="'SAME_EVENT_INDEPENDENT'" class="badge badge-success">INDEPENDENT CORROBORATION</span>
+                  <span th:case="'SAME_EVENT'" class="badge badge-info">LEGACY SAME EVENT</span>
                   <span th:case="'DIFFERENT'" class="badge badge-neutral">DIFFERENT</span>
                   <span th:case="*" class="badge badge-warn">NEEDS HUMAN</span>
                 </td>

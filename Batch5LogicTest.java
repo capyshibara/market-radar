@@ -111,13 +111,13 @@ public class Batch5LogicTest {
         check("đối xứng (b trước a)", true, DedupRules.within72h(72 * h, 0));
 
         // ---- decidePair: thang exact → Jaccard → GRAY ----
-        check("URL trùng exact → SAME", DedupRules.PairVerdict.SAME_EVENT,
+        check("URL trùng exact → duplicate content", DedupRules.PairVerdict.DUPLICATE_CONTENT,
                 DedupRules.decidePair("https://a/x", "https://a/x", "h1", "h2",
                         "khác hẳn", "hoàn toàn không giống", 0.9, 0.5));
-        check("hash trùng exact → SAME", DedupRules.PairVerdict.SAME_EVENT,
+        check("hash trùng exact → duplicate content", DedupRules.PairVerdict.DUPLICATE_CONTENT,
                 DedupRules.decidePair("https://a/1", "https://a/2", "hh", "hh",
                         "khác hẳn", "hoàn toàn không giống", 0.9, 0.5));
-        check("Jaccard 1.0 >= 0.9 → SAME", DedupRules.PairVerdict.SAME_EVENT,
+        check("title y hệt vẫn cần phân biệt bản sao và bài độc lập", DedupRules.PairVerdict.GRAY,
                 DedupRules.decidePair("https://a/1", "https://a/2", "h1", "h2",
                         "Bảo Việt ra mắt sản phẩm", "bảo việt ra mắt sản phẩm", 0.9, 0.5));
         check("Jaccard vùng xám (7/8 = 0.875) → GRAY (cần LLM)", DedupRules.PairVerdict.GRAY,
@@ -130,27 +130,36 @@ public class Batch5LogicTest {
 
         // ---- pickWinner: official > media · mới > cũ · cùng tier → flag ----
         check("tier 1 thắng tier 2 (official > media)", 'A',
-                DedupRules.pickWinner(1, 100L, 2, 200L));
+                DedupRules.pickWinner(100, 100L, 78, 200L));
         check("tier 1 thắng kể cả khi cũ hơn", 'B',
-                DedupRules.pickWinner(3, 999L, 1, 1L));
+                DedupRules.pickWinner(58, 999L, 100, 1L));
         check("cùng tier → mới thắng", 'A',
-                DedupRules.pickWinner(2, 200L, 2, 100L));
+                DedupRules.pickWinner(78, 200L, 78, 100L));
         check("cùng tier, B mới hơn → B", 'B',
-                DedupRules.pickWinner(2, 100L, 2, 200L));
+                DedupRules.pickWinner(78, 100L, 78, 200L));
         check("cùng tier, cùng thời gian → FLAG", 'F',
-                DedupRules.pickWinner(2, 100L, 2, 100L));
+                DedupRules.pickWinner(78, 100L, 78, 100L));
         check("cùng tier, một bên thiếu publishedAt → FLAG (không đoán)", 'F',
-                DedupRules.pickWinner(2, null, 2, 100L));
+                DedupRules.pickWinner(78, null, 78, 100L));
         check("cùng tier, cả hai thiếu publishedAt → FLAG", 'F',
-                DedupRules.pickWinner(2, null, 2, null));
+                DedupRules.pickWinner(78, null, 78, null));
 
-        // ---- parseSameEvent: parse tối giản, lỗi → null (không đoán) ----
-        check("true chuẩn", Boolean.TRUE, DedupRules.parseSameEvent("{\"same_event\": true}"));
-        check("false chuẩn", Boolean.FALSE, DedupRules.parseSameEvent("{\"same_event\": false}"));
-        check("bọc code-fence vẫn parse", Boolean.TRUE,
-                DedupRules.parseSameEvent("```json\n{\"same_event\": true}\n```"));
+        check("near-identical content is detected from word trigrams", true,
+                DedupRules.contentJaccard(
+                        "AIA Vietnam launched product Alpha for customers in July 2026",
+                        "AIA Vietnam launched product Alpha for customers in July 2026") == 1.0);
+
+        // ---- relationship parser: duplication is not confused with corroboration ----
+        check("duplicate content", DedupRules.ContentRelationship.DUPLICATE_CONTENT,
+                DedupRules.parseRelationship("{\"relationship\":\"DUPLICATE_CONTENT\"}"));
+        check("independent reporting", DedupRules.ContentRelationship.SAME_EVENT_INDEPENDENT,
+                DedupRules.parseRelationship("{\"relationship\":\"SAME_EVENT_INDEPENDENT\"}"));
+        check("different", DedupRules.ContentRelationship.DIFFERENT,
+                DedupRules.parseRelationship("{\"relationship\":\"DIFFERENT\"}"));
+        check("bọc code-fence vẫn parse", DedupRules.ContentRelationship.DUPLICATE_CONTENT,
+                DedupRules.parseRelationship("```json\n{\"relationship\": \"DUPLICATE_CONTENT\"}\n```"));
         check("output lạ → null (route chờ người)", null,
-                DedupRules.parseSameEvent("Tôi nghĩ hai bài này giống nhau."));
+                DedupRules.parseRelationship("Tôi nghĩ hai bài này giống nhau."));
         check("null → null", null, DedupRules.parseSameEvent(null));
 
         // ---- Tổng kết ----

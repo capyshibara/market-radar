@@ -5,6 +5,7 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.repo.ClassificationRepository;
 import com.marketradar.repo.EvidenceFactRepository;
+import com.marketradar.review.EntityAttributionGuard;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,7 +72,9 @@ public class CurrentProductNewsService {
                 .filter(f -> allowed(f, classificationByDoc.get(f.getRawDoc().getId()), cadence, asOf))
                 .sorted(Comparator
                         .comparing((EvidenceFact f) -> publicationDate(f), Comparator.reverseOrder())
-                        .thenComparingInt(f -> f.getRawDoc().getSource().getTier())
+                        .thenComparing(Comparator.comparingInt(
+                                (EvidenceFact f) -> f.getRawDoc().getSource().getAuthority().credibilityScore())
+                                .reversed())
                         .thenComparing(EvidenceFact::getFactCode))
                 .toList();
 
@@ -97,7 +100,8 @@ public class CurrentProductNewsService {
                 doc.getParseStatus() == null ? null : doc.getParseStatus().name(), doc.isSampleData(),
                 doc.getDuplicateOfId() != null, doc.getSource().getTier(), publicationDate(fact),
                 classification == null ? null : classification.getStatus().name(), labels,
-                doc.getTitle(), fact.getSpanText());
+                doc.getTitle(), fact.getSpanText(), doc.getSource().getAuthority().name(),
+                EntityAttributionGuard.isFactAttributionSafe(fact));
         return CurrentProductNewsPolicy.evaluate(input, cadence, asOf).eligible();
     }
 
@@ -118,7 +122,7 @@ public class CurrentProductNewsService {
                 doc.getUrl(), published, fact.getFactType().name(), fact.getSpanText(), topic,
                 ChronoUnit.DAYS.between(published, asOf), fact.getSummaryVi(), fact.getSummaryEn(),
                 fact.getSpanLanguage(), doc.getIntakeMethod() != RawDoc.IntakeMethod.CRAWLED,
-                position.scope(), position.geography());
+                position.scope(), position.geography(), doc.getSource().getAuthority().name());
     }
 
     /**
@@ -141,7 +145,8 @@ public class CurrentProductNewsService {
         byScope.values().forEach(byTopic -> byTopic.values().forEach(topicItems ->
                 topicItems.sort(Comparator
                         .comparing(CurrentProductNewsItem::publishedDate, Comparator.reverseOrder())
-                        .thenComparingInt(CurrentProductNewsItem::sourceTier)
+                        .thenComparing(Comparator.comparingInt(
+                                CurrentProductNewsItem::getSourceAuthorityScore).reversed())
                         .thenComparing(CurrentProductNewsItem::factCode))));
 
         List<CurrentProductNewsItem> selected = new ArrayList<>();

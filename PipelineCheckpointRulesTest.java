@@ -63,8 +63,8 @@ public class PipelineCheckpointRulesTest {
             long verifierErrors, long reportEligible) {
         return new PipelineCheckpointRules.Metrics(documents, usable, classifications, confirmed,
                 extractionAttempts, extractionSuccess, extractionFailures, facts, factDocs,
-                claims, l1Pass, verifications, entailed, neutral, contradicted, verifierErrors,
-                reportEligible);
+                facts, 0, claims, l1Pass, verifications, entailed, neutral, contradicted, verifierErrors,
+                reportEligible, 0, 0);
     }
 
     private static PipelineCheckpointRules.Decision decision(

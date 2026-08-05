@@ -70,11 +70,12 @@ public class DedupController {
         if (ok.isEmpty()) return "Chưa có tài liệu (parse OK) nào để nhân bản demo.";
         RawDoc orig = ok.get(ok.size() - 1);
 
-        // Nguồn tier THẤP hơn (số lớn hơn) nếu có — để rule official>media giữ bản gốc;
-        // không có thì dùng chính nguồn gốc, khi đó rule mới>cũ giữ bản gốc (publishedAt cũ hơn 1h).
+        // Nguồn authority thấp hơn nếu có — để rule quality weighting giữ bản gốc;
+        // không có thì dùng chính nguồn gốc, khi đó rule mới>cũ giữ bản gốc.
         Source dupSource = sources.findAll().stream()
-                .filter(s -> s.getTier() > orig.getSource().getTier())
-                .max(Comparator.comparingInt(Source::getTier))
+                .filter(s -> s.getAuthority().credibilityScore()
+                        < orig.getSource().getAuthority().credibilityScore())
+                .min(Comparator.comparingInt(s -> s.getAuthority().credibilityScore()))
                 .orElse(orig.getSource());
 
         Instant origTime = orig.getPublishedAt() != null ? orig.getPublishedAt() : orig.getFetchedAt();
@@ -91,8 +92,8 @@ public class DedupController {
         rawDocs.save(dup);
 
         return "Đã chèn bản trùng demo: doc#" + dup.getId() + " (nguồn " + dupSource.getCode()
-                + ", tier " + dupSource.getTier() + ") nhân bản từ doc#" + orig.getId()
-                + " (tier " + orig.getSource().getTier() + ").\n"
+                + ", authority " + dupSource.getAuthority() + ") nhân bản từ doc#" + orig.getId()
+                + " (authority " + orig.getSource().getAuthority() + ").\n"
                 + "→ Chạy POST /dedup/run để hệ thống bắt SỐNG, rồi xem /dedup và /report/weekly.";
     }
 

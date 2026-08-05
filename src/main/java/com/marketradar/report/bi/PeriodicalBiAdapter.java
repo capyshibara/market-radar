@@ -4,15 +4,24 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.domain.Source;
+import com.marketradar.domain.ClaimVerification;
+import com.marketradar.domain.Department;
+import com.marketradar.domain.IntelligenceTopic;
 import com.marketradar.intelligence.CompetitorRegistry;
+import com.marketradar.intelligence.CurationPriorityRules;
+import com.marketradar.intelligence.ReportTimeWindowRules;
 import com.marketradar.product.ProductMarketScopeClassifier;
+import com.marketradar.product.ProductMarketScope;
 import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
+import com.marketradar.repo.ClaimVerificationRepository;
+import com.marketradar.review.PublicationEligibilityRules;
 import com.marketradar.report.ProductReportAdapter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -69,30 +78,63 @@ public class PeriodicalBiAdapter {
     private final InterpretedClaimRepository claims;
     private final EvidenceFactRepository facts;
     private final CompetitorRegistry registry;
+    private final ClaimVerificationRepository verifications;
 
     public PeriodicalBiAdapter(@Value("${marketradar.home-company:}") String homeCompany,
                                InterpretedClaimRepository claims,
                                EvidenceFactRepository facts,
-                               CompetitorRegistry registry) {
+                               CompetitorRegistry registry,
+                               ClaimVerificationRepository verifications) {
         this.homeCompany = homeCompany;
         this.claims = claims;
         this.facts = facts;
         this.registry = registry;
+        this.verifications = verifications;
     }
 
     /** 1 finding kèm factCode nó thật sự trích — companion cho DeepDiveSynthesis (Connector chỉ
      *  biết BiFinding, nhưng gate/synthesis cần trỏ lại đúng EvidenceFact gốc). adapt() chỉ dùng
      *  finding(), bỏ qua factCodes(). */
-    public record RoutedFinding(BiFinding finding, List<String> factCodes) {}
+    public record RoutedFinding(BiFinding finding, List<String> factCodes,
+                                int curationScore, List<String> curationRationale) {
+        public RoutedFinding {
+            factCodes = factCodes == null ? List.of() : List.copyOf(factCodes);
+            curationRationale = curationRationale == null ? List.of() : List.copyOf(curationRationale);
+        }
+        public RoutedFinding(BiFinding finding, List<String> factCodes) {
+            this(finding, factCodes, 0, List.of());
+        }
+    }
 
     /** Kênh 1 (claim đã duyệt) — dùng chung bởi adapt() và InterpretationJob#runDeepDiveSynthesis. */
     public List<RoutedFinding> approvedFindings(LocalDate windowStart, LocalDate windowEnd) {
         List<RoutedFinding> out = new ArrayList<>();
-        List<InterpretedClaim> approved = claims.findForBiReport().stream()
-                .filter(c -> inWindow(c, windowStart, windowEnd))
-                .toList();
+        List<InterpretedClaim> approved = claims.findForBiReport();
         for (InterpretedClaim claim : approved) {
+            if (claim.getRawDoc() != null && (claim.getRawDoc().isSampleData()
+                    || claim.getRawDoc().getDuplicateOfId() != null)) continue;
             List<EvidenceFact> citedFacts = resolveFacts(claim);
+            if (!inWindow(claim, citedFacts, windowStart, windowEnd)) continue;
+            String latestVerdict = verifications.findFirstByClaimOrderByCreatedAtDescIdDesc(claim)
+                    .map(ClaimVerification::getVerdict).map(Enum::name).orElse(null);
+            boolean entitySafe = !citedFacts.isEmpty()
+                    && citedFacts.stream().allMatch(com.marketradar.review.EntityAttributionGuard::isFactAttributionSafe);
+            PublicationEligibilityRules.Disposition disposition = PublicationEligibilityRules.disposition(
+                    claim.getGateStatus().name(), claim.getReviewStatus().name(), latestVerdict,
+                    claim.isSuperseded(), entitySafe, isAnalyticalContent(claim.getSlot()));
+            if (disposition == PublicationEligibilityRules.Disposition.EXCLUDE) continue;
+            int independentSources = (int) citedFacts.stream()
+                    .map(f -> f.getRawDoc().getSource().getCode()).distinct().count();
+            int highestAuthority = citedFacts.stream()
+                    .mapToInt(f -> f.getRawDoc().getSource().getAuthority().credibilityScore())
+                    .max().orElse(0);
+            // A social/blog-only claim may remain visible after human approval, but it
+            // cannot become decision-grade until corroborated by another publisher.
+            if (disposition == PublicationEligibilityRules.Disposition.DECISION_GRADE
+                    && highestAuthority < com.marketradar.domain.SourceAuthority.OTHER_PUBLISHER.credibilityScore()
+                    && independentSources < 2) {
+                disposition = PublicationEligibilityRules.Disposition.EDITORIAL_WATCH;
+            }
             List<BiCitation> citations = citationsFor(claim, citedFacts);
             boolean reportLevel = claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY
                     || claim.getSlot() == InterpretedClaim.Slot.NARRATIVE
@@ -104,14 +146,7 @@ public class PeriodicalBiAdapter {
             // nào — tái tạo đúng lỗi CFO nêu (Prudential plc bị lẫn với Prudential Financial Inc.)
             // ngay trong chính tính năng được xây để hiển thị rủi ro đó minh bạch hơn. Chỉ dùng
             // tín hiệu khách quan: ngôn ngữ/host của NGUỒN đăng ký + host của URL tài liệu.
-            Source claimSource = claim.getRawDoc() != null ? claim.getRawDoc().getSource() : null;
-            ProductMarketScopeClassifier.MarketPosition market = ProductMarketScopeClassifier.classify(
-                    claimSource == null ? null : claimSource.getCode(),
-                    claimSource == null ? null : claimSource.getLanguage(),
-                    claimSource == null ? null : claimSource.getAllowedHost(),
-                    claim.getRawDoc() == null ? null : claim.getRawDoc().getUrl(),
-                    claim.getRawDoc() == null ? null : claim.getRawDoc().getPublisherName(),
-                    null);
+            ProductMarketScopeClassifier.MarketPosition market = resolveMarket(claim, citedFacts);
             // subjectKey: ưu tiên Router (gán riêng cho ĐÚNG fact này, từ nguyên văn span) —
             // chỉ rơi về CompetitorRegistry (chuẩn hoá tên nhưng KHÔNG gắn theo fact cụ thể)
             // khi fact chưa qua Router.
@@ -124,14 +159,80 @@ public class PeriodicalBiAdapter {
                     routed.bucket(), subject,
                     claim.getTextVi(), claim.getTextEn(),
                     routed.highlight(),
-                    citations, routed.severity(), null,
+                    citations, routed.severity(), metricPercent(routed.bucket(), citedFacts),
                     market.scope(), market.geography(), null,
                     routed.highlightCardLabel(), routed.severityTrend(),
                     routed.kpiLabel(), routed.kpiValue(),
-                    routed.eventDateRangeStart(), routed.eventDateRangeEnd());
-            out.add(new RoutedFinding(finding, citedFacts.stream().map(EvidenceFact::getFactCode).toList()));
+                    routed.eventDateRangeStart(), routed.eventDateRangeEnd(),
+                    disposition.name());
+            CurationPriorityRules.Score priority = curationPriority(
+                    citedFacts, routed.highlight(), entitySafe, independentSources, windowEnd);
+            out.add(new RoutedFinding(finding,
+                    citedFacts.stream().map(EvidenceFact::getFactCode).toList(),
+                    priority.total(), priority.rationale()));
         }
-        return out;
+        out.sort(java.util.Comparator.comparingInt(RoutedFinding::curationScore).reversed()
+                .thenComparing(rf -> rf.finding().bucket())
+                .thenComparing(rf -> java.util.Objects.toString(rf.finding().subjectKey(), "")));
+        return List.copyOf(out);
+    }
+
+    private static CurationPriorityRules.Score curationPriority(
+            List<EvidenceFact> citedFacts, boolean highlighted, boolean entitySafe,
+            int independentSources, LocalDate asOf) {
+        Set<IntelligenceTopic> topics = citedFacts.stream().map(EvidenceFact::getIntelligenceTopic)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (topics.isEmpty()) topics = Set.of(IntelligenceTopic.OTHER);
+        Set<String> markets = citedFacts.stream().map(EvidenceFact::getMarketCode)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        int authority = citedFacts.stream()
+                .mapToInt(f -> f.getRawDoc().getSource().getAuthority().credibilityScore())
+                .max().orElse(0);
+        LocalDate newestDisclosure = citedFacts.stream()
+                .map(f -> f.getRawDoc().getPublishedAt() == null ? null
+                        : f.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate())
+                .filter(java.util.Objects::nonNull).max(LocalDate::compareTo).orElse(asOf);
+        long age = asOf == null || newestDisclosure == null ? 0
+                : Math.max(0, ChronoUnit.DAYS.between(newestDisclosure, asOf));
+        return CurationPriorityRules.score(new CurationPriorityRules.Input(
+                Department.STRATEGY, topics, "VN", markets, authority,
+                independentSources, age, highlighted, entitySafe));
+    }
+
+    private static boolean isAnalyticalContent(InterpretedClaim.Slot slot) {
+        return slot == InterpretedClaim.Slot.IMPLICATION
+                || slot == InterpretedClaim.Slot.NARRATIVE
+                || slot == InterpretedClaim.Slot.DEEP_DIVE;
+    }
+
+    /** Draw a market-share bar only when one unambiguous percentage is verbatim near
+     * a market-share phrase. Awards and unrelated growth percentages remain tables. */
+    private static Integer metricPercent(String bucket, List<EvidenceFact> facts) {
+        if (!BiFinding.MARKET_SHARE_OR_AWARD.equals(bucket) || facts == null) return null;
+        java.util.regex.Pattern shareThenNumber = java.util.regex.Pattern.compile(
+                "(?iu)(?:market\\s+share|thị\\s+phần|APE\\s+share).{0,100}?(\\d{1,3}(?:[.,]\\d+)?)\\s*%");
+        java.util.regex.Pattern numberThenShare = java.util.regex.Pattern.compile(
+                "(?iu)(\\d{1,3}(?:[.,]\\d+)?)\\s*%.{0,100}?(?:market\\s+share|thị\\s+phần|APE\\s+share)");
+        Set<Integer> values = new LinkedHashSet<>();
+        for (EvidenceFact fact : facts) {
+            String text = fact == null || fact.getSpanText() == null ? "" : fact.getSpanText();
+            collectSharePercent(text, shareThenNumber, values);
+            collectSharePercent(text, numberThenShare, values);
+        }
+        return values.size() == 1 ? values.iterator().next() : null;
+    }
+
+    private static void collectSharePercent(String text, java.util.regex.Pattern pattern,
+                                            Set<Integer> values) {
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            try {
+                double number = Double.parseDouble(matcher.group(1).replace(',', '.'));
+                if (number >= 0 && number <= 100) values.add((int) Math.round(number));
+            } catch (NumberFormatException ignored) { }
+        }
     }
 
     public BiReportContent adapt(String title, String period, ProductReportAdapter.Snapshot snapshot, long docCount) {
@@ -140,10 +241,11 @@ public class PeriodicalBiAdapter {
         Set<String> sourceLines = new LinkedHashSet<>();
         int approvedCount = findings.size();
         findings.forEach(f -> f.citations().forEach(cit -> sourceLines.add(
-                cit.label() + (cit.tierNote() != null ? " (" + cit.tierNote() + ")" : ""))));
+                cit.label() + (cit.authority() != null ? " (" + authorityLabel(cit.authority()) + ")" : ""))));
 
         for (EvidenceFact f : snapshot.references()) {
-            sourceLines.add(f.getRawDoc().getSource().getName() + " (T" + f.getRawDoc().getSource().getTier() + ")");
+            sourceLines.add(f.getRawDoc().getSource().getName() + " ("
+                    + authorityLabel(f.getRawDoc().getSource().getAuthority().name()) + ")");
         }
 
         List<String> openGaps = new ArrayList<>();
@@ -186,26 +288,95 @@ public class PeriodicalBiAdapter {
      * thiếu metadata ngày. Giờ trường hợp đó bị LOẠI khỏi báo cáo theo kỳ thẳng — "không xác định
      * được ngày thật" phải nghĩa là "không đưa vào kỳ nào", không phải "coi như hôm nay".
      */
-    private static boolean inWindow(InterpretedClaim claim, LocalDate start, LocalDate end) {
+    private static boolean inWindow(InterpretedClaim claim, List<EvidenceFact> citedFacts,
+                                    LocalDate start, LocalDate end) {
         if (start == null || end == null) return true;
-        LocalDate anchor;
+        LocalDate published = null;
         if (claim.getRawDoc() == null) {
             if (claim.getCreatedAt() == null) return false;
-            anchor = claim.getCreatedAt().atZone(REPORT_ZONE).toLocalDate();
+            published = claim.getCreatedAt().atZone(REPORT_ZONE).toLocalDate();
         } else {
-            if (claim.getRawDoc().getPublishedAt() == null) return false; // ngày thật không rõ — loại, không đoán
-            anchor = claim.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
+            if (claim.getRawDoc().getPublishedAt() != null) {
+                published = claim.getRawDoc().getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
+            }
         }
-        return !anchor.isBefore(start) && !anchor.isAfter(end);
+        if (citedFacts == null || citedFacts.isEmpty()) {
+            return published != null && !published.isBefore(start) && !published.isAfter(end);
+        }
+        LocalDate finalPublished = published;
+        return citedFacts.stream().anyMatch(fact -> ReportTimeWindowRules.classify(
+                new ReportTimeWindowRules.Dates(
+                        finalPublished,
+                        first(fact.getOccurredDate(), fact.getEventDate()),
+                        fact.getEffectiveDate(), fact.getExpiryDate(),
+                        first(fact.getForecastHorizon(), fact.getEventDateRangeStart())),
+                start, end, 90) != ReportTimeWindowRules.Inclusion.EXCLUDE);
+    }
+
+    private static LocalDate first(LocalDate first, LocalDate second) {
+        return first != null ? first : second;
+    }
+
+    private static ProductMarketScopeClassifier.MarketPosition resolveMarket(
+            InterpretedClaim claim, List<EvidenceFact> citedFacts) {
+        Set<String> marketCodes = citedFacts.stream().map(EvidenceFact::getMarketCode)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (marketCodes.size() > 1) {
+            return new ProductMarketScopeClassifier.MarketPosition(
+                    ProductMarketScope.INTERNATIONAL, "Multi-market");
+        }
+        if (marketCodes.size() == 1) {
+            String code = marketCodes.iterator().next();
+            if ("VN".equals(code)) {
+                return new ProductMarketScopeClassifier.MarketPosition(ProductMarketScope.VIETNAM, "Vietnam");
+            }
+            return new ProductMarketScopeClassifier.MarketPosition(
+                    ProductMarketScope.INTERNATIONAL, geographyLabel(code));
+        }
+        Source source = claim.getRawDoc() == null ? null : claim.getRawDoc().getSource();
+        if (source != null && source.getDefaultMarketScope() == com.marketradar.domain.GeographyScope.VIETNAM) {
+            return new ProductMarketScopeClassifier.MarketPosition(ProductMarketScope.VIETNAM, "Vietnam");
+        }
+        return new ProductMarketScopeClassifier.MarketPosition(ProductMarketScope.INTERNATIONAL,
+                source == null ? "Global / regional" : geographyLabel(source.getDefaultMarketCode()));
+    }
+
+    private static String geographyLabel(String code) {
+        if (code == null) return "Global / regional";
+        return switch (code) {
+            case "VN" -> "Vietnam";
+            case "HK" -> "Hong Kong";
+            case "SG" -> "Singapore";
+            case "TW" -> "Taiwan";
+            case "KR" -> "South Korea";
+            case "JP" -> "Japan";
+            case "CN" -> "China";
+            case "ID" -> "Indonesia";
+            case "MY" -> "Malaysia";
+            case "PH" -> "Philippines";
+            case "TH" -> "Thailand";
+            case "US" -> "United States";
+            case "GB" -> "United Kingdom";
+            case "GLOBAL" -> "Global";
+            default -> code;
+        };
     }
 
     /** Resolve MỘT LẦN các EvidenceFact 1 claim cite — dùng chung cho cả citationsFor lẫn
      *  resolveRouting, tránh query facts 2 lần/claim. */
     private List<EvidenceFact> resolveFacts(InterpretedClaim claim) {
-        List<String> codes = claim.getFactCodesCsv() == null ? List.of()
+        Set<String> codes = claim.getFactCodesCsv() == null ? Set.of()
                 : Arrays.stream(claim.getFactCodesCsv().split(","))
-                        .map(String::strip).filter(s -> !s.isEmpty()).toList();
-        return codes.isEmpty() ? List.of() : facts.findAllByFactCodeInForAudit(codes);
+                        .map(String::strip).filter(s -> !s.isEmpty())
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (codes.isEmpty()) return List.of();
+        List<EvidenceFact> resolved = facts.findAllByFactCodeInForAudit(codes.stream().toList());
+        // A partially resolved citation set is not "mostly grounded". Nor may an old
+        // claim survive a re-extraction edition by continuing to cite inactive facts.
+        if (resolved.size() != codes.size() || resolved.stream().anyMatch(fact -> !fact.isActive()
+                || fact.getRawDoc().isSampleData()
+                || fact.getRawDoc().getDuplicateOfId() != null)) return List.of();
+        return resolved;
     }
 
     /** Nhãn Router đã gán (bucket/subjectKey/...) cho claim này, suy từ fact ĐẦU TIÊN trong
@@ -224,11 +395,36 @@ public class PeriodicalBiAdapter {
         if (claim.getSlot() == InterpretedClaim.Slot.DEEP_DIVE) {
             return new RoutedLabels(BiFinding.DEEP_DIVE, null, null, null, null, null, null, null, null, false);
         }
-        EvidenceFact routed = citedFacts.stream().filter(f -> f.getBiBucket() != null).findFirst().orElse(null);
-        if (routed != null) {
-            return new RoutedLabels(routed.getBiBucket(), routed.getSubjectKey(), routed.getHighlightCardLabel(),
-                    routed.getSeverity(), routed.getSeverityTrend(), routed.getKpiLabel(), routed.getKpiValue(),
-                    routed.getEventDateRangeStart(), routed.getEventDateRangeEnd(), routed.isHighlight());
+        List<EvidenceFact> routedFacts = citedFacts.stream().filter(f -> f.getBiBucket() != null).toList();
+        if (!routedFacts.isEmpty()) {
+            Set<String> buckets = routedFacts.stream().map(EvidenceFact::getBiBucket)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            Set<String> entityNames = routedFacts.stream().map(EvidenceFact::getSubjectEntityName)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            String bucket;
+            if (buckets.size() == 1) bucket = buckets.iterator().next();
+            else if (entityNames.size() > 1) bucket = BiFinding.STRATEGIC_COMPARISON;
+            else bucket = BiFinding.COMPETITIVE_THEME;
+
+            EvidenceFact representative = routedFacts.get(0);
+            Set<String> legacySubjects = routedFacts.stream().map(EvidenceFact::getSubjectKey)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            String subject = entityNames.size() == 1 ? entityNames.iterator().next()
+                    : (legacySubjects.size() == 1 ? legacySubjects.iterator().next() : null);
+            boolean highlight = routedFacts.stream().anyMatch(EvidenceFact::isHighlight);
+            return new RoutedLabels(bucket, subject,
+                    buckets.size() == 1 ? representative.getHighlightCardLabel() : null,
+                    buckets.size() == 1 ? representative.getSeverity() : null,
+                    buckets.size() == 1 ? representative.getSeverityTrend() : null,
+                    buckets.size() == 1 ? representative.getKpiLabel() : null,
+                    buckets.size() == 1 ? representative.getKpiValue() : null,
+                    routedFacts.stream().map(EvidenceFact::getEventDateRangeStart)
+                            .filter(java.util.Objects::nonNull).min(LocalDate::compareTo).orElse(null),
+                    routedFacts.stream().map(EvidenceFact::getEventDateRangeEnd)
+                            .filter(java.util.Objects::nonNull).max(LocalDate::compareTo).orElse(null),
+                    highlight);
         }
         // claim.getBiBucket() null cho tuyệt đại đa số claim (tin công ty thông thường) —
         // SPECIAL_BUCKETS là Set.of(...) nên contains(null) tự ném NPE, phải chặn trước.
@@ -249,30 +445,36 @@ public class PeriodicalBiAdapter {
                     && !f.getRawDoc().getPublisherName().isBlank()
                     ? f.getRawDoc().getPublisherName()
                     : f.getRawDoc().getSource().getName();
-            unique.putIfAbsent(label, new BiCitation(label, tierLabel(f.getRawDoc()), f.getRawDoc().getUrl()));
+            unique.putIfAbsent(label, citation(label, f.getRawDoc()));
         }
         if (unique.isEmpty() && claim.getRawDoc() != null) {
             String label = claim.getRawDoc().getPublisherName() != null
                     && !claim.getRawDoc().getPublisherName().isBlank()
                     ? claim.getRawDoc().getPublisherName()
                     : claim.getRawDoc().getSource().getName();
-            unique.put(label, new BiCitation(label, tierLabel(claim.getRawDoc()), claim.getRawDoc().getUrl()));
+            unique.put(label, citation(label, claim.getRawDoc()));
         }
         return List.copyOf(unique.values());
     }
 
-    /** 2026-08-03 (feedback: "cần đánh dấu vào đâu đó để biết nguồn của nó là từ deep research"):
-     *  claim từ tài liệu Deep Research đi qua ĐÚNG pipeline xác thực như claim thường (xem
-     *  DeepResearchService#runVerificationPipeline) nên không có cột/bảng riêng nào để tách —
-     *  tín hiệu duy nhất phân biệt được là RawDoc#intakeMethod (OPEN_SEARCH/BROWSER_RENDER thay
-     *  vì CRAWLED). Gắn thẳng vào tierNote hiện có (đã là "T1".."T3" hoặc ghi chú tự do theo
-     *  design) thay vì thêm field mới vào BiCitation — ít thay đổi hơn, hiển thị ngay ở mọi nơi
-     *  đã render tierNote (không cần sửa template). */
+    /** Human-readable evidence authority plus acquisition lineage. The legacy record component
+     *  remains named tierNote for JSON compatibility, but no publication decision uses tiers. */
     private static String tierLabel(RawDoc rawDoc) {
-        String tier = "T" + rawDoc.getSource().getTier();
+        String authority = authorityLabel(rawDoc.getSource().getAuthority().name());
         boolean fromDeepResearch = rawDoc.getIntakeMethod() == RawDoc.IntakeMethod.OPEN_SEARCH
                 || rawDoc.getIntakeMethod() == RawDoc.IntakeMethod.BROWSER_RENDER;
-        return fromDeepResearch ? tier + " · Deep Research" : tier;
+        return fromDeepResearch ? authority + " · Deep Research" : authority;
+    }
+
+    private static String authorityLabel(String authority) {
+        return authority == null ? "Unknown authority" : authority.replace('_', ' ');
+    }
+
+    private static BiCitation citation(String label, RawDoc rawDoc) {
+        return new BiCitation(label, tierLabel(rawDoc), rawDoc.getUrl(),
+                rawDoc.getSource().getAuthority().name(),
+                rawDoc.getSource().getDefaultMarketCode(),
+                rawDoc.getIntakeMethod() == null ? null : rawDoc.getIntakeMethod().name());
     }
 
 }

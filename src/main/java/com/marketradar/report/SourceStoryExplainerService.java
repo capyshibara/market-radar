@@ -80,7 +80,6 @@ public class SourceStoryExplainerService {
         return explainers.findByFactCode(factCode);
     }
 
-    @Transactional
     public StoryExplainer generateIfAbsent(String factCode) {
         Optional<StoryExplainer> existing = explainers.findByFactCode(factCode);
         if (existing.isPresent()) return existing.get();
@@ -102,6 +101,10 @@ public class SourceStoryExplainerService {
                     + "rewriteVi entirely Vietnamese prose; keep every statement inside the article text.";
             parsed = parseAndValidate(call(repair, user, doc.getId(), 1));
         }
+        // Recheck after the model call so a concurrent reader can win safely without
+        // keeping a database transaction open while waiting for the provider.
+        Optional<StoryExplainer> concurrent = explainers.findByFactCode(factCode);
+        if (concurrent.isPresent()) return concurrent.get();
         return explainers.save(new StoryExplainer(factCode, doc.getId(),
                 parsed.rewriteEn(), parsed.rewriteVi(), parsed.termsEn(), parsed.termsVi(),
                 llm.providerName()));

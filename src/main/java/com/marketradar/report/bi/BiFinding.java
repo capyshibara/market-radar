@@ -60,7 +60,8 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
                         Integer metricPercent, ProductMarketScope scope, String geography,
                         String eventDateLabel, String highlightCardLabel, String severityTrend,
                         String kpiLabel, String kpiValue,
-                        LocalDate eventDateRangeStart, LocalDate eventDateRangeEnd) {
+                        LocalDate eventDateRangeStart, LocalDate eventDateRangeEnd,
+                        String evidenceGrade) {
 
     public BiFinding {
         citations = citations == null ? List.of() : List.copyOf(citations);
@@ -85,6 +86,23 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
         highlightCardLabel = highlightCardLabel == null || highlightCardLabel.isBlank() ? null : highlightCardLabel.strip();
         kpiLabel = kpiLabel == null || kpiLabel.isBlank() ? null : kpiLabel.strip();
         kpiValue = kpiValue == null || kpiValue.isBlank() ? null : kpiValue.strip();
+        evidenceGrade = switch (evidenceGrade == null ? "" : evidenceGrade) {
+            case "EDITORIAL_WATCH" -> "EDITORIAL_WATCH";
+            case "REVIEWED_ANALYSIS" -> "REVIEWED_ANALYSIS";
+            default -> "DECISION_GRADE";
+        };
+    }
+
+    /** Compatibility constructor for existing adapters and persisted Deep Research JSON. */
+    public BiFinding(String bucket, String subjectKey, String textVi, String textEn,
+                     boolean highlight, List<BiCitation> citations, String severity,
+                     Integer metricPercent, ProductMarketScope scope, String geography,
+                     String eventDateLabel, String highlightCardLabel, String severityTrend,
+                     String kpiLabel, String kpiValue,
+                     LocalDate eventDateRangeStart, LocalDate eventDateRangeEnd) {
+        this(bucket, subjectKey, textVi, textEn, highlight, citations, severity, metricPercent,
+                scope, geography, eventDateLabel, highlightCardLabel, severityTrend,
+                kpiLabel, kpiValue, eventDateRangeStart, eventDateRangeEnd, "DECISION_GRADE");
     }
 
     /** Convenience constructor for the common case of no severity/metric/event date/Router labels. */
@@ -92,7 +110,7 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
                      boolean highlight, List<BiCitation> citations,
                      ProductMarketScope scope, String geography) {
         this(bucket, subjectKey, textVi, textEn, highlight, citations, null, null, scope, geography,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, "DECISION_GRADE");
     }
 
     /** Convenience constructor for VI-only content (no English translation available yet). */
@@ -100,7 +118,7 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
                      boolean highlight, List<BiCitation> citations,
                      ProductMarketScope scope, String geography) {
         this(bucket, subjectKey, textVi, null, highlight, citations, null, null, scope, geography,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, "DECISION_GRADE");
     }
 
     /** The finding text in the requested language — falls back to Vietnamese rather than

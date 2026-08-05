@@ -160,6 +160,10 @@
   .bi-source-tier{color:#C00000;font-weight:700;margin-right:10px}
   .bi-source-tier.secondary{color:#9E9E9E}
   .bi-gap-item{font-size:10pt;color:#6B6B6B;margin-bottom:4px}
+  .bi-watch-note{background:#FFF8E1;border-left:4px solid #D69E00;padding:12px 14px;
+    font-size:10.5pt;line-height:1.4;margin-bottom:10px}
+  .bi-watch-label{display:block;color:#8A5B12;font-size:8pt;font-weight:700;text-transform:uppercase;
+    letter-spacing:.05em;margin-bottom:4px}
 
   /* ===== TOC — row-paired from Java (tocRows), same reason as company-highlight cards ===== */
   .bi-toc-row{display:table;width:100%;table-layout:fixed}
@@ -572,6 +576,58 @@
     <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">13</span></div>
   </div>
 
+  <!-- ============ REVIEWED ANALYSIS — reasoned inference, explicitly not a verified fact ============ -->
+  <div th:case="'REVIEWED_ANALYSIS'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip" style="background:#5344B5"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'PHÂN TÍCH — ĐÃ QUA BIÊN TẬP' : 'ANALYSIS — HUMAN REVIEWED'}">ANALYSIS — HUMAN REVIEWED</div>
+        <div class="bi-title" style="color:#30256F" th:text="${vi ? 'Điều các tín hiệu có thể hàm ý' : 'What the signals may imply'}">What the signals may imply</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <p style="font-size:10pt;color:#6B6B6B" th:text="${vi ? 'Đây là suy luận phân tích từ các fact có trích dẫn. Nội dung đã được con người rà soát nhưng không được trình bày như một fact đã được verifier xác nhận.' : 'These are reasoned interpretations of cited facts. A human reviewed the analysis, but it is not presented as independently verified fact.'}">Method note.</p>
+      <div class="bi-watch-note" th:each="f : ${reviewedAnalysisFindings}" style="border-left-color:#5344B5;background:#F1EFFF">
+        <span class="bi-watch-label" style="color:#5344B5" th:text="${vi ? 'HÀM Ý PHÂN TÍCH' : 'ANALYTICAL IMPLICATION'}">ANALYTICAL IMPLICATION</span>
+        <span th:text="${f.text(vi)}">Analysis</span>
+        <span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
+        <div th:if="${!f.citations.isEmpty()}">
+          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.authority}">Authority</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">13</span></div>
+  </div>
+
+  <!-- ============ EDITORIAL WATCH — human-approved neutral, never mixed with facts ============ -->
+  <div th:case="'EDITORIAL_WATCH'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip" style="background:#D69E00"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'CẦN THÊM NGỮ CẢNH' : 'NEEDS MORE CONTEXT'}">NEEDS MORE CONTEXT</div>
+        <div class="bi-title" style="color:#8A5B12" th:text="${vi ? 'Tín hiệu cần theo dõi' : 'Editorial Watch'}">Editorial Watch</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <p style="font-size:10pt;color:#6B6B6B" th:text="${vi ? 'Các mục dưới đây đã được con người chọn là đáng theo dõi nhưng verifier đánh giá evidence chưa đủ để khẳng định. Chúng không phải fact để dùng trực tiếp cho quyết định.' : 'A human selected these items as worth watching, but independent verification found insufficient evidence. They are not decision-grade facts.'}">Method note.</p>
+      <div class="bi-watch-note" th:each="f : ${watchFindings}">
+        <span class="bi-watch-label" th:text="${vi ? 'TÍN HIỆU — CHƯA ĐỦ CĂN CỨ' : 'SIGNAL — NOT YET DECISION-GRADE'}">SIGNAL</span>
+        <span th:text="${f.text(vi)}">Watch item</span>
+        <span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
+        <div th:if="${!f.citations.isEmpty()}">
+          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.authority}">Authority</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">13</span></div>
+  </div>
+
   <!-- ============ SOURCES & METHOD ============ -->
   <div th:case="'SOURCES'" class="bi-frame">
     <div class="bi-header">
@@ -583,14 +639,14 @@
       <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
     <div class="bi-body">
-      <div class="bi-section-bar" style="margin-bottom:12px" th:text="${vi ? 'Nguồn chính (T1-T2)' : 'Primary sources (T1-T2)'}">Primary sources</div>
+      <div class="bi-section-bar" style="margin-bottom:12px" th:text="${vi ? 'Nguồn có thẩm quyền / bằng chứng sơ cấp' : 'Authoritative / primary evidence'}">Primary sources</div>
       <div style="margin-bottom:20px">
-        <div class="bi-source-item" th:each="c : ${sourcesPrimary}"><span class="bi-source-tier" th:text="${c.tierNote()}">T1</span><span th:text="${c.label()}">Source</span></div>
+        <div class="bi-source-item" th:each="c : ${sourcesPrimary}"><span class="bi-source-tier" th:text="${c.authority()}">OFFICIAL</span><span th:text="${c.label() + (c.marketCode() != null ? ' · ' + c.marketCode() : '')}">Source</span></div>
         <div class="bi-source-item" style="color:#9E9E9E" th:if="${sourcesPrimary.isEmpty()}" th:text="${vi ? 'Chưa có nguồn chính nào trong kỳ này.' : 'No primary source yet this period.'}">None</div>
       </div>
       <div class="bi-section-bar" style="margin-bottom:12px" th:text="${vi ? 'Nguồn phụ / nghiên cứu bàn giấy' : 'Secondary / desk research'}">Secondary sources</div>
       <div style="margin-bottom:20px">
-        <div class="bi-source-item" th:each="c : ${sourcesSecondary}"><span class="bi-source-tier secondary" th:text="${c.tierNote()}">T3</span><span th:text="${c.label()}">Source</span></div>
+        <div class="bi-source-item" th:each="c : ${sourcesSecondary}"><span class="bi-source-tier secondary" th:text="${c.authority()}">MEDIA</span><span th:text="${c.label() + (c.marketCode() != null ? ' · ' + c.marketCode() : '')}">Source</span></div>
         <div class="bi-source-item" style="color:#9E9E9E" th:if="${sourcesSecondary.isEmpty()}" th:text="${vi ? 'Chưa có nguồn phụ nào trong kỳ này.' : 'No secondary source yet this period.'}">None</div>
       </div>
       <div class="bi-eyebrow" style="margin-bottom:6px" th:text="${vi ? 'Chưa được đề cập kỳ này' : 'Not covered this period'}">Not covered this period</div>

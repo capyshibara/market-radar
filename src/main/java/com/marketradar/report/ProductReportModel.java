@@ -73,10 +73,12 @@ public class ProductReportModel {
                 .map(item -> item.sourceCode()).distinct().count());
         model.put("executiveBrief", ProductExecutiveBrief.from(snapshot, vi));
         ProductReportEditorialService.EditorialBrief editorialBrief = editorial.current(cadence, locale);
+        boolean editorialPlaceholder = !editorial.hasCuratedDraft(cadence, locale);
         model.put("editorialBrief", editorialBrief);
-        model.put("editorialIsPlaceholder", !editorial.hasCuratedDraft(cadence, locale));
+        model.put("editorialIsPlaceholder", editorialPlaceholder);
         java.util.List<ProductReportEditorialService.EditorialExhibit> activeExhibits =
-                editorialBrief.exhibits().stream()
+                (editorialPlaceholder ? java.util.List.<ProductReportEditorialService.EditorialExhibit>of()
+                        : editorialBrief.exhibits()).stream()
                         .filter(ProductReportEditorialService.EditorialExhibit::enabled).toList();
         model.put("editorialExhibits", activeExhibits);
         model.put("editorialHeroExhibit", activeExhibits.isEmpty() ? null : activeExhibits.get(0));
@@ -84,8 +86,9 @@ public class ProductReportModel {
                 ? java.util.List.of() : activeExhibits.subList(1, activeExhibits.size()));
         java.util.Set<String> currentCodes = snapshot.currentNews().stream()
                 .map(item -> item.factCode()).collect(java.util.stream.Collectors.toSet());
-        model.put("editorialReferences", editorial.references(editorialBrief, currentCodes));
-        model.put("editorialAllReferences", editorial.references(editorialBrief));
+        model.put("editorialReferences", editorialPlaceholder ? java.util.List.of()
+                : editorial.references(editorialBrief, currentCodes));
+        model.put("editorialAllReferences", editorial.lockedEvidenceReferences(cadence));
         model.put("references", snapshot.references());
         model.put("referenceMarketPositions", snapshot.references().stream()
                 .collect(java.util.stream.Collectors.toMap(fact -> fact.getFactCode(),
