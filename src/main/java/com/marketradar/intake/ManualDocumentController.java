@@ -35,8 +35,11 @@ public class ManualDocumentController {
                             @RequestParam(value = "homeCompanyContent", required = false) Boolean homeCompanyContent,
                             RedirectAttributes redirect) {
         try {
-            addResult(intake.importUrl(sourceUrl, com.marketradar.domain.RawDoc.IntakeMethod.MANUAL_TEXT,
-                    "URL_IMPORT", Boolean.TRUE.equals(homeCompanyContent)), redirect);
+            // A URL pasted by an operator is a researched web discovery, not pasted raw text.
+            // Preserve that provenance so curation can balance whitelist, deep research and
+            // file/manual evidence instead of reporting every document as crawler output.
+            addResult(intake.importUrl(sourceUrl, com.marketradar.domain.RawDoc.IntakeMethod.OPEN_SEARCH,
+                    "OPERATOR_URL_RESEARCH", Boolean.TRUE.equals(homeCompanyContent)), redirect);
         } catch (ManualDocumentRules.ValidationException invalid) {
             redirect.addFlashAttribute("intakeError", invalid.getMessage());
         }

@@ -8,6 +8,7 @@ import com.marketradar.domain.FactExtractionRun;
 import com.marketradar.domain.RawDoc;
 
 import java.time.Instant;
+import java.util.List;
 
 public interface FactExtractionRunRepository extends JpaRepository<FactExtractionRun, Long> {
 
@@ -15,6 +16,14 @@ public interface FactExtractionRunRepository extends JpaRepository<FactExtractio
             RawDoc rawDoc, String extractionSignature, FactExtractionRun.Status status);
 
     long countByStatus(FactExtractionRun.Status status);
+
+    @Query("select r from FactExtractionRun r join fetch r.rawDoc d join fetch d.source " +
+           "where r.currentEdition = true and r.status = :status")
+    List<FactExtractionRun> findAllCurrentSuccessfulWithDocument(
+            @Param("status") FactExtractionRun.Status status);
+
+    @Query("select r from FactExtractionRun r join fetch r.rawDoc d join fetch d.source")
+    List<FactExtractionRun> findAllWithDocument();
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update FactExtractionRun r set r.currentEdition = false, r.supersededAt = :at " +

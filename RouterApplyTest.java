@@ -11,6 +11,7 @@ import com.marketradar.intelligence.EntityResolutionRules;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 /** Offline regression for Router label validation and application. */
 public class RouterApplyTest {
@@ -53,6 +54,31 @@ public class RouterApplyTest {
                 mapper.readTree("{\"bucket\":\"DEEP_DIVE\",\"highlight\":false}"));
         check(invalid.getBiBucket() == null,
                 "per-fact Router cannot assign the Connector-only DEEP_DIVE bucket");
+
+        EvidenceFact batchFirst = new EvidenceFact("F-B1", null, EvidenceFact.FactType.EVENT,
+                "First fact", "en");
+        EvidenceFact batchSecond = new EvidenceFact("F-B2", null, EvidenceFact.FactType.METRIC,
+                "Second fact contains 21%", "en");
+        FactExtractionJob.applyBatchRouting(List.of(batchFirst, batchSecond), mapper.readTree("""
+                {"routes":[
+                  {"fact_index":1,"intelligence_topic":"MARKET_SHARE",
+                   "bucket":"MARKET_SHARE_OR_AWARD","kpi_value":"21%","highlight":true},
+                  {"fact_index":0,"intelligence_topic":"CORPORATE_ACTION",
+                   "bucket":"COMPANY_EVENT","highlight":false},
+                  {"fact_index":1,"intelligence_topic":"OTHER",
+                   "bucket":"COMPANY_EVENT","highlight":false},
+                  {"fact_index":99,"intelligence_topic":"OTHER",
+                   "bucket":"COMPANY_EVENT","highlight":false}
+                ]}
+                """));
+        check("COMPANY_EVENT".equals(batchFirst.getBiBucket()),
+                "batch routing maps an out-of-order result by fact_index");
+        check("MARKET_SHARE_OR_AWARD".equals(batchSecond.getBiBucket()),
+                "batch routing applies each valid index exactly once");
+        check(batchSecond.getIntelligenceTopic() == IntelligenceTopic.MARKET_SHARE,
+                "duplicate indexes cannot overwrite the first accepted route");
+        check("21%".equals(batchSecond.getKpiValue()),
+                "batch routing preserves the same verbatim KPI gate");
 
         Source globalSource = new Source("GLOBAL_TEST", "Global test",
                 "https://example.com/news", "example.com", Source.SourceType.HTML, 3, "en");

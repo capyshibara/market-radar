@@ -1,6 +1,8 @@
 package com.marketradar.pipeline;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,13 +47,15 @@ public class PipelineRunnerController {
     private final SwitchableLlmClient classifierClient;
     private final SwitchableLlmClient writerClient;
     private final SwitchableLlmClient verifierClient;
+    private final MessageSource messages;
 
     public PipelineRunnerController(IngestionJob ingest, ClassificationJob classify,
                                     FactExtractionJob extract, InterpretationJob interpret,
                                     VerificationJob verify, PipelineRunStatusService status,
                                     @Qualifier("classifierLlmClient") LlmClient classifierClient,
                                     LlmClient writerClient, // @Primary
-                                    @Qualifier("verifierLlmClient") LlmClient verifierClient) {
+                                    @Qualifier("verifierLlmClient") LlmClient verifierClient,
+                                    MessageSource messages) {
         this.ingest = ingest;
         this.classify = classify;
         this.extract = extract;
@@ -61,6 +65,7 @@ public class PipelineRunnerController {
         this.classifierClient = (SwitchableLlmClient) classifierClient;
         this.writerClient = (SwitchableLlmClient) writerClient;
         this.verifierClient = (SwitchableLlmClient) verifierClient;
+        this.messages = messages;
     }
 
     @GetMapping("/pipeline")
@@ -78,6 +83,13 @@ public class PipelineRunnerController {
         Supplier<String> job = jobFor(stage);
         if (job != null) status.trigger(stage, job);
         return "redirect:/pipeline";
+    }
+
+    /** A separate operator action samples the deferred/republication tail. */
+    @PostMapping("/pipeline/run/extract-audit")
+    public String runExtractionAudit() {
+        status.trigger("extract", guarded("extract", extract::runAuditOnce, writerClient));
+        return "redirect:/pipeline/researcher-curation";
     }
 
     /** Poll bằng JS — không dùng flash attribute nữa vì job chạy nền, không có response đồng bộ để redirect kèm theo. */
@@ -106,6 +118,78 @@ public class PipelineRunnerController {
     @ResponseBody
     public String classificationPlan() {
         return classify.dryRunPlan();
+    }
+
+    /** Read-only Analyst budget/coverage plan; deliberately no LLM call or state mutation. */
+    @GetMapping(value = "/pipeline/analysis/plan", produces = "text/plain;charset=UTF-8")
+    @ResponseBody
+    public String analysisPlan() {
+        return interpret.dryRunInputPlan();
+    }
+
+    /** Read-only Researcher budget/priority preview; deliberately no LLM call or state mutation. */
+    @GetMapping(value = "/pipeline/extraction/plan", produces = "text/plain;charset=UTF-8")
+    @ResponseBody
+    public String extractionPlan() {
+        return extract.dryRunInputPlan();
+    }
+
+    /** Read-only stratified deferred-tail audit preview. */
+    @GetMapping(value = "/pipeline/extraction/audit-plan", produces = "text/plain;charset=UTF-8")
+    @ResponseBody
+    public String extractionAuditPlan() {
+        return extract.dryRunAuditPlan();
+    }
+
+    /** Human-readable curation control; opening it never calls a model. */
+    @GetMapping("/pipeline/researcher-curation")
+    public String researcherCuration(Model model) {
+        var mainPlan = extract.curationPlan(
+                com.marketradar.extract.ResearchCurationPlanner.Mode.MAIN);
+        var auditPlan = extract.curationPlan(
+                com.marketradar.extract.ResearchCurationPlanner.Mode.AUDIT);
+        var assessment = extract.curationAssessment(mainPlan, auditPlan);
+        model.addAttribute("mainPlan", mainPlan);
+        model.addAttribute("auditPlan", auditPlan);
+        model.addAttribute("mainPlanSummary", curationSummary(mainPlan));
+        model.addAttribute("auditPlanSummary", curationSummary(auditPlan));
+        model.addAttribute("assessment", assessment);
+        model.addAttribute("assessmentLabel", message(
+                "ops.researcher.assessment." + assessment.recommendation().name() + ".label"));
+        model.addAttribute("assessmentMessage", switch (assessment.recommendation()) {
+            case RUN_NEXT_BATCH -> message("ops.researcher.assessment.RUN_NEXT_BATCH.message",
+                    mainPlan.diagnostics().remainingClusters());
+            case RUN_DEFERRED_AUDIT -> message(
+                    "ops.researcher.assessment.RUN_DEFERRED_AUDIT.message",
+                    auditPlan.diagnostics().auditPoolDocuments());
+            case AUDIT_FOUND_ADDITIONAL_VALUE -> message(
+                    "ops.researcher.assessment.AUDIT_FOUND_ADDITIONAL_VALUE.message",
+                    assessment.latestAudit() == null ? 0 : assessment.latestAudit().getNewEventClusters(),
+                    assessment.latestAudit() == null ? 0 : assessment.latestAudit().getNewConflictClusters());
+            case OPERATOR_REVIEW_REQUIRED -> message(
+                    "ops.researcher.assessment.OPERATOR_REVIEW_REQUIRED.message",
+                    mainPlan.diagnostics().exhaustedUnrepresentedClusters());
+            case READY_FOR_ANALYST -> message(
+                    "ops.researcher.assessment.READY_FOR_ANALYST.message");
+            case NO_ELIGIBLE_INPUT -> message(
+                    "ops.researcher.assessment.NO_ELIGIBLE_INPUT.message");
+        });
+        model.addAttribute("curationBatches", extract.recentCurationBatches(20));
+        model.addAttribute("extractLlmLabel", llmLabel(writerClient));
+        return "researcher-curation";
+    }
+
+    private String message(String code, Object... args) {
+        return messages.getMessage(code, args, LocaleContextHolder.getLocale());
+    }
+
+    private String curationSummary(com.marketradar.extract.ResearchCurationPlanner.Plan plan) {
+        String key = plan.mode() == com.marketradar.extract.ResearchCurationPlanner.Mode.MAIN
+                ? "ops.researcher.plan.main" : "ops.researcher.plan.audit";
+        return message(key, plan.diagnostics().selectedDocuments(),
+                plan.diagnostics().selectedClusters(), plan.diagnostics().candidateClusters(),
+                plan.diagnostics().representedClusters(), plan.diagnostics().remainingClusters(),
+                plan.diagnostics().auditPoolDocuments());
     }
 
     private Supplier<String> jobFor(String stage) {

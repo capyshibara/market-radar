@@ -12,6 +12,8 @@ import com.marketradar.domain.EvidenceFact;
 import com.marketradar.domain.LlmCallLog;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
+import com.marketradar.llm.TerminalLlmException;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.repo.LlmCallLogRepository;
 import com.marketradar.review.ReviewRules;
 
@@ -160,6 +162,11 @@ public class EntailmentVerifier {
                     response, null, System.currentTimeMillis() - t0));
             return response;
         } catch (LlmException e) {
+            if (e instanceof TerminalLlmException) {
+                throw new TerminalLlmRuntimeException(
+                        "Verifier stopped: provider/account cannot accept requests — "
+                                + e.getMessage(), e);
+            }
             log.error("VERIFY lỗi LLM: {}", e.getMessage());
             return null;
         }

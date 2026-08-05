@@ -10,6 +10,7 @@ import com.marketradar.domain.IntelligenceTopic;
 import com.marketradar.intelligence.CompetitorRegistry;
 import com.marketradar.intelligence.CurationPriorityRules;
 import com.marketradar.intelligence.ReportTimeWindowRules;
+import com.marketradar.interpret.AnalystInputSelection;
 import com.marketradar.product.ProductMarketScopeClassifier;
 import com.marketradar.product.ProductMarketScope;
 import com.marketradar.repo.EvidenceFactRepository;
@@ -73,23 +74,39 @@ public class PeriodicalBiAdapter {
             BiFinding.MARKET_SHARE_OR_AWARD, "Thị phần/Giải thưởng",
             BiFinding.TECH_AI_SIGNAL, "Tín hiệu Tech/AI",
             BiFinding.STRATEGIC_COMPARISON, "So sánh chiến lược");
+    private static final Map<String, String> BUCKET_LABEL_EN = Map.of(
+            BiFinding.MACRO_ECONOMIC, "Macro update",
+            BiFinding.SCHEDULED_EVENT, "Upcoming disclosure calendar",
+            BiFinding.MARKET_SHARE_OR_AWARD, "Market share / Awards",
+            BiFinding.TECH_AI_SIGNAL, "Technology / AI signals",
+            BiFinding.STRATEGIC_COMPARISON, "Strategic comparisons");
 
     private final String homeCompany;
     private final InterpretedClaimRepository claims;
     private final EvidenceFactRepository facts;
     private final CompetitorRegistry registry;
     private final ClaimVerificationRepository verifications;
+    private final AnalystInputSelection.Config analystSelectionConfig;
 
     public PeriodicalBiAdapter(@Value("${marketradar.home-company:}") String homeCompany,
                                InterpretedClaimRepository claims,
                                EvidenceFactRepository facts,
                                CompetitorRegistry registry,
-                               ClaimVerificationRepository verifications) {
+                               ClaimVerificationRepository verifications,
+                               @Value("${marketradar.analyst.batch-documents:60}") int maxDocuments,
+                               @Value("${marketradar.analyst.max-facts-per-document:12}") int maxFactsPerDocument,
+                               @Value("${marketradar.analyst.max-executive-facts:60}") int maxExecutiveFacts,
+                               @Value("${marketradar.analyst.max-documents-per-source:18}") int maxDocumentsPerSource,
+                               @Value("${marketradar.analyst.max-age-days:365}") int maxAgeDays,
+                               @Value("${marketradar.analyst.target-market:VN}") String targetMarket) {
         this.homeCompany = homeCompany;
         this.claims = claims;
         this.facts = facts;
         this.registry = registry;
         this.verifications = verifications;
+        this.analystSelectionConfig = new AnalystInputSelection.Config(
+                maxDocuments, maxFactsPerDocument, maxExecutiveFacts,
+                maxDocumentsPerSource, maxAgeDays, targetMarket);
     }
 
     /** 1 finding kèm factCode nó thật sự trích — companion cho DeepDiveSynthesis (Connector chỉ
@@ -109,11 +126,20 @@ public class PeriodicalBiAdapter {
     /** Kênh 1 (claim đã duyệt) — dùng chung bởi adapt() và InterpretationJob#runDeepDiveSynthesis. */
     public List<RoutedFinding> approvedFindings(LocalDate windowStart, LocalDate windowEnd) {
         List<RoutedFinding> out = new ArrayList<>();
+        LocalDate selectionDate = windowEnd == null ? LocalDate.now() : windowEnd;
+        Set<Long> curatedDocIds = AnalystInputSelection.select(
+                        facts.findAllForReport(), selectionDate, analystSelectionConfig)
+                .eligibleByDocument().keySet().stream().map(RawDoc::getId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
         List<InterpretedClaim> approved = claims.findForBiReport();
         for (InterpretedClaim claim : approved) {
             if (claim.getRawDoc() != null && (claim.getRawDoc().isSampleData()
                     || claim.getRawDoc().getDuplicateOfId() != null)) continue;
+            if (claim.getRawDoc() != null && !curatedDocIds.contains(claim.getRawDoc().getId())) continue;
             List<EvidenceFact> citedFacts = resolveFacts(claim);
+            if (citedFacts.stream().anyMatch(f -> f.getRawDoc() == null
+                    || !curatedDocIds.contains(f.getRawDoc().getId()))) continue;
             if (!inWindow(claim, citedFacts, windowStart, windowEnd)) continue;
             String latestVerdict = verifications.findFirstByClaimOrderByCreatedAtDescIdDesc(claim)
                     .map(ClaimVerification::getVerdict).map(Enum::name).orElse(null);
@@ -239,6 +265,11 @@ public class PeriodicalBiAdapter {
     }
 
     public BiReportContent adapt(String title, String period, ProductReportAdapter.Snapshot snapshot, long docCount) {
+        return adapt(title, period, snapshot, docCount, true);
+    }
+
+    public BiReportContent adapt(String title, String period, ProductReportAdapter.Snapshot snapshot,
+                                 long docCount, boolean vi) {
         List<RoutedFinding> routedFindings = approvedFindings(snapshot.windowStart(), snapshot.windowEnd());
         List<BiFinding> findings = new ArrayList<>(routedFindings.stream().map(RoutedFinding::finding).toList());
         Set<String> sourceLines = new LinkedHashSet<>();
@@ -253,9 +284,11 @@ public class PeriodicalBiAdapter {
 
         List<String> openGaps = new ArrayList<>();
         if (approvedCount == 0) {
-            openGaps.add("Chưa có nhận định nào được duyệt ở Reviewer Console (/review) trong kỳ này — "
-                    + "duyệt claim ở đó là cách trực tiếp nhất để làm dày báo cáo (mỗi claim duyệt "
-                    + "xong xuất hiện ngay tại đây).");
+            openGaps.add(vi
+                    ? "Chưa có nhận định nào được duyệt ở Reviewer Console (/review) trong kỳ này — "
+                      + "duyệt claim ở đó là cách trực tiếp nhất để làm dày báo cáo."
+                    : "No finding has been approved in the Reviewer Console (/review) for this window; "
+                      + "reviewing evidence there is the direct way to promote eligible analysis into the report.");
         }
         // 2026-08-03: chỉ báo "chưa có nguồn" cho ĐÚNG mục nào thật sự không có finding nào
         // trong kỳ này — trước đây báo cả 5 mục vô điều kiện dù claim đã duyệt CÓ THỂ đã thuộc
@@ -263,15 +296,21 @@ public class PeriodicalBiAdapter {
         Set<String> presentBuckets = findings.stream().map(BiFinding::bucket).collect(java.util.stream.Collectors.toSet());
         List<String> missingBuckets = SPECIAL_BUCKETS.stream()
                 .filter(b -> !presentBuckets.contains(b))
-                .map(BUCKET_LABEL_VI::get)
+                .map(bucket -> (vi ? BUCKET_LABEL_VI : BUCKET_LABEL_EN).get(bucket))
                 .toList();
         if (!missingBuckets.isEmpty()) {
-            openGaps.add(String.join(", ", missingBuckets) + " — chưa có claim đã duyệt nào thuộc "
-                    + (missingBuckets.size() == 1 ? "mục này" : "các mục này") + " trong kỳ; "
-                    + "dùng Deep Research để bổ sung theo yêu cầu cụ thể, hoặc duyệt thêm claim liên quan ở /review.");
+            openGaps.add(vi
+                    ? String.join(", ", missingBuckets) + " — chưa có claim đã duyệt nào thuộc "
+                      + (missingBuckets.size() == 1 ? "mục này" : "các mục này") + " trong kỳ; "
+                      + "bổ sung research pack có mục tiêu hoặc duyệt thêm claim liên quan ở /review."
+                    : String.join(", ", missingBuckets) + " — no approved claim covers "
+                      + (missingBuckets.size() == 1 ? "this section" : "these sections")
+                      + " in the reporting window; add a targeted research pack or review related claims at /review.");
         }
         if (homeCompany == null || homeCompany.isBlank()) {
-            openGaps.add("So sánh chiến lược cần cấu hình marketradar.home-company để xác định công ty gốc.");
+            openGaps.add(vi
+                    ? "So sánh chiến lược cần cấu hình marketradar.home-company để xác định công ty gốc."
+                    : "Strategic comparisons require marketradar.home-company to identify the home company.");
         }
 
         return new BiReportContent(title, period, homeCompany,

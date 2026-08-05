@@ -80,9 +80,14 @@ public class BrowserRenderService {
                     }
                 });
 
+                // Analytics, tag managers and streaming widgets keep many publisher pages
+                // permanently network-active. Waiting for NETWORKIDLE therefore rejects a
+                // page whose article DOM is already complete (observed on BCG). The article
+                // parser needs the rendered DOM, not the end of every tracking request.
                 page.navigate(url, new Page.NavigateOptions()
                         .setTimeout(timeoutSeconds * 1000L)
-                        .setWaitUntil(WaitUntilState.NETWORKIDLE));
+                        .setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+                page.waitForTimeout(Math.min(1_500L, timeoutSeconds * 100L));
                 return page.content();
             }
         } catch (PlaywrightException e) {

@@ -6,6 +6,10 @@ import com.marketradar.domain.Classification;
 import com.marketradar.domain.FactExtractionRun;
 import com.marketradar.domain.InterpretedClaim;
 import com.marketradar.domain.RawDoc;
+import com.marketradar.extract.FactExtractionJob;
+import com.marketradar.extract.ResearchCurationBatchService;
+import com.marketradar.extract.ResearchCurationPlanner;
+import com.marketradar.interpret.AnalystInputSelection;
 import com.marketradar.review.PublicationEligibilityRules;
 import com.marketradar.repo.ClaimVerificationRepository;
 import com.marketradar.repo.ClassificationRepository;
@@ -35,9 +39,14 @@ public class PipelineCheckpointService {
                            long outOfScope,
                            long uncertainReview, long noLabelReview) {}
     public record Evidence(long activeFacts, long activeFactDocuments,
+                           long curatedAnalysisDocuments, long deferredAnalysisDocuments,
+                           long researchCandidateClusters, long representedResearchClusters,
+                           long remainingResearchClusters, long deferredResearchAuditDocuments,
+                           String researchRecommendation, String researchRecommendationMessage,
                            long latestAttempts, long successfulDocuments,
                            long emptyResults, long llmErrors, long schemaRejected,
-                           long coreDimensionCompleteFacts, long entityQuarantinedFacts) {}
+                           long coreDimensionCompleteFacts, long routedFacts,
+                           long entityQuarantinedFacts) {}
     public record Analysis(long activePipelineClaims, long activeClaimDocuments, long gateL1Passed,
                            Map<InterpretedClaim.GateStatus, Long> gateStatuses,
                            Map<InterpretedClaim.ReviewStatus, Long> reviewStatuses) {}
@@ -56,8 +65,10 @@ public class PipelineCheckpointService {
     private final FactExtractionRunRepository extractionRuns;
     private final InterpretedClaimRepository claims;
     private final ClaimVerificationRepository verifications;
+    private final FactExtractionJob extraction;
     private final int analysisMaxAgeDays;
     private final boolean requirePublicationDate;
+    private final AnalystInputSelection.Config analystSelectionConfig;
 
     public PipelineCheckpointService(RawDocRepository docs,
                                      ClassificationRepository classifications,
@@ -65,20 +76,43 @@ public class PipelineCheckpointService {
                                      FactExtractionRunRepository extractionRuns,
                                      InterpretedClaimRepository claims,
                                      ClaimVerificationRepository verifications,
+                                     FactExtractionJob extraction,
                                      @org.springframework.beans.factory.annotation.Value(
                                              "${marketradar.curation.max-age-days:400}")
                                      int analysisMaxAgeDays,
                                      @org.springframework.beans.factory.annotation.Value(
                                              "${marketradar.curation.require-publication-date:true}")
-                                     boolean requirePublicationDate) {
+                                     boolean requirePublicationDate,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.analyst.batch-documents:60}")
+                                     int analystMaxDocuments,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.analyst.max-facts-per-document:12}")
+                                     int analystMaxFactsPerDocument,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.analyst.max-executive-facts:60}")
+                                     int analystMaxExecutiveFacts,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.analyst.max-documents-per-source:18}")
+                                     int analystMaxDocumentsPerSource,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.analyst.max-age-days:365}")
+                                     int analystMaxAgeDays,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.analyst.target-market:VN}")
+                                     String analystTargetMarket) {
         this.docs = docs;
         this.classifications = classifications;
         this.facts = facts;
         this.extractionRuns = extractionRuns;
         this.claims = claims;
         this.verifications = verifications;
+        this.extraction = extraction;
         this.analysisMaxAgeDays = analysisMaxAgeDays;
         this.requirePublicationDate = requirePublicationDate;
+        this.analystSelectionConfig = new AnalystInputSelection.Config(
+                analystMaxDocuments, analystMaxFactsPerDocument, analystMaxExecutiveFacts,
+                analystMaxDocumentsPerSource, analystMaxAgeDays, analystTargetMarket);
     }
 
     @Transactional(readOnly = true)
@@ -141,21 +175,44 @@ public class PipelineCheckpointService {
                 .filter(f -> f.getIntelligenceTopic() != null)
                 .filter(f -> f.getGeographyScope() != null)
                 .filter(f -> f.getTemporalRole() != null).count();
+        long routed = activeFacts.stream().filter(f -> f.getBiBucket() != null).count();
         long entityQuarantined = activeFacts.stream().filter(f ->
                 !com.marketradar.review.EntityAttributionGuard.isFactAttributionSafe(f)).count();
+        AnalystInputSelection.Selection analystSelection = AnalystInputSelection.select(
+                activeFacts, java.time.LocalDate.now(), analystSelectionConfig);
+        ResearchCurationPlanner.Plan researchMain = extraction.curationPlan(
+                ResearchCurationPlanner.Mode.MAIN);
+        ResearchCurationPlanner.Plan researchAudit = extraction.curationPlan(
+                ResearchCurationPlanner.Mode.AUDIT);
+        ResearchCurationBatchService.Assessment researchAssessment =
+                extraction.curationAssessment(researchMain, researchAudit);
+        long curatedAnalysisDocuments = analystSelection.eligibleByDocument().size();
+        long deferredAnalysisDocuments = analystSelection.diagnostics().deferredDocuments();
+        java.util.Set<Long> curatedAnalysisDocIds = analystSelection.eligibleByDocument().keySet().stream()
+                .map(RawDoc::getId).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
+        java.util.Set<String> curatedFactCodes = analystSelection.eligibleByDocument().values().stream()
+                .flatMap(List::stream).map(com.marketradar.domain.EvidenceFact::getFactCode)
+                .collect(Collectors.toSet());
         Evidence evidence = new Evidence(activeFacts.size(), factDocuments,
+                curatedAnalysisDocuments, deferredAnalysisDocuments,
+                researchMain.diagnostics().candidateClusters(),
+                researchMain.diagnostics().representedClusters(),
+                researchMain.diagnostics().remainingClusters(),
+                researchAudit.selected().size(),
+                researchAssessment.recommendation().name(), researchAssessment.message(),
                 latestExtractionRuns.size(),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.SUCCESS, 0L),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.EMPTY_RESULT, 0L),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.LLM_ERROR, 0L),
                 extractionStatuses.getOrDefault(FactExtractionRun.Status.SCHEMA_REJECTED, 0L),
-                coreComplete, entityQuarantined);
+                coreComplete, routed, entityQuarantined);
 
         List<InterpretedClaim> activeClaims = claims.findAllForAudit().stream()
                 .filter(c -> !c.isSuperseded())
                 .filter(c -> c.getOrigin() == InterpretedClaim.Origin.PIPELINE)
                 .filter(c -> c.getRawDoc() == null
-                        || analysisEligibleDocIds.contains(c.getRawDoc().getId()))
+                        ? citationsWithin(c.getFactCodesCsv(), curatedFactCodes)
+                        : curatedAnalysisDocIds.contains(c.getRawDoc().getId()))
                 .toList();
         Map<InterpretedClaim.GateStatus, Long> gateStatuses = counts(
                 activeClaims, InterpretedClaim::getGateStatus, InterpretedClaim.GateStatus.class);
@@ -219,9 +276,15 @@ public class PipelineCheckpointService {
 
         PipelineCheckpointRules.Metrics metrics = new PipelineCheckpointRules.Metrics(
                 corpus.documents(), corpus.analysisEligibleDocuments(), curation.analysisEligibleClassifications(),
-                curation.confirmedAnalysisEligible(), evidence.latestAttempts(), evidence.successfulDocuments(),
+                curation.confirmedAnalysisEligible(), evidence.researchCandidateClusters(),
+                evidence.representedResearchClusters(),
+                researchAssessment.recommendation()
+                        == ResearchCurationBatchService.Recommendation.READY_FOR_ANALYST,
+                evidence.researchRecommendationMessage(),
+                evidence.latestAttempts(), evidence.successfulDocuments(),
                 evidence.llmErrors() + evidence.schemaRejected(), evidence.activeFacts(),
-                evidence.activeFactDocuments(), evidence.coreDimensionCompleteFacts(),
+                evidence.activeFactDocuments(), evidence.curatedAnalysisDocuments(),
+                evidence.coreDimensionCompleteFacts(), evidence.routedFacts(),
                 evidence.entityQuarantinedFacts(), analysis.activePipelineClaims(),
                 analysis.activeClaimDocuments(),
                 analysis.gateL1Passed(), verification.latestVerdicts(), verification.entailed(),
@@ -260,6 +323,13 @@ public class PipelineCheckpointService {
         if (claim.getFactCodesCsv() == null || claim.getFactCodesCsv().isBlank()) return List.of();
         return java.util.Arrays.stream(claim.getFactCodesCsv().split(","))
                 .map(String::strip).map(factByCode::get).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private static boolean citationsWithin(String csv, java.util.Set<String> allowedCodes) {
+        if (csv == null || csv.isBlank()) return false;
+        List<String> codes = java.util.Arrays.stream(csv.split(","))
+                .map(String::strip).filter(code -> !code.isBlank()).toList();
+        return !codes.isEmpty() && codes.stream().allMatch(allowedCodes::contains);
     }
 
     private static boolean isAnalyticalContent(InterpretedClaim.Slot slot) {

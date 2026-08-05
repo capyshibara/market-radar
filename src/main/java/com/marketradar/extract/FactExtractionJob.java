@@ -19,6 +19,8 @@ import com.marketradar.intelligence.EntityResolutionRules;
 import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
+import com.marketradar.llm.TerminalLlmException;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.domain.PipelineItemLog;
 import com.marketradar.pipeline.PipelineRunStatusService;
 import com.marketradar.repo.ClassificationRepository;
@@ -30,6 +32,7 @@ import com.marketradar.repo.PipelineItemLogRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -134,9 +137,13 @@ public class FactExtractionJob {
      * Không gán DEEP_DIVE ở đây — đó là quyết định của Connector (gộp nhiều fact thành 1 bài
      * phân tích), không phải quyết định per-fact của Router.
      */
+    private static final int ROUTER_BATCH_SIZE = 20;
+
     private static final String ROUTER_SYSTEM = """
-            MODE:ROUTE_FACT
-            Bạn phân loại 1 fact (đoạn nguyên văn đã trích) theo HAI TRỤC độc lập,
+            MODE:ROUTE_FACT_BATCH
+            Bạn phân loại một NHÓM fact của CÙNG MỘT TÀI LIỆU theo HAI TRỤC độc lập.
+            Mỗi fact có fact_index ổn định. Phải trả đúng một route cho MỖI fact_index;
+            không gộp fact, không bỏ fact, không thay đổi span.
             dựa trên NỘI DUNG THẬT — không đoán, không suy diễn ngoài những gì đoạn văn nói.
 
             0. "intelligence_topic" — trục core tái sử dụng cho mọi thị trường/phòng ban,
@@ -199,17 +206,18 @@ public class FactExtractionJob {
                tắt điều hành không (dựa trên mức độ ảnh hưởng thật tới vị thế cạnh tranh, KHÔNG
                phải dựa trên có nhiều con số/tên riêng hay không).
 
-            Gọi tool "route" với đúng các trường trên — trường không áp dụng thì để trống/null,
-            KHÔNG bịa giá trị.
+            Gọi tool "route_batch" với mảng routes. Mỗi phần tử gồm fact_index và đúng các
+            trường trên — trường không áp dụng thì để trống/null, KHÔNG bịa giá trị.
             """;
 
     private static final java.util.List<LlmClient.LlmTool> ROUTER_TOOLS = buildRouterTools();
 
     private static java.util.List<LlmClient.LlmTool> buildRouterTools() {
         ObjectMapper m = new ObjectMapper();
-        ObjectNode schema = m.createObjectNode();
-        schema.put("type", "object");
-        ObjectNode props = schema.putObject("properties");
+        ObjectNode route = m.createObjectNode();
+        route.put("type", "object");
+        ObjectNode props = route.putObject("properties");
+        props.putObject("fact_index").put("type", "integer");
         props.putObject("intelligence_topic").put("type", "string").put("description",
                 "MACRO_ECONOMIC|REGULATION_POLICY|PRODUCT_OFFER|DISTRIBUTION|"
                         + "FINANCIAL_PERFORMANCE|MARKET_SHARE|CORPORATE_ACTION|TECHNOLOGY_AI|"
@@ -226,9 +234,17 @@ public class FactExtractionJob {
         props.putObject("kpi_label").put("type", "string");
         props.putObject("kpi_value").put("type", "string");
         props.putObject("highlight").put("type", "boolean");
-        schema.putArray("required").add("intelligence_topic").add("bucket").add("highlight");
-        return java.util.List.of(new LlmClient.LlmTool("route",
-                "Gán nhãn Router cho 1 fact — chủ đề, chủ thể, vị trí trên report.", schema));
+        route.putArray("required").add("fact_index").add("intelligence_topic")
+                .add("bucket").add("highlight");
+
+        ObjectNode schema = m.createObjectNode();
+        schema.put("type", "object");
+        ObjectNode routes = schema.putObject("properties").putObject("routes");
+        routes.put("type", "array");
+        routes.set("items", route);
+        schema.putArray("required").add("routes");
+        return java.util.List.of(new LlmClient.LlmTool("route_batch",
+                "Gán nhãn Router cho một nhóm fact của cùng tài liệu.", schema));
     }
 
     private final ClassificationRepository classifications;
@@ -243,6 +259,9 @@ public class FactExtractionJob {
     private final FactExtractionRunRepository extractionRuns;
     private final ExtractionPersistenceService extractionPersistence;
     private final ExtractionBackfillService backfill;
+    private final com.marketradar.intelligence.MarketEventService marketEvents;
+    private final ResearchCurationBatchService curationBatches;
+    private final ResearchCurationPlanner.Config curationConfig;
 
     public FactExtractionJob(ClassificationRepository classifications, EvidenceFactRepository facts,
                              LlmCallLogRepository callLog, LlmClient llm,
@@ -251,7 +270,16 @@ public class FactExtractionJob {
                              com.marketradar.prompt.PromptService promptService,
                              FactExtractionRunRepository extractionRuns,
                              ExtractionPersistenceService extractionPersistence,
-                             ExtractionBackfillService backfill) {
+                             ExtractionBackfillService backfill,
+                             com.marketradar.intelligence.MarketEventService marketEvents,
+                             ResearchCurationBatchService curationBatches,
+                             @Value("${marketradar.researcher.batch-clusters:20}") int batchClusters,
+                             @Value("${marketradar.researcher.representatives-per-cluster:2}") int representativesPerCluster,
+                             @Value("${marketradar.researcher.audit-documents:12}") int auditDocuments,
+                             @Value("${marketradar.researcher.max-documents-per-source-per-batch:8}") int maxDocumentsPerSource,
+                             @Value("${marketradar.researcher.hard-document-ceiling:500}") int hardDocumentCeiling,
+                             @Value("${marketradar.researcher.max-age-days:365}") int maxAgeDays,
+                             @Value("${marketradar.researcher.target-market:VN}") String targetMarket) {
         this.classifications = classifications;
         this.facts = facts;
         this.callLog = callLog;
@@ -263,11 +291,20 @@ public class FactExtractionJob {
         this.extractionRuns = extractionRuns;
         this.extractionPersistence = extractionPersistence;
         this.backfill = backfill;
+        this.marketEvents = marketEvents;
+        this.curationBatches = curationBatches;
+        this.curationConfig = new ResearchCurationPlanner.Config(batchClusters,
+                representativesPerCluster, auditDocuments, maxDocumentsPerSource,
+                hardDocumentCeiling, maxAgeDays, targetMarket);
         promptService.registerDefault(com.marketradar.prompt.PromptKey.EXTRACT, SYSTEM);
     }
 
     public String runOnce() {
-        return runSelected(null);
+        return runSelected(null, ResearchCurationPlanner.Mode.MAIN);
+    }
+
+    public String runAuditOnce() {
+        return runSelected(null, ResearchCurationPlanner.Mode.AUDIT);
     }
 
     /** Explicit, bounded reprocessing entry point. Invalid/current/incomplete IDs are rejected. */
@@ -276,28 +313,104 @@ public class FactExtractionJob {
         if (selection.acceptedIds().isEmpty()) {
             return "No eligible targeted docs. " + String.join("; ", selection.rejected()) + "\n";
         }
-        String result = runSelected(Set.copyOf(selection.acceptedIds()));
+        String result = runSelected(Set.copyOf(selection.acceptedIds()), null);
         if (!selection.rejected().isEmpty()) {
             result += "Rejected targets: " + String.join("; ", selection.rejected()) + "\n";
         }
         return result;
     }
 
-    private String runSelected(Set<Long> targetedIds) {
+    /** Read-only paid-input preview. It performs no extraction, routing or database write. */
+    public String dryRunInputPlan() {
+        return formatPlan(curationPlan(ResearchCurationPlanner.Mode.MAIN));
+    }
+
+    /** Read-only deferred-tail audit preview; no model call and no state mutation. */
+    public String dryRunAuditPlan() {
+        return formatPlan(curationPlan(ResearchCurationPlanner.Mode.AUDIT));
+    }
+
+    public ResearchCurationPlanner.Plan curationPlan(ResearchCurationPlanner.Mode mode) {
+        List<Classification> confirmed = confirmedForSelection(null);
+        ExtractionVersioning.CurrentVersion version = ExtractionVersioning.current(
+                llm.providerName(), promptService.body(com.marketradar.prompt.PromptKey.EXTRACT));
+        ExtractionCoverage coverage = extractionCoverage(confirmed, version);
+        return ResearchCurationPlanner.plan(confirmed,
+                LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")), curationConfig,
+                coverage.representedDocumentIds(), coverage.terminalAttemptedDocumentIds(), mode);
+    }
+
+    public ResearchCurationBatchService.Assessment curationAssessment() {
+        return curationAssessment(curationPlan(ResearchCurationPlanner.Mode.MAIN),
+                curationPlan(ResearchCurationPlanner.Mode.AUDIT));
+    }
+
+    public ResearchCurationBatchService.Assessment curationAssessment(
+            ResearchCurationPlanner.Plan mainPlan, ResearchCurationPlanner.Plan auditPlan) {
+        return curationBatches.assess(mainPlan, auditPlan);
+    }
+
+    public List<com.marketradar.domain.ResearchCurationBatch> recentCurationBatches(int limit) {
+        return curationBatches.recent(limit);
+    }
+
+    private String formatPlan(ResearchCurationPlanner.Plan selection) {
+        StringBuilder out = new StringBuilder(selection.summary()).append('\n');
+        out.append("Coverage now: topics=").append(selection.coverage().representedTopics().size())
+                .append('/').append(selection.coverage().availableTopics().size())
+                .append(", acquisition=").append(selection.coverage().representedAcquisition().size())
+                .append('/').append(selection.coverage().availableAcquisition().size())
+                .append(", entities=").append(selection.coverage().representedEntities().size())
+                .append('/').append(selection.coverage().availableEntities().size())
+                .append("; missing topics=").append(selection.coverage().missingTopics())
+                .append("; missing acquisition=").append(selection.coverage().missingAcquisition())
+                .append(".\n");
+        out.append("Selected documents for this bounded ")
+                .append(selection.mode() == ResearchCurationPlanner.Mode.MAIN ? "batch" : "audit")
+                .append(" (maximum 60 shown):\n");
+        for (var selected : selection.selected().stream().limit(60).toList()) {
+            RawDoc doc = selected.document();
+            out.append("doc#").append(doc.getId())
+                    .append(" · score=").append(selected.priorityScore())
+                    .append(" · ").append(selected.authority())
+                    .append(" · ").append(selected.marketLane())
+                    .append(" · ").append(selected.acquisitionLane())
+                    .append(" · ").append(doc.getPublishedAt() == null ? "undated"
+                            : doc.getPublishedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate())
+                    .append(" · ").append(doc.getSource().getCode())
+                    .append(" · ").append(truncate(doc.getTitle(), 90)).append('\n');
+        }
+        return out.toString();
+    }
+
+    private String runSelected(Set<Long> targetedIds, ResearchCurationPlanner.Mode mode) {
         if ("STUB".equals(llm.providerName())) {
             return "EXTRACT: LLM is STUB — not extracting facts (no fake heuristic facts). "
                     + "Configure a writer key (WRITER_API_KEY or ANTHROPIC_API_KEY) and run again.\n";
         }
 
-        List<Classification> confirmed = classifications.findAllForDisplay().stream()
-                .filter(c -> c.getStatus() == Classification.Status.CONFIRMED)
-                .filter(c -> c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
-                .filter(c -> targetedIds == null || targetedIds.contains(c.getRawDoc().getId()))
-                .toList();
+        List<Classification> confirmed = confirmedForSelection(targetedIds);
         if (confirmed.isEmpty()) return "No CONFIRMED docs yet — run Classify first.\n";
 
         ExtractionVersioning.CurrentVersion version = ExtractionVersioning.current(
                 llm.providerName(), promptService.body(com.marketradar.prompt.PromptKey.EXTRACT));
+        String selectionSummary = "";
+        ResearchCurationPlanner.Plan curationPlan = null;
+        if (targetedIds == null) {
+            ExtractionCoverage coverage = extractionCoverage(confirmed, version);
+            curationPlan = ResearchCurationPlanner.plan(confirmed,
+                    LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")), curationConfig,
+                    coverage.representedDocumentIds(), coverage.terminalAttemptedDocumentIds(), mode);
+            confirmed = curationPlan.classifications();
+            selectionSummary = curationPlan.summary() + "\n";
+            if (confirmed.isEmpty()) return selectionSummary + "No selected document is eligible for extraction.\n";
+        }
+
+        Long curationBatchId = null;
+        if (curationPlan != null) {
+            var before = marketEvents.materializeMissing();
+            curationBatchId = curationBatches.begin(curationPlan, before);
+        }
 
         long eligible = confirmed.stream()
                 .map(Classification::getRawDoc)
@@ -307,7 +420,8 @@ public class FactExtractionJob {
         Long runLogId = progress.currentRunLogId("extract");
 
         StringBuilder sb = new StringBuilder();
-        int docsDone = 0, docsSkipped = 0, factsSaved = 0, spansRejected = 0;
+        int docsDone = 0, docsSkipped = 0, factsSaved = 0, spansRejected = 0,
+                routerUnmappedFacts = 0;
 
         for (Classification c : confirmed) {
             RawDoc doc = c.getRawDoc();
@@ -347,6 +461,12 @@ public class FactExtractionJob {
                     logItem(runLogId, doc, "LLM_ERROR",
                             "chunk " + (chunk.index() + 1) + "/" + chunkPlan.chunkCount());
                     progress.stepProgress("extract");
+                    if (e instanceof TerminalLlmException) {
+                        curationBatches.fail(curationBatchId, e.getMessage());
+                        throw new TerminalLlmRuntimeException(
+                                "Researcher stopped: writer provider/account cannot accept requests — "
+                                        + e.getMessage(), e);
+                    }
                     failed = true;
                     break;
                 }
@@ -381,9 +501,22 @@ public class FactExtractionJob {
             }
             if (failed) continue;
 
-            List<EvidenceFact> accepted = materializeFacts(new ArrayList<>(uniqueDrafts.values()), doc);
             ExtractionRunMetrics metrics = metrics(chunkPlan, chunksCompleted,
                     factsProposed, rejections, duplicateSpans);
+            MaterializedFacts materialized;
+            try {
+                materialized = materializeFacts(new ArrayList<>(uniqueDrafts.values()), doc);
+            } catch (TerminalLlmRuntimeException terminal) {
+                extractionPersistence.fail(extractionRun.getId(),
+                        FactExtractionRun.Status.LLM_ERROR,
+                        "Connector terminal provider failure: " + terminal.getMessage(), metrics);
+                logItem(runLogId, doc, "LLM_ERROR", "Connector terminal provider failure");
+                progress.stepProgress("extract");
+                curationBatches.fail(curationBatchId, terminal.getMessage());
+                throw terminal;
+            }
+            List<EvidenceFact> accepted = materialized.facts();
+            routerUnmappedFacts += materialized.routerUnmappedFacts();
             spansRejected += metrics.spansRejected();
             if (accepted.isEmpty()) {
                 extractionPersistence.fail(extractionRun.getId(),
@@ -404,21 +537,84 @@ public class FactExtractionJob {
               .append(" fact across ").append(chunkPlan.chunkCount()).append(" chunk(s)")
               .append(metrics.spansRejected() > 0
                       ? " (" + metrics.spansRejected() + " rejected: " + metrics.rejectionSummary() + ")" : "")
+              .append(materialized.routerUnmappedFacts() > 0
+                      ? " · " + materialized.routerUnmappedFacts() + " fact(s) kept with Router fallback" : "")
               .append(superseded > 0 ? " · " + superseded + " prior fact(s) superseded" : "")
               .append(" — ").append(truncate(doc.getTitle(), 60)).append('\n');
             log.info("Extract doc#{} → +{} fact, {} chunk(s), {} rejected",
                     doc.getId(), accepted.size(), chunkPlan.chunkCount(), metrics.spansRejected());
-            logItem(runLogId, doc, "OK", "+" + accepted.size() + " fact · "
-                    + chunkPlan.chunkCount() + " chunk(s) · " + metrics.rejectionSummary());
+            logItem(runLogId, doc,
+                    materialized.routerUnmappedFacts() == 0 ? "OK" : "OK_ROUTER_FALLBACK",
+                    "+" + accepted.size() + " fact · " + chunkPlan.chunkCount()
+                            + " chunk(s) · router-unmapped=" + materialized.routerUnmappedFacts()
+                            + " · " + metrics.rejectionSummary());
             progress.stepProgress("extract");
         }
 
-        sb.insert(0, "Extracted " + docsDone + " doc(s) (+" + factsSaved + " fact(s), "
+        // Connector boundary: normalize every active evidence edition and refresh
+        // independent-source/conflict clusters before Analyst sees the corpus. This is
+        // deterministic and idempotent; a failure stops the stage but preserves facts.
+        com.marketradar.intelligence.MarketEventService.MaterializationResult eventMaterialization;
+        try {
+            eventMaterialization = marketEvents.materializeMissing();
+            if (curationBatchId != null) {
+                curationBatches.complete(curationBatchId, (int) eligible, docsDone,
+                        factsSaved, eventMaterialization);
+            }
+        } catch (RuntimeException connectorFailure) {
+            curationBatches.fail(curationBatchId, connectorFailure.getMessage());
+            throw connectorFailure;
+        }
+        sb.append("Connector: +").append(eventMaterialization.created())
+                .append(" normalized event(s), ").append(eventMaterialization.alreadyExisting())
+                .append(" already current; ").append(eventMaterialization.clusters())
+                .append(" cluster(s), ").append(eventMaterialization.corroboratedClusters())
+                .append(" independently corroborated, ").append(eventMaterialization.conflictClusters())
+                .append(" conflict cluster(s).\n");
+
+        sb.insert(0, selectionSummary + "Extracted " + docsDone + " doc(s) (+" + factsSaved + " fact(s), "
                 + spansRejected + " span(s) rejected — not verbatim), skipped "
                 + docsSkipped + " (current/incomplete/duplicate). Provider: " + llm.providerName()
+                + " · Router fallback=" + routerUnmappedFacts + " fact(s)"
                 + " · extraction version: " + version.pipelineVersion()
                 + " · prompt: " + version.promptSha256().substring(0, 12) + "\n");
         return sb.toString();
+    }
+
+    private record ExtractionCoverage(Set<Long> representedDocumentIds,
+                                      Set<Long> terminalAttemptedDocumentIds) {}
+
+    private ExtractionCoverage extractionCoverage(List<Classification> confirmed,
+                                                   ExtractionVersioning.CurrentVersion version) {
+        Map<Long, List<FactExtractionRun>> runsByDocument = extractionRuns.findAllWithDocument().stream()
+                .filter(run -> run.getRawDoc() != null && run.getRawDoc().getId() != null)
+                .collect(java.util.stream.Collectors.groupingBy(run -> run.getRawDoc().getId()));
+        Set<Long> represented = new java.util.LinkedHashSet<>();
+        Set<Long> attempted = new java.util.LinkedHashSet<>();
+        for (Classification classification : confirmed) {
+            RawDoc doc = classification.getRawDoc();
+            if (doc.getId() == null) continue;
+            String signature = ExtractionVersioning.signature(version, doc);
+            for (FactExtractionRun run : runsByDocument.getOrDefault(doc.getId(), List.of())) {
+                if (!signature.equals(run.getExtractionSignature())) continue;
+                if (run.getStatus() == FactExtractionRun.Status.SUCCESS && run.isCurrentEdition()) {
+                    represented.add(doc.getId());
+                    attempted.add(doc.getId());
+                } else if (run.getStatus() == FactExtractionRun.Status.EMPTY_RESULT
+                        || run.getStatus() == FactExtractionRun.Status.SCHEMA_REJECTED) {
+                    attempted.add(doc.getId());
+                }
+            }
+        }
+        return new ExtractionCoverage(Set.copyOf(represented), Set.copyOf(attempted));
+    }
+
+    private List<Classification> confirmedForSelection(Set<Long> targetedIds) {
+        return classifications.findAllForDisplay().stream()
+                .filter(c -> c.getStatus() == Classification.Status.CONFIRMED)
+                .filter(c -> c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
+                .filter(c -> targetedIds == null || targetedIds.contains(c.getRawDoc().getId()))
+                .toList();
     }
 
     private ExtractionContentDiagnostics.Assessment extractionAssessment(
@@ -556,7 +752,9 @@ public class FactExtractionJob {
         return new ChunkParseResult(false, List.copyOf(accepted), proposed, rejections);
     }
 
-    private List<EvidenceFact> materializeFacts(List<FactDraft> drafts, RawDoc doc) {
+    private record MaterializedFacts(List<EvidenceFact> facts, int routerUnmappedFacts) {}
+
+    private MaterializedFacts materializeFacts(List<FactDraft> drafts, RawDoc doc) {
         List<EvidenceFact> result = new ArrayList<>();
         for (int i = 0; i < drafts.size(); i++) {
             FactDraft d = drafts.get(i);
@@ -569,10 +767,10 @@ public class FactExtractionJob {
                     .forecastHorizon(d.forecastHorizon())
                     .summaryVi(d.summaryVi()).summaryEn(d.summaryEn());
             enrichCoreDimensions(fact, doc);
-            route(fact, doc);
             result.add(fact);
         }
-        return result;
+        int routed = routeBatches(result, doc);
+        return new MaterializedFacts(List.copyOf(result), Math.max(0, result.size() - routed));
     }
 
     /**
@@ -641,28 +839,72 @@ public class FactExtractionJob {
      * field null/false) khi lỗi — fact vẫn được lưu bình thường, chỉ là chưa có nhãn Router,
      * PeriodicalBiAdapter tự rơi về heuristic cũ cho các fact chưa route (không mất dữ liệu).
      */
-    private void route(EvidenceFact fact, RawDoc doc) {
-        String user = "NGỮ CẢNH: thị trường=" + market(doc)
-                + (doc.isHomeCompanyContent() ? " · CHỦ THỂ=CHÍNH TECHCOM LIFE (không phải đối thủ, tài liệu tự nộp — "
-                        + "nếu fact hợp lý cho so sánh chiến lược, đặt subject_key=\"Techcom Life\")" : "")
-                + " · nguồn=" + doc.getSource().getName()
-                + "\nTIÊU ĐỀ: " + (doc.getTitle() == null ? "(không tiêu đề)" : doc.getTitle())
-                + "\nCÔNG TY (nếu có): " + (fact.getCompany() == null ? "(không rõ)" : fact.getCompany())
-                + "\nSẢN PHẨM (nếu có): " + (fact.getProductName() == null ? "(không rõ)" : fact.getProductName())
-                + "\nNGÀY SỰ KIỆN (nếu có): " + (fact.getEventDate() == null ? "(không rõ)" : fact.getEventDate())
-                + "\nSPAN NGUYÊN VĂN:\n" + fact.getSpanText()
-                + "\n---\nGọi tool route để gán nhãn.";
-        try {
-            String raw = routeCallWithCache(doc, user);
-            JsonNode args = mapper.readTree(raw);
-            applyRouting(fact, args);
-        } catch (LlmException e) {
-            log.warn("Router: lỗi LLM cho fact {} (doc#{}), để trống nhãn: {}",
-                    fact.getFactCode(), doc.getId(), e.getMessage());
-        } catch (Exception e) {
-            log.warn("Router: không parse được kết quả cho fact {} (doc#{}): {}",
-                    fact.getFactCode(), doc.getId(), e.getMessage());
+    private int routeBatches(List<EvidenceFact> documentFacts, RawDoc doc) {
+        int routed = 0;
+        for (int start = 0; start < documentFacts.size(); start += ROUTER_BATCH_SIZE) {
+            int end = Math.min(start + ROUTER_BATCH_SIZE, documentFacts.size());
+            List<EvidenceFact> batch = documentFacts.subList(start, end);
+            routed += routeBatch(batch, doc, start);
         }
+        return routed;
+    }
+
+    private int routeBatch(List<EvidenceFact> batch, RawDoc doc, int startIndex) {
+        StringBuilder user = new StringBuilder("NGỮ CẢNH: thị trường=").append(market(doc))
+                .append(doc.isHomeCompanyContent()
+                        ? " · CHỦ THỂ=CHÍNH TECHCOM LIFE (không phải đối thủ, tài liệu tự nộp — "
+                          + "nếu fact hợp lý cho so sánh chiến lược, đặt subject_key=\"Techcom Life\")"
+                        : "")
+                .append(" · nguồn=").append(doc.getSource().getName())
+                .append("\nTIÊU ĐỀ: ")
+                .append(doc.getTitle() == null ? "(không tiêu đề)" : doc.getTitle())
+                .append("\n\nFACTS:\n");
+        for (int i = 0; i < batch.size(); i++) {
+            EvidenceFact fact = batch.get(i);
+            user.append("fact_index=").append(i)
+                    .append("\nCÔNG TY (nếu có): ")
+                    .append(fact.getCompany() == null ? "(không rõ)" : fact.getCompany())
+                    .append("\nSẢN PHẨM (nếu có): ")
+                    .append(fact.getProductName() == null ? "(không rõ)" : fact.getProductName())
+                    .append("\nNGÀY SỰ KIỆN (nếu có): ")
+                    .append(fact.getEventDate() == null ? "(không rõ)" : fact.getEventDate())
+                    .append("\nSPAN NGUYÊN VĂN:\n").append(fact.getSpanText())
+                    .append("\n---\n");
+        }
+        user.append("Gọi tool route_batch và trả đúng một route cho từng fact_index 0..")
+                .append(batch.size() - 1).append('.');
+        try {
+            String raw = routeBatchCallWithCache(doc, user.toString(), startIndex);
+            JsonNode args = mapper.readTree(raw);
+            return applyBatchRouting(batch, args);
+        } catch (LlmException e) {
+            if (e instanceof TerminalLlmException) {
+                throw new TerminalLlmRuntimeException(
+                        "Connector stopped: writer provider/account cannot accept requests — "
+                                + e.getMessage(), e);
+            }
+            log.warn("Router: lỗi LLM cho batch {}..{} (doc#{}), giữ deterministic fallback: {}",
+                    startIndex, startIndex + batch.size() - 1, doc.getId(), e.getMessage());
+        } catch (Exception e) {
+            log.warn("Router: không parse được batch {}..{} (doc#{}), giữ deterministic fallback: {}",
+                    startIndex, startIndex + batch.size() - 1, doc.getId(), e.getMessage());
+        }
+        return 0;
+    }
+
+    static int applyBatchRouting(List<EvidenceFact> batch, JsonNode args) {
+        JsonNode routes = args.path("routes");
+        if (!routes.isArray()) return 0;
+        boolean[] applied = new boolean[batch.size()];
+        int count = 0;
+        for (JsonNode route : routes) {
+            int index = route.path("fact_index").asInt(-1);
+            if (index < 0 || index >= batch.size() || applied[index]) continue;
+            applyRouting(batch.get(index), route);
+            applied[index] = true;
+            count++;
+        }
+        return count;
     }
 
     private static final java.util.Set<String> VALID_ROUTER_BUCKETS = java.util.Set.of(
@@ -731,9 +973,10 @@ public class FactExtractionJob {
         return parsed.filter(date -> EvidenceDateGrounding.datesIn(span).contains(date));
     }
 
-    /** Cùng cơ chế replay-cache với callWithCache(chunk) phía trên, khác purpose="ROUTE". */
-    private String routeCallWithCache(RawDoc doc, String user) throws LlmException {
-        String hash = sha256(llm.providerName() + "\nROUTE\n" + ROUTER_SYSTEM + "\n---\n" + user);
+    /** Cùng cơ chế replay-cache với extraction, nhưng một call định tuyến tối đa 20 facts. */
+    private String routeBatchCallWithCache(RawDoc doc, String user, int startIndex) throws LlmException {
+        String hash = sha256(llm.providerName() + "\nROUTE_BATCH_V1\n" + ROUTER_SYSTEM
+                + "\nSTART_INDEX=" + startIndex + "\n---\n" + user);
         if (replayCache) {
             var cached = callLog.findFirstByPromptSha256AndSampleIndexOrderByCreatedAtDesc(hash, 0);
             if (cached.isPresent()) return cached.get().getResponseText();
@@ -741,7 +984,7 @@ public class FactExtractionJob {
         long t0 = System.currentTimeMillis();
         LlmClient.ToolChoice choice = llm.completeWithTools(ROUTER_SYSTEM, user, ROUTER_TOOLS, null);
         String responseJson = choice.arguments().toString();
-        callLog.save(new LlmCallLog("ROUTE", llm.providerName(), hash, 0,
+        callLog.save(new LlmCallLog("ROUTE_BATCH", llm.providerName(), hash, 0,
                 responseJson, doc.getId(), System.currentTimeMillis() - t0));
         return responseJson;
     }

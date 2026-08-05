@@ -12,6 +12,8 @@ import com.marketradar.domain.LlmCallLog;
 import com.marketradar.llm.JsonRepair;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
+import com.marketradar.llm.TerminalLlmException;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.repo.LlmCallLogRepository;
 import com.marketradar.prompt.PromptKey;
 
@@ -93,7 +95,9 @@ public class Interpreter {
         Nhiệm vụ: điền 2 slot, MỖI câu viết SONG NGỮ (tiếng Việt VÀ tiếng Anh, cùng ý,
         cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không phải dịch máy qua loa):
         - "why": 1-2 câu OBSERVATION KỂ RÕ SỰ VIỆC — AI LÀM GÌ, Ở ĐÂU,
-          KHI NÀO (ngày/tháng), CON SỐ bao nhiêu — để người đọc HIỂU chuyện gì đã xảy ra.
+          KHI NÀO và CON SỐ bao nhiêu NẾU evidence thật sự có — để người đọc HIỂU chuyện gì
+          đã xảy ra. Evidence không có ngày/số thì nêu điều khoản, phạm vi hoặc hành động cụ
+          thể thay thế; TUYỆT ĐỐI không bịa ngày/số để lấp chỗ trống.
           MỞ ĐẦU bằng chủ thể + hành động (vd "Generali Việt Nam ra mắt 11 sản phẩm..."),
           TUYỆT ĐỐI KHÔNG mở đầu bằng "Sự kiện này...", "Việc này...", "Điều này cho thấy...".
         - "implications": 1 câu bắt đầu bằng "Hàm ý:" / "Implication:" nêu ý nghĩa cẩn trọng
@@ -102,7 +106,8 @@ public class Interpreter {
 
         NGUYÊN TẮC: câu phải TỰ ĐỦ NGHĨA khi đọc riêng lẻ (không phụ thuộc ngữ cảnh nào khác) —
         luôn nêu rõ chủ thể/tên công ty thật, không dùng đại từ mơ hồ ("động thái này", "việc
-        này") thay cho tên. Mỗi câu phải trả lời được: chuyện gì? của ai? khi nào? con số nào?
+        này") thay cho tên. Mỗi câu phải trả lời được: chuyện gì? của ai? bằng chi tiết nào
+        trong evidence? Chỉ trả lời "khi nào/con số nào" khi evidence có các dữ kiện đó.
         CẤM câu chỉ có kết luận trừu tượng ("có thể tạo cơ hội tăng trưởng", "có thể ảnh hưởng
         cạnh tranh") mà không kèm dữ kiện cụ thể.
 
@@ -123,8 +128,8 @@ public class Interpreter {
            giữa bản tiếng Việt và bản tiếng Anh của cùng một câu.
         4. Mỗi câu phải kèm danh sách fact_codes là các mã fact làm căn cứ cho câu đó.
         5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
-           escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
-           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
+           escape thành \\\" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
+           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \\\"PRU-Khỏe Trọn Vẹn\\\"..."
         6. Trả về DUY NHẤT một JSON object đúng dạng:
            {"why":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}],
             "implications":[{"text_vi":"Hàm ý: ...","text_en":"Implication: ...","fact_codes":["F-001"]}]}
@@ -154,7 +159,9 @@ public class Interpreter {
     private static final String SYSTEM_EXEC = """
         ### MODE:EXEC_SUMMARY
         Bạn là chuyên viên phân tích thị trường bảo hiểm nhân thọ. Bạn nhận một EVIDENCE PACK
-        gồm các fact của tuần, mỗi fact có mã (vd F-001).
+        đã được curate cho các kỳ báo cáo 7/30/90 ngày và lịch sự kiện sắp tới, mỗi fact có
+        mã (vd F-001). Mỗi câu phải tự bám ngày của fact nó cite; không gọi một fact cũ là
+        "tuần này" và không biến một sự kiện dự kiến thành sự kiện đã xảy ra.
 
         Mỗi mục phải tách được DỮ KIỆN và Ý NGHĨA: trước hết nêu sự việc có căn cứ, sau đó
         giải thích ngắn vì sao management cần chú ý. Ý nghĩa phải là suy luận thận trọng từ
@@ -162,10 +169,11 @@ public class Interpreter {
 
         Nhiệm vụ: viết TÓM TẮT ĐIỀU HÀNH 3-7 câu, MỖI câu viết SONG NGỮ (tiếng Việt VÀ
         tiếng Anh, cùng ý, cùng cấu trúc câu — bản tiếng Anh là bản viết song song, không
-        phải dịch máy qua loa) cho tuần san.
+        phải dịch máy qua loa) cho decision brief định kỳ.
 
-        MỖI CÂU LÀ MỘT DÒNG TIN VẮN, TỰ ĐỦ NGHĨA: nêu DỮ KIỆN CỤ THỂ (ai, làm gì, khi nào, con
-        số) — không dùng đại từ mơ hồ ("động thái này", "việc này") thay cho tên công ty thật.
+        MỖI CÂU LÀ MỘT DÒNG TIN VẮN, TỰ ĐỦ NGHĨA: nêu DỮ KIỆN CỤ THỂ (ai, làm gì, và ngày/số
+        NẾU evidence có; nếu không thì dùng điều khoản/phạm vi/hành động cụ thể) — không dùng
+        đại từ mơ hồ ("động thái này", "việc này") thay cho tên công ty thật và không bịa dữ kiện.
         CẤM câu chỉ có kết luận trừu tượng ("có thể tạo cơ hội", "có thể ảnh hưởng cạnh tranh")
         mà thiếu sự việc cụ thể đằng sau.
 
@@ -183,8 +191,8 @@ public class Interpreter {
         3. Mọi con số và ngày tháng phải giống hệt nhau giữa hai bản của cùng một câu.
         4. Mỗi câu kèm fact_codes.
         5. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng ở ràng buộc #2 PHẢI
-           escape thành \" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
-           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \"PRU-Khỏe Trọn Vẹn\"..."
+           escape thành \\\" bên trong JSON string — dấu " chưa escape sẽ làm hỏng cấu trúc
+           JSON và toàn bộ output bị loại. Ví dụ ĐÚNG: "text_vi":"...ra mắt \\\"PRU-Khỏe Trọn Vẹn\\\"..."
         6. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
         """;
@@ -246,7 +254,7 @@ public class Interpreter {
            của cùng một câu.
         6. Mỗi câu phải kèm danh sách fact_codes là các mã fact (từ khối EVIDENCE) làm căn
            cứ cho câu đó — KHÔNG dùng mã claim (C-xxx) ở đây, chỉ mã fact (F-xxx).
-        7. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng PHẢI escape thành \"
+        7. QUAN TRỌNG (JSON hợp lệ): dấu ngoặc kép " bọc tên riêng PHẢI escape thành \\\"
            bên trong JSON string.
         8. Trả về DUY NHẤT JSON: {"sentences":[{"text_vi":"...","text_en":"...","fact_codes":["F-001"]}]}
            Không markdown, không giải thích ngoài JSON.
@@ -478,6 +486,11 @@ public class Interpreter {
                     response, rawDocId, System.currentTimeMillis() - t0));
             return response;
         } catch (LlmException e) {
+            if (e instanceof TerminalLlmException) {
+                throw new TerminalLlmRuntimeException(
+                        purpose + " stopped: writer provider/account cannot accept requests — "
+                                + e.getMessage(), e);
+            }
             log.error("{} lỗi LLM (doc {}): {}", purpose, rawDocId, e.getMessage());
             return null;
         }

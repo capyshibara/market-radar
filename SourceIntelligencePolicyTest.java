@@ -12,6 +12,20 @@ public class SourceIntelligencePolicyTest {
         check(mof.authority() == SourceAuthority.REGULATOR, "MOF authority");
         check(mof.marketScope() == GeographyScope.VIETNAM && "VN".equals(mof.marketCode()), "MOF market");
 
+        var uploadedMof = SourceIntelligencePolicy.infer(
+                "MANUAL_BO_TAI_CHINH", "Bộ Tài chính Việt Nam", "manual-input.invalid", "vi");
+        check(uploadedMof.authority() == SourceAuthority.REGULATOR,
+                "uploaded official document keeps regulator authority");
+        check(uploadedMof.marketScope() == GeographyScope.VIETNAM,
+                "uploaded official document keeps Vietnam market scope");
+
+        var uploadedBcg = SourceIntelligencePolicy.infer(
+                "MANUAL_BOSTON_CONSULTING", "Boston Consulting Group", "manual-input.invalid", "en");
+        check(uploadedBcg.authority() == SourceAuthority.PROFESSIONAL_SERVICES,
+                "uploaded BCG document keeps professional-services authority");
+        check(uploadedBcg.marketScope() == GeographyScope.GLOBAL,
+                "uploaded BCG document remains global rather than UNKNOWN");
+
         var globalOfficial = SourceIntelligencePolicy.infer(
                 "AIA_GROUP_RESULTS", "AIA Group results", "www.aia.com", "en");
         check(globalOfficial.authority() == SourceAuthority.OFFICIAL_COMPANY, "global official source is authoritative");

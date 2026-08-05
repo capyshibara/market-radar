@@ -2,6 +2,7 @@ package com.marketradar.interpret;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -11,6 +12,7 @@ import com.marketradar.domain.InterpretedClaim.GateStatus;
 import com.marketradar.domain.InterpretedClaim.Origin;
 import com.marketradar.domain.InterpretedClaim.Slot;
 import com.marketradar.domain.RawDoc;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.domain.InterpretedClaim.ReviewStatus;
 import com.marketradar.domain.PipelineItemLog;
 import com.marketradar.pipeline.PipelineRunStatusService;
@@ -60,13 +62,20 @@ public class InterpretationJob {
     private final PipelineItemLogRepository itemLogs;
     private final PeriodicalBiAdapter biAdapter;
     private final TransactionTemplate transactions;
+    private final AnalystInputSelection.Config inputSelectionConfig;
 
     public InterpretationJob(EvidenceFactRepository facts, InterpretedClaimRepository claims,
                              Interpreter interpreter, GroundingGateL1 gate,
                              RiskTierRouter tierRouter, PipelineRunStatusService progress,
                              PipelineItemLogRepository itemLogs,
                              PeriodicalBiAdapter biAdapter,
-                             PlatformTransactionManager transactionManager) {
+                             PlatformTransactionManager transactionManager,
+                             @Value("${marketradar.analyst.batch-documents:60}") int maxDocuments,
+                             @Value("${marketradar.analyst.max-facts-per-document:12}") int maxFactsPerDocument,
+                             @Value("${marketradar.analyst.max-executive-facts:60}") int maxExecutiveFacts,
+                             @Value("${marketradar.analyst.max-documents-per-source:18}") int maxDocumentsPerSource,
+                             @Value("${marketradar.analyst.max-age-days:365}") int maxAgeDays,
+                             @Value("${marketradar.analyst.target-market:VN}") String targetMarket) {
         this.facts = facts;
         this.claims = claims;
         this.interpreter = interpreter;
@@ -76,6 +85,9 @@ public class InterpretationJob {
         this.itemLogs = itemLogs;
         this.biAdapter = biAdapter;
         this.transactions = new TransactionTemplate(transactionManager);
+        this.inputSelectionConfig = new AnalystInputSelection.Config(
+                maxDocuments, maxFactsPerDocument, maxExecutiveFacts,
+                maxDocumentsPerSource, maxAgeDays, targetMarket);
     }
 
     public String runOnce() {
@@ -91,26 +103,31 @@ public class InterpretationJob {
                 .toList();
         if (allFacts.isEmpty()) return "No evidence facts yet — run Extract first.\n";
 
-        // ---- Gom fact theo doc ----
-        Map<RawDoc, List<EvidenceFact>> byDoc = new LinkedHashMap<>();
-        for (EvidenceFact f : allFacts) byDoc.computeIfAbsent(f.getRawDoc(), d -> new ArrayList<>()).add(f);
+        // CFO step 2 happens before paid analysis. maxDocuments is only this action's
+        // batch size: current interpretation editions are excluded so later actions
+        // continue into the tail instead of selecting the same "top N" forever.
+        AnalystInputSelection.Selection inputSelection = nextAnalystSelection(allFacts);
+        Map<RawDoc, List<EvidenceFact>> byDoc = inputSelection.selectedByDocument();
+        Map<RawDoc, List<EvidenceFact>> allEligibleByDoc = inputSelection.eligibleByDocument();
+        if (allEligibleByDoc.isEmpty() || inputSelection.executiveFacts().isEmpty()) {
+            return inputSelection.diagnostics().summary()
+                    + " No current entity-safe evidence is available for paid analysis.\n";
+        }
 
-        EvidencePack globalPack = new EvidencePack(null, allFacts);
+        EvidencePack globalPack = new EvidencePack(null, inputSelection.executiveFacts());
         Interpreter.InterpretationPlan execPlan = interpreter.planExec(globalPack);
-        boolean execPending = !hasCurrentExecEdition(execPlan);
-        long eligibleDocs = byDoc.entrySet().stream()
-                .filter(e -> e.getKey().getDuplicateOfId() == null)
-                .filter(e -> {
-                    EvidencePack pack = new EvidencePack(e.getKey().getId(), e.getValue());
-                    return !hasCurrentDocEdition(e.getKey(), interpreter.planDoc(pack));
-                }).count();
+        boolean finalBatch = inputSelection.diagnostics().deferredDocuments() == 0;
+        boolean execPending = finalBatch && !hasCurrentExecEdition(execPlan);
+        long eligibleDocs = byDoc.size();
         // Narrative input is known only after verified claim selection below. Reserve one
-        // progress item/chapter; an unchanged current edition is reported as skipped.
-        long chaptersPending = Chapter.values().length;
+        // progress item/chapter only on the final document batch. Earlier batches
+        // deliberately cannot publish a corpus-wide story from partial coverage.
+        long chaptersPending = finalBatch ? Chapter.values().length : 0;
         progress.startProgress("interpret", (int) eligibleDocs + (execPending ? 1 : 0) + (int) chaptersPending);
         Long runLogId = progress.currentRunLogId("interpret");
 
         int docsDone = 0, docsSkipped = 0;
+        boolean batchComplete = true;
         for (var entry : byDoc.entrySet()) {
             RawDoc doc = entry.getKey();
             if (doc.getDuplicateOfId() != null) { docsSkipped++; continue; } // dedup đã lọc — khỏi tốn LLM viết claim
@@ -127,7 +144,10 @@ public class InterpretationJob {
                 });
                 summary.append(stored.summary());
                 docsDone++;
+                if (!stored.activatable()) batchComplete = false;
             } catch (RuntimeException e) {
+                rethrowTerminal(e);
+                batchComplete = false;
                 log.error("Interpretation failed for doc#{}; prior edition preserved", doc.getId(), e);
                 summary.append("doc#").append(doc.getId()).append(": ERROR — prior edition preserved — ")
                         .append(safeMessage(e)).append('\n');
@@ -135,6 +155,17 @@ public class InterpretationJob {
             } finally {
                 progress.stepProgress("interpret");
             }
+        }
+
+        if (!finalBatch || !batchComplete) {
+            summary.append("Corpus-wide executive and chapter synthesis withheld: ")
+                    .append(inputSelection.diagnostics().deferredDocuments())
+                    .append(" eligible document(s) remain for a later Analyst batch")
+                    .append(batchComplete ? ".\n" : ", and at least one selected document did not create an active edition.\n");
+            summary.insert(0, inputSelection.diagnostics().summary() + "\n"
+                    + "Interpreted " + docsDone + " selected doc(s), skipped " + docsSkipped
+                    + ". Provider: " + interpreter.providerName() + "\n");
+            return summary.toString();
         }
 
         // ---- Exec summary (pack toàn cục, 1 lần) ----
@@ -149,6 +180,7 @@ public class InterpretationJob {
                 });
                 summary.append(stored.summary());
             } catch (RuntimeException e) {
+                rethrowTerminal(e);
                 log.error("Executive synthesis failed; prior edition preserved", e);
                 summary.append("EXEC: ERROR — prior edition preserved — ")
                         .append(safeMessage(e)).append('\n');
@@ -163,8 +195,9 @@ public class InterpretationJob {
         // ---- Chapter narrative (batch 10): tổng hợp xuyên tài liệu, sau khi mọi
         // claim doc-level của run này đã có mặt trong DB ----
         try {
-            runChapterNarrative(byDoc, summary, runLogId);
+            runChapterNarrative(allEligibleByDoc, summary, runLogId);
         } catch (RuntimeException e) {
+            rethrowTerminal(e);
             log.error("Chapter narrative stage failed; document editions remain committed", e);
             summary.append("Chapter narrative: ERROR — ").append(safeMessage(e)).append('\n');
         }
@@ -174,13 +207,61 @@ public class InterpretationJob {
         try {
             runDeepDiveSynthesis(summary, runLogId);
         } catch (RuntimeException e) {
+            rethrowTerminal(e);
             log.error("Deep-dive synthesis failed; earlier editions remain committed", e);
             summary.append("Deep dive: ERROR — ").append(safeMessage(e)).append('\n');
         }
 
-        summary.insert(0, "Interpreted " + docsDone + " doc(s), skipped " + docsSkipped
-                + " (already interpreted). Provider: " + interpreter.providerName() + "\n");
+        summary.insert(0, inputSelection.diagnostics().summary() + "\n"
+                + "Interpreted " + docsDone + " selected doc(s), skipped " + docsSkipped
+                + " (already interpreted). Executive pack=" + globalPack.facts().size()
+                + " fact(s). Provider: " + interpreter.providerName() + "\n");
         return summary.toString();
+    }
+
+    /** Read-only paid-input preflight. It performs the exact production selection with zero LLM calls. */
+    public String dryRunInputPlan() {
+        List<EvidenceFact> allFacts = facts.findAllForReport().stream()
+                .filter(f -> f.getRawDoc() != null && !f.getRawDoc().isSampleData())
+                .toList();
+        if (allFacts.isEmpty()) return "No evidence facts yet — run Researcher + Connector first.\n";
+        AnalystInputSelection.Selection selection = nextAnalystSelection(allFacts);
+        StringBuilder out = new StringBuilder("READ-ONLY ANALYST INPUT PLAN — zero LLM calls\n")
+                .append(selection.diagnostics().summary()).append('\n')
+                .append("Executive synthesis pack: ").append(selection.executiveFacts().size())
+                .append(" bounded fact(s).\n\n");
+        int rank = 0;
+        for (var entry : selection.selectedByDocument().entrySet()) {
+            RawDoc doc = entry.getKey();
+            Set<String> markets = entry.getValue().stream().map(EvidenceFact::getMarketCode)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            out.append(String.format(Locale.ROOT, "%03d", ++rank)).append(" · doc#")
+                    .append(doc.getId()).append(" · ").append(doc.getSource().getCode())
+                    .append(" · ").append(doc.getSource().getAuthority())
+                    .append(" · ").append(doc.getIntakeMethod())
+                    .append(" · market=").append(markets.isEmpty() ? "UNKNOWN" : markets)
+                    .append(" · ").append(entry.getValue().size()).append(" fact(s) · ")
+                    .append(truncate(doc.getTitle(), 120)).append('\n');
+        }
+        return out.toString();
+    }
+
+    private AnalystInputSelection.Selection nextAnalystSelection(List<EvidenceFact> allFacts) {
+        LocalDate today = LocalDate.now();
+        AnalystInputSelection.Selection corpus = AnalystInputSelection.select(
+                allFacts, today, inputSelectionConfig);
+        Set<Long> representedDocumentIds = new LinkedHashSet<>();
+        for (var entry : corpus.eligibleByDocument().entrySet()) {
+            RawDoc doc = entry.getKey();
+            if (doc.getId() == null) continue;
+            EvidencePack pack = new EvidencePack(doc.getId(), entry.getValue());
+            if (hasCurrentDocEdition(doc, interpreter.planDoc(pack))) {
+                representedDocumentIds.add(doc.getId());
+            }
+        }
+        return AnalystInputSelection.select(allFacts, today, inputSelectionConfig,
+                representedDocumentIds);
     }
 
     /**
@@ -249,6 +330,7 @@ public class InterpretationJob {
                 });
                 summary.append(stored.summary());
             } catch (RuntimeException e) {
+                rethrowTerminal(e);
                 log.error("Narrative failed for chapter {}; prior edition preserved", chapter, e);
                 summary.append("Chapter ").append(chapter.name())
                         .append(": ERROR — prior edition preserved — ")
@@ -315,6 +397,7 @@ public class InterpretationJob {
                 summary.append("Deep dive \"").append(candidate.subjectKey()).append("\" (")
                         .append(candidate.reason()).append("): ").append(stored.summary());
             } catch (RuntimeException e) {
+                rethrowTerminal(e);
                 log.error("Deep-dive candidate {} failed; continuing", candidate.subjectKey(), e);
                 summary.append("Deep dive \"").append(candidate.subjectKey())
                         .append("\": ERROR — prior edition preserved — ")
@@ -518,5 +601,9 @@ public class InterpretationJob {
             return error == null ? "unknown error" : error.getClass().getSimpleName();
         }
         return truncate(error.getMessage().strip(), 400);
+    }
+
+    private static void rethrowTerminal(RuntimeException error) {
+        if (error instanceof TerminalLlmRuntimeException) throw error;
     }
 }

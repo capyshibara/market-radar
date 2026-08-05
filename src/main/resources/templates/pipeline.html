@@ -209,6 +209,7 @@
               </div>
               <div class="st-desc" th:text="#{ops.pipeline.stageExtractDesc}">Verbatim spans from CONFIRMED docs — exact-substring gate, rejects any modified span</div>
               <div class="st-context"><span class="st-chip" th:text="${extractLlmLabel}">Model</span><span class="st-chip gate">GUARD: verbatim gate</span></div>
+              <div class="st-desc"><a href="/pipeline/researcher-curation" th:text="#{ops.pipeline.extractionPlanLink}">Open Researcher curation and batch controls (zero LLM calls)</a></div>
             </div>
             <div class="st-right">
               <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
@@ -234,6 +235,7 @@
               </div>
               <div class="st-desc" th:text="#{ops.pipeline.stageInterpretDesc}">Bilingual claim sentences from evidence packs; deterministic grounding gate on both languages</div>
               <div class="st-context"><span class="st-chip" th:text="${interpretLlmLabel}">Model</span><span class="st-chip gate">GATE L1: exact match, both languages</span></div>
+              <div class="st-desc"><a href="/pipeline/analysis/plan" target="_blank" rel="noopener" th:text="#{ops.pipeline.analysisPlanLink}">Preview paid Analyst input (zero LLM calls)</a></div>
             </div>
             <div class="st-right">
               <span class="badge-status badge-idle" data-badge th:text="#{ops.pipeline.status.idle}">Not run yet</span>
@@ -257,6 +259,7 @@
               <div class="st-step" th:text="#{ops.pipeline.step05}">Step 05 · Guard</div>
               <div class="st-name">Independent Verifier <small>· <span th:text="#{ops.pipeline.epithet.verifier}">The Second Opinion</span> — <span th:text="#{ops.pipeline.tagline.verifier}">“Nobody grades their own homework.”</span></small></div>
               <div class="st-desc" th:text="#{ops.pipeline.stageVerifyDesc}">Independent entailment check by a different model family; routes to auto-approve or review</div>
+              <div class="st-desc" th:text="#{ops.pipeline.twoPassNote}">After the first verification pass, run Analyst and Independent Verifier once more to build and verify cross-source narratives.</div>
               <div class="st-context"><span class="st-chip" th:text="${verifyLlmLabel}">Model</span><span class="st-chip gate">GATE L2: INVARIANT ≠ writer family</span></div>
             </div>
             <div class="st-right">

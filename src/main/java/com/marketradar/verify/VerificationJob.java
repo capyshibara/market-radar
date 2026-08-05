@@ -14,6 +14,7 @@ import com.marketradar.repo.EvidenceFactRepository;
 import com.marketradar.repo.InterpretedClaimRepository;
 import com.marketradar.repo.PipelineItemLogRepository;
 import com.marketradar.review.ReviewRules;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.review.EntityAttributionGuard;
 import com.marketradar.llm.ProviderSafetyRules;
 
@@ -111,6 +112,7 @@ public class VerificationJob {
                             : verified;
                 }
             } catch (RuntimeException e) {
+                if (e instanceof TerminalLlmRuntimeException) throw e;
                 technicalErrors++;
                 log.error("Verifier failed for {}; preserving the rest of the batch", c.getClaimCode(), e);
                 r = new EntailmentVerifier.VerifyResult(ClaimVerification.Verdict.VERIFIER_ERROR,

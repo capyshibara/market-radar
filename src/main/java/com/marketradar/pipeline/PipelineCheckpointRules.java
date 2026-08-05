@@ -20,12 +20,18 @@ public final class PipelineCheckpointRules {
             long usableDocuments,
             long classifications,
             long confirmedClassifications,
+            long researchCandidateClusters,
+            long representedResearchClusters,
+            boolean researchCurationReady,
+            String researchCurationMessage,
             long latestExtractionAttempts,
             long successfulExtractionDocuments,
             long technicalExtractionFailures,
             long activeFacts,
             long activeFactDocuments,
+            long curatedAnalysisDocuments,
             long coreDimensionCompleteFacts,
+            long routedFacts,
             long entityQuarantinedFacts,
             long activePipelineClaims,
             long activeClaimDocuments,
@@ -96,19 +102,21 @@ public final class PipelineCheckpointRules {
             return checkpoint("extract", "Researcher + Connector", Decision.WAITING,
                     "No confirmed documents are available from curation.");
         }
+        if (m.researchCandidateClusters() == 0) {
+            return checkpoint("extract", "Researcher + Connector", Decision.WAITING,
+                    "No event-first Researcher cluster is eligible in the current window.");
+        }
         if (m.latestExtractionAttempts() == 0) {
             return checkpoint("extract", "Researcher + Connector", Decision.WAITING,
-                    "Evidence extraction has not run on the confirmed set.");
+                    "Evidence extraction has not run on the event-first curation plan.");
         }
         double extractionCoverage = ratio(
-                m.latestExtractionAttempts(), m.confirmedClassifications());
-        if (extractionCoverage < 0.90d) {
+                m.representedResearchClusters(), m.researchCandidateClusters());
+        if (!m.researchCurationReady()) {
             return checkpoint("extract", "Researcher + Connector", Decision.WAITING,
-                    "Pilot/incomplete extraction: " + m.latestExtractionAttempts() + "/"
-                            + m.confirmedClassifications() + " confirmed documents attempted ("
-                            + percent(extractionCoverage)
-                            + "). Inspect the pilot, then explicitly run the remaining set; "
-                            + "do not treat this stage as complete.");
+                    "Staged curation is not complete: " + m.representedResearchClusters() + "/"
+                            + m.researchCandidateClusters() + " conservative story clusters represented ("
+                            + percent(extractionCoverage) + "). " + m.researchCurationMessage());
         }
         if (m.activeFacts() == 0 || m.activeFactDocuments() == 0) {
             return checkpoint("extract", "Researcher + Connector", Decision.STOP,
@@ -122,21 +130,25 @@ public final class PipelineCheckpointRules {
                             + " of latest extraction attempts failed technically (LLM/schema).");
         }
         double metadataCoverage = ratio(m.coreDimensionCompleteFacts(), m.activeFacts());
+        double routingCoverage = ratio(m.routedFacts(), m.activeFacts());
         if (m.coreDimensionCompleteFacts() == 0) {
             return checkpoint("extract", "Researcher + Connector", Decision.STOP,
                     "Facts exist but none carry the authority/topic/market/time dimensions required downstream.");
         }
-        if (extractionCoverage < 1d || technicalFailureRate >= 0.15d || metadataCoverage < 0.90d) {
+        if (extractionCoverage < 1d || technicalFailureRate >= 0.15d
+                || metadataCoverage < 0.90d || routingCoverage < 0.90d) {
             return checkpoint("extract", "Researcher + Connector", Decision.WARN,
                     percent(extractionCoverage) + " extraction coverage; "
                             + m.activeFacts() + " facts retained; " + percent(metadataCoverage)
-                            + " have complete core dimensions, " + m.entityQuarantinedFacts()
+                            + " have complete core dimensions, " + percent(routingCoverage)
+                            + " have Connector routing, " + m.entityQuarantinedFacts()
                             + " have ambiguous/conflicting entity attribution, and "
                             + percent(technicalFailureRate) + " of latest attempts failed technically.");
         }
         return checkpoint("extract", "Researcher + Connector", Decision.PASS,
                 m.activeFacts() + " active facts across " + m.activeFactDocuments()
-                        + " documents; core dimensions are complete. " + m.entityQuarantinedFacts()
+                        + " documents; core dimensions and Connector routing are complete. "
+                        + m.entityQuarantinedFacts()
                         + " entity-risk facts remain quarantined for review.");
     }
 
@@ -150,13 +162,14 @@ public final class PipelineCheckpointRules {
                     "Analysis has not produced a claim edition yet.");
         }
         double interpretationCoverage = ratio(
-                m.activeClaimDocuments(), m.activeFactDocuments());
+                m.activeClaimDocuments(), m.curatedAnalysisDocuments());
         if (interpretationCoverage < 0.90d) {
             return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.WAITING,
                     "Pilot/incomplete analysis: claims exist for " + m.activeClaimDocuments()
-                            + "/" + m.activeFactDocuments() + " evidence documents ("
+                            + "/" + m.curatedAnalysisDocuments() + " curated evidence documents ("
                             + percent(interpretationCoverage)
-                            + "). Complete document-level analysis before relying on global narratives.");
+                            + "). Run the next bounded Analyst batch before relying on global narratives; "
+                            + "eligible tail evidence is never a permanent cutoff.");
         }
         if (m.gateL1PassedClaims() == 0) {
             return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.STOP,

@@ -13,6 +13,8 @@ import com.marketradar.domain.LlmCallLog;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
+import com.marketradar.llm.TerminalLlmException;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.repo.DedupDecisionRepository;
 import com.marketradar.repo.LlmCallLogRepository;
 import com.marketradar.repo.RawDocRepository;
@@ -83,7 +85,11 @@ public class DedupJob {
     }
 
     public String runOnce() {
-        List<RawDoc> docs = rawDocs.findAll().stream()
+        // open-in-view is disabled and winner selection reads Source.authority after
+        // this repository call returns. Fetch Source eagerly here; otherwise the
+        // first duplicate candidate can fail the entire Librarian stage with a
+        // LazyInitializationException before any classification is committed.
+        List<RawDoc> docs = rawDocs.findAllWithSource().stream()
                 .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
                 .sorted((a, b) -> Long.compare(a.getId(), b.getId()))
                 .toList();
@@ -239,6 +245,11 @@ public class DedupJob {
             callLog.save(new LlmCallLog("DEDUP_PAIR", llm.providerName(), hash, 0,
                     raw, a.getId(), System.currentTimeMillis() - t0));
         } catch (LlmException e) {
+            if (e instanceof TerminalLlmException) {
+                throw new TerminalLlmRuntimeException(
+                        "Dedup stopped: writer provider/account cannot accept requests — "
+                                + e.getMessage(), e);
+            }
             log.error("DEDUP_PAIR lỗi LLM: {}", e.getMessage());
             return null;
         }

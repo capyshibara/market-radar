@@ -59,18 +59,23 @@ public final class SourceIntelligencePolicy {
     public static Metadata infer(String code, String name, String host, String language) {
         String normalizedCode = upper(code);
         SourceAuthority authority = authority(normalizedCode, name, host);
-        Market market = market(normalizedCode, host, language);
+        Market market = market(normalizedCode, name, host, language);
         return new Metadata(authority, market.scope(), market.code());
     }
 
     static SourceAuthority authority(String code, String name, String host) {
+        String publisher = lower(name);
         if (code.contains("FINANCIALS") || code.contains("STATUTORY")) {
             return SourceAuthority.STATUTORY_DISCLOSURE;
         }
-        if (REGULATORS.contains(code) || code.startsWith("MOF_") || code.startsWith("GOV_")) {
+        if (REGULATORS.contains(code) || code.startsWith("MOF_") || code.startsWith("GOV_")
+                || containsAny(publisher, "bộ tài chính", "ministry of finance of vietnam",
+                "cục quản lý, giám sát bảo hiểm", "cục quản lý giám sát bảo hiểm")) {
             return SourceAuthority.REGULATOR;
         }
-        if (INDUSTRY_BODIES.contains(code) || code.startsWith("IAV_")) {
+        if (INDUSTRY_BODIES.contains(code) || code.startsWith("IAV_")
+                || containsAny(publisher, "hiệp hội bảo hiểm việt nam",
+                "insurance association of vietnam")) {
             return SourceAuthority.INDUSTRY_BODY;
         }
         if (SPECIALIST_RESEARCH.contains(code) || containsAny(lower(name), "institute", "research")) {
@@ -92,15 +97,22 @@ public final class SourceIntelligencePolicy {
         return OFFICIAL_COMPANY_PREFIXES.stream().anyMatch(code::startsWith);
     }
 
-    static Market market(String code, String host, String language) {
+    static Market market(String code, String name, String host, String language) {
+        String publisher = lower(name);
         // Language is not geography: a Vietnamese translation of a global report
         // must not silently become Vietnam-market evidence.
-        if (code.contains("_VN") || code.endsWith("VN")) {
+        if (code.contains("_VN") || code.endsWith("VN")
+                || containsAny(publisher, "bộ tài chính việt nam",
+                "ministry of finance of vietnam", "cục quản lý, giám sát bảo hiểm",
+                "cục quản lý giám sát bảo hiểm", "hiệp hội bảo hiểm việt nam",
+                "insurance association of vietnam")) {
             return new Market(GeographyScope.VIETNAM, "VN");
         }
         if (code.contains("GLOBAL") || code.equals("AIA_GROUP_RESULTS")
                 || code.startsWith("SWISSRE") || code.startsWith("MUNICHRE")
-                || code.startsWith("MCKINSEY") || code.equals("LIMRA")) {
+                || code.startsWith("MCKINSEY") || code.equals("LIMRA")
+                || containsAny(publisher, "boston consulting group", "bcg",
+                "mckinsey", "swiss re institute", "munich re")) {
             return new Market(GeographyScope.GLOBAL, "GLOBAL");
         }
         String country = countryFromCode(code);

@@ -156,8 +156,13 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
                 HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
                 int sc = resp.statusCode();
                 if (sc / 100 == 2) return mapper.readTree(resp.body());
-                LlmException httpErr = new LlmException("OpenAI-compat API (" + model + ") HTTP " + sc
-                        + ": " + truncate(resp.body(), 500));
+                String responseBody = resp.body();
+                String message = "OpenAI-compat API (" + model + ") HTTP " + sc
+                        + ": " + truncate(responseBody, 500);
+                if (terminalProviderFailure(sc, responseBody)) {
+                    throw new TerminalLlmException(message);
+                }
+                LlmException httpErr = new LlmException(message);
                 if (sc != 429 && sc / 100 != 5) throw httpErr; // 4xx khác — không retry
                 last = httpErr;
             } catch (IOException | InterruptedException e) {
@@ -174,6 +179,16 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             }
         }
         throw new LlmException(last.getMessage() + " (sau " + MAX_ATTEMPTS + " lần thử)", last);
+    }
+
+    /** Pure rule exposed for the offline regression suite. */
+    public static boolean terminalProviderFailure(int statusCode, String responseBody) {
+        if (statusCode == 401 || statusCode == 402 || statusCode == 403 || statusCode == 404) return true;
+        if (statusCode != 429 || responseBody == null) return false;
+        String normalized = responseBody.toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("insufficient_quota")
+                || normalized.contains("credit_balance_exhausted")
+                || normalized.contains("no credits remaining");
     }
 
     /** gpt-5* / o1-o4* của CHÍNH OpenAI — các model đổi param theo kiểu reasoning API. */

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
+<head>
+<meta charset="UTF-8"/>
+<title th:text="#{ops.researcher.title}">Researcher curation</title>
+<link rel="stylesheet" href="/css/fonts.css"/>
+<link rel="stylesheet" href="/css/colors.css"/>
+<link rel="stylesheet" href="/css/typography.css"/>
+<link rel="stylesheet" href="/css/spacing.css"/>
+<link rel="stylesheet" href="/css/base.css"/>
+<link rel="stylesheet" href="/css/patterns.css"/>
+<link rel="stylesheet" href="/css/ops-components.css"/>
+<link rel="stylesheet" href="/css/ops-sidebar.css"/>
+<style>
+  .curation-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+  .metric{border:1px solid var(--border-default);background:var(--surface-card);padding:16px}
+  .metric-label{font-size:var(--text-2xs);font-weight:var(--weight-bold);letter-spacing:var(--tracking-label);text-transform:uppercase;color:var(--text-tertiary)}
+  .metric-value{margin-top:7px;font-size:var(--text-2xl);font-weight:var(--weight-bold);color:var(--text-primary)}
+  .metric-note{margin-top:5px;font-size:var(--text-xs);color:var(--text-secondary);line-height:1.45}
+  .decision-strip{border-left:4px solid var(--action-primary);background:var(--surface-card-sunk);padding:15px 17px;margin:16px 0 22px}
+  .decision-strip strong{display:block;margin-bottom:4px}.decision-strip p{margin:0;color:var(--text-secondary);font-size:var(--text-sm)}
+  .batch-actions{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px}.batch-actions form{margin:0}
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:28px 0 10px}.section-head h2{margin:0}.section-head p{margin:4px 0 0;color:var(--text-secondary);font-size:var(--text-sm)}
+  .coverage-row{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.coverage-chip{padding:4px 8px;border:1px solid var(--border-default);background:var(--surface-card);font-size:var(--text-xs)}
+  .coverage-chip.missing{border-color:var(--warning-border,#D8A33B);background:var(--warning-bg,#FFF5DD)}
+  .curation-table{width:100%;border-collapse:collapse;background:var(--surface-card);border:1px solid var(--border-default)}
+  .curation-table th,.curation-table td{padding:10px 11px;border-bottom:1px solid var(--border-subtle);text-align:left;vertical-align:top;font-size:var(--text-xs)}
+  .curation-table th{font-size:var(--text-2xs);text-transform:uppercase;letter-spacing:var(--tracking-label);color:var(--text-tertiary);background:var(--surface-card-sunk)}
+  .doc-title{font-weight:var(--weight-semibold);color:var(--text-primary)}.doc-meta{margin-top:3px;color:var(--text-tertiary)}
+  .empty-note{padding:18px;border:1px solid var(--border-default);background:var(--surface-card-sunk);color:var(--text-secondary)}
+  @media(max-width:900px){.curation-grid{grid-template-columns:repeat(2,1fr)}.curation-table{display:block;overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="ops-shell">
+  <th:block th:replace="~{fragments/ops-sidebar :: sidebar('pipelinerun', ${queueCount})}"></th:block>
+  <main class="ops-main"><div class="ops-content">
+    <div class="page-header">
+      <div>
+        <h1 th:text="#{ops.researcher.title}">Researcher curation</h1>
+        <p th:text="#{ops.researcher.subtitle}">Represent every conservative story cluster; audit the deferred tail before hand-off.</p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-secondary btn-sm" href="/pipeline" th:text="#{ops.researcher.back}">Back to Pipeline Runner</a>
+        <a class="btn btn-ghost btn-sm" href="/pipeline/extraction/plan" target="_blank" rel="noopener" th:text="#{ops.researcher.textPlan}">Text plan</a>
+      </div>
+    </div>
+
+    <div class="decision-strip">
+      <strong th:text="${assessmentLabel}">Run next batch</strong>
+      <p th:text="${assessmentMessage}">Clusters remain.</p>
+    </div>
+
+    <div class="curation-grid">
+      <div class="metric"><div class="metric-label" th:text="#{ops.researcher.metric.documents}">Eligible documents</div><div class="metric-value" th:text="${mainPlan.diagnostics.eligibleDocuments}">0</div><div class="metric-note" th:text="#{ops.researcher.metric.documentsNote}">All remain auditable.</div></div>
+      <div class="metric"><div class="metric-label" th:text="#{ops.researcher.metric.clusters}">Story clusters</div><div class="metric-value" th:text="${mainPlan.diagnostics.candidateClusters}">0</div><div class="metric-note" th:text="#{ops.researcher.metric.clustersNote}">Conservative, model-free grouping.</div></div>
+      <div class="metric"><div class="metric-label" th:text="#{ops.researcher.metric.represented}">Represented clusters</div><div class="metric-value" th:text="|${mainPlan.diagnostics.representedClusters}/${mainPlan.diagnostics.candidateClusters}|">0/0</div><div class="metric-note" th:text="#{ops.researcher.metric.representedNote}">At least one current extraction edition.</div></div>
+      <div class="metric"><div class="metric-label" th:text="#{ops.researcher.metric.audit}">Deferred audit pool</div><div class="metric-value" th:text="${auditPlan.diagnostics.auditPoolDocuments}">0</div><div class="metric-note" th:text="#{ops.researcher.metric.auditNote}">Never labelled low-value without an audit.</div></div>
+    </div>
+
+    <div class="coverage-row">
+      <span class="coverage-chip" th:text="#{ops.researcher.coverage.topics(${mainPlan.coverage.representedTopics.size()},${mainPlan.coverage.availableTopics.size()})}">Topics</span>
+      <span class="coverage-chip" th:text="#{ops.researcher.coverage.acquisition(${mainPlan.coverage.representedAcquisition.size()},${mainPlan.coverage.availableAcquisition.size()})}">Acquisition</span>
+      <span class="coverage-chip" th:text="#{ops.researcher.coverage.entities(${mainPlan.coverage.representedEntities.size()},${mainPlan.coverage.availableEntities.size()})}">Entities</span>
+      <span class="coverage-chip missing" th:each="topic : ${mainPlan.coverage.missingTopics}" th:text="${topic}">MISSING</span>
+      <span class="coverage-chip missing" th:each="lane : ${mainPlan.coverage.missingAcquisition}" th:text="${lane}">MISSING</span>
+    </div>
+
+    <div class="batch-actions">
+      <form method="post" action="/pipeline/run/extract">
+        <button class="btn btn-primary" type="submit" th:disabled="${mainPlan.selected.empty}" th:text="#{ops.researcher.runBatch}">Run next Researcher batch</button>
+      </form>
+      <form method="post" action="/pipeline/run/extract-audit">
+        <button class="btn btn-secondary" type="submit" th:disabled="${auditPlan.selected.empty}" th:text="#{ops.researcher.runAudit}">Audit deferred sample</button>
+      </form>
+      <span class="coverage-chip" th:text="${extractLlmLabel}">Writer model</span>
+    </div>
+
+    <div class="section-head"><div><h2 th:text="#{ops.researcher.nextTitle}">Next bounded batch</h2><p th:text="${mainPlanSummary}">Plan summary</p></div></div>
+    <table class="curation-table" th:if="${!mainPlan.selected.empty}">
+      <thead><tr><th th:text="#{ops.researcher.col.doc}">Doc</th><th th:text="#{ops.researcher.col.story}">Story</th><th th:text="#{ops.researcher.col.source}">Source</th><th th:text="#{ops.researcher.col.priority}">Priority proxy</th><th th:text="#{ops.researcher.col.dimensions}">Dimensions</th></tr></thead>
+      <tbody><tr th:each="candidate : ${mainPlan.selected}">
+        <td th:text="|#${candidate.document.id}|">#1</td>
+        <td><div class="doc-title" th:text="${candidate.document.title}">Title</div><div class="doc-meta" th:text="${candidate.entityStatus}">Entity status</div></td>
+        <td><div th:text="${candidate.document.source.name}">Source</div><div class="doc-meta" th:text="|${candidate.authority} · ${candidate.acquisitionLane}|">Authority</div></td>
+        <td th:text="${candidate.priorityScore}">0</td>
+        <td th:text="|${candidate.marketLane} · ${candidate.topics}|">Topics</td>
+      </tr></tbody>
+    </table>
+    <div class="empty-note" th:if="${mainPlan.selected.empty}" th:text="#{ops.researcher.noMain}">No unrepresented story cluster remains.</div>
+
+    <div class="section-head"><div><h2 th:text="#{ops.researcher.auditTitle}">Deferred audit preview</h2><p th:text="${auditPlanSummary}">Audit summary</p></div><a href="/pipeline/extraction/audit-plan" target="_blank" rel="noopener" th:text="#{ops.researcher.auditText}">Full audit plan</a></div>
+    <table class="curation-table" th:if="${!auditPlan.selected.empty}">
+      <thead><tr><th th:text="#{ops.researcher.col.doc}">Doc</th><th th:text="#{ops.researcher.col.story}">Story</th><th th:text="#{ops.researcher.col.source}">Source</th><th th:text="#{ops.researcher.col.priority}">Priority proxy</th><th th:text="#{ops.researcher.col.dimensions}">Dimensions</th></tr></thead>
+      <tbody><tr th:each="candidate : ${auditPlan.selected}">
+        <td th:text="|#${candidate.document.id}|">#1</td><td><div class="doc-title" th:text="${candidate.document.title}">Title</div></td>
+        <td th:text="${candidate.document.source.name}">Source</td><td th:text="${candidate.priorityScore}">0</td><td th:text="|${candidate.acquisitionLane} · ${candidate.topics}|">Topics</td>
+      </tr></tbody>
+    </table>
+    <div class="empty-note" th:if="${auditPlan.selected.empty}" th:text="#{ops.researcher.noAudit}">No deferred audit sample is ready.</div>
+
+    <div class="section-head"><div><h2 th:text="#{ops.researcher.historyTitle}">Batch value ledger</h2><p th:text="#{ops.researcher.historySubtitle}">What each paid batch added after Connector normalization.</p></div></div>
+    <table class="curation-table" th:if="${!curationBatches.empty}">
+      <thead><tr><th>ID</th><th th:text="#{ops.researcher.col.mode}">Mode</th><th th:text="#{ops.researcher.col.status}">Status</th><th th:text="#{ops.researcher.col.documents}">Documents</th><th th:text="#{ops.researcher.col.facts}">Facts</th><th th:text="#{ops.researcher.col.events}">New events</th><th th:text="#{ops.researcher.col.corroboration}">New corroboration</th><th th:text="#{ops.researcher.col.conflicts}">New conflicts</th></tr></thead>
+      <tbody><tr th:each="batch : ${curationBatches}"><td th:text="${batch.id}">1</td><td th:text="${batch.mode}">MAIN</td><td th:text="${batch.status}">DONE</td><td th:text="|${batch.successfulDocuments}/${batch.attemptedDocuments}|">0/0</td><td th:text="${batch.factsSaved}">0</td><td th:text="${batch.newEventClusters}">0</td><td th:text="${batch.newCorroboratedClusters}">0</td><td th:text="${batch.newConflictClusters}">0</td></tr></tbody>
+    </table>
+    <div class="empty-note" th:if="${curationBatches.empty}" th:text="#{ops.researcher.noHistory}">No Researcher batch has run under this ledger yet.</div>
+  </div></main>
+</div>
+</body>
+</html>

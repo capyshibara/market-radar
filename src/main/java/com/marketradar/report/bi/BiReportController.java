@@ -94,8 +94,10 @@ public class BiReportController {
     private Map<String, Object> buildModel(ProductReportCadence cadence, String cadenceParam, boolean vi) {
         LocalDate asOf = LocalDate.now(ProductReportModel.REPORT_ZONE);
         ProductReportAdapter.Snapshot snapshot = reports.current(cadence, asOf);
-        var content = biAdapter.adapt("Business Intelligence Report — " + cadence.label(true),
-                cadence.periodLabel(asOf, true), snapshot, rawDocs.count());
+        var content = biAdapter.adapt(
+                (vi ? "Báo cáo tình báo thị trường — " : "Business Intelligence Report — ")
+                        + cadence.label(vi),
+                cadence.periodLabel(asOf, vi), snapshot, rawDocs.count(), vi);
         Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content, vi);
         String langParam = vi ? "vi" : "en";
         model.put("pdfHref", "/report/bi.pdf?cadence=" + cadenceParam + "&lang=" + langParam);

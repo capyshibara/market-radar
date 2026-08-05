@@ -14,6 +14,8 @@ import com.marketradar.domain.LlmCallLog;
 import com.marketradar.domain.RawDoc;
 import com.marketradar.llm.LlmClient;
 import com.marketradar.llm.LlmException;
+import com.marketradar.llm.TerminalLlmException;
+import com.marketradar.llm.TerminalLlmRuntimeException;
 import com.marketradar.repo.LlmCallLogRepository;
 
 import java.nio.charset.StandardCharsets;
@@ -112,6 +114,11 @@ public class TopicClassifier {
             try {
                 raw = callWithCache(system, promptHash, i, userPrompt, doc.getId(), bypassReplayCache);
             } catch (LlmException e) {
+                if (e instanceof TerminalLlmException) {
+                    throw new TerminalLlmRuntimeException(
+                            "Librarian stopped: classifier provider/account cannot accept requests — "
+                                    + e.getMessage(), e);
+                }
                 runNotes.add("run" + i + ": LLM_ERROR " + e.getMessage());
                 continue;
             }

@@ -80,8 +80,7 @@ public class AnthropicLlmClient implements LlmClient {
 
         if (response.statusCode() != 200) {
             // Không log body request (có thể chứa nội dung nhạy cảm) — chỉ status + body lỗi
-            throw new LlmException("Anthropic API HTTP " + response.statusCode()
-                    + ": " + truncate(response.body(), 500));
+            throw httpFailure("Anthropic API", response.statusCode(), response.body());
         }
 
         try {
@@ -141,8 +140,7 @@ public class AnthropicLlmClient implements LlmClient {
             throw new LlmException("Lỗi mạng gọi Anthropic API: " + e.getMessage(), e);
         }
         if (response.statusCode() != 200) {
-            throw new LlmException("Anthropic API HTTP " + response.statusCode()
-                    + ": " + truncate(response.body(), 500));
+            throw httpFailure("Anthropic API", response.statusCode(), response.body());
         }
 
         JsonNode root;
@@ -201,8 +199,7 @@ public class AnthropicLlmClient implements LlmClient {
             throw new LlmException("Lỗi mạng gọi Anthropic web_search: " + e.getMessage(), e);
         }
         if (response.statusCode() != 200) {
-            throw new LlmException("Anthropic web_search HTTP " + response.statusCode()
-                    + ": " + truncate(response.body(), 500));
+            throw httpFailure("Anthropic web_search", response.statusCode(), response.body());
         }
 
         JsonNode root;
@@ -236,6 +233,22 @@ public class AnthropicLlmClient implements LlmClient {
     // Interpreter/TopicClassifier/EntailmentVerifier: hash cache giờ gồm providerName().
     @Override
     public String providerName() { return "ANTHROPIC(" + model + ")"; }
+
+    private static LlmException httpFailure(String operation, int statusCode, String body) {
+        String message = operation + " HTTP " + statusCode + ": " + truncate(body, 500);
+        return terminalProviderFailure(statusCode, body)
+                ? new TerminalLlmException(message) : new LlmException(message);
+    }
+
+    /** Billing/auth/config failures must stop a paid batch; ordinary 429 remains retryable upstream. */
+    public static boolean terminalProviderFailure(int statusCode, String responseBody) {
+        if (statusCode == 401 || statusCode == 402 || statusCode == 403 || statusCode == 404) return true;
+        if (statusCode != 429 || responseBody == null) return false;
+        String normalized = responseBody.toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("credit balance")
+                || normalized.contains("insufficient credit")
+                || normalized.contains("billing");
+    }
 
     private static String truncate(String s, int max) {
         return s == null ? "" : (s.length() <= max ? s : s.substring(0, max) + "…");

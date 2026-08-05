@@ -133,15 +133,16 @@ print(row["message"])' "$file" "$stage"
 }
 
 run_stage() {
-  local stage="$1" label start now payload state completed total checkpoint decision message
+  local stage="$1" artifact_name="${2:-$1}" pass_note="${3:-}" label start now payload state completed total checkpoint decision message
   label="$(stage_label "$stage")"
+  if [ -n "$pass_note" ]; then label="$label — $pass_note"; fi
   echo
   echo "=== $label [$stage] ==="
   curl -fsS -X POST -o /dev/null "$BASE_URL/pipeline/run/$stage"
   start="$(date +%s)"
   while true; do
     payload="$(curl -fsS "$BASE_URL/pipeline/status.json")"
-    printf '%s' "$payload" > "$OUT_DIR/status-${stage}.json"
+    printf '%s' "$payload" > "$OUT_DIR/status-${artifact_name}.json"
     state="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]]["state"])' "$stage")"
     completed="$(printf '%s' "$payload" | python3 -c 'import json,sys; x=json.load(sys.stdin)[sys.argv[1]]; print(x.get("completed"))' "$stage")"
     total="$(printf '%s' "$payload" | python3 -c 'import json,sys; x=json.load(sys.stdin)[sys.argv[1]]; print(x.get("total"))' "$stage")"
@@ -149,7 +150,7 @@ run_stage() {
     case "$state" in
       SUCCESS) break ;;
       FAILED)
-        echo "STOP: $label failed. See $OUT_DIR/status-${stage}.json and app.log"
+        echo "STOP: $label failed. See $OUT_DIR/status-${artifact_name}.json and app.log"
         exit 3 ;;
     esac
     now="$(date +%s)"
@@ -160,7 +161,7 @@ run_stage() {
     sleep "$POLL_SECONDS"
   done
 
-  checkpoint="$OUT_DIR/checkpoint-after-${stage}.json"
+  checkpoint="$OUT_DIR/checkpoint-after-${artifact_name}.json"
   curl -fsS "$BASE_URL/pipeline/checkpoint.json" > "$checkpoint"
   {
     IFS= read -r decision
@@ -191,8 +192,14 @@ curl -fsS "$BASE_URL/pipeline/classification/plan" > "$OUT_DIR/classification-pl
 if [ "$RUN_SCOUT" = "1" ]; then run_stage ingest; fi
 run_stage classify
 run_stage extract
-run_stage interpret
-run_stage verify
+# Two-pass analytical contract:
+#  1) document observations/implications -> independent verification;
+#  2) now-verified inputs -> cross-source narratives/deep dives -> verification again.
+# A single pass produces accurate fragments but cannot yet produce a connected story.
+run_stage interpret interpret-document "document claims"
+run_stage verify verify-document "document claims"
+run_stage interpret interpret-synthesis "cross-source synthesis"
+run_stage verify verify-synthesis "cross-source synthesis"
 
 # The CFO/Strategy release publishes the BI report directly from curated,
 # verified lanes below. The older Product desk is feature-flagged off by

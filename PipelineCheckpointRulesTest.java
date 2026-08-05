@@ -43,7 +43,7 @@ public class PipelineCheckpointRulesTest {
                 60, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         var extraction = checkpoint(PipelineCheckpointRules.evaluate(extractionPilot), "extract");
         assert extraction.decision() == PipelineCheckpointRules.Decision.WAITING;
-        assert extraction.message().contains("Pilot/incomplete extraction");
+        assert extraction.message().contains("Staged curation is not complete");
 
         var interpretationPilot = metrics(804, 711, 711, 420, 420, 350, 5,
                 1400, 300, 40, 12, 30, 0, 0, 0, 0, 0, 0);
@@ -77,8 +77,12 @@ public class PipelineCheckpointRulesTest {
             long verifications, long entailed, long neutral, long contradicted,
             long verifierErrors, long reportEligible) {
         return new PipelineCheckpointRules.Metrics(documents, usable, classifications, confirmed,
+                confirmed, Math.min(extractionAttempts, confirmed),
+                extractionAttempts > 0 && extractionAttempts >= confirmed,
+                extractionAttempts > 0 && extractionAttempts >= confirmed
+                        ? "Curation complete." : "Run the next event-first batch.",
                 extractionAttempts, extractionSuccess, extractionFailures, facts, factDocs,
-                facts, 0, claims, claimDocs, l1Pass, verifications, entailed, neutral, contradicted, verifierErrors,
+                factDocs, facts, facts, 0, claims, claimDocs, l1Pass, verifications, entailed, neutral, contradicted, verifierErrors,
                 reportEligible, 0, 0);
     }
 

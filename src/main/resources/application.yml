@@ -55,6 +55,30 @@ marketradar:
     # Unknown dates cannot be placed safely in a reporting window. Fix metadata or use a
     # historical/special-issue workflow instead of letting them drift into current reports.
     require-publication-date: true
+  analyst:
+    # Paid Analyst batch size, never a permanent "top N" cutoff. Each run skips
+    # current interpretation editions and continues into the eligible tail. Global
+    # synthesis is withheld until the final document batch is complete.
+    batch-documents: 60
+    max-facts-per-document: 12
+    max-executive-facts: 60
+    max-documents-per-source: 18
+    max-age-days: 365
+    target-market: VN
+  researcher:
+    # Event-first paid extraction. There is deliberately no quality claim such as
+    # "top 180": every conservative story cluster is eventually represented.
+    # Each operator action pays for one bounded batch; copied/reposted members stay
+    # in a separately auditable tail instead of being silently declared low-value.
+    batch-clusters: 20
+    representatives-per-cluster: 2
+    audit-documents: 12
+    max-documents-per-source-per-batch: 8
+    # Emergency spend firebreak only. It is above the current eligible corpus and
+    # never means the tail has low value; reaching it requires operator review.
+    hard-document-ceiling: 500
+    max-age-days: 365
+    target-market: VN
   llm:
     # Writer (AI#2 extractor + AI#3 interpreter + dedup pairwise).
     # Batch 9 — hai đường, chọn bằng config:
