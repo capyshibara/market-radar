@@ -111,10 +111,16 @@ public class PipelineRunStatusService {
                 String output = job.get();
                 statuses.put(stage, new StageStatus(RunState.SUCCESS, start, Instant.now(), output, null));
                 finishRunLog(runLogId, "SUCCESS", stage, null);
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // A LinkageError/AssertionError used to kill the executor worker while leaving
+                // the in-memory stage permanently RUNNING. Catch the full task boundary so the
+                // operator sees a terminal state and later stages remain blocked for a reason.
+                // JVM-fatal errors are rethrown only after the failure has been recorded.
                 String err = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                 statuses.put(stage, new StageStatus(RunState.FAILED, start, Instant.now(), null, err));
                 finishRunLog(runLogId, "FAILED", stage, err);
+                if (e instanceof VirtualMachineError fatal) throw fatal;
+                if (e instanceof ThreadDeath death) throw death;
             }
         });
         return true;
