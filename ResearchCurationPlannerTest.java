@@ -25,7 +25,8 @@ public class ResearchCurationPlannerTest {
         clustersOnlyHighConfidenceRepublicationsAndKeepsIndependentSources();
         incompatibleEntityOrDateFailsOpenAsSeparateStory();
         laterBatchesReachTheTailInsteadOfApplyingAnArbitraryCut();
-        auditSamplesOnlyDeferredMembersOfRepresentedClusters();
+        auditSamplesBothUnrepresentedStoriesAndDeferredRepublications();
+        priorityTailMovesToSaturationAuditAfterCoverage();
         terminalAttemptDoesNotLoopAndRemainsVisible();
         System.out.println("ResearchCurationPlannerTest: ALL PASS");
     }
@@ -97,7 +98,7 @@ public class ResearchCurationPlannerTest {
                 "lower-ranked unique evidence is deferred, never silently discarded");
     }
 
-    private static void auditSamplesOnlyDeferredMembersOfRepresentedClusters() throws Exception {
+    private static void auditSamplesBothUnrepresentedStoriesAndDeferredRepublications() throws Exception {
         String body = repeated("AIA Vietnam launched a digital customer experience programme this month.");
         Classification lead = classification(doc(30, source("AIA", "AIA Vietnam",
                 SourceAuthority.OFFICIAL_COMPANY), "AIA Vietnam launches digital customer experience",
@@ -112,8 +113,32 @@ public class ResearchCurationPlannerTest {
         var audit = plan(List.of(lead, copy, unrelated), Set.of(30L),
                 new ResearchCurationPlanner.Config(2, 1, 5, 5, 20, 365, "VN"),
                 ResearchCurationPlanner.Mode.AUDIT);
-        check(audit.selectedDocumentIds().equals(List.of(31L)),
-                "audit samples deferred members only after their cluster has a representative");
+        check(audit.selectedDocumentIds().containsAll(List.of(31L, 32L)),
+                "audit samples both an unrepresented story and deferred republication");
+    }
+
+    private static void priorityTailMovesToSaturationAuditAfterCoverage() throws Exception {
+        Classification represented = classification(doc(35, source("AUTHORITY", "Authority",
+                SourceAuthority.REGULATOR), "Vietnam insurance brand confidence study",
+                repeated("The regulator published a Vietnam insurance brand confidence study."),
+                TODAY.minusDays(2)), Category.BRAND_REPUTATION);
+        Classification background = classification(doc(36, source("UNKNOWN", "Unknown publisher",
+                SourceAuthority.UNKNOWN), "Community sponsorship photo recap",
+                repeated("A community sponsorship photo recap was published for local readers."),
+                TODAY.minusDays(300)), Category.BRAND_REPUTATION);
+        var config = new ResearchCurationPlanner.Config(2, 1, 5, 5, 20, 365, "VN");
+
+        var main = plan(List.of(represented, background), Set.of(35L), config,
+                ResearchCurationPlanner.Mode.MAIN);
+        check(main.selected().isEmpty(),
+                "below-PRIORITY tail must not force another automatic paid main batch after coverage");
+        check(main.diagnostics().remainingClusters() == 1,
+                "background cluster remains explicit rather than being deleted");
+
+        var audit = plan(List.of(represented, background), Set.of(35L), config,
+                ResearchCurationPlanner.Mode.AUDIT);
+        check(audit.selectedDocumentIds().equals(List.of(36L)),
+                "stratified saturation audit samples the unrepresented background tail");
     }
 
     private static void terminalAttemptDoesNotLoopAndRemainsVisible() throws Exception {

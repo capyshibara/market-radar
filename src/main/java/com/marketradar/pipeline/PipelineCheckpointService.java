@@ -275,7 +275,8 @@ public class PipelineCheckpointService {
                 decisionGrade, reviewedAnalysis, editorialWatch, excluded);
 
         PipelineCheckpointRules.Metrics metrics = new PipelineCheckpointRules.Metrics(
-                corpus.documents(), corpus.analysisEligibleDocuments(), curation.analysisEligibleClassifications(),
+                corpus.documents(), corpus.usableDocuments(), corpus.analysisEligibleDocuments(),
+                curation.analysisEligibleClassifications(),
                 curation.confirmedAnalysisEligible(), evidence.researchCandidateClusters(),
                 evidence.representedResearchClusters(),
                 researchAssessment.recommendation()

@@ -82,50 +82,85 @@ public class ResearchCurationBatchService {
             return new Assessment(Recommendation.NO_ELIGIBLE_INPUT,
                     "No eligible confirmed document is available for Researcher.", null);
         }
-        if (mainPlan.diagnostics().remainingClusters() > 0 && !mainPlan.selected().isEmpty()) {
+        List<ResearchCurationBatch> currentHistory = batches.findAllByOrderByStartedAtDescIdDesc().stream()
+                .filter(row -> Objects.equals(row.getCandidateSnapshot(), mainPlan.candidateSnapshot()))
+                .filter(row -> Objects.equals(row.getPlannerVersion(), ResearchCurationPlanner.VERSION))
+                .filter(row -> row.getStatus() == ResearchCurationBatch.Status.COMPLETED)
+                .toList();
+        ResearchCurationBatch latestMain = currentHistory.stream()
+                .filter(row -> row.getMode() == ResearchCurationBatch.Mode.MAIN)
+                .findFirst().orElse(null);
+        ResearchCurationBatch latestAudit = currentHistory.stream()
+                .filter(row -> row.getMode() == ResearchCurationBatch.Mode.AUDIT)
+                .findFirst().orElse(null);
+
+        boolean latestMainAddedValidation = latestMain != null
+                && (latestMain.getNewCorroboratedClusters() > 0
+                || latestMain.getNewConflictClusters() > 0);
+        if (mainPlan.diagnostics().remainingClusters() > 0 && !mainPlan.selected().isEmpty()
+                && (!mainPlan.coverage().complete() || latestMain == null
+                || latestMainAddedValidation)) {
+            String basis = !mainPlan.coverage().complete()
+                    ? "coverage gaps remain"
+                    : latestMain == null
+                    ? "no current-planner main-batch value ledger exists"
+                    : "the latest main batch added " + latestMain.getNewCorroboratedClusters()
+                            + " corroborated and " + latestMain.getNewConflictClusters()
+                            + " conflict cluster(s)";
             return new Assessment(Recommendation.RUN_NEXT_BATCH,
-                    mainPlan.diagnostics().remainingClusters()
-                            + " conservative story cluster(s) still need a representative.", null);
+                    mainPlan.selectedClusters().size() + " material or coverage-gap cluster(s) form "
+                            + "the next bounded batch because " + basis + "; "
+                            + mainPlan.diagnostics().remainingClusters()
+                            + " total cluster(s) remain visible.", latestAudit);
         }
-        if (mainPlan.diagnostics().remainingClusters() > 0) {
-            if (mainPlan.diagnostics().exhaustedUnrepresentedClusters() == 0) {
-                return new Assessment(Recommendation.OPERATOR_REVIEW_REQUIRED,
-                        "The emergency document ceiling blocks additional automatic selection. "
-                                + "Raise it only after reviewing spend and cluster coverage; the "
-                                + "remaining clusters are not classified as low-value.", null);
-            }
+
+        boolean materialOrCoverageGapRemains = !mainPlan.coverage().complete()
+                || mainPlan.allClusters().stream()
+                .anyMatch(cluster -> !cluster.represented()
+                        && cluster.priorityScore() >= ResearchCurationPlanner.AUTOMATIC_PRIORITY_FLOOR);
+        if (mainPlan.diagnostics().remainingClusters() > 0
+                && mainPlan.selected().isEmpty() && materialOrCoverageGapRemains
+                && (latestMain == null || latestMainAddedValidation)
+                && mainPlan.diagnostics().exhaustedUnrepresentedClusters() == 0) {
+            return new Assessment(Recommendation.OPERATOR_REVIEW_REQUIRED,
+                    "The emergency document ceiling blocks a material or coverage-gap cluster. "
+                            + "Review spend and coverage before raising the ceiling; background-tail "
+                            + "saturation cannot certify this state.", null);
+        }
+
+        if (mainPlan.diagnostics().remainingClusters() > 0
+                && mainPlan.diagnostics().exhaustedUnrepresentedClusters() > 0
+                && !mainPlan.coverage().complete()) {
             return new Assessment(Recommendation.OPERATOR_REVIEW_REQUIRED,
                     mainPlan.diagnostics().exhaustedUnrepresentedClusters()
                             + " unrepresented story cluster(s) have only terminal EMPTY_RESULT/"
                             + "SCHEMA_REJECTED attempts. Inspect their extraction trail or run a "
-                            + "targeted retry; they are not treated as represented.", null);
+                            + "targeted retry because a required coverage dimension is still missing; "
+                            + "they are not treated as represented.", null);
         }
-        List<ResearchCurationBatch> currentHistory = batches.findAllByOrderByStartedAtDescIdDesc().stream()
-                .filter(row -> Objects.equals(row.getCandidateSnapshot(), mainPlan.candidateSnapshot()))
-                .filter(row -> row.getStatus() == ResearchCurationBatch.Status.COMPLETED)
-                .toList();
-        ResearchCurationBatch latestAudit = currentHistory.stream()
-                .filter(row -> row.getMode() == ResearchCurationBatch.Mode.AUDIT)
-                .findFirst().orElse(null);
         if (!auditPlan.selected().isEmpty() && latestAudit == null) {
             return new Assessment(Recommendation.RUN_DEFERRED_AUDIT,
-                    auditPlan.selected().size()
-                            + " deferred article(s) form the next stratified audit sample.", null);
+                    auditPlan.selected().size() + " unrepresented/republication article(s) form the "
+                            + "next stratified saturation sample after the priority lane's marginal "
+                            + "validation yield plateaued.", null);
         }
         if (!auditPlan.selected().isEmpty() && latestAudit != null
-                && (latestAudit.getNewEventClusters() > 0
+                && (latestAudit.getNewCorroboratedClusters() > 0
                 || latestAudit.getNewConflictClusters() > 0)) {
             return new Assessment(Recommendation.AUDIT_FOUND_ADDITIONAL_VALUE,
-                    "The latest deferred audit found " + latestAudit.getNewEventClusters()
-                            + " new event cluster(s) and " + latestAudit.getNewConflictClusters()
-                            + " new conflict cluster(s). Run another audit before hand-off.", latestAudit);
+                    "The latest tail audit added " + latestAudit.getNewCorroboratedClusters()
+                            + " corroborated cluster(s) and " + latestAudit.getNewConflictClusters()
+                            + " conflict cluster(s). Run another sample before hand-off.", latestAudit);
         }
-        if (!auditPlan.selected().isEmpty()) {
-            return new Assessment(Recommendation.RUN_DEFERRED_AUDIT,
-                    "Deferred candidates remain after the last sample; run the next audit sample.", latestAudit);
+        if (latestAudit != null) {
+            return new Assessment(Recommendation.READY_FOR_ANALYST,
+                    "Required dimensions are represented. The latest stratified tail sample "
+                            + "added no corroboration or conflict, so marginal validation value is "
+                            + "saturated for this corpus snapshot; all remaining clusters stay auditable.",
+                    latestAudit);
         }
         return new Assessment(Recommendation.READY_FOR_ANALYST,
-                "Every conservative story cluster has a Researcher representative and the deferred "
-                        + "audit pool is exhausted for this corpus snapshot.", latestAudit);
+                "Every material cluster is represented and no deferred saturation sample remains "
+                        + "for this corpus snapshot.", latestAudit);
     }
 }

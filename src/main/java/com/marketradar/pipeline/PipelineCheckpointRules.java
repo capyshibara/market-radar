@@ -18,6 +18,7 @@ public final class PipelineCheckpointRules {
     public record Metrics(
             long documents,
             long usableDocuments,
+            long analysisEligibleDocuments,
             long classifications,
             long confirmedClassifications,
             long researchCandidateClusters,
@@ -80,11 +81,11 @@ public final class PipelineCheckpointRules {
             return checkpoint("classify", "Librarian + Router", Decision.WAITING,
                     "No curation result yet; run only with a configured real classifier.");
         }
-        double coverage = ratio(m.classifications(), m.usableDocuments());
+        double coverage = ratio(m.classifications(), m.analysisEligibleDocuments());
         if (coverage < 0.50d || m.confirmedClassifications() == 0) {
             return checkpoint("classify", "Librarian + Router", Decision.STOP,
                     "Systemic curation collapse: " + m.classifications() + "/"
-                            + m.usableDocuments() + " usable documents processed and "
+                            + m.analysisEligibleDocuments() + " analysis-eligible documents processed and "
                             + m.confirmedClassifications() + " confirmed.");
         }
         if (coverage < 0.90d) {
@@ -93,7 +94,8 @@ public final class PipelineCheckpointRules {
                             + "rows and inspect errors before relying on the report.");
         }
         return checkpoint("classify", "Librarian + Router", Decision.PASS,
-                m.classifications() + " documents curated; "
+                m.classifications() + "/" + m.analysisEligibleDocuments()
+                        + " analysis-eligible documents curated; "
                         + m.confirmedClassifications() + " confirmed for evidence extraction.");
     }
 
@@ -143,7 +145,8 @@ public final class PipelineCheckpointRules {
                             + " have complete core dimensions, " + percent(routingCoverage)
                             + " have Connector routing, " + m.entityQuarantinedFacts()
                             + " have ambiguous/conflicting entity attribution, and "
-                            + percent(technicalFailureRate) + " of latest attempts failed technically.");
+                            + percent(technicalFailureRate) + " of latest attempts failed technically. "
+                            + m.researchCurationMessage());
         }
         return checkpoint("extract", "Researcher + Connector", Decision.PASS,
                 m.activeFacts() + " active facts across " + m.activeFactDocuments()

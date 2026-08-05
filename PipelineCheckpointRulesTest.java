@@ -9,6 +9,7 @@ public class PipelineCheckpointRulesTest {
         healthyFunnelPasses();
         systemicCollapseStops();
         pilotsCannotMasqueradeAsCompletedStages();
+        auditedSaturationCanHandOffWithoutPretendingFullCoverage();
         lowL1YieldWarnsWithoutDeletingClaims();
         neutralVerdictsStayForHumanReview();
         System.out.println("PipelineCheckpointRulesTest: ALL PASS");
@@ -60,6 +61,21 @@ public class PipelineCheckpointRulesTest {
         assert checkpoint.message().contains("remain in the audit/review trail");
     }
 
+    private static void auditedSaturationCanHandOffWithoutPretendingFullCoverage() {
+        var m = new PipelineCheckpointRules.Metrics(
+                834, 732, 453, 453, 427,
+                402, 110, true,
+                "Priority clusters covered; tail audit found no marginal validation value.",
+                112, 110, 0, 1200, 110, 108,
+                1200, 1150, 80,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0);
+        var checkpoint = checkpoint(PipelineCheckpointRules.evaluate(m), "extract");
+        assert checkpoint.decision() == PipelineCheckpointRules.Decision.WARN;
+        assert checkpoint.message().contains("27.4% extraction coverage");
+        assert !checkpoint.message().contains("Staged curation is not complete");
+    }
+
     private static void neutralVerdictsStayForHumanReview() {
         var m = metrics(804, 711, 711, 420, 420, 300, 10,
                 1200, 280, 500, 280, 400, 400, 0, 390, 5, 5, 0);
@@ -76,8 +92,8 @@ public class PipelineCheckpointRulesTest {
             long facts, long factDocs, long claims, long claimDocs, long l1Pass,
             long verifications, long entailed, long neutral, long contradicted,
             long verifierErrors, long reportEligible) {
-        return new PipelineCheckpointRules.Metrics(documents, usable, classifications, confirmed,
-                confirmed, Math.min(extractionAttempts, confirmed),
+        return new PipelineCheckpointRules.Metrics(documents, usable, classifications,
+                classifications, confirmed, confirmed, Math.min(extractionAttempts, confirmed),
                 extractionAttempts > 0 && extractionAttempts >= confirmed,
                 extractionAttempts > 0 && extractionAttempts >= confirmed
                         ? "Curation complete." : "Run the next event-first batch.",

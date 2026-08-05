@@ -60,34 +60,42 @@ public class BiReportController {
     }
 
     @GetMapping("/report/bi.docx")
-    public ResponseEntity<byte[]> biReportDocx(@RequestParam(defaultValue = "weekly") String cadence) {
+    public ResponseEntity<byte[]> biReportDocx(@RequestParam(defaultValue = "weekly") String cadence,
+                                               @RequestParam(defaultValue = "vi") String lang) {
         ProductReportCadence c = parseCadence(cadence);
-        var content = biAdapter.adapt("Business Intelligence Report — " + c.label(true),
-                c.periodLabel(LocalDate.now(ProductReportModel.REPORT_ZONE), true),
+        boolean vi = isVi(lang);
+        var content = biAdapter.adapt(
+                (vi ? "Báo cáo tình báo thị trường — " : "Business Intelligence Report — ")
+                        + c.label(vi),
+                c.periodLabel(LocalDate.now(ProductReportModel.REPORT_ZONE), vi),
                 reports.current(c, LocalDate.now(ProductReportModel.REPORT_ZONE)),
-                rawDocs.count());
-        byte[] docx = docxExport.render(content);
+                rawDocs.count(), vi);
+        byte[] docx = docxExport.render(content, vi);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"market-radar-bi-report-" + cadence + ".docx\"")
+                        "attachment; filename=\"market-radar-bi-report-" + cadence + "-" + (vi ? "vi" : "en") + ".docx\"")
                 .body(docx);
     }
 
     @GetMapping("/report/bi.pptx")
-    public ResponseEntity<byte[]> biReportPptx(@RequestParam(defaultValue = "weekly") String cadence) {
+    public ResponseEntity<byte[]> biReportPptx(@RequestParam(defaultValue = "weekly") String cadence,
+                                               @RequestParam(defaultValue = "vi") String lang) {
         ProductReportCadence c = parseCadence(cadence);
-        var content = biAdapter.adapt("Business Intelligence Report — " + c.label(true),
-                c.periodLabel(LocalDate.now(ProductReportModel.REPORT_ZONE), true),
+        boolean vi = isVi(lang);
+        var content = biAdapter.adapt(
+                (vi ? "Báo cáo tình báo thị trường — " : "Business Intelligence Report — ")
+                        + c.label(vi),
+                c.periodLabel(LocalDate.now(ProductReportModel.REPORT_ZONE), vi),
                 reports.current(c, LocalDate.now(ProductReportModel.REPORT_ZONE)),
-                rawDocs.count());
-        byte[] pptx = pptxExport.render(content);
+                rawDocs.count(), vi);
+        byte[] pptx = pptxExport.render(content, vi);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(
                         "application/vnd.openxmlformats-officedocument.presentationml.presentation"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"market-radar-bi-report-" + cadence + ".pptx\"")
+                        "attachment; filename=\"market-radar-bi-report-" + cadence + "-" + (vi ? "vi" : "en") + ".pptx\"")
                 .body(pptx);
     }
 
@@ -101,8 +109,8 @@ public class BiReportController {
         Map<String, Object> model = BiReportPageBuilder.toTemplateModel(content, vi);
         String langParam = vi ? "vi" : "en";
         model.put("pdfHref", "/report/bi.pdf?cadence=" + cadenceParam + "&lang=" + langParam);
-        model.put("docxHref", "/report/bi.docx?cadence=" + cadenceParam);
-        model.put("pptxHref", "/report/bi.pptx?cadence=" + cadenceParam);
+        model.put("docxHref", "/report/bi.docx?cadence=" + cadenceParam + "&lang=" + langParam);
+        model.put("pptxHref", "/report/bi.pptx?cadence=" + cadenceParam + "&lang=" + langParam);
         model.put("langHrefVi", "/report/bi?cadence=" + cadenceParam + "&lang=vi");
         model.put("langHrefEn", "/report/bi?cadence=" + cadenceParam + "&lang=en");
         model.put("cadenceParam", cadenceParam);

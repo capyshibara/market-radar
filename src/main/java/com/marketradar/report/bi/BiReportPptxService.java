@@ -63,15 +63,20 @@ public class BiReportPptxService {
     private static final int TABLE_NOTE_MAX_CHARS = 90; // giữ cột "ghi chú/vì sao" ở đúng 1 dòng, không wrap
 
     public byte[] render(BiReportContent content) {
+        return render(content, true);
+    }
+
+    public byte[] render(BiReportContent content, boolean vi) {
         try (XMLSlideShow ppt = new XMLSlideShow()) {
             ppt.setPageSize(new Dimension((int) PAGE_W, (int) PAGE_H));
 
-            coverSlide(ppt, content);
+            coverSlide(ppt, content, vi);
 
             List<BiFinding> highlights = content.findings().stream().filter(BiFinding::highlight).toList();
             if (!highlights.isEmpty()) {
-                bulletCardSlides(ppt, "TÓM TẮT ĐIỀU HÀNH", "Nhận định chính", RED,
-                        highlights.stream().map(BiFinding::textVi).toList(), 14);
+                bulletCardSlides(ppt, vi ? "TÓM TẮT ĐIỀU HÀNH" : "EXECUTIVE SUMMARY",
+                        vi ? "Nhận định chính" : "Key findings", RED,
+                        highlights.stream().map(f -> f.text(vi)).toList(), 14);
             }
 
             List<BiFinding> background = byBucket(content, BiFinding.MACRO_ECONOMIC, BiFinding.COMPETITIVE_THEME);
@@ -80,24 +85,24 @@ public class BiReportPptxService {
                     .filter(f -> BiFinding.SCHEDULED_EVENT.equals(f.bucket()) && f.eventDateLabel() != null)
                     .toList();
             if (!background.isEmpty() || !scheduledWithDate.isEmpty()) {
-                marketScanSlide(ppt, background, scheduledWithDate);
+                marketScanSlide(ppt, background, scheduledWithDate, vi);
             }
 
             List<BiFinding> marketShare = byBucket(content, BiFinding.MARKET_SHARE_OR_AWARD);
-            if (!marketShare.isEmpty()) marketShareSlides(ppt, marketShare);
+            if (!marketShare.isEmpty()) marketShareSlides(ppt, marketShare, vi);
 
             List<BiFinding> aiThreat = byBucket(content, BiFinding.TECH_AI_SIGNAL).stream()
                     .filter(f -> f.severity() != null).toList();
-            if (!aiThreat.isEmpty()) threatMapSlides(ppt, aiThreat);
+            if (!aiThreat.isEmpty()) threatMapSlides(ppt, aiThreat, vi);
 
             // Sự kiện đã lên bảng lịch ở marketScanSlide() rồi thì không lặp lại ở đây nữa.
             List<BiFinding> remainingEvents = events.stream().filter(f -> !scheduledWithDate.contains(f)).toList();
-            if (!remainingEvents.isEmpty()) eventsSlides(ppt, remainingEvents);
+            if (!remainingEvents.isEmpty()) eventsSlides(ppt, remainingEvents, vi);
 
             List<BiFinding> comparison = byBucket(content, BiFinding.STRATEGIC_COMPARISON);
-            if (!comparison.isEmpty()) comparisonSlides(ppt, comparison);
+            if (!comparison.isEmpty()) comparisonSlides(ppt, comparison, vi);
 
-            sourcesSlides(ppt, content);
+            sourcesSlides(ppt, content, vi);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             ppt.write(out);
@@ -114,7 +119,7 @@ public class BiReportPptxService {
 
     // ---------------------------------------------------------------- slides
 
-    private void coverSlide(XMLSlideShow ppt, BiReportContent content) {
+    private void coverSlide(XMLSlideShow ppt, BiReportContent content, boolean vi) {
         XSLFSlide slide = ppt.createSlide();
         fillBackground(slide, RED);
         addText(slide, new Rectangle2D.Double(700, 24, 204, 26), "TECHCOM LIFE",
@@ -122,7 +127,7 @@ public class BiReportPptxService {
         addText(slide, new Rectangle2D.Double(56, 220, 848, 180), content.title(),
                 30, true, WHITE, TextParagraph.TextAlign.LEFT);
         addText(slide, new Rectangle2D.Double(56, 460, 700, 26),
-                content.period() + "  ·  Tạo lúc " + content.generatedAt(),
+                content.period() + (vi ? "  ·  Tạo lúc " : "  ·  Generated ") + content.generatedAt(),
                 12, false, WHITE, TextParagraph.TextAlign.LEFT);
     }
 
@@ -155,11 +160,13 @@ public class BiReportPptxService {
      * bảng đó cần 1 taxonomy chủ đề + đánh giá "độ mạnh tín hiệu" mà hệ thống chưa có cách tổng
      * hợp đáng tin cậy (xem trao đổi 2026-08-03), cố làm sẽ phải bịa nhãn.
      */
-    private void marketScanSlide(XMLSlideShow ppt, List<BiFinding> background, List<BiFinding> scheduledEvents) {
+    private void marketScanSlide(XMLSlideShow ppt, List<BiFinding> background,
+                                 List<BiFinding> scheduledEvents, boolean vi) {
         XSLFSlide slide = ppt.createSlide();
         marketScanHeader(slide, "MARKET SCAN");
 
-        blackBar(slide, new Rectangle2D.Double(56, 60, 428, 26), "TỔNG QUAN THỊ TRƯỜNG");
+        blackBar(slide, new Rectangle2D.Double(56, 60, 428, 26),
+                vi ? "TỔNG QUAN THỊ TRƯỜNG" : "MARKET OVERVIEW");
         plainBox(slide, new Rectangle2D.Double(56, 90, 428, 340));
         XSLFTextBox overviewBox = slide.createTextBox();
         overviewBox.setAnchor(new Rectangle2D.Double(68, 100, 404, 320));
@@ -167,148 +174,161 @@ public class BiReportPptxService {
                 .orElse(background.isEmpty() ? null : background.get(0));
         if (overview != null) {
             XSLFTextParagraph p = overviewBox.addNewTextParagraph();
-            addMarkdownRuns(p, truncate(overview.textVi(), 700), 12.0, TEXT_DARK);
+            addMarkdownRuns(p, truncate(overview.text(vi), 700), 12.0, TEXT_DARK);
         } else {
             XSLFTextParagraph p = overviewBox.addNewTextParagraph();
             XSLFTextRun r = p.addNewTextRun();
-            r.setText("Chưa có dữ liệu tổng quan thị trường trong kỳ này.");
+            r.setText(vi ? "Chưa có dữ liệu tổng quan thị trường trong kỳ này."
+                    : "No market-overview evidence is available for this period.");
             r.setItalic(true);
             r.setFontSize(12.0);
             r.setFontColor(TEXT_DARK);
         }
 
-        blackBar(slide, new Rectangle2D.Double(492, 60, 412, 26), "LỊCH SỰ KIỆN DỰ KIẾN THEO ĐỐI THỦ");
+        blackBar(slide, new Rectangle2D.Double(492, 60, 412, 26),
+                vi ? "LỊCH SỰ KIỆN DỰ KIẾN THEO ĐỐI THỦ" : "COMPETITOR DISCLOSURE CALENDAR");
         if (scheduledEvents.isEmpty()) {
             addText(slide, new Rectangle2D.Double(492, 100, 412, 40),
-                    "Chưa có mốc thời gian cụ thể nào trong kỳ này.", 11, false, TEXT_DARK, TextParagraph.TextAlign.LEFT);
+                    vi ? "Chưa có mốc thời gian cụ thể nào trong kỳ này."
+                            : "No specific scheduled date is available for this period.",
+                    11, false, TEXT_DARK, TextParagraph.TextAlign.LEFT);
         } else {
             XSLFTable table = slide.createTable();
             table.setAnchor(new Rectangle2D.Double(492, 90, 412, 340));
             XSLFTableRow header = table.addRow();
             header.setHeight(26);
-            addCell(header, "Đối thủ", true, BLACK, WHITE);
-            addCell(header, "Dự kiến", true, BLACK, WHITE);
-            addCell(header, "Sự kiện", true, BLACK, WHITE);
+            addCell(header, vi ? "Đối thủ" : "Competitor", true, BLACK, WHITE);
+            addCell(header, vi ? "Dự kiến" : "Expected", true, BLACK, WHITE);
+            addCell(header, vi ? "Sự kiện" : "Event", true, BLACK, WHITE);
             for (BiFinding f : chunk(scheduledEvents, MAX_TABLE_ROWS).get(0)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
                 addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
                 addCell(row, f.eventDateLabel(), true, WHITE, RED);
-                addCell(row, truncate(f.textVi(), 70), false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.text(vi), 70), false, WHITE, TEXT_DARK);
             }
             setColumnWidths(table, 120, 90, 202);
         }
     }
 
-    private void marketShareSlides(XMLSlideShow ppt, List<BiFinding> findings) {
+    private void marketShareSlides(XMLSlideShow ppt, List<BiFinding> findings, boolean vi) {
         List<List<BiFinding>> pages = chunk(findings, MAX_TABLE_ROWS);
         for (int i = 0; i < pages.size(); i++) {
             XSLFSlide slide = ppt.createSlide();
-            sectionHeader(slide, "THỊ PHẦN / GIẢI THƯỞNG" + pageSuffix(i, pages.size()));
+            sectionHeader(slide, (vi ? "THỊ PHẦN / GIẢI THƯỞNG" : "MARKET SHARE / AWARDS")
+                    + pageSuffix(i, pages.size()));
             XSLFTable table = slide.createTable();
             table.setAnchor(new Rectangle2D.Double(56, 90, 848, 400));
             XSLFTableRow header = table.addRow();
             header.setHeight(28);
-            addCell(header, "Chủ thể", true, BLACK, WHITE);
-            addCell(header, "Số liệu", true, BLACK, WHITE);
-            addCell(header, "Ghi chú", true, BLACK, WHITE);
+            addCell(header, vi ? "Chủ thể" : "Subject", true, BLACK, WHITE);
+            addCell(header, vi ? "Số liệu" : "Metric", true, BLACK, WHITE);
+            addCell(header, vi ? "Ghi chú" : "Evidence note", true, BLACK, WHITE);
             for (BiFinding f : pages.get(i)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
                 addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
                 addCell(row, f.metricPercent() != null ? f.metricPercent() + "%" : "—", false, WHITE, TEXT_DARK);
-                addCell(row, truncate(f.textVi(), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.text(vi), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
             }
             setColumnWidths(table, 220, 100, 528);
         }
     }
 
-    private void threatMapSlides(XMLSlideShow ppt, List<BiFinding> findings) {
+    private void threatMapSlides(XMLSlideShow ppt, List<BiFinding> findings, boolean vi) {
         List<List<BiFinding>> pages = chunk(findings, MAX_TABLE_ROWS);
         for (int i = 0; i < pages.size(); i++) {
             XSLFSlide slide = ppt.createSlide();
-            sectionHeader(slide, "BẢN ĐỒ RỦI RO AI THEO ĐỐI THỦ" + pageSuffix(i, pages.size()));
+            sectionHeader(slide, (vi ? "BẢN ĐỒ RỦI RO AI THEO ĐỐI THỦ" : "COMPETITOR AI RISK MAP")
+                    + pageSuffix(i, pages.size()));
             XSLFTable table = slide.createTable();
             table.setAnchor(new Rectangle2D.Double(56, 90, 848, 400));
             XSLFTableRow header = table.addRow();
             header.setHeight(28);
-            addCell(header, "Mức độ", true, BLACK, WHITE);
-            addCell(header, "Đối thủ", true, BLACK, WHITE);
-            addCell(header, "Vì sao", true, BLACK, WHITE);
+            addCell(header, vi ? "Mức độ" : "Severity", true, BLACK, WHITE);
+            addCell(header, vi ? "Đối thủ" : "Competitor", true, BLACK, WHITE);
+            addCell(header, vi ? "Vì sao" : "Rationale", true, BLACK, WHITE);
             for (BiFinding f : pages.get(i)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
                 Color[] badge = badgeColors(f.severity());
                 addCell(row, f.severity(), true, badge[0], badge[1]);
                 addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
-                addCell(row, truncate(f.textVi(), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.text(vi), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
             }
             setColumnWidths(table, 120, 160, 568);
         }
     }
 
-    private void eventsSlides(XMLSlideShow ppt, List<BiFinding> findings) {
+    private void eventsSlides(XMLSlideShow ppt, List<BiFinding> findings, boolean vi) {
         List<List<BiFinding>> pages = chunk(findings, MAX_TABLE_ROWS);
         for (int i = 0; i < pages.size(); i++) {
             XSLFSlide slide = ppt.createSlide();
-            sectionHeader(slide, "DIỄN BIẾN THEO ĐỐI THỦ & LỊCH SẮP TỚI" + pageSuffix(i, pages.size()));
+            sectionHeader(slide, (vi ? "DIỄN BIẾN THEO ĐỐI THỦ & LỊCH SẮP TỚI"
+                    : "COMPETITOR DEVELOPMENTS & UPCOMING EVENTS") + pageSuffix(i, pages.size()));
             XSLFTable table = slide.createTable();
             table.setAnchor(new Rectangle2D.Double(56, 90, 848, 400));
             XSLFTableRow header = table.addRow();
             header.setHeight(28);
-            addCell(header, "Đối thủ", true, BLACK, WHITE);
-            addCell(header, "Diễn biến", true, BLACK, WHITE);
-            addCell(header, "Nguồn", true, BLACK, WHITE);
+            addCell(header, vi ? "Đối thủ" : "Competitor", true, BLACK, WHITE);
+            addCell(header, vi ? "Diễn biến" : "Development", true, BLACK, WHITE);
+            addCell(header, vi ? "Nguồn" : "Source", true, BLACK, WHITE);
             for (BiFinding f : pages.get(i)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
                 addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
-                addCell(row, truncate(f.textVi(), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.text(vi), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
                 addCell(row, citationLabel(f), false, WHITE, TEXT_DARK);
             }
             setColumnWidths(table, 160, 528, 160);
         }
     }
 
-    private void comparisonSlides(XMLSlideShow ppt, List<BiFinding> findings) {
+    private void comparisonSlides(XMLSlideShow ppt, List<BiFinding> findings, boolean vi) {
         Map<String, List<BiFinding>> groups = new LinkedHashMap<>();
         for (BiFinding f : findings) {
             String key = f.subjectKey() == null || f.subjectKey().isBlank()
-                    ? "Không rõ cặp so sánh" : BiReportPageBuilder.displayLabel(f.subjectKey());
+                    ? (vi ? "Không rõ cặp so sánh" : "Unspecified comparison pair")
+                    : BiReportPageBuilder.displayLabel(f.subjectKey());
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
         }
         for (var entry : groups.entrySet()) {
-            String headerTitle = "SO SÁNH CHIẾN LƯỢC · " + entry.getKey().toUpperCase(Locale.ROOT);
-            List<List<BiFinding>> pages = paginate(entry.getValue(), BiFinding::textVi, CARD_BODY_W, 13, CARD_BODY_H);
+            String headerTitle = (vi ? "SO SÁNH CHIẾN LƯỢC · " : "STRATEGIC COMPARISON · ")
+                    + entry.getKey().toUpperCase(Locale.ROOT);
+            List<List<BiFinding>> pages = paginate(entry.getValue(), f -> f.text(vi), CARD_BODY_W, 13, CARD_BODY_H);
             for (int i = 0; i < pages.size(); i++) {
                 XSLFSlide slide = ppt.createSlide();
                 sectionHeader(slide, headerTitle + pageSuffix(i, pages.size()));
                 roundedCard(slide, new Rectangle2D.Double(56, 90, 848, 400), RED);
-                headerPill(slide, new Rectangle2D.Double(76, 100, 260, 26), "Góc nhìn của chúng tôi", RED);
+                headerPill(slide, new Rectangle2D.Double(76, 100, 260, 26),
+                        vi ? "Góc nhìn của chúng tôi" : "Our perspective", RED);
                 XSLFTextBox body = slide.createTextBox();
                 body.setAnchor(new Rectangle2D.Double(90, 140, CARD_BODY_W, CARD_BODY_H));
                 for (BiFinding f : pages.get(i)) {
                     XSLFTextParagraph p = body.addNewTextParagraph();
                     p.setBullet(true);
                     p.setSpaceBefore(10.0);
-                    addMarkdownRuns(p, f.textVi(), 13.0, TEXT_DARK);
+                    addMarkdownRuns(p, f.text(vi), 13.0, TEXT_DARK);
                 }
             }
         }
     }
 
-    private void sourcesSlides(XMLSlideShow ppt, BiReportContent content) {
+    private void sourcesSlides(XMLSlideShow ppt, BiReportContent content, boolean vi) {
         if (content.sourceLines().isEmpty()) {
             XSLFSlide slide = ppt.createSlide();
-            sectionHeader(slide, "NGUỒN & PHƯƠNG PHÁP");
-            addText(slide, new Rectangle2D.Double(56, 90, 848, 40), "Chưa có nguồn nào trong kỳ này.",
+            sectionHeader(slide, vi ? "NGUỒN & PHƯƠNG PHÁP" : "SOURCES & METHOD");
+            addText(slide, new Rectangle2D.Double(56, 90, 848, 40),
+                    vi ? "Chưa có nguồn nào trong kỳ này." : "No source is available for this period.",
                     12, false, TEXT_DARK, TextParagraph.TextAlign.LEFT);
         } else {
-            bulletCardSlides(ppt, "NGUỒN & PHƯƠNG PHÁP", "Nguồn đã dùng", GREY_HEADER,
+            bulletCardSlides(ppt, vi ? "NGUỒN & PHƯƠNG PHÁP" : "SOURCES & METHOD",
+                    vi ? "Nguồn đã dùng" : "Sources used", GREY_HEADER,
                     content.sourceLines(), 12);
         }
         if (!content.openGaps().isEmpty()) {
-            bulletCardSlides(ppt, "KHOẢNG TRỐNG DỮ LIỆU", "Cần lưu ý", GREY_HEADER, content.openGaps(), 12);
+            bulletCardSlides(ppt, vi ? "KHOẢNG TRỐNG DỮ LIỆU" : "EVIDENCE GAPS",
+                    vi ? "Cần lưu ý" : "Attention required", GREY_HEADER, content.openGaps(), 12);
         }
     }
 

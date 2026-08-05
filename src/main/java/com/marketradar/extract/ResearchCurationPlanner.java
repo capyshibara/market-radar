@@ -43,7 +43,10 @@ import java.util.stream.Collectors;
  */
 public final class ResearchCurationPlanner {
 
-    public static final String VERSION = "research-curation-v1-event-first";
+    public static final String VERSION = "research-curation-v2-priority-saturation";
+    /** Existing CFO curation bands define 60+ as PRIORITY/SURFACE_NOW. Lower-scored
+     * clusters are not discarded: they move to a stratified saturation audit. */
+    public static final int AUTOMATIC_PRIORITY_FLOOR = 60;
     private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final int FUTURE_HORIZON_DAYS = 90;
     private static final int CONTENT_PREFIX_CHARS = 8_000;
@@ -174,7 +177,8 @@ public final class ResearchCurationPlanner {
                     + diagnostics.representedClusters() + " represented and "
                     + diagnostics.remainingClusters() + " still unrepresented. "
                     + diagnostics.auditPoolDocuments() + " additional article(s) remain in the "
-                    + "deferred-audit pool; none is declared low-value merely because it was deferred.";
+                    + "stratified saturation pool; they remain auditable and no quality conclusion "
+                    + "is inferred from a document-count cutoff.";
         }
     }
 
@@ -268,11 +272,7 @@ public final class ResearchCurationPlanner {
                                 && attemptedIds.contains(candidate.document().getId())))
                 .count();
         int redundant = clusters.stream().mapToInt(cluster -> Math.max(0, cluster.members().size() - 1)).sum();
-        int auditPool = (int) clusters.stream().filter(StoryCluster::represented)
-                .flatMap(cluster -> cluster.members().stream())
-                .filter(candidate -> candidate.document().getId() == null
-                        || !attemptedIds.contains(candidate.document().getId()))
-                .count();
+        int auditPool = auditCandidates(clusters, attemptedIds).size();
         int deferred = (int) candidates.stream()
                 .filter(candidate -> !attemptedIds.contains(candidate.document().getId()))
                 .filter(candidate -> !batch.documents().contains(candidate)).count();
@@ -382,7 +382,12 @@ public final class ResearchCurationPlanner {
         for (String entity : new TreeSet<>(coverage.missingEntities())) {
             remaining.stream().filter(c -> c.entityKeys().contains(entity)).findFirst().ifPresent(ordered::add);
         }
-        ordered.addAll(remaining);
+        // Once dimension coverage is seeded, automatically exhaust all material
+        // PRIORITY/SURFACE_NOW clusters. WATCH/BACKGROUND clusters are sampled by
+        // the audit path instead of turning a cost batch-size into a quality claim.
+        remaining.stream()
+                .filter(cluster -> cluster.priorityScore() >= AUTOMATIC_PRIORITY_FLOOR)
+                .forEach(ordered::add);
 
         List<Candidate> selectedDocs = new ArrayList<>();
         List<StoryCluster> selectedClusters = new ArrayList<>();
@@ -427,11 +432,7 @@ public final class ResearchCurationPlanner {
 
     private static BatchSelection selectAudit(List<StoryCluster> clusters, Config config,
                                               Set<Long> attemptedIds, String snapshot) {
-        List<Candidate> pool = clusters.stream().filter(StoryCluster::represented)
-                .flatMap(cluster -> cluster.members().stream())
-                .filter(candidate -> candidate.document().getId() == null
-                        || !attemptedIds.contains(candidate.document().getId()))
-                .toList();
+        List<Candidate> pool = auditCandidates(clusters, attemptedIds);
         Map<String, List<Candidate>> strata = new LinkedHashMap<>();
         pool.stream().sorted(Comparator.comparing(candidate -> auditHash(snapshot, candidate)))
                 .forEach(candidate -> strata.computeIfAbsent(auditStratum(candidate), ignored -> new ArrayList<>())
@@ -455,6 +456,33 @@ public final class ResearchCurationPlanner {
         List<StoryCluster> selectedClusters = clusters.stream()
                 .filter(cluster -> cluster.members().stream().anyMatch(chosen::contains)).toList();
         return new BatchSelection(List.copyOf(selected), selectedClusters);
+    }
+
+    /**
+     * Saturation audit pool has two explicit lanes:
+     * 1) one representative from every still-unrepresented story once the main
+     *    lane's marginal validation yield has plateaued; and
+     * 2) extra publishers behind an already represented story.
+     *
+     * <p>The first lane tests whether the ranked tail changes validation value.
+     * The second lane tests corroboration/conflict. Neither lane is silently
+     * deleted, and both remain visible in the operator plan.</p>
+     */
+    private static List<Candidate> auditCandidates(List<StoryCluster> clusters,
+                                                   Set<Long> attemptedIds) {
+        LinkedHashSet<Candidate> pool = new LinkedHashSet<>();
+        clusters.stream()
+                .filter(cluster -> !cluster.represented())
+                .map(StoryCluster::lead)
+                .filter(candidate -> candidate.document().getId() == null
+                        || !attemptedIds.contains(candidate.document().getId()))
+                .forEach(pool::add);
+        clusters.stream().filter(StoryCluster::represented)
+                .flatMap(cluster -> cluster.members().stream())
+                .filter(candidate -> candidate.document().getId() == null
+                        || !attemptedIds.contains(candidate.document().getId()))
+                .forEach(pool::add);
+        return List.copyOf(pool);
     }
 
     private static String auditStratum(Candidate candidate) {

@@ -133,12 +133,14 @@ print(row["message"])' "$file" "$stage"
 }
 
 run_stage() {
-  local stage="$1" artifact_name="${2:-$1}" pass_note="${3:-}" label start now payload state completed total checkpoint decision message
+  local stage="$1" artifact_name="${2:-$1}" pass_note="${3:-}"
+  local endpoint="${4:-/pipeline/run/$stage}" allow_waiting="${5:-false}"
+  local label start now payload state completed total checkpoint decision message
   label="$(stage_label "$stage")"
   if [ -n "$pass_note" ]; then label="$label — $pass_note"; fi
   echo
   echo "=== $label [$stage] ==="
-  curl -fsS -X POST -o /dev/null "$BASE_URL/pipeline/run/$stage"
+  curl -fsS -X POST -o /dev/null "$BASE_URL$endpoint"
   start="$(date +%s)"
   while true; do
     payload="$(curl -fsS "$BASE_URL/pipeline/status.json")"
@@ -168,10 +170,94 @@ run_stage() {
     IFS= read -r message
   } < <(checkpoint_decision "$checkpoint" "$stage")
   echo "Checkpoint $label: $decision — $message"
-  if [ "$decision" = "STOP" ] || [ "$decision" = "WAITING" ]; then
+  if [ "$decision" = "STOP" ]; then
     echo "STOP: checkpoint is $decision; next stage was not started. Evidence already written remains in the database."
     exit 4
   fi
+  if [ "$decision" = "WAITING" ] && [ "$allow_waiting" != "true" ]; then
+    echo "STOP: checkpoint is $decision; next stage was not started. Evidence already written remains in the database."
+    exit 4
+  fi
+}
+
+checkpoint_value() {
+  local file="$1" expression="$2"
+  python3 -c 'import json,sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+v=d
+for key in sys.argv[2].split("."):
+    v=v[key]
+print(v)' "$file" "$expression"
+}
+
+run_researcher_until_saturated() {
+  local action=0 checkpoint recommendation artifact endpoint
+  while true; do
+    checkpoint="$OUT_DIR/checkpoint-researcher-control.json"
+    curl -fsS "$BASE_URL/pipeline/checkpoint.json" > "$checkpoint"
+    recommendation="$(checkpoint_value "$checkpoint" evidence.researchRecommendation)"
+    case "$recommendation" in
+      READY_FOR_ANALYST)
+        echo "Researcher hand-off certified: $(checkpoint_value "$checkpoint" evidence.researchRecommendationMessage)"
+        return
+        ;;
+      RUN_NEXT_BATCH)
+        endpoint="/pipeline/run/extract"
+        ;;
+      RUN_DEFERRED_AUDIT|AUDIT_FOUND_ADDITIONAL_VALUE)
+        endpoint="/pipeline/run/extract-audit"
+        ;;
+      *)
+        echo "STOP: Researcher requires operator review — $recommendation"
+        echo "      $(checkpoint_value "$checkpoint" evidence.researchRecommendationMessage)"
+        exit 4
+        ;;
+    esac
+    action=$((action + 1))
+    if [ "$action" -gt 50 ]; then
+      echo "STOP: Researcher exceeded the 50-action emergency orchestration firebreak."
+      exit 4
+    fi
+    artifact="researcher-$(printf '%02d' "$action")"
+    curl -fsS "$BASE_URL/pipeline/extraction/plan" > "$OUT_DIR/${artifact}-main-plan.txt"
+    curl -fsS "$BASE_URL/pipeline/extraction/audit-plan" > "$OUT_DIR/${artifact}-audit-plan.txt"
+    run_stage extract "$artifact" "$recommendation" "$endpoint" true
+    curl -fsS "$BASE_URL/pipeline/researcher-curation.json" \
+      > "$OUT_DIR/${artifact}-value-ledger.json"
+  done
+}
+
+run_analyst_document_batches() {
+  local action=0 checkpoint decision artifact before_docs after_docs
+  while true; do
+    checkpoint="$OUT_DIR/checkpoint-analyst-control.json"
+    curl -fsS "$BASE_URL/pipeline/checkpoint.json" > "$checkpoint"
+    decision="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+print(next(row["decision"] for row in d["checkpoints"] if row["stage"] == "interpret"))' "$checkpoint")"
+    if [ "$decision" = "PASS" ] || [ "$decision" = "WARN" ]; then return; fi
+    if [ "$decision" = "STOP" ]; then
+      echo "STOP: Analyst checkpoint is STOP before the next bounded action."
+      exit 4
+    fi
+    before_docs="$(checkpoint_value "$checkpoint" analysis.activeClaimDocuments)"
+    action=$((action + 1))
+    if [ "$action" -gt 50 ]; then
+      echo "STOP: Analyst exceeded the 50-action emergency orchestration firebreak."
+      exit 4
+    fi
+    artifact="analyst-document-$(printf '%02d' "$action")"
+    curl -fsS "$BASE_URL/pipeline/analysis/plan" > "$OUT_DIR/${artifact}-plan.txt"
+    run_stage interpret "$artifact" "document batch $action" "/pipeline/run/interpret" true
+    checkpoint="$OUT_DIR/checkpoint-analyst-after-$(printf '%02d' "$action").json"
+    curl -fsS "$BASE_URL/pipeline/checkpoint.json" > "$checkpoint"
+    after_docs="$(checkpoint_value "$checkpoint" analysis.activeClaimDocuments)"
+    if [ "$after_docs" -le "$before_docs" ]; then
+      echo "STOP: Analyst made no document-coverage progress ($before_docs -> $after_docs)."
+      echo "      Inspect ${artifact}-status.json/output before spending on another identical batch."
+      exit 4
+    fi
+  done
 }
 
 stop_existing_app
@@ -191,12 +277,12 @@ curl -fsS "$BASE_URL/pipeline/classification/plan" > "$OUT_DIR/classification-pl
 
 if [ "$RUN_SCOUT" = "1" ]; then run_stage ingest; fi
 run_stage classify
-run_stage extract
+run_researcher_until_saturated
 # Two-pass analytical contract:
 #  1) document observations/implications -> independent verification;
 #  2) now-verified inputs -> cross-source narratives/deep dives -> verification again.
 # A single pass produces accurate fragments but cannot yet produce a connected story.
-run_stage interpret interpret-document "document claims"
+run_analyst_document_batches
 run_stage verify verify-document "document claims"
 run_stage interpret interpret-synthesis "cross-source synthesis"
 run_stage verify verify-synthesis "cross-source synthesis"
@@ -229,9 +315,11 @@ for cadence in weekly monthly quarterly; do
       > "$OUT_DIR/bi-${cadence}-${lang}.html"
     curl -fsS "$BASE_URL/report/bi.pdf?cadence=$cadence&lang=$lang" \
       > "$OUT_DIR/bi-${cadence}-${lang}.pdf"
+    curl -fsS "$BASE_URL/report/bi.docx?cadence=$cadence&lang=$lang" \
+      > "$OUT_DIR/bi-${cadence}-${lang}.docx"
+    curl -fsS "$BASE_URL/report/bi.pptx?cadence=$cadence&lang=$lang" \
+      > "$OUT_DIR/bi-${cadence}-${lang}.pptx"
   done
-  curl -fsS "$BASE_URL/report/bi.pptx?cadence=$cadence" \
-    > "$OUT_DIR/bi-${cadence}.pptx"
 done
 
 curl -fsS "$BASE_URL/pipeline/checkpoint.json" > "$OUT_DIR/checkpoint-final.json"

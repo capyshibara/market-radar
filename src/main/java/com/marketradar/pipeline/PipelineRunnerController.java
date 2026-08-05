@@ -164,7 +164,7 @@ public class PipelineRunnerController {
                     auditPlan.diagnostics().auditPoolDocuments());
             case AUDIT_FOUND_ADDITIONAL_VALUE -> message(
                     "ops.researcher.assessment.AUDIT_FOUND_ADDITIONAL_VALUE.message",
-                    assessment.latestAudit() == null ? 0 : assessment.latestAudit().getNewEventClusters(),
+                    assessment.latestAudit() == null ? 0 : assessment.latestAudit().getNewCorroboratedClusters(),
                     assessment.latestAudit() == null ? 0 : assessment.latestAudit().getNewConflictClusters());
             case OPERATOR_REVIEW_REQUIRED -> message(
                     "ops.researcher.assessment.OPERATOR_REVIEW_REQUIRED.message",
@@ -177,6 +177,52 @@ public class PipelineRunnerController {
         model.addAttribute("curationBatches", extract.recentCurationBatches(20));
         model.addAttribute("extractLlmLabel", llmLabel(writerClient));
         return "researcher-curation";
+    }
+
+    /** Machine-readable, zero-call evidence ledger for checkpoint artifacts. */
+    @GetMapping("/pipeline/researcher-curation.json")
+    @ResponseBody
+    public Map<String, Object> researcherCurationJson() {
+        var mainPlan = extract.curationPlan(
+                com.marketradar.extract.ResearchCurationPlanner.Mode.MAIN);
+        var auditPlan = extract.curationPlan(
+                com.marketradar.extract.ResearchCurationPlanner.Mode.AUDIT);
+        var assessment = extract.curationAssessment(mainPlan, auditPlan);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("plannerVersion", com.marketradar.extract.ResearchCurationPlanner.VERSION);
+        out.put("candidateSnapshot", mainPlan.candidateSnapshot());
+        out.put("recommendation", assessment.recommendation().name());
+        out.put("recommendationMessage", assessment.message());
+        out.put("mainPlan", mainPlan.summary());
+        out.put("auditPlan", auditPlan.summary());
+        out.put("coverage", Map.of(
+                "topics", mainPlan.coverage().representedTopics().size() + "/"
+                        + mainPlan.coverage().availableTopics().size(),
+                "acquisition", mainPlan.coverage().representedAcquisition().size() + "/"
+                        + mainPlan.coverage().availableAcquisition().size(),
+                "entities", mainPlan.coverage().representedEntities().size() + "/"
+                        + mainPlan.coverage().availableEntities().size(),
+                "complete", mainPlan.coverage().complete()));
+        out.put("batches", extract.recentCurationBatches(50).stream().map(row -> {
+            Map<String, Object> batch = new LinkedHashMap<>();
+            batch.put("id", row.getId());
+            batch.put("mode", row.getMode().name());
+            batch.put("status", row.getStatus().name());
+            batch.put("plannerVersion", row.getPlannerVersion());
+            batch.put("candidateSnapshot", row.getCandidateSnapshot());
+            batch.put("selectedDocumentIds", row.getSelectedDocumentIds());
+            batch.put("attemptedDocuments", row.getAttemptedDocuments());
+            batch.put("successfulDocuments", row.getSuccessfulDocuments());
+            batch.put("factsSaved", row.getFactsSaved());
+            batch.put("newEventClusters", row.getNewEventClusters());
+            batch.put("newCorroboratedClusters", row.getNewCorroboratedClusters());
+            batch.put("newConflictClusters", row.getNewConflictClusters());
+            batch.put("startedAt", row.getStartedAt());
+            batch.put("finishedAt", row.getFinishedAt());
+            batch.put("error", row.getErrorMessage());
+            return batch;
+        }).toList());
+        return out;
     }
 
     private String message(String code, Object... args) {

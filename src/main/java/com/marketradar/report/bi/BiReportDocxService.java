@@ -26,34 +26,49 @@ public class BiReportDocxService {
             BiFinding.MARKET_SHARE_OR_AWARD, "Thị phần / Giải thưởng",
             BiFinding.TECH_AI_SIGNAL, "Tín hiệu Tech/AI",
             BiFinding.STRATEGIC_COMPARISON, "So sánh chiến lược");
+    private static final Map<String, String> BUCKET_LABEL_EN = Map.of(
+            BiFinding.MACRO_ECONOMIC, "Macro update",
+            BiFinding.COMPETITIVE_THEME, "Competitive themes",
+            BiFinding.SCHEDULED_EVENT, "Upcoming calendar",
+            BiFinding.COMPANY_EVENT, "Company developments",
+            BiFinding.MARKET_SHARE_OR_AWARD, "Market share / Awards",
+            BiFinding.TECH_AI_SIGNAL, "Technology / AI signals",
+            BiFinding.STRATEGIC_COMPARISON, "Strategic comparisons");
 
     public byte[] render(BiReportContent content) {
+        return render(content, true);
+    }
+
+    public byte[] render(BiReportContent content, boolean vi) {
         try (XWPFDocument doc = new XWPFDocument()) {
             titleRun(doc, content.title(), 20, true, "0E1B6B");
 
             XWPFRun metaRun = doc.createParagraph().createRun();
-            metaRun.setText("Kỳ: " + content.period() + "  ·  Tạo lúc " + content.generatedAt()
+            metaRun.setText((vi ? "Kỳ: " : "Period: ") + content.period()
+                    + (vi ? "  ·  Tạo lúc " : "  ·  Generated ") + content.generatedAt()
                     + (content.homeCompany() != null && !content.homeCompany().isBlank()
-                        ? "  ·  Chuẩn bị cho: " + content.homeCompany() : ""));
+                        ? (vi ? "  ·  Chuẩn bị cho: " : "  ·  Prepared for: ") + content.homeCompany() : ""));
             metaRun.setFontSize(10);
             metaRun.setColor("4A4A45");
             doc.createParagraph();
 
             if (content.findings().isEmpty()) {
                 XWPFRun emptyRun = doc.createParagraph().createRun();
-                emptyRun.setText("Chưa có nhận định nào đủ căn cứ trong kỳ này.");
+                emptyRun.setText(vi ? "Chưa có nhận định nào đủ căn cứ trong kỳ này."
+                        : "No sufficiently grounded finding is available for this period.");
                 emptyRun.setItalic(true);
             }
 
             Map<String, List<BiFinding>> byBucket = new LinkedHashMap<>();
-            for (String bucket : BUCKET_LABEL_VI.keySet()) {
+            Map<String, String> labels = vi ? BUCKET_LABEL_VI : BUCKET_LABEL_EN;
+            for (String bucket : labels.keySet()) {
                 List<BiFinding> matched = content.findings().stream()
                         .filter(f -> f.bucket().equals(bucket)).toList();
                 if (!matched.isEmpty()) byBucket.put(bucket, matched);
             }
 
             for (var entry : byBucket.entrySet()) {
-                titleRun(doc, BUCKET_LABEL_VI.getOrDefault(entry.getKey(), entry.getKey()), 15, true, "2647E8");
+                titleRun(doc, labels.getOrDefault(entry.getKey(), entry.getKey()), 15, true, "2647E8");
                 for (BiFinding f : entry.getValue()) {
                     XWPFParagraph p = doc.createParagraph();
                     p.setSpacingBefore(120);
@@ -63,11 +78,11 @@ public class BiReportDocxService {
                         body.setBold(true);
                     }
                     XWPFRun textRun = p.createRun();
-                    textRun.setText(f.textVi());
+                    textRun.setText(f.text(vi));
 
                     if (!f.citations().isEmpty()) {
                         XWPFRun citeRun = doc.createParagraph().createRun();
-                        StringBuilder cites = new StringBuilder("Nguồn: ");
+                        StringBuilder cites = new StringBuilder(vi ? "Nguồn: " : "Sources: ");
                         for (int i = 0; i < f.citations().size(); i++) {
                             BiCitation c = f.citations().get(i);
                             if (i > 0) cites.append("; ");
@@ -86,7 +101,8 @@ public class BiReportDocxService {
             }
 
             if (!content.openGaps().isEmpty()) {
-                titleRun(doc, "Khoảng trống dữ liệu đã ghi nhận", 13, true, "8A8878");
+                titleRun(doc, vi ? "Khoảng trống dữ liệu đã ghi nhận" : "Recorded evidence gaps",
+                        13, true, "8A8878");
                 for (String gap : content.openGaps()) {
                     XWPFRun r = doc.createParagraph().createRun();
                     r.setText("- " + gap);

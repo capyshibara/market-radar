@@ -66,10 +66,12 @@ marketradar:
     max-age-days: 365
     target-market: VN
   researcher:
-    # Event-first paid extraction. There is deliberately no quality claim such as
-    # "top 180": every conservative story cluster is eventually represented.
-    # Each operator action pays for one bounded batch; copied/reposted members stay
-    # in a separately auditable tail instead of being silently declared low-value.
+    # Event-first paid extraction. There is deliberately no document-count quality
+    # claim such as "top 180". Missing dimensions and PRIORITY/SURFACE_NOW clusters
+    # lead the main lane. Once its marginal corroboration/conflict yield plateaus,
+    # all still-unrepresented stories plus republications move to a stratified audit.
+    # Only an audit sample with no new corroboration or conflict may hand off early;
+    # the entire unprocessed tail remains visible and auditable.
     batch-clusters: 20
     representatives-per-cluster: 2
     audit-documents: 12
