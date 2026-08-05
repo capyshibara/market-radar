@@ -48,6 +48,13 @@ marketradar:
     fixed-delay-ms: 900000  # 15 phút
     max-items-per-source: 25  # cap tin mới nhất mỗi nguồn mỗi lần chạy — chặn feed dump nguyên archive
                               # (FSC_TW ~800 item) làm phình chi phí classify + cặp dedup O(n²)
+  curation:
+    # Current Strategy reports need H1/quarter context without paying to analyse an unlimited
+    # archive. Raw documents remain auditable; only the paid downstream run is time-scoped.
+    max-age-days: 400
+    # Unknown dates cannot be placed safely in a reporting window. Fix metadata or use a
+    # historical/special-issue workflow instead of letting them drift into current reports.
+    require-publication-date: true
   llm:
     # Writer (AI#2 extractor + AI#3 interpreter + dedup pairwise).
     # Batch 9 — hai đường, chọn bằng config:

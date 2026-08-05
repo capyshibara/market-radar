@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.time.Instant;
 
 /**
  * Bước 4 pipeline: phân loại (AI#1) + routing (bảng tra) cho các RawDoc
@@ -48,13 +49,20 @@ public class ClassificationJob {
     private final DedupJob dedupJob;
     private final PipelineRunStatusService progress;
     private final PipelineItemLogRepository itemLogs;
+    private final int analysisMaxAgeDays;
+    private final boolean requirePublicationDate;
 
     public ClassificationJob(RawDocRepository rawDocs, ClassificationRepository classifications,
                              ClassificationAttemptRepository attempts,
                              TopicClassifier classifier,
                              ClassificationPersistenceService persistence,
                              Router router, DedupJob dedupJob,
-                             PipelineRunStatusService progress, PipelineItemLogRepository itemLogs) {
+                             PipelineRunStatusService progress, PipelineItemLogRepository itemLogs,
+                             @org.springframework.beans.factory.annotation.Value(
+                                     "${marketradar.curation.max-age-days:400}") int analysisMaxAgeDays,
+                             @org.springframework.beans.factory.annotation.Value(
+                                     "${marketradar.curation.require-publication-date:true}")
+                             boolean requirePublicationDate) {
         this.rawDocs = rawDocs;
         this.classifications = classifications;
         this.attempts = attempts;
@@ -64,6 +72,8 @@ public class ClassificationJob {
         this.dedupJob = dedupJob;
         this.progress = progress;
         this.itemLogs = itemLogs;
+        this.analysisMaxAgeDays = analysisMaxAgeDays;
+        this.requirePublicationDate = requirePublicationDate;
     }
 
     /**
@@ -98,7 +108,7 @@ public class ClassificationJob {
         if (doc.getDuplicateOfId() != null) {
             return "Retry refused for doc#" + rawDocId + ": duplicate of doc#" + doc.getDuplicateOfId();
         }
-        ClassificationInputPolicy.Assessment input = ClassificationInputPolicy.assess(doc);
+        ClassificationInputPolicy.Assessment input = currentInput(doc, Instant.now());
         if (!input.eligible()) {
             return "Retry refused for doc#" + rawDocId + ": classification input "
                     + input.decision() + " (" + input.inputCharacters() + " characters)";
@@ -130,13 +140,14 @@ public class ClassificationJob {
         String dedupSummary = dedupJob.runOnce();
 
         List<RawDoc> all = rawDocs.findAllWithSource();
+        Instant planTime = Instant.now();
         Map<Long, Classification> activeByDoc = activeByDoc();
         Map<Long, PlannedDoc> plans = new LinkedHashMap<>();
         for (RawDoc doc : all) {
             if (doc.getParseStatus() == RawDoc.ParseStatus.OK
                     && doc.getDuplicateOfId() == null
                     && doc.getSource().getUsePolicy().allowsAnalysis()
-                    && ClassificationInputPolicy.assess(doc).eligible()) {
+                    && currentInput(doc, planTime).eligible()) {
                 plans.put(doc.getId(), plan(doc, activeByDoc.get(doc.getId()), retryFailed));
             }
         }
@@ -157,7 +168,7 @@ public class ClassificationJob {
                 skippedBySourcePolicy++;
                 continue;
             }
-            ClassificationInputPolicy.Assessment input = ClassificationInputPolicy.assess(doc);
+            ClassificationInputPolicy.Assessment input = currentInput(doc, planTime);
             if (!input.eligible()) {
                 contentSkipped.merge(input.decision(), 1, Integer::sum);
                 continue;
@@ -230,6 +241,7 @@ public class ClassificationJob {
      */
     public String dryRunPlan() {
         List<RawDoc> all = rawDocs.findAllWithSource();
+        Instant planTime = Instant.now();
         Map<Long, Classification> activeByDoc = activeByDoc();
         Map<ClassificationVersioning.PlanAction, Integer> counts =
                 new EnumMap<>(ClassificationVersioning.PlanAction.class);
@@ -242,7 +254,7 @@ public class ClassificationJob {
             if (doc.getParseStatus() != RawDoc.ParseStatus.OK) { parseSkipped++; continue; }
             if (doc.getDuplicateOfId() != null) { duplicateSkipped++; continue; }
             if (!doc.getSource().getUsePolicy().allowsAnalysis()) { sourcePolicySkipped++; continue; }
-            ClassificationInputPolicy.Assessment input = ClassificationInputPolicy.assess(doc);
+            ClassificationInputPolicy.Assessment input = currentInput(doc, planTime);
             if (!input.eligible()) {
                 contentSkipped.merge(input.decision(), 1, Integer::sum);
                 continue;
@@ -286,7 +298,20 @@ public class ClassificationJob {
                 + ", needs-full-text=" + counts.getOrDefault(
                         ClassificationInputPolicy.Decision.NEEDS_FULL_TEXT, 0)
                 + ", short=" + counts.getOrDefault(
-                        ClassificationInputPolicy.Decision.SHORT_TEXT, 0) + ")";
+                        ClassificationInputPolicy.Decision.SHORT_TEXT, 0)
+                + ", date-unresolved=" + counts.getOrDefault(
+                        ClassificationInputPolicy.Decision.DATE_UNRESOLVED, 0)
+                + ", future-dated=" + counts.getOrDefault(
+                        ClassificationInputPolicy.Decision.FUTURE_DATED, 0)
+                + ", outside-horizon=" + counts.getOrDefault(
+                        ClassificationInputPolicy.Decision.OUTSIDE_ANALYSIS_HORIZON, 0)
+                + ", non-intelligence=" + counts.getOrDefault(
+                        ClassificationInputPolicy.Decision.NON_INTELLIGENCE_CONTENT, 0) + ")";
+    }
+
+    private ClassificationInputPolicy.Assessment currentInput(RawDoc doc, Instant now) {
+        return ClassificationInputPolicy.assessForCurrentAnalysis(
+                doc, now, analysisMaxAgeDays, requirePublicationDate);
     }
 
     private PlannedDoc plan(RawDoc doc, Classification active, boolean retryFailed) {

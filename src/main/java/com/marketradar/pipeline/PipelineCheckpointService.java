@@ -56,24 +56,35 @@ public class PipelineCheckpointService {
     private final FactExtractionRunRepository extractionRuns;
     private final InterpretedClaimRepository claims;
     private final ClaimVerificationRepository verifications;
+    private final int analysisMaxAgeDays;
+    private final boolean requirePublicationDate;
 
     public PipelineCheckpointService(RawDocRepository docs,
                                      ClassificationRepository classifications,
                                      EvidenceFactRepository facts,
                                      FactExtractionRunRepository extractionRuns,
                                      InterpretedClaimRepository claims,
-                                     ClaimVerificationRepository verifications) {
+                                     ClaimVerificationRepository verifications,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.curation.max-age-days:400}")
+                                     int analysisMaxAgeDays,
+                                     @org.springframework.beans.factory.annotation.Value(
+                                             "${marketradar.curation.require-publication-date:true}")
+                                     boolean requirePublicationDate) {
         this.docs = docs;
         this.classifications = classifications;
         this.facts = facts;
         this.extractionRuns = extractionRuns;
         this.claims = claims;
         this.verifications = verifications;
+        this.analysisMaxAgeDays = analysisMaxAgeDays;
+        this.requirePublicationDate = requirePublicationDate;
     }
 
     @Transactional(readOnly = true)
     public Snapshot inspect() {
         List<RawDoc> allDocs = docs.findAllWithSource();
+        Instant scopeTime = Instant.now();
         long usable = allDocs.stream().filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
                 .filter(d -> d.getDuplicateOfId() == null)
                 .filter(d -> ClassificationInputPolicy.assess(d).eligible()).count();
@@ -81,7 +92,13 @@ public class PipelineCheckpointService {
                 .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
                 .filter(d -> d.getDuplicateOfId() == null)
                 .filter(d -> d.getSource().getUsePolicy().allowsAnalysis())
-                .filter(d -> ClassificationInputPolicy.assess(d).eligible()).count();
+                .filter(d -> currentInput(d, scopeTime).eligible()).count();
+        java.util.Set<Long> analysisEligibleDocIds = allDocs.stream()
+                .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
+                .filter(d -> d.getDuplicateOfId() == null)
+                .filter(d -> d.getSource().getUsePolicy().allowsAnalysis())
+                .filter(d -> currentInput(d, scopeTime).eligible())
+                .map(RawDoc::getId).collect(Collectors.toSet());
         long dated = allDocs.stream().filter(d -> d.getPublishedAt() != null).count();
         long duplicates = allDocs.stream().filter(d -> d.getDuplicateOfId() != null).count();
         Corpus corpus = new Corpus(allDocs.size(), usable, analysisEligible,
@@ -92,7 +109,7 @@ public class PipelineCheckpointService {
         List<Classification> analysisClassifications = allClassifications.stream()
                 .filter(c -> c.getRawDoc().getDuplicateOfId() == null)
                 .filter(c -> c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
-                .filter(c -> ClassificationInputPolicy.assess(c.getRawDoc()).eligible())
+                .filter(c -> analysisEligibleDocIds.contains(c.getRawDoc().getId()))
                 .toList();
         Map<Classification.Status, Long> classificationStatuses = counts(
                 analysisClassifications, Classification::getStatus, Classification.Status.class);
@@ -101,7 +118,7 @@ public class PipelineCheckpointService {
                 .map(Classification::getRawDoc)
                 .filter(d -> d.getDuplicateOfId() == null)
                 .filter(d -> d.getSource().getUsePolicy().allowsAnalysis())
-                .filter(d -> ClassificationInputPolicy.assess(d).eligible())
+                .filter(d -> analysisEligibleDocIds.contains(d.getId()))
                 .map(RawDoc::getId).collect(Collectors.toSet());
         Curation curation = new Curation(allClassifications.size(), analysisClassifications.size(),
                 classificationStatuses.getOrDefault(Classification.Status.CONFIRMED, 0L),
@@ -116,7 +133,9 @@ public class PipelineCheckpointService {
                 .toList();
         Map<FactExtractionRun.Status, Long> extractionStatuses = counts(
                 latestExtractionRuns, FactExtractionRun::getStatus, FactExtractionRun.Status.class);
-        var activeFacts = facts.findAllForReport();
+        var activeFacts = facts.findAllForReport().stream()
+                .filter(f -> analysisEligibleDocIds.contains(f.getRawDoc().getId()))
+                .toList();
         long factDocuments = activeFacts.stream().map(f -> f.getRawDoc().getId()).distinct().count();
         long coreComplete = activeFacts.stream().filter(f -> f.getSourceAuthority() != null)
                 .filter(f -> f.getIntelligenceTopic() != null)
@@ -136,7 +155,7 @@ public class PipelineCheckpointService {
                 .filter(c -> !c.isSuperseded())
                 .filter(c -> c.getOrigin() == InterpretedClaim.Origin.PIPELINE)
                 .filter(c -> c.getRawDoc() == null
-                        || c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
+                        || analysisEligibleDocIds.contains(c.getRawDoc().getId()))
                 .toList();
         Map<InterpretedClaim.GateStatus, Long> gateStatuses = counts(
                 activeClaims, InterpretedClaim::getGateStatus, InterpretedClaim.GateStatus.class);
@@ -211,6 +230,11 @@ public class PipelineCheckpointService {
                 verification.editorialWatchClaims());
         return new Snapshot(Instant.now(), corpus, curation, evidence, analysis, verification,
                 PipelineCheckpointRules.evaluate(metrics));
+    }
+
+    private ClassificationInputPolicy.Assessment currentInput(RawDoc doc, Instant now) {
+        return ClassificationInputPolicy.assessForCurrentAnalysis(
+                doc, now, analysisMaxAgeDays, requirePublicationDate);
     }
 
     private static List<FactExtractionRun> latestExtractionRuns(List<FactExtractionRun> all) {
