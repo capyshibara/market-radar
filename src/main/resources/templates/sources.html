@@ -150,6 +150,7 @@
               <th th:text="#{ops.sources.colNo}">No.</th>
               <th th:text="#{ops.sources.colAuthority}">Authority</th>
               <th th:text="#{ops.sources.colMarket}">Market</th>
+              <th th:text="#{ops.sources.colUsePolicy}">Report use</th>
               <th th:text="#{ops.sources.colCode}">Code</th>
               <th th:text="#{ops.sources.colName}">Name</th>
               <th th:text="#{ops.sources.colFetchType}">Fetch type</th>
@@ -165,6 +166,22 @@
                           th:text="${#strings.replace(s.authority.name(), '_', ' ')}">OFFICIAL COMPANY</span></td>
                 <td><span class="badge badge-neutral"
                           th:text="${s.defaultMarketCode != null ? s.defaultMarketCode : #strings.replace(s.defaultMarketScope.name(), '_', ' ')}">VN</span></td>
+                <td>
+                  <form method="post" th:action="@{'/sources/' + ${s.id} + '/use-policy'}"
+                        style="display:flex;gap:6px;align-items:center;min-width:230px" data-role-show="admin">
+                    <select class="ops-select" name="usePolicy" style="min-width:160px" th:aria-label="#{ops.sources.colUsePolicy}">
+                      <option value="DECISION_ELIGIBLE" th:selected="${s.usePolicy.name() == 'DECISION_ELIGIBLE'}"
+                              th:text="#{ops.sources.policyDecision}">Decision eligible</option>
+                      <option value="WATCH_ONLY" th:selected="${s.usePolicy.name() == 'WATCH_ONLY'}"
+                              th:text="#{ops.sources.policyWatch}">Watch only</option>
+                      <option value="ARCHIVE_ONLY" th:selected="${s.usePolicy.name() == 'ARCHIVE_ONLY'}"
+                              th:text="#{ops.sources.policyArchive}">Archive only</option>
+                    </select>
+                    <button type="submit" class="btn btn-ghost btn-sm" th:text="#{ops.sources.policySave}">Save</button>
+                  </form>
+                  <span data-role-show="non-admin" class="badge badge-info"
+                        th:text="${#strings.replace(s.usePolicy.name(), '_', ' ')}">DECISION ELIGIBLE</span>
+                </td>
                 <td><a class="code-chip code-chip-sm" th:href="${s.displayUrl}" th:title="${s.displayUrl}" th:text="${s.code}" target="_blank" rel="noopener noreferrer">MOF_ISA</a></td>
                 <td th:text="${s.name}">Name</td>
                 <td th:text="${s.type}">HTML</td>

@@ -123,6 +123,8 @@ public class PeriodicalBiAdapter {
                     claim.getGateStatus().name(), claim.getReviewStatus().name(), latestVerdict,
                     claim.isSuperseded(), entitySafe, isAnalyticalContent(claim.getSlot()));
             if (disposition == PublicationEligibilityRules.Disposition.EXCLUDE) continue;
+            boolean decisionEligibleSources = citedFacts.stream().allMatch(f ->
+                    f.getRawDoc().getSource().getUsePolicy().allowsDecisionPublication());
             int independentSources = (int) citedFacts.stream()
                     .map(f -> f.getRawDoc().getSource().getCode()).distinct().count();
             int highestAuthority = citedFacts.stream()
@@ -131,8 +133,9 @@ public class PeriodicalBiAdapter {
             // A social/blog-only claim may remain visible after human approval, but it
             // cannot become decision-grade until corroborated by another publisher.
             if (disposition == PublicationEligibilityRules.Disposition.DECISION_GRADE
-                    && highestAuthority < com.marketradar.domain.SourceAuthority.OTHER_PUBLISHER.credibilityScore()
-                    && independentSources < 2) {
+                    && (!decisionEligibleSources
+                    || (highestAuthority < com.marketradar.domain.SourceAuthority.OTHER_PUBLISHER.credibilityScore()
+                    && independentSources < 2))) {
                 disposition = PublicationEligibilityRules.Disposition.EDITORIAL_WATCH;
             }
             List<BiCitation> citations = citationsFor(claim, citedFacts);
@@ -375,7 +378,8 @@ public class PeriodicalBiAdapter {
         // claim survive a re-extraction edition by continuing to cite inactive facts.
         if (resolved.size() != codes.size() || resolved.stream().anyMatch(fact -> !fact.isActive()
                 || fact.getRawDoc().isSampleData()
-                || fact.getRawDoc().getDuplicateOfId() != null)) return List.of();
+                || fact.getRawDoc().getDuplicateOfId() != null
+                || !fact.getRawDoc().getSource().getUsePolicy().allowsAnalysis())) return List.of();
         return resolved;
     }
 

@@ -75,6 +75,11 @@ public class Source {
     @Column(nullable = false)
     private boolean active = true;
 
+    /** Editorial/report-use policy. This is deliberately independent from active. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "use_policy", length = 32)
+    private SourceUsePolicy usePolicy;
+
     /** true = URL chưa verify được (đặt trong môi trường offline) — phải kiểm tra trước demo */
     @Column(nullable = false)
     private boolean urlUnverified = true;
@@ -118,6 +123,13 @@ public class Source {
     }
     public String getLanguage() { return language; }
     public boolean isActive() { return active; }
+    public SourceUsePolicy getUsePolicy() {
+        if (usePolicy != null) return usePolicy;
+        SourceAuthority resolved = getAuthority();
+        return resolved == SourceAuthority.UNKNOWN || resolved == SourceAuthority.SOCIAL_OR_BLOG
+                ? SourceUsePolicy.WATCH_ONLY : SourceUsePolicy.DECISION_ELIGIBLE;
+    }
+    public boolean hasExplicitUsePolicy() { return usePolicy != null; }
     public boolean isUrlUnverified() { return urlUnverified; }
 
     /** Compatibility display helper backed by explicit source market metadata.
@@ -153,6 +165,9 @@ public class Source {
     }
 
     public void setActive(boolean active) { this.active = active; }
+    public void setUsePolicy(SourceUsePolicy usePolicy) {
+        this.usePolicy = usePolicy == null ? SourceUsePolicy.WATCH_ONLY : usePolicy;
+    }
     public void setUrlUnverified(boolean urlUnverified) { this.urlUnverified = urlUnverified; }
     public void setTier(int tier) { this.tier = tier; }
     public void setBrowseUrl(String browseUrl) { this.browseUrl = browseUrl; }

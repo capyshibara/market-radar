@@ -19,6 +19,8 @@ public interface MarketEventRepository extends JpaRepository<MarketEvent, Long> 
            "join fetch f.rawDoc d " +
            "join fetch d.source s " +
            "where e.pipelineVersion = :pipelineVersion " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) " +
            "and f.active = true and d.duplicateOfId is null and d.sampleData = false " +
            "order by e.publishedDate desc, e.id desc")
     List<MarketEvent> findAllForPipelineVersion(@Param("pipelineVersion") String pipelineVersion);
@@ -27,6 +29,8 @@ public interface MarketEventRepository extends JpaRepository<MarketEvent, Long> 
            "join fetch e.evidenceFact f join fetch f.rawDoc d join fetch d.source s " +
            "left join fetch e.cluster c " +
            "where e.pipelineVersion = :pipelineVersion and f.active = true " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) " +
            "and d.duplicateOfId is null and d.sampleData = false " +
            "order by e.publishedDate desc, e.id desc")
     List<MarketEvent> findAllWithClusterForPipelineVersion(
@@ -36,6 +40,8 @@ public interface MarketEventRepository extends JpaRepository<MarketEvent, Long> 
     @Query("select e from MarketEvent e " +
            "join fetch e.evidenceFact f join fetch f.rawDoc d join fetch d.source s " +
            "where e.pipelineVersion = :pipelineVersion and f.active = true " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) " +
            "and d.duplicateOfId is null and d.sampleData = false " +
            "and (e.expiryDate is null or e.expiryDate >= :asOf) " +
            "and (e.effectiveDate is null or e.expiryDate is null or e.expiryDate >= e.effectiveDate) " +

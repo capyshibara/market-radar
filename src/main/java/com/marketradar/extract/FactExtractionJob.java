@@ -291,6 +291,7 @@ public class FactExtractionJob {
 
         List<Classification> confirmed = classifications.findAllForDisplay().stream()
                 .filter(c -> c.getStatus() == Classification.Status.CONFIRMED)
+                .filter(c -> c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
                 .filter(c -> targetedIds == null || targetedIds.contains(c.getRawDoc().getId()))
                 .toList();
         if (confirmed.isEmpty()) return "No CONFIRMED docs yet — run Classify first.\n";

@@ -94,8 +94,7 @@ public class CurrentProductNewsService {
         Set<String> labels = classification == null ? Set.of() : classification.getLabels().stream()
                 .map(Enum::name).collect(Collectors.toUnmodifiableSet());
         CurrentProductNewsPolicy.Input input = new CurrentProductNewsPolicy.Input(
-                fact.isActive(), doc.getSource().isActive()
-                        || doc.getIntakeMethod() != RawDoc.IntakeMethod.CRAWLED,
+                fact.isActive(), doc.getSource().getUsePolicy().allowsAnalysis(),
                 doc.getRawText(), doc.isFullTextFetched(),
                 doc.getParseStatus() == null ? null : doc.getParseStatus().name(), doc.isSampleData(),
                 doc.getDuplicateOfId() != null, doc.getSource().getTier(), publicationDate(fact),

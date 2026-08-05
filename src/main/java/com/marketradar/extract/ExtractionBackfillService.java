@@ -69,6 +69,7 @@ public class ExtractionBackfillService {
         int singleChunkDocuments = 0, multiChunkDocuments = 0, maxChunks = 0;
         long sourceCharacters = 0, coveredCharacters = 0;
         for (RawDoc doc : rawDocs.findAllWithSource()) {
+            if (!doc.getSource().getUsePolicy().allowsAnalysis()) continue;
             if (doc.getParseStatus() == RawDoc.ParseStatus.OK && doc.isFullTextFetched()
                     && doc.getRawText() != null && !doc.getRawText().isBlank()) {
                 fullTextLengths.add(doc.getRawText().length());
@@ -145,6 +146,10 @@ public class ExtractionBackfillService {
             RawDoc doc = docs.get(id);
             if (doc == null) {
                 rejected.add("doc#" + id + ": NOT_FOUND");
+                continue;
+            }
+            if (!doc.getSource().getUsePolicy().allowsAnalysis()) {
+                rejected.add("doc#" + id + ": SOURCE_POLICY_ARCHIVE_ONLY");
                 continue;
             }
             boolean current = runs.existsByRawDocAndExtractionSignatureAndStatusAndCurrentEditionTrue(

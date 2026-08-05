@@ -167,8 +167,8 @@ run_stage() {
     IFS= read -r message
   } < <(checkpoint_decision "$checkpoint" "$stage")
   echo "Checkpoint $label: $decision — $message"
-  if [ "$decision" = "STOP" ]; then
-    echo "STOP: next stage was not started. Evidence already written remains in the database."
+  if [ "$decision" = "STOP" ] || [ "$decision" = "WAITING" ]; then
+    echo "STOP: checkpoint is $decision; next stage was not started. Evidence already written remains in the database."
     exit 4
   fi
 }

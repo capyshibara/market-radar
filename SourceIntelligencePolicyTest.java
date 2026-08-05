@@ -1,6 +1,7 @@
 import com.marketradar.domain.GeographyScope;
 import com.marketradar.domain.Source;
 import com.marketradar.domain.SourceAuthority;
+import com.marketradar.domain.SourceUsePolicy;
 import com.marketradar.intelligence.EntityResolutionRules;
 import com.marketradar.intelligence.SourceIntelligencePolicy;
 
@@ -55,17 +56,46 @@ public class SourceIntelligencePolicyTest {
         check(conflict.status() == EntityResolutionRules.Status.CONFLICT,
                 "confusable legal entities in one statement are a conflict");
 
+        assertEntity("Fubon Life Việt Nam công bố báo cáo", "VN", "FUBON_VN");
+        assertEntity("Fubon Financial Holding reported group results", "GLOBAL", "FUBON_FINANCIAL_GROUP");
+        assertEntity("Mirae Asset Prévoir Life (MAP Life) công bố sản phẩm", "VN", "MAP_LIFE_VN");
+        assertEntity("Mirae Asset Life Insurance Korea reported results", "KR", "MIRAE_ASSET_LIFE_KR");
+        assertEntity("Chubb Life Việt Nam ra mắt quyền lợi mới", "VN", "CHUBB_VN");
+        assertEntity("Chubb Limited reported global results", "GLOBAL", "CHUBB_GROUP");
+        assertEntity("Hanwha Life Việt Nam công bố báo cáo", "VN", "HANWHA_VN");
+        assertEntity("Hanwha Life Insurance Korea reported results", "KR", "HANWHA_GROUP");
+        assertEntity("LP Life được cấp giấy phép", "VN", "LP_LIFE_VN");
+        check(EntityResolutionRules.resolve("Fubon announced results", "GLOBAL").status()
+                        == EntityResolutionRules.Status.AMBIGUOUS,
+                "bare Fubon must not be attributed to Vietnam");
+
         Source legacyInternational = new Source("TEST_GLOBAL", "Official global insurer",
                 "https://example.com/news", "example.com", Source.SourceType.HTML, 3, "en");
         legacyInternational.setIntelligenceMetadata(SourceAuthority.OFFICIAL_COMPANY,
                 GeographyScope.GLOBAL, "GLOBAL");
         check(legacyInternational.getAuthority().credibilityScore() > 90,
                 "international geography must not downgrade authority");
+        check(legacyInternational.getUsePolicy() == SourceUsePolicy.DECISION_ELIGIBLE,
+                "authoritative legacy source defaults to decision eligible");
+        legacyInternational.setActive(false);
+        check(legacyInternational.getUsePolicy() == SourceUsePolicy.DECISION_ELIGIBLE,
+                "crawl activation must not change editorial use");
+        legacyInternational.setUsePolicy(SourceUsePolicy.ARCHIVE_ONLY);
+        check(!legacyInternational.getUsePolicy().allowsAnalysis(),
+                "archive-only source must not spend downstream AI tokens");
 
         System.out.println("SourceIntelligencePolicyTest: ALL PASS");
     }
 
     private static void check(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);
+    }
+
+    private static void assertEntity(String text, String market, String expectedKey) {
+        var resolution = EntityResolutionRules.resolve(text, market);
+        check(resolution.status() == EntityResolutionRules.Status.RESOLVED,
+                expectedKey + " should resolve, got " + resolution.status());
+        check(expectedKey.equals(resolution.singleEntity().key()),
+                "expected " + expectedKey + " but got " + resolution.singleEntity().key());
     }
 }

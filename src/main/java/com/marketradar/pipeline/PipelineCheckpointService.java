@@ -28,15 +28,17 @@ import java.util.stream.Collectors;
 @Service
 public class PipelineCheckpointService {
 
-    public record Corpus(long documents, long usableDocuments, long shallowDocuments,
-                         long datedDocuments, long duplicateDocuments) {}
-    public record Curation(long classifications, long confirmed, long outOfScope,
+    public record Corpus(long documents, long usableDocuments, long analysisEligibleDocuments,
+                         long shallowDocuments, long datedDocuments, long duplicateDocuments) {}
+    public record Curation(long classifications, long analysisEligibleClassifications,
+                           long confirmed, long confirmedAnalysisEligible,
+                           long outOfScope,
                            long uncertainReview, long noLabelReview) {}
     public record Evidence(long activeFacts, long activeFactDocuments,
                            long latestAttempts, long successfulDocuments,
                            long emptyResults, long llmErrors, long schemaRejected,
                            long coreDimensionCompleteFacts, long entityQuarantinedFacts) {}
-    public record Analysis(long activePipelineClaims, long gateL1Passed,
+    public record Analysis(long activePipelineClaims, long activeClaimDocuments, long gateL1Passed,
                            Map<InterpretedClaim.GateStatus, Long> gateStatuses,
                            Map<InterpretedClaim.ReviewStatus, Long> reviewStatuses) {}
     public record Verification(long latestVerdicts, long entailed, long neutral,
@@ -75,22 +77,43 @@ public class PipelineCheckpointService {
         long usable = allDocs.stream().filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
                 .filter(d -> d.getDuplicateOfId() == null)
                 .filter(d -> ClassificationInputPolicy.assess(d).eligible()).count();
+        long analysisEligible = allDocs.stream()
+                .filter(d -> d.getParseStatus() == RawDoc.ParseStatus.OK)
+                .filter(d -> d.getDuplicateOfId() == null)
+                .filter(d -> d.getSource().getUsePolicy().allowsAnalysis())
+                .filter(d -> ClassificationInputPolicy.assess(d).eligible()).count();
         long dated = allDocs.stream().filter(d -> d.getPublishedAt() != null).count();
         long duplicates = allDocs.stream().filter(d -> d.getDuplicateOfId() != null).count();
-        Corpus corpus = new Corpus(allDocs.size(), usable, allDocs.size() - usable,
+        Corpus corpus = new Corpus(allDocs.size(), usable, analysisEligible,
+                allDocs.size() - usable,
                 dated, duplicates);
 
         List<Classification> allClassifications = classifications.findAllForDisplay();
+        List<Classification> analysisClassifications = allClassifications.stream()
+                .filter(c -> c.getRawDoc().getDuplicateOfId() == null)
+                .filter(c -> c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
+                .filter(c -> ClassificationInputPolicy.assess(c.getRawDoc()).eligible())
+                .toList();
         Map<Classification.Status, Long> classificationStatuses = counts(
-                allClassifications, Classification::getStatus, Classification.Status.class);
-        Curation curation = new Curation(allClassifications.size(),
+                analysisClassifications, Classification::getStatus, Classification.Status.class);
+        java.util.Set<Long> confirmedAnalysisEligibleIds = allClassifications.stream()
+                .filter(c -> c.getStatus() == Classification.Status.CONFIRMED)
+                .map(Classification::getRawDoc)
+                .filter(d -> d.getDuplicateOfId() == null)
+                .filter(d -> d.getSource().getUsePolicy().allowsAnalysis())
+                .filter(d -> ClassificationInputPolicy.assess(d).eligible())
+                .map(RawDoc::getId).collect(Collectors.toSet());
+        Curation curation = new Curation(allClassifications.size(), analysisClassifications.size(),
                 classificationStatuses.getOrDefault(Classification.Status.CONFIRMED, 0L),
+                confirmedAnalysisEligibleIds.size(),
                 classificationStatuses.getOrDefault(Classification.Status.OUT_OF_SCOPE, 0L),
                 classificationStatuses.getOrDefault(Classification.Status.UNCERTAIN_REVIEW, 0L),
                 classificationStatuses.getOrDefault(Classification.Status.NO_LABEL_REVIEW, 0L));
 
         List<FactExtractionRun> latestExtractionRuns = latestExtractionRuns(
-                extractionRuns.findAll());
+                extractionRuns.findAll()).stream()
+                .filter(run -> confirmedAnalysisEligibleIds.contains(run.getRawDoc().getId()))
+                .toList();
         Map<FactExtractionRun.Status, Long> extractionStatuses = counts(
                 latestExtractionRuns, FactExtractionRun::getStatus, FactExtractionRun.Status.class);
         var activeFacts = facts.findAllForReport();
@@ -112,18 +135,26 @@ public class PipelineCheckpointService {
         List<InterpretedClaim> activeClaims = claims.findAllForAudit().stream()
                 .filter(c -> !c.isSuperseded())
                 .filter(c -> c.getOrigin() == InterpretedClaim.Origin.PIPELINE)
+                .filter(c -> c.getRawDoc() == null
+                        || c.getRawDoc().getSource().getUsePolicy().allowsAnalysis())
                 .toList();
         Map<InterpretedClaim.GateStatus, Long> gateStatuses = counts(
                 activeClaims, InterpretedClaim::getGateStatus, InterpretedClaim.GateStatus.class);
         Map<InterpretedClaim.ReviewStatus, Long> reviewStatuses = counts(
                 activeClaims, InterpretedClaim::getReviewStatus, InterpretedClaim.ReviewStatus.class);
         long l1Passed = gateStatuses.getOrDefault(InterpretedClaim.GateStatus.PASS, 0L);
-        Analysis analysis = new Analysis(activeClaims.size(), l1Passed,
+        long activeClaimDocuments = activeClaims.stream()
+                .filter(c -> c.getRawDoc() != null)
+                .map(c -> c.getRawDoc().getId()).distinct().count();
+        Analysis analysis = new Analysis(activeClaims.size(), activeClaimDocuments, l1Passed,
                 gateStatuses, reviewStatuses);
 
         Map<Long, ClaimVerification> latestByClaim = new LinkedHashMap<>();
+        java.util.Set<Long> activeClaimIds = activeClaims.stream().map(InterpretedClaim::getId)
+                .collect(Collectors.toSet());
         verifications.findAll().stream()
                 .filter(v -> v.getClaim() != null && v.getClaim().getId() != null)
+                .filter(v -> activeClaimIds.contains(v.getClaim().getId()))
                 .filter(v -> !v.getClaim().isSuperseded())
                 .filter(v -> v.getClaim().getOrigin() == InterpretedClaim.Origin.PIPELINE)
                 .sorted(java.util.Comparator.comparing(ClaimVerification::getCreatedAt)
@@ -148,6 +179,11 @@ public class PipelineCheckpointService {
             PublicationEligibilityRules.Disposition disposition = PublicationEligibilityRules.disposition(
                     claim.getGateStatus().name(), claim.getReviewStatus().name(), verdict,
                     claim.isSuperseded(), entitySafe, isAnalyticalContent(claim.getSlot()));
+            if (disposition == PublicationEligibilityRules.Disposition.DECISION_GRADE
+                    && cited.stream().anyMatch(f -> !f.getRawDoc().getSource().getUsePolicy()
+                    .allowsDecisionPublication())) {
+                disposition = PublicationEligibilityRules.Disposition.EDITORIAL_WATCH;
+            }
             switch (disposition) {
                 case DECISION_GRADE -> decisionGrade++;
                 case REVIEWED_ANALYSIS -> reviewedAnalysis++;
@@ -163,11 +199,12 @@ public class PipelineCheckpointService {
                 decisionGrade, reviewedAnalysis, editorialWatch, excluded);
 
         PipelineCheckpointRules.Metrics metrics = new PipelineCheckpointRules.Metrics(
-                corpus.documents(), corpus.usableDocuments(), curation.classifications(),
-                curation.confirmed(), evidence.latestAttempts(), evidence.successfulDocuments(),
+                corpus.documents(), corpus.analysisEligibleDocuments(), curation.analysisEligibleClassifications(),
+                curation.confirmedAnalysisEligible(), evidence.latestAttempts(), evidence.successfulDocuments(),
                 evidence.llmErrors() + evidence.schemaRejected(), evidence.activeFacts(),
                 evidence.activeFactDocuments(), evidence.coreDimensionCompleteFacts(),
                 evidence.entityQuarantinedFacts(), analysis.activePipelineClaims(),
+                analysis.activeClaimDocuments(),
                 analysis.gateL1Passed(), verification.latestVerdicts(), verification.entailed(),
                 verification.neutral(), verification.contradicted(), verification.verifierErrors(),
                 verification.reportEligibleClaims(), verification.reviewedAnalysisClaims(),

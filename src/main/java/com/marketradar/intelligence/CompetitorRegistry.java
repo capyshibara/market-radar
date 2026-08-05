@@ -52,21 +52,26 @@ public class CompetitorRegistry {
         this.competitors = List.of(
                 new Competitor("Prudential Việt Nam",
                         List.of("prudential việt nam", "prudential vietnam")),
-                new Competitor("Manulife Việt Nam", List.of("manulife")),
-                new Competitor("AIA Việt Nam", List.of("aia")),
-                new Competitor("Dai-ichi Life Việt Nam", List.of("dai-ichi", "daiichi")),
-                new Competitor("Chubb Life Việt Nam", List.of("chubb life", "chubb")),
-                new Competitor("Hanwha Life Việt Nam", List.of("hanwha life", "hanwha")),
-                new Competitor("FWD Việt Nam", List.of("fwd")),
-                new Competitor("Generali Việt Nam", List.of("generali")),
-                new Competitor("Sun Life Việt Nam", List.of("sun life", "sunlife")),
+                new Competitor("Manulife Việt Nam", List.of("manulife việt nam", "manulife vietnam")),
+                new Competitor("AIA Việt Nam", List.of("aia việt nam", "aia vietnam")),
+                new Competitor("Dai-ichi Life Việt Nam", List.of("dai-ichi life việt nam", "dai-ichi life vietnam")),
+                new Competitor("Chubb Life Việt Nam", List.of("chubb life việt nam", "chubb life vietnam")),
+                new Competitor("Hanwha Life Việt Nam", List.of("hanwha life việt nam", "hanwha life vietnam")),
+                new Competitor("FWD Việt Nam", List.of("fwd việt nam", "fwd vietnam")),
+                new Competitor("Generali Việt Nam", List.of("generali việt nam", "generali vietnam")),
+                new Competitor("Sun Life Việt Nam", List.of("sun life việt nam", "sun life vietnam")),
                 new Competitor("Bảo Việt Nhân thọ",
                         List.of("bảo việt nhân thọ", "bao viet life", "baoviet life")),
-                new Competitor("MB Ageas Life", List.of("mb ageas", "mb life", "mbal")),
+                new Competitor("MB Life", List.of("mb ageas", "mb life", "mbal")),
                 new Competitor("BIDV MetLife", List.of("bidv metlife", "bidv-metlife")),
-                new Competitor("Cathay Life Việt Nam", List.of("cathay life", "cathay")),
-                new Competitor("Shinhan Life Việt Nam", List.of("shinhan life")),
-                new Competitor("Phú Hưng Life", List.of("phú hưng life", "phu hung life")));
+                new Competitor("Techcom Life", List.of("techcom life")),
+                new Competitor("MVI Life", List.of("mvi life")),
+                new Competitor("Fubon Life Việt Nam", List.of("fubon life việt nam", "fubon life vietnam")),
+                new Competitor("MAP Life", List.of("map life", "mirae asset prévoir life", "mirae asset prevoir life")),
+                new Competitor("Cathay Life Việt Nam", List.of("cathay life việt nam", "cathay life vietnam")),
+                new Competitor("Shinhan Life Việt Nam", List.of("shinhan life việt nam", "shinhan life vietnam")),
+                new Competitor("Phú Hưng Life", List.of("phú hưng life", "phu hung life")),
+                new Competitor("LP Life", List.of("lp life")));
 
         this.confusables = List.of(
                 // Ca thật đã xảy ra: Prudential plc (Anh, mẹ của Prudential VN) ≠

@@ -1,6 +1,8 @@
 package com.marketradar.source;
 
 import com.marketradar.domain.Source;
+import com.marketradar.domain.SourceAuthority;
+import com.marketradar.domain.SourceUsePolicy;
 import com.marketradar.fetch.SafeFetcher;
 import com.marketradar.intelligence.SourceIntelligencePolicy;
 import com.marketradar.repo.SourceRepository;
@@ -205,6 +207,9 @@ public class SourceRegistryService {
         Source source = new Source(code, name, validatedUrl.fetchUrl(), validatedUrl.allowedHost(),
                 type, tier, language);
         source.setIntelligenceMetadata(metadata.authority(), metadata.marketScope(), metadata.marketCode());
+        source.setUsePolicy(metadata.authority() == SourceAuthority.UNKNOWN
+                        || metadata.authority() == SourceAuthority.SOCIAL_OR_BLOG
+                ? SourceUsePolicy.WATCH_ONLY : SourceUsePolicy.DECISION_ELIGIBLE);
         source.setUrlUnverified(!verified);
         source.setActive(active);
         try {

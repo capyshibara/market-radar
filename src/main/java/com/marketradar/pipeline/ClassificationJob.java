@@ -86,8 +86,12 @@ public class ClassificationJob {
     /** Safe single-document retry: no deletes, no dedup mutation, and no replay-cache read. */
     public String retryOne(Long rawDocId) {
         classifier.requireConfiguredProvider();
-        RawDoc doc = rawDocs.findById(rawDocId)
+        RawDoc doc = rawDocs.findByIdWithSource(rawDocId)
                 .orElseThrow(() -> new IllegalArgumentException("raw doc not found: " + rawDocId));
+        if (doc.getSource() == null || !doc.getSource().getUsePolicy().allowsAnalysis()) {
+            return "Retry refused for doc#" + rawDocId
+                    + ": source policy does not allow downstream AI analysis";
+        }
         if (doc.getParseStatus() != RawDoc.ParseStatus.OK) {
             return "Retry refused for doc#" + rawDocId + ": parse status is " + doc.getParseStatus();
         }
@@ -125,12 +129,13 @@ public class ClassificationJob {
         classifier.requireConfiguredProvider();
         String dedupSummary = dedupJob.runOnce();
 
-        List<RawDoc> all = rawDocs.findAll();
+        List<RawDoc> all = rawDocs.findAllWithSource();
         Map<Long, Classification> activeByDoc = activeByDoc();
         Map<Long, PlannedDoc> plans = new LinkedHashMap<>();
         for (RawDoc doc : all) {
             if (doc.getParseStatus() == RawDoc.ParseStatus.OK
                     && doc.getDuplicateOfId() == null
+                    && doc.getSource().getUsePolicy().allowsAnalysis()
                     && ClassificationInputPolicy.assess(doc).eligible()) {
                 plans.put(doc.getId(), plan(doc, activeByDoc.get(doc.getId()), retryFailed));
             }
@@ -140,13 +145,18 @@ public class ClassificationJob {
         Long runLogId = progress.currentRunLogId("classify");
 
         int done = 0, errors = 0, preserved = 0;
-        int skippedParse = 0, skippedDuplicate = 0, skippedCurrent = 0, heldFailed = 0;
+        int skippedParse = 0, skippedDuplicate = 0, skippedBySourcePolicy = 0,
+                skippedCurrent = 0, heldFailed = 0;
         Map<ClassificationInputPolicy.Decision, Integer> contentSkipped =
                 new EnumMap<>(ClassificationInputPolicy.Decision.class);
         StringBuilder summary = new StringBuilder();
         for (RawDoc doc : all) {
             if (doc.getParseStatus() != RawDoc.ParseStatus.OK) { skippedParse++; continue; }
             if (doc.getDuplicateOfId() != null) { skippedDuplicate++; continue; }
+            if (!doc.getSource().getUsePolicy().allowsAnalysis()) {
+                skippedBySourcePolicy++;
+                continue;
+            }
             ClassificationInputPolicy.Assessment input = ClassificationInputPolicy.assess(doc);
             if (!input.eligible()) {
                 contentSkipped.merge(input.decision(), 1, Integer::sum);
@@ -206,6 +216,7 @@ public class ClassificationJob {
                 + ", preserved prior " + preserved + ", errors " + errors
                 + ", current " + skippedCurrent + ", held failed version " + heldFailed
                 + ", parse-skip " + skippedParse + ", duplicate-skip " + skippedDuplicate
+                + ", source-policy-skip " + skippedBySourcePolicy
                 + ", content-skip " + contentSkipTotal(contentSkipped)
                 + " " + contentSkipSummary(contentSkipped)
                 + " (duplicate — filtered by dedup before costing an LLM call)\n"
@@ -218,18 +229,19 @@ public class ClassificationJob {
      * makes legacy/stale/current/held decisions inspectable before an expensive run.
      */
     public String dryRunPlan() {
-        List<RawDoc> all = rawDocs.findAll();
+        List<RawDoc> all = rawDocs.findAllWithSource();
         Map<Long, Classification> activeByDoc = activeByDoc();
         Map<ClassificationVersioning.PlanAction, Integer> counts =
                 new EnumMap<>(ClassificationVersioning.PlanAction.class);
         StringBuilder details = new StringBuilder();
-        int parseSkipped = 0, duplicateSkipped = 0;
+        int parseSkipped = 0, duplicateSkipped = 0, sourcePolicySkipped = 0;
         Map<ClassificationInputPolicy.Decision, Integer> contentSkipped =
                 new EnumMap<>(ClassificationInputPolicy.Decision.class);
 
         for (RawDoc doc : all) {
             if (doc.getParseStatus() != RawDoc.ParseStatus.OK) { parseSkipped++; continue; }
             if (doc.getDuplicateOfId() != null) { duplicateSkipped++; continue; }
+            if (!doc.getSource().getUsePolicy().allowsAnalysis()) { sourcePolicySkipped++; continue; }
             ClassificationInputPolicy.Assessment input = ClassificationInputPolicy.assess(doc);
             if (!input.eligible()) {
                 contentSkipped.merge(input.decision(), 1, Integer::sum);
@@ -256,6 +268,7 @@ public class ClassificationJob {
                         ClassificationVersioning.PlanAction.HOLD_FAILED_VERSION, 0)
                 + ", PARSE_SKIP=" + parseSkipped
                 + ", DUPLICATE_SKIP=" + duplicateSkipped
+                + ", SOURCE_POLICY_SKIP=" + sourcePolicySkipped
                 + ", CONTENT_SKIP=" + contentSkipTotal(contentSkipped)
                 + " " + contentSkipSummary(contentSkipped) + "\n"
                 + details;

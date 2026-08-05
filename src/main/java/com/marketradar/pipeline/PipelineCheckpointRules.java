@@ -28,6 +28,7 @@ public final class PipelineCheckpointRules {
             long coreDimensionCompleteFacts,
             long entityQuarantinedFacts,
             long activePipelineClaims,
+            long activeClaimDocuments,
             long gateL1PassedClaims,
             long latestVerifications,
             long entailedVerifications,
@@ -99,6 +100,16 @@ public final class PipelineCheckpointRules {
             return checkpoint("extract", "Researcher + Connector", Decision.WAITING,
                     "Evidence extraction has not run on the confirmed set.");
         }
+        double extractionCoverage = ratio(
+                m.latestExtractionAttempts(), m.confirmedClassifications());
+        if (extractionCoverage < 0.90d) {
+            return checkpoint("extract", "Researcher + Connector", Decision.WAITING,
+                    "Pilot/incomplete extraction: " + m.latestExtractionAttempts() + "/"
+                            + m.confirmedClassifications() + " confirmed documents attempted ("
+                            + percent(extractionCoverage)
+                            + "). Inspect the pilot, then explicitly run the remaining set; "
+                            + "do not treat this stage as complete.");
+        }
         if (m.activeFacts() == 0 || m.activeFactDocuments() == 0) {
             return checkpoint("extract", "Researcher + Connector", Decision.STOP,
                     "Extraction attempted but produced zero active evidence facts.");
@@ -115,9 +126,10 @@ public final class PipelineCheckpointRules {
             return checkpoint("extract", "Researcher + Connector", Decision.STOP,
                     "Facts exist but none carry the authority/topic/market/time dimensions required downstream.");
         }
-        if (technicalFailureRate >= 0.15d || metadataCoverage < 0.90d) {
+        if (extractionCoverage < 1d || technicalFailureRate >= 0.15d || metadataCoverage < 0.90d) {
             return checkpoint("extract", "Researcher + Connector", Decision.WARN,
-                    m.activeFacts() + " facts retained; " + percent(metadataCoverage)
+                    percent(extractionCoverage) + " extraction coverage; "
+                            + m.activeFacts() + " facts retained; " + percent(metadataCoverage)
                             + " have complete core dimensions, " + m.entityQuarantinedFacts()
                             + " have ambiguous/conflicting entity attribution, and "
                             + percent(technicalFailureRate) + " of latest attempts failed technically.");
@@ -137,14 +149,24 @@ public final class PipelineCheckpointRules {
             return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.WAITING,
                     "Analysis has not produced a claim edition yet.");
         }
+        double interpretationCoverage = ratio(
+                m.activeClaimDocuments(), m.activeFactDocuments());
+        if (interpretationCoverage < 0.90d) {
+            return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.WAITING,
+                    "Pilot/incomplete analysis: claims exist for " + m.activeClaimDocuments()
+                            + "/" + m.activeFactDocuments() + " evidence documents ("
+                            + percent(interpretationCoverage)
+                            + "). Complete document-level analysis before relying on global narratives.");
+        }
         if (m.gateL1PassedClaims() == 0) {
             return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.STOP,
                     "Claims were generated but none passed deterministic grounding.");
         }
         double passRate = ratio(m.gateL1PassedClaims(), m.activePipelineClaims());
-        if (passRate < 0.35d) {
+        if (interpretationCoverage < 1d || passRate < 0.35d) {
             return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.WARN,
-                    percent(passRate) + " of active claims passed L1. Failed claims remain in the "
+                    percent(interpretationCoverage) + " document coverage; "
+                            + percent(passRate) + " of active claims passed L1. Failed claims remain in the "
                             + "audit/review trail; do not delete them or loosen citation integrity.");
         }
         return checkpoint("interpret", "Analyst + Fact-checker (Gate L1)", Decision.PASS,

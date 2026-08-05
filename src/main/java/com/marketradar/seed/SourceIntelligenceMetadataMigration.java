@@ -1,6 +1,8 @@
 package com.marketradar.seed;
 
 import com.marketradar.domain.Source;
+import com.marketradar.domain.SourceAuthority;
+import com.marketradar.domain.SourceUsePolicy;
 import com.marketradar.intelligence.SourceIntelligencePolicy;
 import com.marketradar.repo.SourceRepository;
 import org.slf4j.Logger;
@@ -28,11 +30,24 @@ public class SourceIntelligenceMetadataMigration implements ApplicationRunner {
         int enriched = 0;
         for (Source source : sources.findAll()) {
             // Preserve later operator corrections. This migration only fills legacy rows.
-            if (source.hasExplicitIntelligenceMetadata()) continue;
-            SourceIntelligencePolicy.Metadata metadata = SourceIntelligencePolicy.infer(source);
-            source.setIntelligenceMetadata(metadata.authority(), metadata.marketScope(), metadata.marketCode());
-            sources.save(source);
-            enriched++;
+            boolean changed = false;
+            if (!source.hasExplicitIntelligenceMetadata()) {
+                SourceIntelligencePolicy.Metadata metadata = SourceIntelligencePolicy.infer(source);
+                source.setIntelligenceMetadata(metadata.authority(), metadata.marketScope(), metadata.marketCode());
+                changed = true;
+            }
+            if (!source.hasExplicitUsePolicy()) {
+                SourceAuthority authority = source.getAuthority();
+                source.setUsePolicy(authority == SourceAuthority.UNKNOWN
+                                || authority == SourceAuthority.SOCIAL_OR_BLOG
+                        ? SourceUsePolicy.WATCH_ONLY
+                        : SourceUsePolicy.DECISION_ELIGIBLE);
+                changed = true;
+            }
+            if (changed) {
+                sources.save(source);
+                enriched++;
+            }
         }
         if (enriched > 0) {
             log.info("Source intelligence metadata: separated authority and geography for {} source(s)", enriched);

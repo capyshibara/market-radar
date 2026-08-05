@@ -21,8 +21,10 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
      * (open-in-view = false) mà không dính LazyInitializationException.
      */
     @Query("select f from EvidenceFact f " +
-           "join fetch f.rawDoc d join fetch d.source " +
+           "join fetch f.rawDoc d join fetch d.source s " +
            "where f.active = true " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) " +
            "and d.duplicateOfId is null and d.sampleData = false " +
            "order by f.eventDate desc")
     List<EvidenceFact> findAllForReport();
@@ -36,7 +38,9 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
      */
     @Query("select f from EvidenceFact f " +
            "join fetch f.rawDoc d join fetch d.source s " +
-           "where f.active = true and s.active = true " +
+           "where f.active = true " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) " +
            "and d.fullTextFetched = true and d.sampleData = false " +
            "and d.duplicateOfId is null")
     List<EvidenceFact> findCurrentProductNewsCandidates();
@@ -47,13 +51,19 @@ public interface EvidenceFactRepository extends JpaRepository<EvidenceFact, Long
     /** Active facts eligible for synthesis; copied/reposted and demo documents stay in
      * the audit corpus but cannot inflate corroboration or global narratives. */
     @Query("select f from EvidenceFact f " +
-           "join fetch f.rawDoc d join fetch d.source " +
-           "where f.active = true and d.duplicateOfId is null and d.sampleData = false " +
+           "join fetch f.rawDoc d join fetch d.source s " +
+           "where f.active = true " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) " +
+           "and d.duplicateOfId is null and d.sampleData = false " +
            "order by f.id")
     List<EvidenceFact> findAllActiveForSynthesisOrderById();
 
     /** Desk feed: resolve one story link per routed document. Read-only. */
-    @Query("select f from EvidenceFact f where f.rawDoc.id in :rawDocIds and f.active = true order by f.id")
+    @Query("select f from EvidenceFact f join fetch f.rawDoc d join fetch d.source s " +
+           "where d.id in :rawDocIds and f.active = true " +
+           "and s.usePolicy in (com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE, " +
+           "com.marketradar.domain.SourceUsePolicy.WATCH_ONLY) order by f.id")
     List<EvidenceFact> findActiveByRawDocIdIn(@Param("rawDocIds") List<Long> rawDocIds);
 
     /** Immutable editions must keep resolving their original evidence after a newer

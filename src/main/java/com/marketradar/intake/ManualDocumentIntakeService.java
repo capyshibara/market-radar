@@ -171,6 +171,10 @@ public class ManualDocumentIntakeService {
             Source source = new Source(code, input.publisher(), fetchUrl, host, type, 3, input.language());
             SourceIntelligencePolicy.Metadata metadata = SourceIntelligencePolicy.infer(source);
             source.setIntelligenceMetadata(metadata.authority(), metadata.marketScope(), metadata.marketCode());
+            source.setUsePolicy(metadata.authority() == com.marketradar.domain.SourceAuthority.UNKNOWN
+                            || metadata.authority() == com.marketradar.domain.SourceAuthority.SOCIAL_OR_BLOG
+                    ? com.marketradar.domain.SourceUsePolicy.WATCH_ONLY
+                    : com.marketradar.domain.SourceUsePolicy.DECISION_ELIGIBLE);
             source.setActive(false);
             source.setUrlUnverified(finalUri == null);
             return sources.save(source);
