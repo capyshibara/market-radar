@@ -59,8 +59,13 @@ public class BiReportPptxService {
     private static final double PAGE_H = 540;
     private static final double CARD_BODY_W = 800;   // khung text bên trong thẻ bo góc
     private static final double CARD_BODY_H = 330;   // chiều cao khả dụng trước khi phải sang trang mới
-    private static final int MAX_TABLE_ROWS = 10;    // dòng dữ liệu/1 bảng — an toàn với hàng 30pt trong khung 400pt
-    private static final int TABLE_NOTE_MAX_CHARS = 90; // giữ cột "ghi chú/vì sao" ở đúng 1 dòng, không wrap
+    // PowerPoint/LibreOffice may expand a nominal 30pt row when any cell wraps. Seven rows plus
+    // conservative per-column truncation keeps the actual table inside the 400pt canvas.
+    private static final int MAX_TABLE_ROWS = 7;
+    private static final int TABLE_NOTE_MAX_CHARS = 72;
+    private static final int TABLE_SUBJECT_MAX_CHARS = 30;
+    private static final int TABLE_SOURCE_MAX_CHARS = 36;
+    private static final int MAX_EXECUTIVE_FINDINGS = 6;
 
     public byte[] render(BiReportContent content) {
         return render(content, true);
@@ -72,7 +77,11 @@ public class BiReportPptxService {
 
             coverSlide(ppt, content, vi);
 
-            List<BiFinding> highlights = content.findings().stream().filter(BiFinding::highlight).toList();
+            // A presentation is a briefing, not a paginated evidence dump. Keep the strongest
+            // six highlighted findings; the complete verified set remains in the PDF/web report
+            // and the competitor tables below.
+            List<BiFinding> highlights = content.findings().stream().filter(BiFinding::highlight)
+                    .limit(MAX_EXECUTIVE_FINDINGS).toList();
             if (!highlights.isEmpty()) {
                 bulletCardSlides(ppt, vi ? "TÓM TẮT ĐIỀU HÀNH" : "EXECUTIVE SUMMARY",
                         vi ? "Nhận định chính" : "Key findings", RED,
@@ -203,7 +212,8 @@ public class BiReportPptxService {
             for (BiFinding f : chunk(scheduledEvents, MAX_TABLE_ROWS).get(0)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
-                addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.subjectKey() != null && !f.subjectKey().isBlank()
+                        ? f.subjectKey() : "-", TABLE_SUBJECT_MAX_CHARS), false, WHITE, TEXT_DARK);
                 addCell(row, f.eventDateLabel(), true, WHITE, RED);
                 addCell(row, truncate(f.text(vi), 70), false, WHITE, TEXT_DARK);
             }
@@ -227,7 +237,8 @@ public class BiReportPptxService {
             for (BiFinding f : pages.get(i)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
-                addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.subjectKey() != null && !f.subjectKey().isBlank()
+                        ? f.subjectKey() : "-", TABLE_SUBJECT_MAX_CHARS), false, WHITE, TEXT_DARK);
                 addCell(row, f.metricPercent() != null ? f.metricPercent() + "%" : "—", false, WHITE, TEXT_DARK);
                 addCell(row, truncate(f.text(vi), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
             }
@@ -253,7 +264,8 @@ public class BiReportPptxService {
                 row.setHeight(30);
                 Color[] badge = badgeColors(f.severity());
                 addCell(row, f.severity(), true, badge[0], badge[1]);
-                addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.subjectKey() != null && !f.subjectKey().isBlank()
+                        ? f.subjectKey() : "-", TABLE_SUBJECT_MAX_CHARS), false, WHITE, TEXT_DARK);
                 addCell(row, truncate(f.text(vi), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
             }
             setColumnWidths(table, 120, 160, 568);
@@ -276,9 +288,10 @@ public class BiReportPptxService {
             for (BiFinding f : pages.get(i)) {
                 XSLFTableRow row = table.addRow();
                 row.setHeight(30);
-                addCell(row, f.subjectKey() != null && !f.subjectKey().isBlank() ? f.subjectKey() : "-", false, WHITE, TEXT_DARK);
+                addCell(row, truncate(f.subjectKey() != null && !f.subjectKey().isBlank()
+                        ? f.subjectKey() : "-", TABLE_SUBJECT_MAX_CHARS), false, WHITE, TEXT_DARK);
                 addCell(row, truncate(f.text(vi), TABLE_NOTE_MAX_CHARS), false, WHITE, TEXT_DARK);
-                addCell(row, citationLabel(f), false, WHITE, TEXT_DARK);
+                addCell(row, truncate(citationLabel(f), TABLE_SOURCE_MAX_CHARS), false, WHITE, TEXT_DARK);
             }
             setColumnWidths(table, 160, 528, 160);
         }

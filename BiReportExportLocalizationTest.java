@@ -5,10 +5,12 @@ import com.marketradar.report.bi.BiReportDocxService;
 import com.marketradar.report.bi.BiReportPptxService;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFShape;
+import org.apache.poi.xslf.usermodel.XSLFTable;
 import org.apache.poi.xslf.usermodel.XSLFTextShape;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Regression guard: non-PDF exports must honour the same EN/VI selection as the web report. */
@@ -33,6 +35,32 @@ public class BiReportExportLocalizationTest {
         assert pptx.contains("Clear English evidence") : pptx;
         assert !pptx.contains("Nội dung tiếng Việt") : pptx;
         assert !pptx.contains("Tạo lúc") : pptx;
+
+        List<BiFinding> manyEvents = new ArrayList<>();
+        for (int i = 1; i <= 20; i++) {
+            manyEvents.add(new BiFinding(BiFinding.COMPANY_EVENT, "Competitor " + i,
+                    "Diễn biến " + i, "Development " + i, true, List.of(),
+                    ProductMarketScope.VIETNAM, "Vietnam"));
+        }
+        try (XMLSlideShow slides = new XMLSlideShow(new ByteArrayInputStream(
+                new BiReportPptxService().render(new BiReportContent(
+                        "Business Intelligence Report", "Year to date 2026", "Techcom Life",
+                        "06 Aug 2026", 20, manyEvents, List.of(), List.of()), false)))) {
+            long executiveSlides = slides.getSlides().stream()
+                    .filter(slide -> slide.getShapes().stream()
+                            .filter(XSLFTextShape.class::isInstance)
+                            .map(XSLFTextShape.class::cast)
+                            .anyMatch(shape -> shape.getText().startsWith("EXECUTIVE SUMMARY")))
+                    .count();
+            assert executiveSlides <= 6 : "briefing must cap executive finding slides";
+            slides.getSlides().forEach(slide -> slide.getShapes().stream()
+                    .filter(XSLFTable.class::isInstance)
+                    .map(XSLFTable.class::cast)
+                    .forEach(table -> {
+                        assert table.getNumberOfRows() <= 8
+                                : "table exceeds seven data rows plus header";
+                    }));
+        }
         System.out.println("BiReportExportLocalizationTest: ALL PASS");
     }
 
