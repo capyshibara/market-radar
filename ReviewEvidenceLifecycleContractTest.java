@@ -6,6 +6,10 @@ public class ReviewEvidenceLifecycleContractTest {
     public static void main(String[] args) throws Exception {
         String review = Files.readString(Path.of("src/main/java/com/marketradar/review/ReviewController.java"));
         String claims = Files.readString(Path.of("src/main/java/com/marketradar/report/ClaimController.java"));
+        String repository = Files.readString(Path.of(
+                "src/main/java/com/marketradar/repo/InterpretedClaimRepository.java"));
+        String verificationJob = Files.readString(Path.of(
+                "src/main/java/com/marketradar/verify/VerificationJob.java"));
         String template = Files.readString(Path.of("src/main/resources/templates/review-detail.html"));
 
         check(review.contains("findAllByFactCodeInForAudit(codes)"),
@@ -21,6 +25,13 @@ public class ReviewEvidenceLifecycleContractTest {
                 "superseded evidence is visibly labeled");
         check(template.contains("th:with=\"hasEvidence=${evidenceComplete}\""),
                 "approval controls require complete evidence resolution");
+        check(repository.contains("left join fetch c.rawDoc rd left join fetch rd.source"),
+                "review and verifier queries eagerly load source attribution metadata");
+        check(repository.contains("findRetryableLatestVerifierErrors")
+                        && repository.contains("newer.createdAt > v.createdAt"),
+                "retry lane selects only claims whose latest verdict is a technical error");
+        check(verificationJob.contains("putIfAbsent(c.getId(), c)"),
+                "pending claims and technical-error retries are de-duplicated before verification");
         System.out.println("ReviewEvidenceLifecycleContractTest: ALL PASS");
     }
 

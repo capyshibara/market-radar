@@ -65,6 +65,11 @@ marketradar:
     max-documents-per-source: 18
     max-age-days: 365
     target-market: VN
+    # Corpus-wide synthesis may proceed when the remaining tail consists only of
+    # durable, current-input schema failures.  Per-claim L1/L2 gates remain unchanged.
+    # This prevents a few parser failures from suppressing a well-covered report while
+    # still forcing every new/unattempted document through the Analyst at least once.
+    synthesis-min-document-coverage: 0.90
   researcher:
     # Event-first paid extraction. There is deliberately no document-count quality
     # claim such as "top 180". Missing dimensions and PRIORITY/SURFACE_NOW clusters

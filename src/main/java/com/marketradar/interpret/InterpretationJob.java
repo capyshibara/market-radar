@@ -63,6 +63,7 @@ public class InterpretationJob {
     private final PeriodicalBiAdapter biAdapter;
     private final TransactionTemplate transactions;
     private final AnalystInputSelection.Config inputSelectionConfig;
+    private final double minimumSynthesisDocumentCoverage;
 
     public InterpretationJob(EvidenceFactRepository facts, InterpretedClaimRepository claims,
                              Interpreter interpreter, GroundingGateL1 gate,
@@ -75,7 +76,9 @@ public class InterpretationJob {
                              @Value("${marketradar.analyst.max-executive-facts:60}") int maxExecutiveFacts,
                              @Value("${marketradar.analyst.max-documents-per-source:18}") int maxDocumentsPerSource,
                              @Value("${marketradar.analyst.max-age-days:365}") int maxAgeDays,
-                             @Value("${marketradar.analyst.target-market:VN}") String targetMarket) {
+                             @Value("${marketradar.analyst.target-market:VN}") String targetMarket,
+                             @Value("${marketradar.analyst.synthesis-min-document-coverage:0.90}")
+                             double minimumSynthesisDocumentCoverage) {
         this.facts = facts;
         this.claims = claims;
         this.interpreter = interpreter;
@@ -88,6 +91,11 @@ public class InterpretationJob {
         this.inputSelectionConfig = new AnalystInputSelection.Config(
                 maxDocuments, maxFactsPerDocument, maxExecutiveFacts,
                 maxDocumentsPerSource, maxAgeDays, targetMarket);
+        if (minimumSynthesisDocumentCoverage <= 0.0 || minimumSynthesisDocumentCoverage > 1.0) {
+            throw new IllegalArgumentException(
+                    "marketradar.analyst.synthesis-min-document-coverage must be in (0, 1]");
+        }
+        this.minimumSynthesisDocumentCoverage = minimumSynthesisDocumentCoverage;
     }
 
     public String runOnce() {
@@ -117,8 +125,16 @@ public class InterpretationJob {
         EvidencePack globalPack = new EvidencePack(null, inputSelection.executiveFacts());
         Interpreter.InterpretationPlan execPlan = interpreter.planExec(globalPack);
         boolean finalBatch = inputSelection.diagnostics().deferredDocuments() == 0;
+        AnalystSynthesisReadiness.Decision readinessBefore = synthesisReadiness(
+                allEligibleByDoc, inputSelection.diagnostics().deferredDocuments());
+        // A residual document is skipped only after its current signature/input has a
+        // durable SCHEMA_REJECTED attempt and the represented corpus meets the configured
+        // coverage floor. New/unattempted documents are still processed even above 90%.
+        boolean quarantineAuditedResidualTail = readinessBefore.ready() && !byDoc.isEmpty();
+        Map<RawDoc, List<EvidenceFact>> documentsToInterpret = quarantineAuditedResidualTail
+                ? Map.of() : byDoc;
         boolean execPending = finalBatch && !hasCurrentExecEdition(execPlan);
-        long eligibleDocs = byDoc.size();
+        long eligibleDocs = documentsToInterpret.size();
         // Narrative input is known only after verified claim selection below. Reserve one
         // progress item/chapter only on the final document batch. Earlier batches
         // deliberately cannot publish a corpus-wide story from partial coverage.
@@ -127,8 +143,11 @@ public class InterpretationJob {
         Long runLogId = progress.currentRunLogId("interpret");
 
         int docsDone = 0, docsSkipped = 0;
-        boolean batchComplete = true;
-        for (var entry : byDoc.entrySet()) {
+        if (quarantineAuditedResidualTail) {
+            docsSkipped = byDoc.size();
+            summary.append(readinessBefore.message()).append('\n');
+        }
+        for (var entry : documentsToInterpret.entrySet()) {
             RawDoc doc = entry.getKey();
             if (doc.getDuplicateOfId() != null) { docsSkipped++; continue; } // dedup đã lọc — khỏi tốn LLM viết claim
             EvidencePack pack = new EvidencePack(doc.getId(), entry.getValue());
@@ -144,10 +163,8 @@ public class InterpretationJob {
                 });
                 summary.append(stored.summary());
                 docsDone++;
-                if (!stored.activatable()) batchComplete = false;
             } catch (RuntimeException e) {
                 rethrowTerminal(e);
-                batchComplete = false;
                 log.error("Interpretation failed for doc#{}; prior edition preserved", doc.getId(), e);
                 summary.append("doc#").append(doc.getId()).append(": ERROR — prior edition preserved — ")
                         .append(safeMessage(e)).append('\n');
@@ -157,16 +174,16 @@ public class InterpretationJob {
             }
         }
 
-        if (!finalBatch || !batchComplete) {
-            summary.append("Corpus-wide executive and chapter synthesis withheld: ")
-                    .append(inputSelection.diagnostics().deferredDocuments())
-                    .append(" eligible document(s) remain for a later Analyst batch")
-                    .append(batchComplete ? ".\n" : ", and at least one selected document did not create an active edition.\n");
+        AnalystSynthesisReadiness.Decision readinessAfter = synthesisReadiness(
+                allEligibleByDoc, inputSelection.diagnostics().deferredDocuments());
+        if (!finalBatch || !readinessAfter.ready()) {
+            summary.append(readinessAfter.message()).append('\n');
             summary.insert(0, inputSelection.diagnostics().summary() + "\n"
                     + "Interpreted " + docsDone + " selected doc(s), skipped " + docsSkipped
                     + ". Provider: " + interpreter.providerName() + "\n");
             return summary.toString();
         }
+        if (!quarantineAuditedResidualTail) summary.append(readinessAfter.message()).append('\n');
 
         // ---- Exec summary (pack toàn cục, 1 lần) ----
         if (execPending) {
@@ -544,6 +561,28 @@ public class InterpretationJob {
         var key = plan.editionKey();
         return claims.existsByRawDocAndOriginAndInterpretationSignatureAndInterpretationInputHashAndSupersededFalse(
                 doc, Origin.PIPELINE, key.signature(), key.inputHash());
+    }
+
+    private boolean hasCurrentSchemaFailure(RawDoc doc, Interpreter.InterpretationPlan plan) {
+        var key = plan.editionKey();
+        return claims.existsByRawDocAndOriginAndInterpretationSignatureAndInterpretationInputHashAndGateStatus(
+                doc, Origin.PIPELINE, key.signature(), key.inputHash(), GateStatus.SCHEMA_REJECTED);
+    }
+
+    private AnalystSynthesisReadiness.Decision synthesisReadiness(
+            Map<RawDoc, List<EvidenceFact>> allEligibleByDoc, int deferredDocuments) {
+        int represented = 0;
+        int auditedFailures = 0;
+        for (var entry : allEligibleByDoc.entrySet()) {
+            RawDoc doc = entry.getKey();
+            if (doc.getId() == null) continue;
+            Interpreter.InterpretationPlan plan = interpreter.planDoc(
+                    new EvidencePack(doc.getId(), entry.getValue()));
+            if (hasCurrentDocEdition(doc, plan)) represented++;
+            else if (hasCurrentSchemaFailure(doc, plan)) auditedFailures++;
+        }
+        return AnalystSynthesisReadiness.evaluate(allEligibleByDoc.size(), represented,
+                auditedFailures, deferredDocuments, minimumSynthesisDocumentCoverage);
     }
 
     private boolean hasCurrentExecEdition(Interpreter.InterpretationPlan plan) {

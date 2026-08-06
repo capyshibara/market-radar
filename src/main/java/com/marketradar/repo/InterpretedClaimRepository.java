@@ -32,6 +32,13 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
             RawDoc rawDoc, InterpretedClaim.Origin origin, String interpretationSignature,
             String interpretationInputHash);
 
+    /** Durable failed-attempt lookup used by the synthesis readiness gate.  Failed
+     * schema editions are intentionally marked superseded so they can never replace
+     * good content, therefore this query must not filter on superseded=false. */
+    boolean existsByRawDocAndOriginAndInterpretationSignatureAndInterpretationInputHashAndGateStatus(
+            RawDoc rawDoc, InterpretedClaim.Origin origin, String interpretationSignature,
+            String interpretationInputHash, InterpretedClaim.GateStatus gateStatus);
+
     /** Batch 8: live queue-count badge on the ops sidebar (see OpsSidebarAdvice). */
     long countByReviewStatusAndSupersededFalse(InterpretedClaim.ReviewStatus status);
 
@@ -47,11 +54,30 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
      * Sắp xếp tier desc để hàng đợi review ưu tiên T3 trước T1 (so sánh chuỗi
      * "T0".."T4" trùng với thứ tự mong muốn).
      */
-    @Query("select c from InterpretedClaim c left join fetch c.rawDoc " +
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc rd left join fetch rd.source " +
            "where c.reviewStatus = :status and c.superseded = false " +
            "order by c.riskTier desc, c.id asc")
     List<InterpretedClaim> findByReviewStatusFetched(
             @Param("status") InterpretedClaim.ReviewStatus status);
+
+    /** Retry lane for fail-loud verifier infrastructure errors.  Only an active L1
+     * PASS claim still parked in PENDING_REVIEW is eligible; a human-approved claim
+     * is never silently re-routed.  The latest-verdict subquery preserves the
+     * append-only audit trail and prevents old errors from resurfacing after a good
+     * retry verdict has been appended. */
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc rd left join fetch rd.source " +
+           "where c.reviewStatus = :reviewStatus and c.gateStatus = :gateStatus " +
+           "and c.superseded = false " +
+           "and exists (select v.id from ClaimVerification v where v.claim = c " +
+           "  and v.verdict = :verdict " +
+           "  and not exists (select newer.id from ClaimVerification newer " +
+           "    where newer.claim = c and (newer.createdAt > v.createdAt " +
+           "      or (newer.createdAt = v.createdAt and newer.id > v.id)))) " +
+           "order by c.riskTier desc, c.id asc")
+    List<InterpretedClaim> findRetryableLatestVerifierErrors(
+            @Param("reviewStatus") InterpretedClaim.ReviewStatus reviewStatus,
+            @Param("gateStatus") InterpretedClaim.GateStatus gateStatus,
+            @Param("verdict") ClaimVerification.Verdict verdict);
 
     /**
      * Claim được phép vào report: L1 PASS + trạng thái *_APPROVED + verdict MỚI NHẤT
@@ -131,7 +157,8 @@ public interface InterpretedClaimRepository extends JpaRepository<InterpretedCla
         return List.copyOf(byId.values());
     }
 
-    @Query("select c from InterpretedClaim c left join fetch c.rawDoc where c.id = :id")
+    @Query("select c from InterpretedClaim c left join fetch c.rawDoc rd left join fetch rd.source " +
+           "where c.id = :id")
     java.util.Optional<InterpretedClaim> findByIdFetched(@Param("id") Long id);
 
     /**

@@ -74,9 +74,17 @@ public class VerificationJob {
             return "Verification refused: verifier provider is STUB/missing. "
                     + "No verdict was appended; configure an independent verifier.\n";
         }
-        List<InterpretedClaim> pending =
-                claims.findByReviewStatusFetched(ReviewStatus.PENDING_VERIFICATION);
-        if (pending.isEmpty()) return "No claims awaiting verification (PENDING_VERIFICATION).\n";
+        LinkedHashMap<Long, InterpretedClaim> workById = new LinkedHashMap<>();
+        claims.findByReviewStatusFetched(ReviewStatus.PENDING_VERIFICATION)
+                .forEach(c -> workById.put(c.getId(), c));
+        claims.findRetryableLatestVerifierErrors(ReviewStatus.PENDING_REVIEW,
+                        InterpretedClaim.GateStatus.PASS,
+                        ClaimVerification.Verdict.VERIFIER_ERROR)
+                .forEach(c -> workById.putIfAbsent(c.getId(), c));
+        List<InterpretedClaim> pending = List.copyOf(workById.values());
+        if (pending.isEmpty()) {
+            return "No claims awaiting verification or retryable latest VERIFIER_ERROR verdicts.\n";
+        }
 
         // Claims are immutable audit editions. A later extraction can supersede an
         // active fact, but must not make an older claim unverifiable. Resolve every

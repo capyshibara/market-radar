@@ -131,6 +131,35 @@
   .bi-bar-fill.home{background:#C00000}
   .bi-bar-value-cell{display:table-cell;width:56px;text-align:right;vertical-align:middle;font-size:11pt;font-weight:700}
 
+  /* ===== Management signal dashboard — deterministic counts, never synthetic market share ===== */
+  .bi-dashboard-row{display:table;width:100%;table-layout:fixed;margin-bottom:16px}
+  .bi-dashboard-cell{display:table-cell;width:50%;vertical-align:top;padding-right:8px}
+  .bi-dashboard-cell:last-child{padding-right:0;padding-left:8px}
+  .bi-dashboard-card{border:1px solid #E4E4E4;border-top:4px solid #C00000;padding:12px 14px;height:254px}
+  .bi-dashboard-card h3{margin:0 0 3px;font-size:13pt;color:#C00000;text-transform:uppercase}
+  .bi-dashboard-card .note{font-size:8.5pt;color:#6B6B6B;margin:0 0 12px}
+  .bi-count-row{display:table;width:100%;margin-bottom:8px}
+  .bi-count-label{display:table-cell;width:145px;font-size:9pt;vertical-align:middle}
+  .bi-count-track-cell{display:table-cell;vertical-align:middle;padding:0 8px}
+  .bi-count-track{height:12px;background:#F1F1F1}
+  .bi-count-fill{display:block;height:12px}
+  .bi-count-value{display:table-cell;width:34px;text-align:right;font-size:9pt;font-weight:700;vertical-align:middle}
+
+  /* ===== Observed competitor activity calendar ===== */
+  .bi-calendar{width:100%;border-collapse:collapse;table-layout:fixed}
+  .bi-calendar th{background:#C00000;color:#fff;padding:8px 5px;font-size:8.5pt;text-transform:uppercase}
+  .bi-calendar th:first-child{width:210px;text-align:left}
+  .bi-calendar th:last-child{width:52px}
+  .bi-calendar td{border:1px solid #E4E4E4;padding:9px 5px;text-align:center;font-size:10pt}
+  .bi-calendar td:first-child{text-align:left;font-weight:700}
+  .bi-calendar-dot{display:inline-block;min-width:22px;height:22px;line-height:22px;border-radius:11px;background:#FFEBEB;color:#C00000;font-weight:700}
+  .bi-calendar-empty{color:#C8C8C8}
+
+  /* ===== Deep-dive dossier: several independently verified sentences per subject ===== */
+  .bi-deep-card{border:1px solid #E4E4E4;border-top:3px solid #C00000;padding:11px 13px;min-height:150px}
+  .bi-deep-role{font-size:8pt;font-weight:700;color:#C00000;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
+  .bi-deep-text{font-size:10.5pt;line-height:1.38}
+
   /* ===== Company highlight cards — real row-pairing from Java (highlightRows), 2
      table-cells per row, not a fixed-width-for-exactly-2 trick ===== */
   .bi-card-row{display:table;width:100%;table-layout:fixed;margin-bottom:14px}
@@ -289,6 +318,62 @@
     <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">3</span></div>
   </div>
 
+  <!-- ============ SIGNAL & EVIDENCE DASHBOARD ============ -->
+  <div th:case="'SIGNAL_DASHBOARD'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'BẢN ĐỒ QUẢN TRỊ' : 'MANAGEMENT MAP'}">MANAGEMENT MAP</div>
+        <div class="bi-title" th:text="${vi ? 'Tín hiệu nào đang định hình kỳ báo cáo?' : 'What is shaping this reporting period?'}">Signal dashboard</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <div class="bi-dashboard-row">
+        <div class="bi-dashboard-cell"><div class="bi-dashboard-card">
+          <h3 th:text="${vi ? 'Cơ cấu tín hiệu đã xác minh' : 'Verified signal mix'}">Verified signal mix</h3>
+          <p class="note" th:text="${vi ? 'Tỷ trọng theo số nhận định đạt cả hai cổng kiểm định; không phải thị phần.' : 'Share of findings that passed both gates; this is not market share.'}">Method.</p>
+          <div class="bi-count-row" th:each="bar : ${signalBars}">
+            <div class="bi-count-label" th:text="${bar.label(vi)}">Label</div>
+            <div class="bi-count-track-cell"><div class="bi-count-track"><span class="bi-count-fill" th:style="'width:' + ${bar.percent} + '%;background:' + ${bar.color}"></span></div></div>
+            <div class="bi-count-value" th:text="${bar.count}">0</div>
+          </div>
+        </div></div>
+        <div class="bi-dashboard-cell"><div class="bi-dashboard-card">
+          <h3 th:text="${vi ? 'Phạm vi thị trường' : 'Market scope'}">Market scope</h3>
+          <p class="note" th:text="${vi ? 'Nhãn Việt Nam/quốc tế đến từ dữ kiện và nguồn, không suy từ tên tập đoàn.' : 'Vietnam/international labels come from evidence metadata, not group-name inference.'}">Method.</p>
+          <div class="bi-count-row" th:each="bar : ${scopeBars}">
+            <div class="bi-count-label" th:text="${bar.label(vi)}">Label</div>
+            <div class="bi-count-track-cell"><div class="bi-count-track"><span class="bi-count-fill" th:style="'width:' + ${bar.percent} + '%;background:' + ${bar.color}"></span></div></div>
+            <div class="bi-count-value" th:text="${bar.count}">0</div>
+          </div>
+        </div></div>
+      </div>
+      <div class="bi-dashboard-row">
+        <div class="bi-dashboard-cell"><div class="bi-dashboard-card">
+          <h3 th:text="${vi ? 'Cường độ tín hiệu theo doanh nghiệp' : 'Company signal intensity'}">Company signal intensity</h3>
+          <p class="note" th:text="${vi ? 'Số hoạt động doanh nghiệp đã xác minh; phản ánh độ phủ nguồn, không phải thứ hạng hiệu quả.' : 'Count of verified company activities; it reflects evidence coverage, not a performance ranking.'}">Method.</p>
+          <div class="bi-count-row" th:each="bar : ${competitorBars}">
+            <div class="bi-count-label" th:text="${bar.label(vi)}">Company</div>
+            <div class="bi-count-track-cell"><div class="bi-count-track"><span class="bi-count-fill" th:style="'width:' + ${bar.percent} + '%;background:' + ${bar.color}"></span></div></div>
+            <div class="bi-count-value" th:text="${bar.count}">0</div>
+          </div>
+          <p class="note" th:if="${competitorBars.isEmpty()}" th:text="${vi ? 'Chưa có hoạt động doanh nghiệp đủ điều kiện trong kỳ.' : 'No eligible company activity in this period.'}">No data.</p>
+        </div></div>
+        <div class="bi-dashboard-cell"><div class="bi-dashboard-card">
+          <h3 th:text="${vi ? 'Cấu trúc nguồn' : 'Evidence provenance'}">Evidence provenance</h3>
+          <p class="note" th:text="${vi ? 'Đếm nguồn duy nhất thực sự được trích trong nội dung hiển thị.' : 'Unique sources actually cited by the rendered findings.'}">Method.</p>
+          <div class="bi-count-row" th:each="bar : ${sourceBars}">
+            <div class="bi-count-label" th:text="${bar.label(vi)}">Source type</div>
+            <div class="bi-count-track-cell"><div class="bi-count-track"><span class="bi-count-fill" th:style="'width:' + ${bar.percent} + '%;background:' + ${bar.color}"></span></div></div>
+            <div class="bi-count-value" th:text="${bar.count}">0</div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">4</span></div>
+  </div>
+
   <!-- ============ MACRO ECONOMIC — narrative findings ============ -->
   <div th:case="'MACRO'" class="bi-frame">
     <div class="bi-header">
@@ -387,10 +472,11 @@
     </div>
     <div class="bi-body">
       <table class="bi-table">
-        <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Sự kiện' : 'Event'}">Event</th></tr></thead>
+        <thead><tr><th th:text="${vi ? 'Công ty' : 'Company'}">Company</th><th th:text="${vi ? 'Ngày bằng chứng' : 'Evidence date'}">Date</th><th th:text="${vi ? 'Sự kiện' : 'Event'}">Event</th></tr></thead>
         <tbody>
           <tr th:each="f : ${eventsTimelineFindings}">
             <td class="subject"><span th:text="${f.subjectKey() != null and !#strings.isEmpty(f.subjectKey()) ? f.subjectKey() : '—'}">Company</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></td>
+            <td style="width:120px;white-space:nowrap" th:text="${f.activityDateLabel(vi)}">Date</td>
             <td>
               <span th:text="${f.text(vi)}">Event text</span>
               <div th:if="${!f.citations.isEmpty()}">
@@ -404,6 +490,37 @@
       </table>
     </div>
     <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">7</span></div>
+  </div>
+
+  <!-- ============ OBSERVED COMPETITOR ACTIVITY CALENDAR ============ -->
+  <div th:case="'ACTIVITY_CALENDAR'" class="bi-frame">
+    <div class="bi-header">
+      <div class="bi-chip-cell"><span class="bi-chip"></span></div>
+      <div class="bi-text-cell">
+        <div class="bi-eyebrow" th:text="${vi ? 'QUÉT THỊ TRƯỜNG' : 'MARKET SCAN'}">MARKET SCAN</div>
+        <div class="bi-title" th:text="${vi ? 'Lịch hoạt động đối thủ đã quan sát' : 'Observed Competitor Activity Calendar'}">Competitor Activity Calendar</div>
+      </div>
+      <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
+    </div>
+    <div class="bi-body">
+      <table class="bi-calendar">
+        <thead><tr>
+          <th th:text="${vi ? 'Doanh nghiệp' : 'Company'}">Company</th>
+          <th th:each="month : ${activityMonths}" th:text="${month.label(vi)}">Month</th>
+          <th th:text="${vi ? 'Tổng' : 'Total'}">Total</th>
+        </tr></thead>
+        <tbody><tr th:each="row : ${activityRows}">
+          <td th:text="${row.subject}">Company</td>
+          <td th:each="month : ${activityMonths}">
+            <span th:if="${row.count(month.key) > 0}" class="bi-calendar-dot" th:text="${row.count(month.key)}">1</span>
+            <span th:unless="${row.count(month.key) > 0}" class="bi-calendar-empty">—</span>
+          </td>
+          <td style="font-weight:700;color:#C00000" th:text="${row.total}">0</td>
+        </tr></tbody>
+      </table>
+      <p style="margin-top:14px;font-size:9pt;color:#6B6B6B" th:text="${vi ? 'Mỗi ô là số hoạt động có claim ENTAILED và ngày cấu trúc. Hệ thống ưu tiên ngày sự kiện/hiệu lực; khi không có, dùng ngày xuất bản nguồn. Đây là lịch hoạt động đã quan sát, không phải lịch dự báo.' : 'Each cell counts ENTAILED company activities with an observed date. Event/effective dates take priority; otherwise the source publication date is used. This is an observed activity calendar, not a forecast.'}">Method.</p>
+    </div>
+    <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">8</span></div>
   </div>
 
   <!-- ============ AWARDS / MARKET SHARE — bar chart, or table fallback ============ -->
@@ -553,8 +670,8 @@
     <div class="bi-footer"><span class="bi-footer-left" th:text="${(homeCompany != null and !#strings.isEmpty(homeCompany) ? homeCompany + ' — ' : '') + (vi ? 'Tình báo Kinh doanh' : 'Business Intelligence') + (reportPeriod != null ? ' · ' + reportPeriod : '')}">footer</span><span class="bi-footer-right" th:text="${p.number}">12</span></div>
   </div>
 
-  <!-- ============ DEEP DIVE (lặp động, 1 trang / chủ đề Connector đề xuất) ============ -->
-  <div th:case="'DEEP_DIVE'" class="bi-frame" th:with="f=${deepDiveByKey.get(p.subjectKey)}">
+  <!-- ============ DEEP DIVE (1 dossier / subject, independently verified cards) ============ -->
+  <div th:case="'DEEP_DIVE'" class="bi-frame" th:with="rows=${deepDiveRows.get(p.subjectKey)}">
     <div class="bi-header">
       <div class="bi-chip-cell"><span class="bi-chip"></span></div>
       <div class="bi-text-cell">
@@ -564,12 +681,18 @@
       <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
     <div class="bi-body">
-      <div class="bi-finding-block">
-        <span th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span>
-        <div th:if="${!f.citations.isEmpty()}">
-          <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
-            <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
-          </a>
+      <p style="font-size:9.5pt;color:#6B6B6B;margin-top:0" th:text="${vi ? 'Mỗi thẻ dưới đây là một câu đã qua cổng kiểm định nội dung và kiểm chứng độc lập. Các thẻ được gom theo cùng chủ thể để người đọc thấy quan sát, hàm ý và giới hạn bằng chứng trong một câu chuyện.' : 'Each card below is a separately verified sentence. Cards are grouped by subject so the observation, management implication and evidence boundary can be read as one story.'}">Method.</p>
+      <div class="bi-card-row" th:each="row : ${rows}">
+        <div class="bi-card-cell" th:each="f : ${row}">
+          <div class="bi-deep-card">
+            <div class="bi-deep-role" th:text="${f.roleLabel(vi)}">VERIFIED FINDING</div>
+            <div class="bi-deep-text"><span th:text="${f.text(vi)}">Content</span><span class="bi-market-badge" th:classappend="${f.isVietnamMarket()} ? 'vn' : 'intl'" th:text="${f.marketLabel(vi)}">VN</span></div>
+            <div th:if="${!f.citations.isEmpty()}">
+              <a class="cite-pill" th:each="cit : ${f.citations}" th:href="${cit.url != null ? cit.url : '/claims'}" target="_blank">
+                <span th:text="${cit.label}">Source</span><span class="tier-dot" th:text="${cit.tierNote}">T1</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -587,7 +710,7 @@
       <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
     <div class="bi-body">
-      <p style="font-size:10pt;color:#6B6B6B" th:text="${vi ? 'Đây là suy luận phân tích từ các fact có trích dẫn. Nội dung đã được con người rà soát nhưng không được trình bày như một fact đã được verifier xác nhận.' : 'These are reasoned interpretations of cited facts. A human reviewed the analysis, but it is not presented as independently verified fact.'}">Method note.</p>
+      <p style="font-size:10pt;color:#6B6B6B" th:text="${vi ? 'Đây là suy luận phân tích từ các dữ kiện có trích dẫn. Nội dung đã được con người rà soát nhưng không được trình bày như một dữ kiện đã qua kiểm chứng độc lập.' : 'These are reasoned interpretations of cited facts. A human reviewed the analysis, but it is not presented as independently verified fact.'}">Method note.</p>
       <div class="bi-watch-note" th:each="f : ${reviewedAnalysisFindings}" style="border-left-color:#5344B5;background:#F1EFFF">
         <span class="bi-watch-label" style="color:#5344B5" th:text="${vi ? 'HÀM Ý PHÂN TÍCH' : 'ANALYTICAL IMPLICATION'}">ANALYTICAL IMPLICATION</span>
         <span th:text="${f.text(vi)}">Analysis</span>
@@ -613,7 +736,7 @@
       <div class="bi-wordmark-cell"><span class="bi-wordmark" th:if="${homeCompany != null and !#strings.isEmpty(homeCompany)}" th:text="${homeCompany}">Home company</span></div>
     </div>
     <div class="bi-body">
-      <p style="font-size:10pt;color:#6B6B6B" th:text="${vi ? 'Các mục dưới đây đã được con người chọn là đáng theo dõi nhưng verifier đánh giá evidence chưa đủ để khẳng định. Chúng không phải fact để dùng trực tiếp cho quyết định.' : 'A human selected these items as worth watching, but independent verification found insufficient evidence. They are not decision-grade facts.'}">Method note.</p>
+      <p style="font-size:10pt;color:#6B6B6B" th:text="${vi ? 'Các mục dưới đây đã được con người chọn là đáng theo dõi, nhưng bước kiểm chứng độc lập đánh giá bằng chứng chưa đủ để khẳng định. Chúng không phải dữ kiện để dùng trực tiếp cho quyết định.' : 'A human selected these items as worth watching, but independent verification found insufficient evidence. They are not decision-grade facts.'}">Method note.</p>
       <div class="bi-watch-note" th:each="f : ${watchFindings}">
         <span class="bi-watch-label" th:text="${vi ? 'TÍN HIỆU — CHƯA ĐỦ CĂN CỨ' : 'SIGNAL — NOT YET DECISION-GRADE'}">SIGNAL</span>
         <span th:text="${f.text(vi)}">Watch item</span>

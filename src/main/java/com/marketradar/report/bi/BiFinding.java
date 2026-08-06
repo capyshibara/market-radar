@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.marketradar.product.ProductMarketScope;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Một nhận định đã tổng hợp, gắn với đúng 1 trong 7 bucket của Business Intelligence Report.
@@ -17,9 +19,9 @@ import java.util.List;
  *                   so sánh; SCHEDULED_EVENT/COMPANY_EVENT: tên công ty/mốc) — null nếu bucket
  *                   không cần nhóm (MACRO_ECONOMIC, TECH_AI_SIGNAL dùng ngay 1 finding/thẻ)
  * @param textVi     nội dung nhận định, tiếng Việt
- * @param textEn     bản tiếng Anh — null khi nguồn gốc chưa có bản dịch (fallback về textVi khi
- *                   render bản EN, xem {@link #text(boolean)}); không bao giờ tự dịch máy ở tầng
- *                   trình bày, chỉ dùng bản đã có sẵn từ nguồn dữ liệu (insight/LLM synthesis)
+ * @param textEn     bản tiếng Anh — null khi nguồn gốc chưa có bản dịch; tầng trình bày sẽ công
+ *                   khai việc thiếu bản dịch thay vì trộn textVi vào bản EN. Không bao giờ tự dịch
+ *                   máy ở tầng trình bày, chỉ dùng bản đã có từ nguồn dữ liệu/LLM synthesis.
  * @param highlight  true nếu đủ quan trọng để lên trang Tóm tắt điều hành (EXEC)
  * @param severity      HIGH/MEDIUM/LOW — CHỈ áp dụng cho TECH_AI_SIGNAL: có giá trị nghĩa là đây
  *                      là 1 dòng AI Threat Map (đánh giá rủi ro theo công ty, trang riêng); null
@@ -38,9 +40,8 @@ import java.util.List;
  *                   dụng cho SCHEDULED_EVENT khi nguồn nêu rõ mốc thời gian cụ thể; null nghĩa là
  *                   chưa biết mốc chính xác (finding vẫn hợp lệ, chỉ không lên được trang "Lịch sự
  *                   kiện dự kiến" dạng bảng — vẫn hiện ở trang danh sách sự kiện chung). Hiện chỉ
- *                   Deep Research điền field này (LLM tổng hợp tức thời, xem DeepResearchService);
- *                   report định kỳ đọc claim đã duyệt từ trước, chưa có field ngày cấu trúc ở tầng
- *                   Interpreter/InterpretedClaim — để dành cho một đợt sau nếu cần.
+ *                   Deep Research có thể điền trực tiếp; report định kỳ khôi phục ngày từ những
+ *                   EvidenceFact đã được claim trích dẫn và chỉ giữ ngày nằm trong cửa sổ báo cáo.
  * @param highlightCardLabel nhãn thẻ Router tự đặt (PRODUCT_LAUNCH, BANCASSURANCE, PARENT_GROUP...)
  *                   — CHỈ áp dụng cho COMPANY_EVENT, null cho mọi bucket khác (xem
  *                   EvidenceFact#highlightCardLabel — Router gán, nguồn gốc từ file mẫu CFO).
@@ -64,6 +65,8 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
                         String evidenceGrade) {
 
     public BiFinding {
+        textVi = cleanDisplayText(textVi);
+        textEn = cleanDisplayText(textEn);
         citations = citations == null ? List.of() : List.copyOf(citations);
         if (severity != null) {
             String normalized = severity.strip().toUpperCase(java.util.Locale.ROOT);
@@ -121,11 +124,83 @@ public record BiFinding(String bucket, String subjectKey, String textVi, String 
                 null, null, null, null, null, null, null, "DECISION_GRADE");
     }
 
-    /** The finding text in the requested language — falls back to Vietnamese rather than
-     *  rendering blank when no English variant exists yet. */
+    /** The finding text in the requested language. A missing translation is disclosed instead
+     *  of silently leaking a full Vietnamese sentence into the English edition (or vice versa). */
     public String text(boolean vi) {
-        if (vi) return textVi;
-        return textEn != null && !textEn.isBlank() ? textEn : textVi;
+        String selected;
+        if (vi) {
+            selected = textVi != null && !textVi.isBlank()
+                    ? textVi : "Chưa có bản diễn đạt tiếng Việt cho nhận định đã xác minh này.";
+        } else {
+            selected = textEn != null && !textEn.isBlank()
+                    ? textEn : "An English rendering is not yet available for this verified finding.";
+        }
+        return localizeEditorialTerms(selected, vi);
+    }
+
+    /** Reader-facing role inferred only from the wording already verified by the two gates.
+     *  This is presentation metadata, never a new factual claim. */
+    public String roleLabel(boolean vi) {
+        String value = text(vi).strip().toLowerCase(Locale.ROOT);
+        if (value.startsWith("implication") || value.startsWith("hệ quả")
+                || value.startsWith("hàm ý")) {
+            return vi ? "HÀM Ý QUẢN TRỊ" : "MANAGEMENT IMPLICATION";
+        }
+        if (value.startsWith("caveat") || value.startsWith("lưu ý")
+                || value.startsWith("giới hạn")) {
+            return vi ? "GIỚI HẠN BẰNG CHỨNG" : "EVIDENCE BOUNDARY";
+        }
+        if (value.startsWith("pattern") || value.startsWith("mô hình")
+                || value.startsWith("subject observation") || value.startsWith("phân tích chủ đề")) {
+            return vi ? "MÔ HÌNH / QUAN SÁT" : "PATTERN / OBSERVATION";
+        }
+        return vi ? "NHẬN ĐỊNH ĐÃ XÁC MINH" : "VERIFIED FINDING";
+    }
+
+    /** Exact structured event date when available. The report never invents a calendar date. */
+    public String activityDateLabel(boolean vi) {
+        if (eventDateRangeStart == null) return vi ? "Chưa có ngày cấu trúc" : "No structured date";
+        DateTimeFormatter one = DateTimeFormatter.ofPattern(vi ? "dd/MM/yyyy" : "dd MMM yyyy",
+                vi ? Locale.forLanguageTag("vi") : Locale.ENGLISH);
+        if (eventDateRangeEnd == null || eventDateRangeEnd.equals(eventDateRangeStart)) {
+            return eventDateRangeStart.format(one);
+        }
+        return eventDateRangeStart.format(one) + " – " + eventDateRangeEnd.format(one);
+    }
+
+    private static String cleanDisplayText(String value) {
+        if (value == null) return null;
+        String cleaned = value.strip()
+                // PDF fonts/renderers do not map non-breaking and figure dashes reliably;
+                // normalize every Unicode dash variant to the portable ASCII hyphen.
+                .replaceAll("[\\u2010-\\u2015\\u2212]", "-")
+                // Gate-safe storage used '#' for several dash variants. Restore a normal ASCII
+                // hyphen only when it sits inside a token (year#on#year, NĐ#CP, digital#first).
+                .replaceAll("(?<=[\\p{L}\\p{N}])#(?=[\\p{L}\\p{N}])", "-")
+                // These are prompt scaffolds, not intelligence. Keep the actual sentence and
+                // remove only exact, known suffixes that leaked from older Analyst responses.
+                .replaceAll("(?iu)\\s*;?\\s*\\(Pattern:\\s*two\\s*facts\\)\\s*", " ")
+                .replaceAll("(?iu)\\s*;?\\s*\\(Observation\\s*→\\s*Implication\\s*→\\s*Caveat\\)\\s*", " ")
+                .replaceAll("\\s+([,.;:])", "$1")
+                .replaceAll("[ \\t]{2,}", " ")
+                .strip();
+        return cleaned;
+    }
+
+    /** Older Analyst editions occasionally retained English workflow labels in otherwise
+     * Vietnamese prose. Localize those presentation terms deterministically at render time;
+     * this changes no entity, number, date, attribution or substantive claim. */
+    private static String localizeEditorialTerms(String value, boolean vi) {
+        if (!vi || value == null || value.isBlank()) return value;
+        return value
+                .replaceFirst("(?iu)^Implication(?: for management)?\\s*:\\s*", "Hàm ý quản trị: ")
+                .replaceFirst("(?iu)^Caveat\\s*:\\s*", "Giới hạn bằng chứng: ")
+                .replaceFirst("(?iu)^Pattern\\s*:\\s*", "Mẫu hình: ")
+                .replaceFirst("(?iu)^Subject observation\\s*:\\s*", "Quan sát chủ đề: ")
+                .replaceAll("(?iu)\\bfacts?\\b", "dữ kiện")
+                .replaceAll("(?iu)\\bevidence\\b", "bằng chứng")
+                .replaceAll("(?iu)\\bverifier\\b", "bộ kiểm chứng")
+                .replaceAll("(?iu)\\bgates?\\b", "cổng kiểm định");
     }
 
     // 2026-08-03: @JsonIgnore BẮT BUỘC — Jackson tự coi mọi isXxx() là 1 thuộc tính JSON

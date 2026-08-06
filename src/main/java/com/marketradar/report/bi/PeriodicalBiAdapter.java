@@ -168,7 +168,7 @@ public class PeriodicalBiAdapter {
             boolean reportLevel = claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY
                     || claim.getSlot() == InterpretedClaim.Slot.NARRATIVE
                     || claim.getSlot() == InterpretedClaim.Slot.DEEP_DIVE;
-            RoutedLabels routed = resolveRouting(claim, citedFacts, reportLevel);
+            RoutedLabels routed = resolveRouting(claim, citedFacts, reportLevel, windowStart, windowEnd);
             // "company" KHÔNG được truyền = subject (tên đối thủ ĐÃ CHUẨN HOÁ theo registry, vd
             // "Prudential Việt Nam" cho mọi claim nhắc "Prudential"): làm vậy sẽ khiến MỌI claim
             // về một đối thủ đã đăng ký bị gắn "Việt Nam" bất kể bằng chứng thực nói về công ty
@@ -431,12 +431,16 @@ public class PeriodicalBiAdapter {
                                 LocalDate eventDateRangeStart, LocalDate eventDateRangeEnd,
                                 boolean highlight) {}
 
-    private RoutedLabels resolveRouting(InterpretedClaim claim, List<EvidenceFact> citedFacts, boolean reportLevel) {
+    private RoutedLabels resolveRouting(InterpretedClaim claim, List<EvidenceFact> citedFacts,
+                                        boolean reportLevel, LocalDate windowStart, LocalDate windowEnd) {
         // DEEP_DIVE tự khai báo bucket của chính nó (DeepDiveSynthesis đặt claim.biBucket=
         // DEEP_DIVE khi lưu) — KHÔNG được để rơi về bucket gốc của từng fact nó trích (1 bài
         // Deep Dive cố tình trích fact từ NHIỀU bucket khác nhau, xem Connector#DeepDiveCandidate).
         if (claim.getSlot() == InterpretedClaim.Slot.DEEP_DIVE) {
-            return new RoutedLabels(BiFinding.DEEP_DIVE, null, null, null, null, null, null, null, null, false);
+            return new RoutedLabels(BiFinding.DEEP_DIVE, deepDiveSubject(claim, citedFacts),
+                    null, null, null, null, null,
+                    activityStart(citedFacts, windowStart, windowEnd),
+                    activityEnd(citedFacts, windowStart, windowEnd), false);
         }
         List<EvidenceFact> routedFacts = citedFacts.stream().filter(f -> f.getBiBucket() != null).toList();
         if (!routedFacts.isEmpty()) {
@@ -457,16 +461,15 @@ public class PeriodicalBiAdapter {
             String subject = entityNames.size() == 1 ? entityNames.iterator().next()
                     : (legacySubjects.size() == 1 ? legacySubjects.iterator().next() : null);
             boolean highlight = routedFacts.stream().anyMatch(EvidenceFact::isHighlight);
+            LocalDate eventStart = activityStart(routedFacts, windowStart, windowEnd);
+            LocalDate eventEnd = activityEnd(routedFacts, windowStart, windowEnd);
             return new RoutedLabels(bucket, subject,
                     buckets.size() == 1 ? representative.getHighlightCardLabel() : null,
                     buckets.size() == 1 ? representative.getSeverity() : null,
                     buckets.size() == 1 ? representative.getSeverityTrend() : null,
                     buckets.size() == 1 ? representative.getKpiLabel() : null,
                     buckets.size() == 1 ? representative.getKpiValue() : null,
-                    routedFacts.stream().map(EvidenceFact::getEventDateRangeStart)
-                            .filter(java.util.Objects::nonNull).min(LocalDate::compareTo).orElse(null),
-                    routedFacts.stream().map(EvidenceFact::getEventDateRangeEnd)
-                            .filter(java.util.Objects::nonNull).max(LocalDate::compareTo).orElse(null),
+                    eventStart, eventEnd,
                     highlight);
         }
         // claim.getBiBucket() null cho tuyệt đại đa số claim (tin công ty thông thường) —
@@ -476,6 +479,63 @@ public class PeriodicalBiAdapter {
                 : (reportLevel ? BiFinding.COMPETITIVE_THEME : BiFinding.COMPANY_EVENT);
         return new RoutedLabels(legacyBucket, null, null, null, null, null, null, null, null,
                 claim.getSlot() == InterpretedClaim.Slot.EXEC_SUMMARY);
+    }
+
+    /** Deep-dive claims are persisted as several separately verified sentences under one
+     * chapter code. Recover the shared subject from the cited, entity-resolved facts so the
+     * report can present one coherent dossier instead of one mostly-empty page per sentence. */
+    private static String deepDiveSubject(InterpretedClaim claim, List<EvidenceFact> citedFacts) {
+        Set<String> entities = citedFacts.stream().map(EvidenceFact::getSubjectEntityName)
+                .filter(java.util.Objects::nonNull).map(String::strip).filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (entities.size() == 1) return entities.iterator().next();
+        String chapter = claim.getChapterCode();
+        if (chapter == null || chapter.isBlank()) return "Cross-source synthesis";
+        String value = chapter.replaceFirst("(?i)^DD_", "").replace('_', ' ').strip();
+        if (value.isBlank()) return "Cross-source synthesis";
+        StringBuilder out = new StringBuilder();
+        for (String word : value.split("\\s+")) {
+            if (!out.isEmpty()) out.append(' ');
+            out.append(Character.toUpperCase(word.charAt(0)))
+                    .append(word.substring(1).toLowerCase(java.util.Locale.ROOT));
+        }
+        return out.toString();
+    }
+
+    /** A calendar cell uses the most specific structured date available. Only when extraction
+     * found no event/effective date do we fall back to the source publication date, which is
+     * still an observed timestamp (never a predicted press-release date). */
+    private static LocalDate activityStart(List<EvidenceFact> routedFacts,
+                                           LocalDate windowStart, LocalDate windowEnd) {
+        return routedFacts.stream().map(f -> activityStart(f, windowStart, windowEnd))
+                .filter(java.util.Objects::nonNull).min(LocalDate::compareTo).orElse(null);
+    }
+
+    private static LocalDate activityEnd(List<EvidenceFact> routedFacts,
+                                         LocalDate windowStart, LocalDate windowEnd) {
+        return routedFacts.stream().map(f -> first(f.getEventDateRangeEnd(),
+                        first(f.getExpiryDate(), activityStart(f, windowStart, windowEnd))))
+                .filter(date -> inDateWindow(date, windowStart, windowEnd))
+                .filter(java.util.Objects::nonNull).max(LocalDate::compareTo).orElse(null);
+    }
+
+    private static LocalDate activityStart(EvidenceFact fact,
+                                           LocalDate windowStart, LocalDate windowEnd) {
+        for (LocalDate structured : Arrays.asList(
+                fact.getEventDateRangeStart(), fact.getEventDate(), fact.getOccurredDate(),
+                fact.getEffectiveDate(), fact.getForecastHorizon()).stream()
+                .filter(java.util.Objects::nonNull).toList()) {
+            if (inDateWindow(structured, windowStart, windowEnd)) return structured;
+        }
+        RawDoc doc = fact.getRawDoc();
+        LocalDate published = doc == null || doc.getPublishedAt() == null ? null
+                : doc.getPublishedAt().atZone(REPORT_ZONE).toLocalDate();
+        return inDateWindow(published, windowStart, windowEnd) ? published : null;
+    }
+
+    private static boolean inDateWindow(LocalDate date, LocalDate start, LocalDate end) {
+        if (date == null) return false;
+        return (start == null || !date.isBefore(start)) && (end == null || !date.isAfter(end));
     }
 
     /** Trích dẫn của claim = các fact nó cite (Invariant #1: luôn có factCodes khi L1 PASS);
